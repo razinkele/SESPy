@@ -1,0 +1,30 @@
+[project]
+name = "sespy"
+version = "0.0.1"
+description = "Proof-of-concept port of the MarineSABRES SES Toolbox to Shiny for Python."
+requires-python = ">=3.11"
+dependencies = [
+    "shiny>=1.5",
+    "networkx>=3.0",
+    "htmltools>=0.5",
+    "pandas>=2.0",
+    "pyvis>=0.3",
+]
+
+[project.optional-dependencies]
+prod = ["python-igraph>=0.11"]
+test = ["pytest>=8", "pytest-playwright>=0.5"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["sespy*"]
+
+[tool.setuptools.package-data]
+sespy = ["*.json"]

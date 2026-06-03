@@ -1,0 +1,58 @@
+{
+  "metadata": {
+    "name": "Coastal Tourism SES",
+    "description": "Mediterranean-style coastal tourism system: visitor demand drives water-based activities, with knock-on pressures on coastal habitats and the local economy.",
+    "da_site": "Tuscan Archipelago",
+    "regional_sea": "Western Mediterranean Sea",
+    "ecosystem_type": "Coastal",
+    "focal_issue": "Pressure on coastal habitats from increasing tourism activity and the trade-offs between economic development and environmental protection.",
+    "definition_statement": "A multi-stakeholder analysis of how seasonal tourism flows interact with marine and coastal ecosystems on the Tuscan Archipelago, scoped to a five-year planning horizon.",
+    "temporal_scale": "Yearly",
+    "spatial_scale": "Local",
+    "system_in_focus": "Coastal tourism economy and adjacent marine and intertidal habitats.",
+    "schema_version": 2
+  },
+  "isa_data": {
+    "elements": [
+      {"id": "D001", "label": "Tourism demand",                  "type": "Drivers",                          "confidence": 5},
+      {"id": "D002", "label": "Seafood demand",                   "type": "Drivers",                          "confidence": 4},
+      {"id": "A001", "label": "Recreational boating",             "type": "Activities",                       "confidence": 5},
+      {"id": "A002", "label": "Small-scale fishing",              "type": "Activities",                       "confidence": 5},
+      {"id": "A003", "label": "Aquaculture",                      "type": "Activities",                       "confidence": 4},
+      {"id": "P001", "label": "Anchor damage",                    "type": "Pressures",                        "confidence": 4},
+      {"id": "P002", "label": "Bycatch",                          "type": "Pressures",                        "confidence": 5},
+      {"id": "P003", "label": "Nutrient enrichment",              "type": "Pressures",                        "confidence": 3},
+      {"id": "MPF1","label": "Posidonia meadows",                 "type": "Marine Processes & Functioning",   "confidence": 5},
+      {"id": "MPF2","label": "Pelagic fish stocks",               "type": "Marine Processes & Functioning",   "confidence": 5},
+      {"id": "ES01","label": "Coastal protection",                "type": "Ecosystem Services",               "confidence": 4},
+      {"id": "ES02","label": "Food provisioning",                 "type": "Ecosystem Services",               "confidence": 5},
+      {"id": "ES03","label": "Recreational value",                "type": "Ecosystem Services",               "confidence": 4},
+      {"id": "GB01","label": "Tourism revenue",                   "type": "Goods & Benefits",                 "confidence": 5},
+      {"id": "GB02","label": "Fisheries income",                  "type": "Goods & Benefits",                 "confidence": 5},
+      {"id": "R001","label": "MPA enforcement",                   "type": "Responses",                        "confidence": 4},
+      {"id": "R002","label": "Mooring buoy program",              "type": "Responses",                        "confidence": 4}
+    ],
+    "connections": [
+      {"source": "D001", "target": "A001", "polarity": "+", "strength": "strong"},
+      {"source": "D002", "target": "A002", "polarity": "+", "strength": "strong"},
+      {"source": "D002", "target": "A003", "polarity": "+", "strength": "medium"},
+      {"source": "A001", "target": "P001", "polarity": "+", "strength": "medium"},
+      {"source": "A002", "target": "P002", "polarity": "+", "strength": "strong"},
+      {"source": "A003", "target": "P003", "polarity": "+", "strength": "medium"},
+      {"source": "P001", "target": "MPF1", "polarity": "-", "strength": "strong"},
+      {"source": "P002", "target": "MPF2", "polarity": "-", "strength": "strong"},
+      {"source": "P003", "target": "MPF1", "polarity": "-", "strength": "medium"},
+      {"source": "MPF1","target": "ES01", "polarity": "+", "strength": "strong"},
+      {"source": "MPF1","target": "ES03", "polarity": "+", "strength": "medium"},
+      {"source": "MPF2","target": "ES02", "polarity": "+", "strength": "strong"},
+      {"source": "ES01","target": "GB01", "polarity": "+", "strength": "medium"},
+      {"source": "ES02","target": "GB02", "polarity": "+", "strength": "strong"},
+      {"source": "ES03","target": "GB01", "polarity": "+", "strength": "strong"},
+      {"source": "GB01","target": "D001", "polarity": "+", "strength": "medium"},
+      {"source": "GB02","target": "D002", "polarity": "+", "strength": "medium"},
+      {"source": "R001","target": "P002", "polarity": "-", "strength": "strong"},
+      {"source": "R002","target": "P001", "polarity": "-", "strength": "strong"},
+      {"source": "GB01","target": "R002", "polarity": "+", "strength": "weak"}
+    ]
+  }
+}

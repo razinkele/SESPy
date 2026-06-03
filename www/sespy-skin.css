@@ -1,0 +1,776 @@
+/* =================================================================
+   sespy-skin.css
+   Visual port of MarineSABRES SES Toolbox's "Deep Ocean Scientific" theme
+   Tokens lifted verbatim from the R app's bs4dash-custom.css; selectors
+   re-authored to target bslib's DOM (.bslib-sidebar-layout, .card, etc.)
+   instead of bs4Dash's (.main-sidebar, .content-wrapper, etc.).
+   ================================================================= */
+
+/* =================================================================
+   GOOGLE FONTS — DM Sans (display) + Source Serif 4 (body) + JetBrains Mono
+   Same set as the R app for typographic continuity.
+   ================================================================= */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* =================================================================
+   DESIGN TOKENS — verbatim from bs4dash-custom.css :root block
+   Do not edit values here; if the R app rebrands, copy fresh from there.
+   ================================================================= */
+:root {
+  --ocean-abyss: #0a1628;
+  --ocean-deep: #0f2744;
+  --ocean-mid: #1a3a5c;
+  --ocean-shallow: #2d5a7b;
+  --ocean-surface: #4a90b8;
+
+  --bio-cyan: #00d4aa;
+  --bio-blue: #00b4d8;
+  --bio-teal: #48cae4;
+  --bio-glow: rgba(0, 212, 170, 0.15);
+
+  --coral-bright: #ff6b6b;
+  --coral-soft: #ffa07a;
+  --sand-warm: #f4e4c1;
+  --kelp-green: #52b788;
+
+  --foam-white: #f8fbfd;
+  --mist-light: #e8f1f8;
+  --salt-gray: #7a8fa3;
+  --stone-gray: #506a80;
+  --slate-dark: #3d5a73;
+
+  --marine-primary: var(--ocean-surface);
+  --marine-secondary: var(--slate-dark);
+  --marine-success: var(--kelp-green);
+  --marine-info: var(--bio-teal);
+  --marine-warning: var(--coral-soft);
+  --marine-danger: var(--coral-bright);
+
+  --font-display: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+
+  --shadow-subtle: 0 1px 3px rgba(10, 22, 40, 0.08);
+  --shadow-soft: 0 4px 12px rgba(10, 22, 40, 0.1);
+  --shadow-medium: 0 8px 24px rgba(10, 22, 40, 0.12);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* =================================================================
+   BASE TYPOGRAPHY & BODY
+   ================================================================= */
+body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--ocean-abyss);
+  background:
+    linear-gradient(180deg, var(--foam-white) 0%, var(--mist-light) 100%);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ocean-deep);
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+h1, .h1 { font-size: 2rem; font-weight: 700; }
+h2, .h2 { font-size: 1.625rem; }
+h3, .h3 { font-size: 1.375rem; }
+h4, .h4 { font-size: 1.125rem; }
+h5, .h5 { font-size: 1rem; }
+h6, .h6 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--salt-gray);
+}
+
+label, .form-label, .control-label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--slate-dark);
+  letter-spacing: 0.01em;
+}
+
+/* =================================================================
+   CRITICAL GUARDS
+   These existed in cld.css; preserved here so the shell can be added
+   without breaking the CLD canvas in the interim.
+   ================================================================= */
+
+/* (1) html-fill-container/contents collapse — see cld.css note */
+.pyvis-network-output {
+  display: block !important;
+}
+
+/* (2) Transform on any vis-network ancestor breaks vis.js tooltip
+       positioning. The R app's bs4dash-custom.css:452-455 documents this
+       trap. We disarm it on cards that explicitly host a network. */
+.sespy-card-canvas,
+.sespy-card-canvas:hover,
+.card:has(.pyvis-network-output) {
+  transform: none !important;
+}
+
+/* (3) Strip pyvis container's own border + bg so the outer card is the
+       single visible frame. */
+.pyvis-network-output .pyvis-container {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  min-height: 400px;
+}
+.pyvis-network-output .pyvis-network-canvas {
+  border: none !important;
+}
+
+/* =================================================================
+   TOPBAR — populated with header_actions (currently the language
+   switcher). The burger functionality moved to bslib's built-in
+   outer-sidebar toggle, hijacked via JS in dashboard.py.
+   ================================================================= */
+.sespy-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-md);
+  padding: 0 0 var(--space-sm) 0;
+}
+.sespy-language-switcher {
+  display: inline-flex;
+  align-items: center;
+}
+.sespy-language-switcher .form-select {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  background: #ffffff;
+  border-color: rgba(74, 144, 184, 0.3);
+  color: var(--ocean-deep);
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.sespy-language-switcher .form-select:focus {
+  border-color: var(--ocean-surface);
+  box-shadow: 0 0 0 2px rgba(74, 144, 184, 0.18);
+}
+
+/* =================================================================
+   SIDEBAR-MINI MODE — body.sespy-sidebar-mini collapses the left nav to a
+   ~64px icon-only strip, matching bs4Dash's `minified=TRUE` look.
+   The inner module-control sidebar stays under bslib's own toggle.
+   ================================================================= */
+
+/* The outer page sidebar layout is the .bslib-sidebar-layout that is NOT
+   inside a .sespy-card. bslib's resize observer inlines literal pixel
+   widths into `grid-template-columns`; CSS variable changes alone don't
+   reflow because the inline style wins. Override the grid template
+   directly with !important. */
+body.sespy-sidebar-mini > div > .bslib-sidebar-layout,
+body.sespy-sidebar-mini .bslib-page-main > .bslib-sidebar-layout {
+  --_sidebar-width: 64px !important;
+  grid-template-columns: 64px minmax(0, 1fr) !important;
+  transition: grid-template-columns var(--transition-smooth);
+}
+
+body.sespy-sidebar-mini > div > .bslib-sidebar-layout > .sidebar,
+body.sespy-sidebar-mini .bslib-page-main > .bslib-sidebar-layout > .sidebar {
+  width: 64px !important;
+  min-width: 64px !important;
+  max-width: 64px !important;
+  overflow: hidden;
+  transition: width var(--transition-smooth);
+}
+
+/* In mini mode: hide labels, brand title, quick-actions content; keep
+   icons centred */
+body.sespy-sidebar-mini .sespy-brand {
+  justify-content: center;
+  padding-left: var(--space-xs);
+  padding-right: var(--space-xs);
+}
+body.sespy-sidebar-mini .sespy-brand-title,
+body.sespy-sidebar-mini .sespy-nav-btn > span:not(.sespy-nav-icon),
+body.sespy-sidebar-mini .sespy-quick-actions h6,
+body.sespy-sidebar-mini .sespy-quick-actions .btn-text,
+body.sespy-sidebar-mini .cld-stats-sidebar {
+  display: none !important;
+}
+
+/* Mini-mode nav buttons: centred icon, no left-edge accent (looks
+   disconnected when the column is only 64px wide). The active state
+   becomes a centred pill with bio-cyan background instead. */
+body.sespy-sidebar-mini .sespy-nav-btn {
+  padding: 0.5rem 0;
+  justify-content: center;
+  border-left-color: transparent !important;
+  border-radius: var(--radius-md);
+  margin: 2px 8px;
+  width: calc(100% - 16px);
+}
+body.sespy-sidebar-mini .sespy-nav-btn.active {
+  background: linear-gradient(135deg,
+                              rgba(0, 212, 170, 0.18) 0%,
+                              rgba(0, 180, 216, 0.18) 100%);
+  color: var(--bio-cyan) !important;
+  border-left-color: transparent !important;
+  box-shadow: 0 0 0 1px rgba(0, 212, 170, 0.35) inset;
+}
+body.sespy-sidebar-mini .sespy-nav-btn .sespy-nav-icon {
+  font-size: 1.15rem;
+  margin: 0 auto;
+}
+body.sespy-sidebar-mini .sespy-quick-actions .btn {
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
+/* =================================================================
+   INNER MODULE-CONTROL SIDEBAR TOGGLE — bslib ships its own collapse
+   button containing a `<`/`>` chevron SVG. We hide the chevron and
+   render a Font Awesome hamburger (`fa-bars`) via ::before so the
+   inner toggle reads as a sibling of the outer burger.
+   ================================================================= */
+.bslib-sidebar-layout .collapse-toggle {
+  background: var(--mist-light) !important;
+  border: 1px solid rgba(74, 144, 184, 0.2) !important;
+  color: var(--ocean-shallow) !important;
+  border-radius: var(--radius-sm) !important;
+  width: 32px;
+  height: 32px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.bslib-sidebar-layout .collapse-toggle:hover {
+  background: var(--ocean-surface) !important;
+  color: #fff !important;
+  border-color: var(--ocean-shallow) !important;
+}
+
+/* Hide bslib's built-in chevron icon (an inline SVG). */
+.bslib-sidebar-layout .collapse-toggle > * {
+  visibility: hidden !important;
+  pointer-events: none;
+}
+
+/* Draw a hamburger using Font Awesome 6's bars glyph. Same character
+   we use on the outer burger button — affordance consistency. */
+.bslib-sidebar-layout .collapse-toggle::before {
+  content: "\f0c9";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 0.95rem;
+  line-height: 1;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  visibility: visible;
+}
+
+/* =================================================================
+   PAGE TITLE BAR — bslib renders the `title=` arg as `.bslib-page-title`
+   styled like a navbar-brand. Match the bs4Dash navbar gradient look.
+   ================================================================= */
+.navbar.navbar-default,
+.navbar.bslib-page-navbar,
+.navbar:has(.bslib-page-title) {
+  background: linear-gradient(135deg,
+                              var(--ocean-deep) 0%,
+                              var(--ocean-mid) 100%) !important;
+  border-bottom: 1px solid rgba(0, 180, 216, 0.2);
+  box-shadow: var(--shadow-soft);
+  padding: 0.5rem 1rem !important;
+}
+
+.bslib-page-title,
+.navbar-brand {
+  font-family: var(--font-display) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 1.05rem !important;
+}
+
+/* =================================================================
+   PAGE-SIDEBAR LAYOUT — bslib's DOM equivalent of bs4Dash's content area
+   bs4Dash:                  bslib:
+     .main-sidebar       →     .bslib-sidebar-layout > .sidebar
+     .content-wrapper    →     .bslib-sidebar-layout > .main
+     .main-header        →     n/a (we don't use one — empty header strips)
+   ================================================================= */
+.bslib-sidebar-layout {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.bslib-sidebar-layout > .main {
+  /* Mirrors the R .content-wrapper transform guard — defence in depth in
+     case any future bslib helper applies a transform here. */
+  transform: none !important;
+  background: transparent;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Outer card fills the main column. Combined with the flex-column above,
+   the card grows to whatever vertical space is available rather than
+   sitting inside a margin frame. */
+.bslib-sidebar-layout > .main > .tab-content,
+.bslib-sidebar-layout > .main > .tab-content > .tab-pane.active,
+.bslib-sidebar-layout > .main > .tab-content > .tab-pane.active > .card.sespy-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: 0;
+}
+.sespy-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.sespy-card > .card-body {
+  flex: 1 1 auto;
+  padding: 0;        /* the inner layout_sidebar provides its own padding */
+  min-height: 0;
+}
+
+/* =================================================================
+   SIDEBAR — Dark ocean rail with brand block on top, nav in middle,
+   quick actions on the bottom.
+   ================================================================= */
+.sespy-sidebar.bslib-sidebar-layout > .sidebar,
+.bslib-sidebar-layout > .sidebar.sespy-sidebar,
+.sespy-sidebar > .bslib-sidebar-layout-collapse-container,
+.sespy-sidebar {
+  /* The selector cascade above tolerates bslib applying its own scope */
+  background: linear-gradient(180deg,
+                              var(--ocean-abyss) 0%,
+                              var(--ocean-deep) 100%) !important;
+  color: var(--mist-light);
+  border-right: 1px solid rgba(0, 180, 216, 0.08);
+}
+
+/* Brand block at the top of the sidebar */
+.sespy-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-md);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin: calc(var(--space-lg) * -1) calc(var(--space-md) * -1) var(--space-md);
+}
+.sespy-brand img {
+  height: 32px;
+  width: auto;
+}
+.sespy-brand-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+/* =================================================================
+   NAV MENU — vertical icon+label buttons; active item gets primary fill
+   and a left-edge accent bar to mirror bs4Dash's active-item indicator.
+   ================================================================= */
+.sespy-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-lg);
+}
+.sespy-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--mist-light);
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast),
+              color var(--transition-fast),
+              border-left-color var(--transition-fast);
+}
+.sespy-nav-btn:hover {
+  background: rgba(74, 144, 184, 0.12);
+  color: #fff;
+}
+.sespy-nav-btn.active {
+  background: linear-gradient(90deg,
+                              rgba(74, 144, 184, 0.25) 0%,
+                              rgba(74, 144, 184, 0.05) 100%);
+  color: var(--bio-cyan);
+  border-left-color: var(--bio-cyan);
+}
+.sespy-nav-btn .sespy-nav-icon {
+  width: 1.25rem;
+  text-align: center;
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
+/* =================================================================
+   QUICK ACTIONS — outline buttons stacked at the bottom of the sidebar.
+   Stays empty (parameterized to None) until project_io lands.
+   ================================================================= */
+.sespy-autosave-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  margin-bottom: var(--space-sm);
+  background: rgba(0, 212, 170, 0.1);
+  border: 1px solid rgba(0, 212, 170, 0.25);
+  border-radius: var(--radius-sm);
+  color: var(--bio-cyan);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+.sespy-autosave-indicator .fa-cloud {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.sespy-quick-actions {
+  margin-top: auto;
+  padding-top: var(--space-md);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sespy-quick-actions h6 {
+  color: var(--salt-gray) !important;
+  margin-bottom: var(--space-sm);
+}
+.sespy-quick-actions .btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  margin-bottom: var(--space-xs);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--mist-light);
+}
+.sespy-quick-actions .btn:hover {
+  background: rgba(74, 144, 184, 0.18);
+  border-color: var(--ocean-surface);
+  color: #fff;
+}
+
+/* The Load Project button uses ui.input_file which renders an Input Group
+   (browse-button + filename-text-input). For a clean stack alongside the
+   other Quick Actions, hide the empty label, the filename display, and
+   the input-group wrapper styling — leave just the browse button. */
+.sespy-quick-actions .form-group {
+  margin-bottom: var(--space-xs);
+}
+.sespy-quick-actions .form-group > label.control-label,
+.sespy-quick-actions .form-group > label.control-label[for] {
+  display: none !important;
+}
+.sespy-quick-actions .input-group {
+  display: block;
+}
+.sespy-quick-actions .input-group .btn-file,
+.sespy-quick-actions .input-group label.btn {
+  width: 100%;
+  margin: 0;
+}
+.sespy-quick-actions .input-group > input[type="text"],
+.sespy-quick-actions .input-group > .form-control,
+.sespy-quick-actions .input-group .input-group-append,
+.sespy-quick-actions .input-group .input-group-prepend ~ .form-control,
+.sespy-quick-actions .progress {
+  display: none !important;
+}
+
+/* =================================================================
+   CARDS — the bslib output is the same .card class so we can target
+   it directly. Match the R app's "floating ocean panel" look.
+   ================================================================= */
+.card {
+  font-family: var(--font-body);
+  border: none;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  margin-bottom: var(--space-lg);
+  background: #ffffff;
+  overflow: hidden;
+  transition: box-shadow var(--transition-smooth);
+}
+/* No transform on hover — would break vis-network tooltips inside any
+   card containing a canvas. Box-shadow lift is enough. */
+.card:hover {
+  box-shadow: var(--shadow-medium);
+}
+
+.card-header {
+  font-family: var(--font-display);
+  background: linear-gradient(135deg,
+                              var(--ocean-mid) 0%,
+                              var(--ocean-shallow) 100%);
+  color: #fff;
+  border-bottom: none;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: var(--space-md) var(--space-lg);
+  letter-spacing: -0.01em;
+}
+
+/* =================================================================
+   WORKFLOW STEPPER — DAPSI flow indicator above the panels.
+   Mirrors the R app's "1 Get Started → 2 Create SES → 3 Visualize → ..."
+   bar at functions/workflow_stepper.R. Numbered circles, chevron
+   separators, primary fill on active, kelp-green on completed steps.
+   ================================================================= */
+.sespy-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: var(--space-sm) var(--space-lg);
+  margin-bottom: var(--space-md);
+  overflow-x: auto;
+  font-family: var(--font-display);
+}
+
+.sespy-stepper-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: color var(--transition-fast),
+              background var(--transition-fast),
+              border-color var(--transition-fast);
+}
+.sespy-stepper-item:hover {
+  background: var(--mist-light);
+  border-color: rgba(74, 144, 184, 0.25);
+}
+
+.sespy-stepper-item .num {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--mist-light);
+  color: var(--stone-gray);
+  font-weight: 600;
+  font-size: 0.85rem;
+  line-height: 1;
+  border: 1px solid rgba(74, 144, 184, 0.25);
+  flex-shrink: 0;
+}
+
+.sespy-stepper-item.future {
+  color: var(--salt-gray);
+}
+
+.sespy-stepper-item.active {
+  color: var(--ocean-deep);
+  font-weight: 600;
+}
+.sespy-stepper-item.active .num {
+  background: linear-gradient(135deg,
+                              var(--ocean-shallow) 0%,
+                              var(--ocean-surface) 100%);
+  color: #fff;
+  border-color: var(--ocean-shallow);
+  box-shadow: 0 0 0 4px rgba(74, 144, 184, 0.18);
+}
+
+.sespy-stepper-item.completed {
+  color: var(--kelp-green);
+}
+.sespy-stepper-item.completed .num {
+  background: var(--kelp-green);
+  color: #fff;
+  border-color: #2d8659;
+}
+
+.sespy-stepper-arrow {
+  color: var(--salt-gray);
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+/* =================================================================
+   FOOTER
+   ================================================================= */
+.sespy-footer {
+  text-align: center;
+  padding: var(--space-md) 0;
+  font-size: 0.875rem;
+  color: var(--salt-gray);
+  border-top: 1px solid rgba(74, 144, 184, 0.15);
+  margin-top: var(--space-xl);
+}
+.sespy-footer a {
+  color: var(--ocean-surface);
+  text-decoration: none;
+}
+.sespy-footer a:hover {
+  color: var(--bio-cyan);
+}
+
+/* =================================================================
+   INNER MODULE-CONTROL SIDEBAR — the layout_sidebar inside each module's
+   card holds Display/Layout/slider controls. Theme it with a light ocean
+   background and tighter typography so it reads as part of the palette
+   rather than an unstyled white panel.
+   ================================================================= */
+.sespy-card .bslib-sidebar-layout > .sidebar {
+  background: var(--mist-light) !important;
+  border-right: 1px solid rgba(74, 144, 184, 0.12);
+}
+.sespy-card .bslib-sidebar-layout > .sidebar h5 {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ocean-shallow);
+  margin: 0 0 var(--space-sm) 0;
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid rgba(74, 144, 184, 0.18);
+}
+.sespy-card .bslib-sidebar-layout > .sidebar hr {
+  margin: var(--space-md) 0;
+  border-color: rgba(74, 144, 184, 0.15);
+}
+.sespy-card .bslib-sidebar-layout > .sidebar label,
+.sespy-card .bslib-sidebar-layout > .sidebar .control-label {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--slate-dark);
+}
+
+/* Form inputs inside the inner sidebar — primary-color focus rings
+   matching the palette. */
+.sespy-card .bslib-sidebar-layout > .sidebar .form-control,
+.sespy-card .bslib-sidebar-layout > .sidebar .form-select {
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  border-color: rgba(74, 144, 184, 0.25);
+  background: #ffffff;
+}
+.sespy-card .bslib-sidebar-layout > .sidebar .form-control:focus,
+.sespy-card .bslib-sidebar-layout > .sidebar .form-select:focus {
+  border-color: var(--ocean-surface);
+  box-shadow: 0 0 0 2px rgba(74, 144, 184, 0.18);
+}
+
+/* Sliders — ionRangeSlider is what Shiny ships. Color the bar primary. */
+.sespy-card .bslib-sidebar-layout > .sidebar .irs--shiny .irs-bar {
+  background: linear-gradient(90deg,
+                              var(--ocean-shallow) 0%,
+                              var(--ocean-surface) 100%);
+  border-top-color: var(--ocean-shallow);
+  border-bottom-color: var(--ocean-shallow);
+}
+.sespy-card .bslib-sidebar-layout > .sidebar .irs--shiny .irs-handle > i:first-child {
+  background-color: var(--ocean-deep);
+}
+.sespy-card .bslib-sidebar-layout > .sidebar .irs--shiny .irs-from,
+.sespy-card .bslib-sidebar-layout > .sidebar .irs--shiny .irs-to,
+.sespy-card .bslib-sidebar-layout > .sidebar .irs--shiny .irs-single {
+  background-color: var(--ocean-deep);
+}
+
+/* Action buttons inside the inner sidebar (Fit to view, Detect loops, etc.) */
+.sespy-card .bslib-sidebar-layout > .sidebar .btn-primary {
+  background: linear-gradient(135deg,
+                              var(--ocean-shallow) 0%,
+                              var(--ocean-surface) 100%);
+  border-color: var(--ocean-shallow);
+}
+.sespy-card .bslib-sidebar-layout > .sidebar .btn-primary:hover {
+  background: linear-gradient(135deg,
+                              var(--ocean-mid) 0%,
+                              var(--ocean-shallow) 100%);
+  border-color: var(--ocean-mid);
+}
+.sespy-card .bslib-sidebar-layout > .sidebar .btn-secondary {
+  background: #ffffff;
+  border-color: rgba(74, 144, 184, 0.3);
+  color: var(--ocean-deep);
+}
+.sespy-card .bslib-sidebar-layout > .sidebar .btn-secondary:hover {
+  background: var(--mist-light);
+  border-color: var(--ocean-surface);
+  color: var(--ocean-deep);
+}
+
+/* Radio buttons + checkboxes — color-cue the selected state */
+.sespy-card .bslib-sidebar-layout > .sidebar input[type="radio"]:checked,
+.sespy-card .bslib-sidebar-layout > .sidebar input[type="checkbox"]:checked {
+  accent-color: var(--ocean-surface);
+}
+
+/* =================================================================
+   STATS IN SIDEBAR — slightly tweaked from cld.css to fit the dark theme
+   ================================================================= */
+.cld-stats-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cld-stats-sidebar .cld-stat {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--mist-light);
+  white-space: pre-line;
+}

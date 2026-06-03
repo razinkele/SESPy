@@ -1,0 +1,61 @@
+{
+  "metadata": {
+    "name": "Offshore Wind Farm SES",
+    "description": "Coastal social-ecological system around an offshore wind installation: energy demand drives construction, with downstream ecological + socioeconomic effects.",
+    "da_site": "Macaronesia",
+    "regional_sea": "North Sea",
+    "ecosystem_type": "Offshore",
+    "focal_issue": "Spatial conflict between offshore renewable-energy development and marine biodiversity in EU coastal waters.",
+    "definition_statement": "An analysis of how offshore wind farm siting decisions interact with seabird, cetacean, and benthic ecosystem services in the Macaronesia demonstration area.",
+    "temporal_scale": "Yearly",
+    "spatial_scale": "Regional",
+    "system_in_focus": "Offshore wind farms and adjacent marine ecosystems.",
+    "schema_version": 2
+  },
+  "isa_data": {
+    "elements": [
+      {"id": "D001", "label": "Climate-policy targets",          "type": "Drivers",                          "description": "EU 2030/2050 emission-reduction commitments driving renewable rollout.", "confidence": 5},
+      {"id": "D002", "label": "Energy security demand",           "type": "Drivers",                          "description": "Geopolitical pressure for domestic generation capacity.",                  "confidence": 4},
+      {"id": "A001", "label": "Wind farm construction",           "type": "Activities",                       "description": "Pile driving, cable laying, vessel traffic during build phase.",          "confidence": 5},
+      {"id": "A002", "label": "Wind farm operation",              "type": "Activities",                       "description": "Steady-state generation, periodic maintenance vessel visits.",            "confidence": 5},
+      {"id": "A003", "label": "Commercial fishing nearby",        "type": "Activities",                       "description": "Trawling and net-fishing in adjacent waters.",                            "confidence": 4},
+      {"id": "P001", "label": "Underwater noise",                 "type": "Pressures",                        "description": "Construction-phase pile driving impulses.",                                "confidence": 5},
+      {"id": "P002", "label": "Habitat disturbance",              "type": "Pressures",                        "description": "Seabed scour around foundations and cable trenches.",                     "confidence": 4},
+      {"id": "P003", "label": "Bird collision risk",              "type": "Pressures",                        "description": "Migratory and seabird routes intersecting rotor areas.",                  "confidence": 3},
+      {"id": "MPF1","label": "Benthic communities",               "type": "Marine Processes & Functioning",   "description": "Seabed-dwelling species, including those forming reefs on foundations.",  "confidence": 4},
+      {"id": "MPF2","label": "Pelagic fish stocks",               "type": "Marine Processes & Functioning",   "description": "Mid-water fish populations using the area as foraging ground.",            "confidence": 4},
+      {"id": "MPF3","label": "Marine mammal populations",         "type": "Marine Processes & Functioning",   "description": "Cetaceans sensitive to noise and shipping traffic.",                       "confidence": 4},
+      {"id": "ES01","label": "Renewable energy supply",           "type": "Ecosystem Services",               "description": "Provisioning service: low-carbon electricity.",                            "confidence": 5},
+      {"id": "ES02","label": "Wild fish provisioning",            "type": "Ecosystem Services",               "description": "Provisioning service: fish for commercial sale.",                          "confidence": 4},
+      {"id": "ES03","label": "Climate regulation",                "type": "Ecosystem Services",               "description": "Indirect via offsetting fossil-fuel generation.",                          "confidence": 5},
+      {"id": "GB01","label": "Energy revenue",                    "type": "Goods & Benefits",                 "description": "Operator income, grid-feed payments.",                                     "confidence": 5},
+      {"id": "GB02","label": "Fishery income",                    "type": "Goods & Benefits",                 "description": "Local fleet livelihoods, processing-sector jobs.",                         "confidence": 4},
+      {"id": "GB03","label": "Avoided emissions value",           "type": "Goods & Benefits",                 "description": "Carbon abatement valued against the social cost of carbon.",               "confidence": 4},
+      {"id": "R001","label": "Marine spatial planning",           "type": "Responses",                        "description": "Designated zones separating wind, fishing, conservation areas.",            "confidence": 5},
+      {"id": "R002","label": "Noise mitigation rules",            "type": "Responses",                        "description": "Bubble curtains, soft-start protocols during construction.",               "confidence": 4}
+    ],
+    "connections": [
+      {"source": "D001", "target": "A001", "polarity": "+", "strength": "strong",  "confidence": 5},
+      {"source": "D002", "target": "A001", "polarity": "+", "strength": "medium",  "confidence": 4},
+      {"source": "A001", "target": "A002", "polarity": "+", "strength": "strong",  "confidence": 5},
+      {"source": "A001", "target": "P001", "polarity": "+", "strength": "strong",  "confidence": 5},
+      {"source": "A001", "target": "P002", "polarity": "+", "strength": "strong",  "confidence": 5},
+      {"source": "A002", "target": "P003", "polarity": "+", "strength": "medium",  "confidence": 3},
+      {"source": "A003", "target": "P002", "polarity": "+", "strength": "medium",  "confidence": 4},
+      {"source": "P001", "target": "MPF3", "polarity": "-", "strength": "strong",  "confidence": 5},
+      {"source": "P002", "target": "MPF1", "polarity": "-", "strength": "medium",  "confidence": 4},
+      {"source": "P002", "target": "MPF2", "polarity": "-", "strength": "weak",    "confidence": 3},
+      {"source": "P003", "target": "MPF3", "polarity": "-", "strength": "weak",    "confidence": 3},
+      {"source": "MPF1","target": "MPF2", "polarity": "+", "strength": "medium",  "confidence": 3},
+      {"source": "MPF2","target": "ES02", "polarity": "+", "strength": "strong",  "confidence": 5},
+      {"source": "A002","target": "ES01", "polarity": "+", "strength": "strong",  "confidence": 5},
+      {"source": "ES01","target": "ES03", "polarity": "+", "strength": "medium",  "confidence": 4},
+      {"source": "ES01","target": "GB01", "polarity": "+", "strength": "strong",  "confidence": 5},
+      {"source": "ES02","target": "GB02", "polarity": "+", "strength": "strong",  "confidence": 5},
+      {"source": "ES03","target": "GB03", "polarity": "+", "strength": "medium",  "confidence": 4},
+      {"source": "GB03","target": "D001", "polarity": "+", "strength": "weak",    "confidence": 3},
+      {"source": "R001","target": "P002", "polarity": "-", "strength": "medium",  "confidence": 4},
+      {"source": "R002","target": "P001", "polarity": "-", "strength": "strong",  "confidence": 5}
+    ]
+  }
+}

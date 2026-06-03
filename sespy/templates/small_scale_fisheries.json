@@ -1,0 +1,61 @@
+{
+  "metadata": {
+    "name": "Small-scale Coastal Fisheries SES",
+    "description": "Artisanal coastal fishing community: seafood demand drives near-shore activity, with stock and habitat consequences plus local-economy feedbacks.",
+    "da_site": "Arctic Northeast Atlantic",
+    "regional_sea": "Western Mediterranean Sea",
+    "ecosystem_type": "Coastal",
+    "focal_issue": "Sustainability of small-scale coastal fisheries under climate-change and overfishing pressures.",
+    "definition_statement": "An exploration of how local fishing communities, fish stocks, and policy levers interact in the Arctic Northeast Atlantic demonstration area, scoped to the next decade.",
+    "temporal_scale": "Decadal",
+    "spatial_scale": "Local",
+    "system_in_focus": "Small-scale coastal fisheries, target species, and dependent livelihoods.",
+    "schema_version": 2
+  },
+  "isa_data": {
+    "elements": [
+      {"id": "D001", "label": "Domestic seafood demand",         "type": "Drivers",                          "confidence": 5},
+      {"id": "D002", "label": "Tourism-season demand spike",      "type": "Drivers",                          "confidence": 4},
+      {"id": "A001", "label": "Artisanal net fishing",            "type": "Activities",                       "confidence": 5},
+      {"id": "A002", "label": "Shellfish gathering",              "type": "Activities",                       "confidence": 4},
+      {"id": "A003", "label": "Recreational angling",             "type": "Activities",                       "confidence": 3},
+      {"id": "P001", "label": "Bycatch",                          "type": "Pressures",                        "confidence": 4},
+      {"id": "P002", "label": "Habitat disturbance",              "type": "Pressures",                        "confidence": 4},
+      {"id": "P003", "label": "Stock overfishing",                "type": "Pressures",                        "confidence": 4},
+      {"id": "MPF1","label": "Coastal fish stocks",               "type": "Marine Processes & Functioning",   "confidence": 5},
+      {"id": "MPF2","label": "Seagrass meadows",                  "type": "Marine Processes & Functioning",   "confidence": 4},
+      {"id": "MPF3","label": "Bivalve populations",               "type": "Marine Processes & Functioning",   "confidence": 3},
+      {"id": "ES01","label": "Food provisioning",                 "type": "Ecosystem Services",               "confidence": 5},
+      {"id": "ES02","label": "Cultural/recreational value",       "type": "Ecosystem Services",               "confidence": 4},
+      {"id": "GB01","label": "Fishery household income",          "type": "Goods & Benefits",                 "confidence": 5},
+      {"id": "GB02","label": "Restaurant/tourism revenue",        "type": "Goods & Benefits",                 "confidence": 4},
+      {"id": "R001","label": "Catch quotas",                      "type": "Responses",                        "confidence": 4},
+      {"id": "R002","label": "Marine protected area",             "type": "Responses",                        "confidence": 5},
+      {"id": "R003","label": "Gear restrictions",                 "type": "Responses",                        "confidence": 4}
+    ],
+    "connections": [
+      {"source": "D001", "target": "A001", "polarity": "+", "strength": "strong"},
+      {"source": "D001", "target": "A002", "polarity": "+", "strength": "medium"},
+      {"source": "D002", "target": "A001", "polarity": "+", "strength": "medium"},
+      {"source": "D002", "target": "A003", "polarity": "+", "strength": "strong"},
+      {"source": "A001", "target": "P001", "polarity": "+", "strength": "strong"},
+      {"source": "A001", "target": "P003", "polarity": "+", "strength": "strong"},
+      {"source": "A002", "target": "P002", "polarity": "+", "strength": "medium"},
+      {"source": "A003", "target": "P003", "polarity": "+", "strength": "weak"},
+      {"source": "P001", "target": "MPF1", "polarity": "-", "strength": "medium"},
+      {"source": "P002", "target": "MPF2", "polarity": "-", "strength": "strong"},
+      {"source": "P002", "target": "MPF3", "polarity": "-", "strength": "medium"},
+      {"source": "P003", "target": "MPF1", "polarity": "-", "strength": "strong"},
+      {"source": "MPF1", "target": "ES01", "polarity": "+", "strength": "strong"},
+      {"source": "MPF2", "target": "MPF1", "polarity": "+", "strength": "medium"},
+      {"source": "MPF3", "target": "ES01", "polarity": "+", "strength": "medium"},
+      {"source": "ES01", "target": "GB01", "polarity": "+", "strength": "strong"},
+      {"source": "ES02", "target": "GB02", "polarity": "+", "strength": "strong"},
+      {"source": "GB02", "target": "D002", "polarity": "+", "strength": "weak"},
+      {"source": "R001", "target": "P003", "polarity": "-", "strength": "strong"},
+      {"source": "R002", "target": "P002", "polarity": "-", "strength": "strong"},
+      {"source": "R002", "target": "P003", "polarity": "-", "strength": "medium"},
+      {"source": "R003", "target": "P001", "polarity": "-", "strength": "strong"}
+    ]
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "regional_seas": {
+    "baltic": {
+      "name": "Baltic Sea",
+      "ecosystem_types": ["Open coast", "Rocky coast (Schären)", "Archipelago", "Island", "Estuary", "Coastal lagoon", "Offshore waters"],
+      "common_issues": ["Eutrophication", "Overfishing", "Pollution", "Invasive species", "Climate change"],
+      "countries": ["Sweden", "Finland", "Denmark", "Germany", "Poland", "Lithuania", "Latvia", "Estonia", "Russia"],
+      "country_codes": ["SE", "FI", "DK", "DE", "PL", "LT", "LV", "EE", "RU"]
+    },
+    "mediterranean": {
+      "name": "Mediterranean Sea",
+      "ecosystem_types": ["Open coast", "Island", "Coastal lagoon", "Rocky shore", "Sandy beach", "Seagrass meadow", "Offshore waters"],
+      "common_issues": ["Overfishing", "Coastal development", "Tourism pressure", "Marine litter", "Invasive species", "Climate change"],
+      "countries": ["Spain", "France", "Italy", "Greece", "Croatia", "Slovenia", "Malta", "Cyprus", "Turkey", "Tunisia", "Algeria", "Morocco", "Libya", "Egypt", "Israel", "Lebanon", "Syria", "Montenegro", "Albania"],
+      "country_codes": ["ES", "FR", "IT", "GR", "HR", "SI", "MT", "CY", "TR", "TN", "DZ", "MA", "LY", "EG", "IL", "LB", "SY", "ME", "AL"]
+    },
+    "north_sea": {
+      "name": "North Sea",
+      "ecosystem_types": ["Open coast", "Estuary", "Tidal flat", "Offshore waters", "Rocky shore", "Sandy beach"],
+      "common_issues": ["Overfishing", "Oil and gas extraction", "Shipping", "Wind energy development", "Climate change", "Eutrophication"],
+      "countries": ["United Kingdom", "Netherlands", "Belgium", "Germany", "Denmark", "Norway", "Sweden", "France"],
+      "country_codes": ["GB", "NL", "BE", "DE", "DK", "NO", "SE", "FR"]
+    },
+    "irish_sea": {
+      "name": "Irish Sea",
+      "ecosystem_types": ["Open coast", "Estuary", "Coastal lagoon", "Rocky shore", "Sandy beach", "Offshore waters"],
+      "common_issues": ["Overfishing", "Coastal development", "Shipping", "Marine litter", "Eutrophication", "Climate change"],
+      "countries": ["Ireland", "United Kingdom"],
+      "country_codes": ["IE", "GB"]
+    },
+    "east_atlantic": {
+      "name": "East Atlantic",
+      "ecosystem_types": ["Open coast", "Continental shelf", "Offshore waters", "Rocky shore", "Sandy beach", "Estuary"],
+      "common_issues": ["Overfishing", "Climate change", "Ocean acidification", "Shipping", "Coastal erosion", "Marine litter"],
+      "countries": ["Portugal", "Spain", "France", "Ireland", "United Kingdom", "Norway", "Iceland", "Morocco", "Mauritania", "Senegal"],
+      "country_codes": ["PT", "ES", "FR", "IE", "GB", "NO", "IS", "MA", "MR", "SN"]
+    },
+    "black_sea": {
+      "name": "Black Sea",
+      "ecosystem_types": ["Open coast", "Delta", "Coastal lagoon", "Offshore waters", "Estuary"],
+      "common_issues": ["Eutrophication", "Overfishing", "Pollution", "Invasive species", "Coastal erosion"],
+      "countries": ["Bulgaria", "Romania", "Turkey", "Georgia", "Ukraine", "Russia"],
+      "country_codes": ["BG", "RO", "TR", "GE", "UA", "RU"]
+    },
+    "atlantic": {
+      "name": "Atlantic Ocean",
+      "ecosystem_types": ["Open ocean", "Island", "Estuary", "Continental shelf", "Coastal upwelling", "Open coast", "Offshore waters"],
+      "common_issues": ["Overfishing", "Climate change", "Ocean acidification", "Shipping", "Deep-sea mining"],
+      "countries": ["Portugal", "Spain", "France", "Ireland", "United Kingdom", "United States", "Canada", "Brazil", "Norway", "Iceland"],
+      "country_codes": ["PT", "ES", "FR", "IE", "GB", "US", "CA", "BR", "NO", "IS"]
+    },
+    "pacific": {
+      "name": "Pacific Ocean",
+      "ecosystem_types": ["Coral reef", "Island", "Atoll", "Open ocean", "Coastal waters", "Mangrove", "Offshore waters"],
+      "common_issues": ["Overfishing", "Coral bleaching", "Plastic pollution", "Climate change", "Illegal fishing"],
+      "countries": ["Australia", "New Zealand", "Japan", "Philippines", "Indonesia", "Fiji", "Papua New Guinea", "United States", "Chile", "China"],
+      "country_codes": ["AU", "NZ", "JP", "PH", "ID", "FJ", "PG", "US", "CL", "CN"]
+    },
+    "indian": {
+      "name": "Indian Ocean",
+      "ecosystem_types": ["Coral reef", "Island", "Mangrove", "Open coast", "Lagoon", "Offshore waters"],
+      "common_issues": ["Overfishing", "Coastal erosion", "Mangrove loss", "Climate change", "Illegal fishing"],
+      "countries": ["India", "Sri Lanka", "Maldives", "Kenya", "Tanzania", "Mozambique", "Madagascar", "Australia", "South Africa", "Oman"],
+      "country_codes": ["IN", "LK", "MV", "KE", "TZ", "MZ", "MG", "AU", "ZA", "OM"]
+    },
+    "caribbean": {
+      "name": "Caribbean Sea",
+      "ecosystem_types": ["Coral reef", "Island", "Mangrove", "Seagrass bed", "Sandy beach", "Open coast"],
+      "common_issues": ["Coral bleaching", "Overfishing", "Tourism pressure", "Hurricanes", "Sargassum blooms"],
+      "countries": ["Cuba", "Jamaica", "Dominican Republic", "Trinidad and Tobago", "Barbados", "Bahamas", "Mexico", "Colombia", "Venezuela", "Belize", "Honduras", "France (overseas)", "Netherlands (overseas)"],
+      "country_codes": ["CU", "JM", "DO", "TT", "BB", "BS", "MX", "CO", "VE", "BZ", "HN", "FR", "NL"]
+    },
+    "arctic": {
+      "name": "Arctic Ocean",
+      "ecosystem_types": ["Sea ice", "Island", "Open ocean", "Fjord", "Coastal waters", "Continental shelf"],
+      "common_issues": ["Climate change", "Sea ice loss", "Oil and gas exploration", "Shipping increase", "Arctic fisheries"],
+      "countries": ["Norway", "Russia", "Canada", "United States", "Denmark (Greenland)", "Iceland", "Sweden", "Finland"],
+      "country_codes": ["NO", "RU", "CA", "US", "DK", "IS", "SE", "FI"]
+    }
+  },
+  "eu_member_codes": ["SE", "FI", "DK", "DE", "PL", "LT", "LV", "EE", "ES", "FR", "IT", "GR", "HR", "SI", "MT", "CY", "NL", "BE", "PT", "IE", "BG", "RO"]
+}

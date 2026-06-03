@@ -1,0 +1,75 @@
+{
+  "connection_types": {
+    "drivers_activities": [
+      "fish", "food", "econom", "livelihood", "subsistence",
+      "commerc", "industr", "recreat", "tourism", "develop",
+      "demand", "need", "cultural", "spiritual"
+    ],
+    "activities_pressures": [
+      "fish", "extract", "harvest", "develop", "construct",
+      "pollut", "discharge", "emission", "waste", "noise",
+      "disturb", "remov", "introduc", "invasive"
+    ],
+    "pressures_states": [
+      "pollut", "nutrient", "contamin", "extract", "remov",
+      "habitat", "species", "abundance", "diversity", "structure",
+      "function", "ecosystem", "chemical", "physical", "biological"
+    ],
+    "states_impacts": [
+      "decline", "loss", "degrad", "change", "abundance",
+      "diversity", "habitat", "ecosystem", "service", "provision",
+      "regulat", "cultural", "support"
+    ],
+    "impacts_welfare": [
+      "food", "protein", "nutrition", "income", "livelihood",
+      "employ", "health", "wellbeing", "recreation", "cultural",
+      "spiritual", "aesthetic", "economic", "social"
+    ],
+    "responses_pressures": [
+      "regulat", "protect", "conserv", "restor", "manag",
+      "monitor", "enforc", "limit", "restrict", "ban",
+      "quota", "closure", "zone", "designation"
+    ],
+    "responses_drivers": [
+      "policy", "awareness", "education", "incentiv", "subsid",
+      "tax", "regulation", "enforcement", "behavior", "demand"
+    ],
+    "responses_activities": [
+      "limit", "restrict", "ban", "regulat", "control",
+      "manage", "permit", "license", "quota", "closure",
+      "zone"
+    ],
+    "welfare_drivers": [
+      "concern", "demand", "advocacy", "campaign", "lobby",
+      "policy", "legislation", "awareness"
+    ],
+    "welfare_responses": [
+      "concern", "awareness", "demand", "advocacy", "pressure",
+      "policy", "legislation", "management", "action",
+      "intervention"
+    ]
+  },
+  "polarity_signals": {
+    "negative_keywords": [
+      "declin", "degrad", "loss", "reduc", "damag", "destruct", "pollut",
+      "eutrophic", "overfish", "bycatch", "invasive", "extinct", "harm",
+      "contaminat", "erosion", "acidific", "hypox", "dead zone", "bleach",
+      "disease", "mortality", "collapse", "fragment", "depletion"
+    ],
+    "positive_keywords": [
+      "increas", "growth", "restor", "recover", "improv", "enhanc", "protect",
+      "conserv", "benefit", "health", "sustain", "resilient", "biodiver",
+      "abundance", "productiv", "regenerat", "rehabilit", "rebui"
+    ],
+    "mitigation_keywords": [
+      "ban", "prohibit", "restrict", "limit", "regulat", "control", "manag",
+      "reduce", "prevent", "mitigat", "protect", "enforce", "monitor",
+      "stop", "remov", "clean", "treat"
+    ],
+    "loss_keywords": [
+      "loss", "decline", "declin", "degrad", "reduc", "damag", "destruct",
+      "decreas", "diminish", "deplet", "erosion", "collapse", "extinct",
+      "mortality", "death", "disappear", "absent", "lack", "scarcity"
+    ]
+  }
+}

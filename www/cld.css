@@ -1,0 +1,111 @@
+/* cld.css — minimal port of www/custom.css selectors that the CLD module touches.
+   The full R stylesheet is ~35KB; this POC only includes what the proof needs. */
+
+.cld-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  padding: 16px;
+}
+
+.cld-controls {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  height: fit-content;
+}
+
+.cld-controls h5 {
+  font-weight: 600;
+  margin: 4px 0 10px;
+  color: #2c3e50;
+}
+
+.cld-controls hr {
+  margin: 16px 0;
+  border-top: 1px solid #eee;
+  border-bottom: none;
+}
+
+.cld-canvas-wrapper {
+  position: relative;
+}
+
+.cld-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.cld-stat {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.cld-stat strong {
+  display: block;
+  font-size: 22px;
+  color: #313695;
+  font-weight: 600;
+}
+
+.vis-network-host {
+  background: #fafafa;
+}
+
+/* The host element (`.pyvis-network-output`) sits inside bslib's
+   html-fill-container chain, which applies `display: contents` to make
+   wrappers transparent for layout. That collapses the host to 0×0 and
+   leaves the inner vis-network unconstrained — it then grows to fit
+   content (2000+ px) which appears as "the canvas is missing" because
+   it's mostly off-screen. Force the host to be a real layout box. */
+.pyvis-network-output {
+  display: block !important;
+}
+
+/* Drop the redundant `bslib-sidebar-layout` card frame — the page
+   navbar already provides one, and our canvas/sidebar don't need a
+   second card border around them. */
+.bslib-sidebar-layout {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* Sidebar stats: vertical stack instead of the horizontal row used when
+   they were above the canvas. */
+.cld-stats-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cld-stats-sidebar .cld-stat {
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+  font-size: 12px;
+  color: #666;
+  white-space: pre-line;        /* render the \n in "Label\nValue" */
+}
+
+/* pyvis-shiny v3 wraps its output in a `.pyvis-container` with its own
+   border + radius. Inside a Bootstrap nav-panel + Shiny card layout that
+   produces three nested frames. Strip the pyvis container's chrome so we
+   keep only the outer card border. */
+.pyvis-network-output .pyvis-container {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  /* If the host has a real height, the container fills it; if not, the
+     min-height keeps the network visible at a sensible default. */
+  min-height: 400px;
+}
+.pyvis-network-output .pyvis-network-canvas {
+  border: none !important;
+}

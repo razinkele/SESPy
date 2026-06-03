@@ -1,0 +1,198 @@
+# SESPy — MarineSABRES SES Toolbox · Python port
+
+A Shiny-for-Python port of the [MarineSABRES SES Toolbox](https://marinesabres.eu)
+that lives next door at `../SESToolbox/MarineSABRES_SES_Shiny`. The R app is
+~90 KLOC across 46 modules with bs4Dash; this is the strategic-core port —
+**16 modules** covering the create→edit→analyze→export workflow with
+production-shaped infrastructure.
+
+The R app is the **source of truth**: behaviour, schema, and intent come
+from it. Where the port deliberately deviates (e.g. Responses on their
+own row instead of vis.js's broken x-offset), commit messages call out
+the why.
+
+---
+
+## What's in this port
+
+### Modules (16)
+
+| Module | Source | Behaviour |
+|---|---|---|
+| **PIMS Project Setup** (`sespy/modules/pims_project.py`) | `modules/pims_module.R` (PROJECT SETUP) | Two-column form for project context: name, demonstration area, focal issue, definition statement, temporal/spatial scale, system in focus. Persists to project metadata via a parallel `project_metadata` reactive. |
+| **Templates** (`sespy/modules/templates.py`) | `modules/template_ses_module.R` | Picker for built-in starter projects (Offshore Wind, Coastal Tourism, Small-scale Fisheries). |
+| **SES Wizard** (`sespy/modules/ai_isa_wizard.py`) | `modules/ai_isa_assistant_module.R` (and `ai_isa/`) | 12-step DAPSI(W)R(M) wizard with confirmation modal, live writes per step, and a stub `suggest_connections()` ready for SP3/SP4 scoring backends. |
+| **Edit Data** (`sespy/modules/isa_data_entry.py`) | `modules/isa_data_entry_module.R` | Add/remove elements & connections live; auto-IDs by DAPSIWRM type; cascading delete keeps the data validator-clean. |
+| **CLD Visualization** (`sespy/modules/cld_visualization.py`) | `modules/cld_visualization_module.R` | Hierarchical/physics layouts with DAPSI-ordered rows, live size + spacing sliders, vis.js via `pyvis.shiny`. |
+| **Loop Analysis** (`sespy/modules/analysis_loops.py`) | `modules/analysis_loops.R` | Feedback loop detection (max length / max loops sliders), classification (Reinforcing / Balancing — even-negatives rule from R), per-loop pyvis canvas. |
+| **Network Metrics** (`sespy/modules/analysis_metrics.py`) | `modules/analysis_metrics.R` | Seven centrality measures (degree/in/out, betweenness, closeness, eigenvector, PageRank), top-N table, distribution histogram, pyvis network sized by metric. |
+| **Leverage Points** (`sespy/modules/analysis_leverage.py`) | `modules/analysis_leverage.R` | Composite leverage = z(betweenness) + z(eigenvector) + z(PageRank). Same formula R uses. |
+| **Boolean / Laplacian** (`sespy/modules/analysis_boolean.py`) | `modules/analysis_boolean.R` | Laplacian eigenvalue spectrum + Boolean attractor enumeration via exhaustive 2^N state-space search (capped at 12 nodes). |
+| **Dynamic Simulation** (`sespy/modules/analysis_simulation.py`) | `modules/analysis_simulation.R` | Deterministic linear-matrix iteration + Monte Carlo state-shift analysis with finite-aware divergence accounting. |
+| **Behaviour Over Time** (`sespy/modules/analysis_bot.py`) | `modules/analysis_bot.R` | Per-element time-series view with three input modes (manual entry, CSV upload, ISA-derived synthetic), trend + moving-average overlays, summary statistics. |
+| **Intervention** (`sespy/modules/analysis_intervention.py`) | `modules/analysis_intervention.R` | "Ablate node X" scenarios — pick nodes to remove, see before/after centrality shifts, network with greyed-out ablated nodes. |
+| **Simplify Network** (`sespy/modules/analysis_simplify.py`) | `modules/analysis_simplify.R` | Network reduction by minimum strength OR top-N edges by composite weight. Optional drop-isolated. |
+| **Import Data** (`sespy/modules/import_data.py`) | `modules/import_data_module.R` | Excel upload (Elements + Connections sheets, case-insensitive column-name fallbacks), schema-validated preview, commit-to-project. |
+| **Recent Projects** (`sespy/modules/recent_projects.py`) | `modules/recent_projects_module.R` | List of recently saved/loaded files with click-to-load and remove. Persisted across sessions in `~/.sespy/recent.json`. |
+| **Export Report** (`sespy/modules/report_export.py`) | `modules/prepare_report_module.R` + `export_reports_module.R` | HTML / PDF (WeasyPrint) / Word (python-docx) — same content, three formats. Live preview iframe. |
+
+### Shell + infrastructure
+
+| | What |
+|---|---|
+| `sespy/dashboard.py` | bs4Dash-style shell (page_sidebar): brand block, action-button nav, **clickable** workflow stepper, language switcher, quick actions slot, footer. Hamburger toggle (hijacks bslib's outer `.collapse-toggle`) collapses the nav to icon-only mini-mode. |
+| `sespy/i18n.py` + `sespy/translations/core.json` | R-compatible translation system (same JSON shape as `shiny.i18n`). Live language switching for nav and stepper (`@render.ui`); module-body labels capture the language at construction (page-reload story for those). 9 languages: en/es/fr/de/lt/pt/it/no/el. **Module-level `t()` singleton** — `from sespy.i18n import t` and use it directly. |
+| `sespy/modules/project_io.py` + `sespy/persistent_storage.py` | Save (download JSON via `@render.download`), Load (file upload + validation), New Project (reset to sample). Atomic writes (`tempfile.mkstemp` + `os.replace`). Validation catches missing fields, dangling references, duplicate ids. |
+| `sespy/autosave.py` | Writes `~/.sespy/autosave.json` on every `event_bus.isa_change`. Sidebar shows "Auto-saved · HH:MM:SS" indicator. On session start, sticky toast offers to restore the last autosave (skipped if older than 24h). Manual Save clears the autosave. |
+| `sespy/recent_projects.py` | Persisted recent-files registry at `~/.sespy/recent.json`. Capped at 10 entries, dedupes on path, auto-filters missing files. |
+| `sespy/event_bus.py` | Counter-trigger reactives — port of `functions/event_bus_setup.R`. `emit_isa_change` propagates to **six** listeners (CLD, Loops, Metrics, Leverage, Intervention, Simplify) without re-entrancy. |
+| `sespy/data_structure.py` | `Element`, `Connection`, `IsaData`, `Project`, `ProjectMetadata` — minimal port of `functions/data_structure.R`. |
+| `sespy/network.py` | `to_digraph`, `feedback_loops`, `loop_polarity`, `classify_loops`, `centrality_metrics`, `top_n_by_metric`, `leverage_scores`, `intervention_impact`, `remove_nodes`, `simplify_by_strength`, `simplify_top_n_edges` — networkx-based port of `functions/network_analysis.R` helpers. |
+| `sespy/excel_import.py` | Pandas/openpyxl-based parser with column-name fallbacks (`from`/`source`, `to`/`target`, `Name`/`Label`, etc.). Reuses the JSON validator so error stories are consistent. |
+| `sespy/report.py` | Jinja2 template + WeasyPrint (PDF) + python-docx (Word). Three export formats from one content model. |
+| `sespy/templates/` | Built-in starter projects: Offshore Wind, Coastal Tourism, Small-scale Fisheries. `list_templates()` discovers `*.json` files. |
+| `sespy/constants.py` | DAPSI element types, Kumu-style colors and shapes, hierarchical level numbers, font/size scales, edge colors, polarity labels. |
+| `www/sespy-skin.css` | Visual port of `bs4dash-custom.css` "Deep Ocean Scientific" theme. Tokens (`--ocean-*`, `--bio-*`, `--foam-*`, `--mist-*`) lifted verbatim; selectors re-authored for bslib's DOM. Fonts: DM Sans + Source Serif 4. |
+
+### Run it
+
+```bash
+micromamba activate shiny
+cd "C:/Users/arturas.baziukas/OneDrive - ku.lt/HORIZON_EUROPE/Marine-SABRES/SESPy"
+shiny run --port 8000 app.py
+# Open http://127.0.0.1:8000
+```
+
+### Test it
+
+```bash
+micromamba run -n shiny pytest tests/ -q
+# Skip e2e by ignoring tests/test_*_e2e.py
+```
+
+180 unit tests + 21 e2e scripts. E2e scripts assume the app is running on
+`localhost:8000`; start the server first, then run them individually.
+
+---
+
+## Architectural decisions
+
+A handful of choices that aren't obvious from reading the code.
+
+**Module signature contract.** Every module follows the R convention from
+CLAUDE.md: `module_ui(id)` and `module_server(id, *, project_data,
+event_bus, translator=None)`. This is what makes "wire one more module"
+trivial — it's always the same call shape.
+
+**`Project` envelope, not flat `{elements, connections}`.** Saved files
+are `{metadata: {…}, isa_data: {elements: […], connections: […]}}`. The
+loader tolerates the older flat shape (used by the seed `data/sample_ses.json`)
+but new saves always use the envelope. Future work adds project history,
+settings, etc. into the metadata block.
+
+**`reactive.value` plain attribute split (in `Translator`).** Shiny for
+Python's reactive.value doesn't update synchronously outside an active
+flush context, which broke unit tests. The Translator keeps a plain `_lang`
+attribute as the synchronous source of truth, with `language` as a
+notification channel for reactive subscribers. Same pattern is reusable
+for any state that needs to work both in tests and in live sessions.
+
+**vis.js rendering via `pyvis.shiny`, not iframes.** The user maintains
+[a fork of pyvis](https://github.com/razinkele/pyvis) with a
+`pyvis.shiny.render_pyvis_network` decorator. We use it instead of
+emitting standalone HTML in iframes. Two payoffs: no duplicate
+vis-network bundle on the page (one per panel would mean four), and
+proper Shiny event integration (clicks, hover, selections all flow back
+into reactive inputs).
+
+**DAPSI levels are small adjacent integers (0–6).** vis.js treats level
+*numbers* as multipliers for `levelSeparation`. We tried 0/10/20/.../50
+to leave room for inserting Responses at level 25 — ended up with a
+4500 px tall canvas in a 650 px viewport. Use small adjacent integers
+and let `levelSeparation` (pixels) do its job.
+
+**Hamburger replaces both `<` chevrons.** bslib renders sidebar
+`.collapse-toggle` buttons with an SVG chevron. We hide the SVG with
+`visibility: hidden`, then paint a Font Awesome `fa-bars` glyph via
+`::before` on the same button. Survives bslib version upgrades because
+we don't depend on internal HTML.
+
+**The outer hamburger is hijacked, not added separately.** Capture-phase
+JS handler reads bslib's outer toggle clicks, calls
+`stopImmediatePropagation`, and toggles `body.sespy-sidebar-mini`. The
+mini class then overrides the grid template (`grid-template-columns:
+64px minmax(0,1fr)`) so the main column expands. bslib's resize
+observer inlines literal pixel widths into the grid template, so CSS
+variable changes alone don't reflow — `!important` direct overrides
+are necessary.
+
+**Card containing a vis-network must not have `transform`.** vis.js's
+tooltip positioning depends on no ancestor having a CSS `transform`.
+The `.sespy-card-canvas` class (applied to canvas-hosting cards) sets
+`transform: none !important`, including overriding the default card
+hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
+
+---
+
+## Testing
+
+**180 unit tests** across:
+
+- `tests/test_network.py` — graph metrics (centralities, leverage, loops, polarity, top-N, intervention impact, simplification)
+- `tests/test_persistent_storage.py` — save/load roundtrip, atomic writes, validation
+- `tests/test_i18n.py` — loader, lookup, fallback, switch, format interpolation
+- `tests/test_excel_import.py` — workbook parsing with column-name fallbacks
+- `tests/test_report.py` — HTML structure, PDF round-trip, Word docx round-trip
+- `tests/test_autosave.py` — write/read/clear/age, corrupt-file safety
+- `tests/test_recent_projects.py` — registry add/remove/dedupe, missing-file filtering, MAX_RECENT cap
+- `tests/test_templates.py` — every template loads and validates, distinct names, populated metadata
+- `tests/test_data_structure.py` — schema versioning, PIMS metadata round-trip, `WizardState` / `ConnectionSuggestion`
+- `tests/test_utils.py` — shared helpers (`next_id` gap-filling)
+- `tests/test_wizard.py` — wizard step flow, element-type map, regional-seas placeholder, stub
+
+**21 end-to-end test scripts** in `tests/test_*_e2e.py` (shell, data-entry, i18n, quick-actions, metrics, intervention, leverage, import, templates, autosave, report, boolean, boolean-happy, simulation, full-app). Each starts headless Chromium, asserts on the live app's DOM and reactive state. Run them after starting the server with `shiny run --port 8000`.
+
+The diagnostic scripts (`tests/diagnose_browser.py`, `tests/probe_*.py`,
+`tests/inspect_frames.py`) are not pytest tests — they're throwaway tools
+for investigating layout / state issues during development.
+
+---
+
+## What's deferred (and where it would slot in)
+
+| Feature | Slot | Notes |
+|---|---|---|
+| `analysis_bot` (Behaviour Over Time charts) | New `sespy/modules/analysis_bot.py` | Simulate node values over `t` steps; matplotlib output. ~3 hours. |
+| `analysis_boolean` (Boolean network logic) | New module | DTU dynamics package in R. Mid-effort port. |
+| `analysis_simulation` (PCA phase-space dynamics) | New module | Heavier — needs scipy or simple ODE; uses centrality results. |
+| PIMS suite (5 stakeholder/risk modules) | New module set | Different domain track; could ship as a "PIMS pack" later. |
+| AI-assisted SES creation | New module | Calls Claude API. Different scope than data-pipeline modules. |
+| Graphical SES creator (drag-drop) | New module | Largest single R module (~1500 LOC). |
+| Per-element-type ISA forms | Extend `isa_data_entry.py` | Activities have `scale`, ES have `indicator`, Pressures have `type` — type-specific fields. |
+| Header right-aligned actions (Settings / Help / About) | `dashboard_page(header_actions=…)` | Slot exists; only language switcher inside today. |
+| Expandable nav submenus (PIMS, SES Creation grouped) | `NavItem` grows to tree shape | Mirrors bs4Dash's `bs4SidebarMenuSubItem`. |
+| URL bookmarking (`?lang=es&tab=loops`) | Shiny for Python's bookmarking API | ~half a day. |
+| Static-label i18n in modules | Wrap remaining `ui.h4(...)` etc. in `@render.ui` | We did the high-value labels (card headers, sidebar headers, button text); ~30% of in-module text still falls back to English on language change. Mechanical retrofit. |
+| Tutorial system (overlay help) | New module | R has `tutorial_system.R` (~500 LOC). Nice-to-have. |
+| Multi-user session isolation | Infrastructure | R has it for shiny-server deployments. Production concern. |
+
+---
+
+## How a new module gets ported
+
+1. **Pick the R source** under `../SESToolbox/MarineSABRES_SES_Shiny/modules/`. Read its UI section (what controls, what outputs) and server section (what reactives, what event-bus listeners).
+2. **Create `sespy/modules/<name>.py`** with `@module.ui` and `@module.server`. Match the R signature: `(id, *, project_data, event_bus, translator=None)`.
+3. **If new graph algorithms are needed**, add them to `sespy/network.py`. Pure functions taking `IsaData`, returning dicts/lists. Add unit tests with golden values for tiny inputs.
+4. **If new translation keys are needed**, add to `sespy/translations/core.json`. All 9 languages required.
+5. **Wire into `app.py`**: `NavItem`, `nav_panel`, server call, optional `NAV_TO_STEP` mapping.
+6. **Add unit tests + an e2e test.** Pattern from existing tests works: `await page.click('#__sespy_nav__<id>')`, then assert on the pyvis canvas state via `window.pyvisNetworks['<ns>-<output_id>']`.
+7. **Run all tests + restart the server + take a screenshot** to confirm visual parity with the R counterpart.
+
+The repeating pattern across all five existing modules makes module #6 mostly mechanical — about 4–6 hours of work depending on graph-algorithm complexity.
+
+---
+
+## Acknowledgements
+
+R source authored by the MarineSABRES Consortium (Horizon Europe Project).
+Python POC by the project maintainer with iterative review against the R app.

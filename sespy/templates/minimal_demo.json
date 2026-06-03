@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "name": "Minimal Demo",
+    "description": "Minimal 5-node pedagogical example. Two disconnected sub-networks: a positive 3-cycle (Drivers -> Pressures -> Responses -> Drivers) that produces a period-3 cyclic Boolean attractor, plus a mutually-activating Activities/Ecosystem-Services pair that produces fixed points and a period-2 cycle. Sized below the 12-node Boolean attractor cap so the analyses run end-to-end.",
+    "da_site": "",
+    "regional_sea": "N/A",
+    "ecosystem_type": "Pedagogical",
+    "focal_issue": "Demonstration template for SESPy onboarding.",
+    "definition_statement": "A small synthetic SES used to walk first-time users through the create / visualize / analyze / report workflow.",
+    "temporal_scale": "Yearly",
+    "spatial_scale": "Local",
+    "system_in_focus": "Generic demonstration system.",
+    "schema_version": 2
+  },
+  "isa_data": {
+    "elements": [
+      {"id": "D001", "label": "Driver A",            "type": "Drivers",          "description": "Node A in the 3-cycle.",           "confidence": 5},
+      {"id": "P001", "label": "Pressure B",          "type": "Pressures",        "description": "Node B in the 3-cycle.",           "confidence": 5},
+      {"id": "R001", "label": "Response C",          "type": "Responses",        "description": "Node C in the 3-cycle.",           "confidence": 5},
+      {"id": "A001", "label": "Activity D",          "type": "Activities",       "description": "Node D in the mutual-activation pair.", "confidence": 5},
+      {"id": "ES01", "label": "Ecosystem service E", "type": "Ecosystem Services", "description": "Node E in the mutual-activation pair.", "confidence": 5}
+    ],
+    "connections": [
+      {"source": "D001", "target": "P001", "polarity": "+", "strength": "medium", "confidence": 5},
+      {"source": "P001", "target": "R001", "polarity": "+", "strength": "medium", "confidence": 5},
+      {"source": "R001", "target": "D001", "polarity": "+", "strength": "medium", "confidence": 5},
+      {"source": "A001", "target": "ES01", "polarity": "+", "strength": "strong", "confidence": 5},
+      {"source": "ES01", "target": "A001", "polarity": "+", "strength": "medium", "confidence": 5},
+      {"source": "P001", "target": "ES01", "polarity": "-", "strength": "weak",   "confidence": 3}
+    ]
+  }
+}
