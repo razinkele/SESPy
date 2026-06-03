@@ -114,3 +114,70 @@ def test_connection_suggestion_construction():
     assert s.polarity == "+"
     assert s.confidence == 0.7
     assert "anchor" in s.rationale.lower()
+
+
+# ---------------------------------------------------------------------------
+# SP4 shared topology constants: Slug, _CONN_TYPES, _VALID_TYPE_PAIRS
+# ---------------------------------------------------------------------------
+
+"""Tests for the shared data-layer constants used by both backends."""
+from typing import get_args
+
+import pytest
+
+from sespy.data_structure import (
+    ELEMENT_TYPE_MAP,
+    Slug,
+    _CONN_TYPES,
+    _VALID_TYPE_PAIRS,
+)
+
+
+def test_slug_literal_matches_element_type_map_keys():
+    """Slug Literal members must equal the keys of ELEMENT_TYPE_MAP."""
+    assert set(get_args(Slug)) == set(ELEMENT_TYPE_MAP.keys())
+    assert len(get_args(Slug)) == 7
+
+
+def test_conn_types_is_three_tuple_shape():
+    """_CONN_TYPES preserves (from_slug, to_slug, key) 3-tuple shape from
+    the original connection_scorer.py definition. Pinning this prevents
+    a refactor from silently breaking tests/test_connection_scorer.py:491."""
+    assert isinstance(_CONN_TYPES, list)
+    assert len(_CONN_TYPES) == 10
+    for entry in _CONN_TYPES:
+        assert isinstance(entry, tuple)
+        assert len(entry) == 3
+        from_slug, to_slug, key = entry
+        assert isinstance(from_slug, str)
+        assert isinstance(to_slug, str)
+        assert isinstance(key, str)
+        assert key == f"{from_slug}_{to_slug}"
+
+
+def test_conn_types_exact_entries():
+    """The 10 type-pairs are the canonical DAPSI(W)R(M) directed edges."""
+    expected = [
+        ("drivers", "activities", "drivers_activities"),
+        ("activities", "pressures", "activities_pressures"),
+        ("pressures", "states", "pressures_states"),
+        ("states", "impacts", "states_impacts"),
+        ("impacts", "welfare", "impacts_welfare"),
+        ("responses", "pressures", "responses_pressures"),
+        ("responses", "drivers", "responses_drivers"),
+        ("responses", "activities", "responses_activities"),
+        ("welfare", "drivers", "welfare_drivers"),
+        ("welfare", "responses", "welfare_responses"),
+    ]
+    assert _CONN_TYPES == expected
+
+
+def test_valid_type_pairs_derives_from_conn_types():
+    """_VALID_TYPE_PAIRS is the 2-tuple projection of _CONN_TYPES.
+    Catches drift if either constant is later defined inline."""
+    expected = frozenset(
+        (from_slug, to_slug) for from_slug, to_slug, _key in _CONN_TYPES
+    )
+    assert _VALID_TYPE_PAIRS == expected
+    assert isinstance(_VALID_TYPE_PAIRS, frozenset)
+    assert len(_VALID_TYPE_PAIRS) == 10

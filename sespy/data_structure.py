@@ -12,7 +12,7 @@ import logging
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Literal
 
 _log = logging.getLogger(__name__)
 
@@ -47,6 +47,39 @@ ELEMENT_TYPE_MAP: dict[str, str] = {
     "welfare": "Goods & Benefits",
     "responses": "Responses",
 }
+
+# ---------------------------------------------------------------------------
+# DAPSI(W)R(M) connection-type topology — single source of truth for both
+# the SP3 rule-based scorer (`connection_scorer.py`) and the SP4 Claude API
+# backend (`claude_backend.py`). Co-located with ELEMENT_TYPE_MAP because
+# this IS data structure (defines the framework's directed-graph topology).
+# ---------------------------------------------------------------------------
+
+Slug = Literal[
+    "drivers", "activities", "pressures", "states",
+    "impacts", "welfare", "responses",
+]
+
+# 10 type-pairs as (from_slug, to_slug, conn_type_key) 3-tuples.
+# Iteration order matches DAPSI(W)R(M) layer flow.
+_CONN_TYPES: list[tuple[Slug, Slug, str]] = [
+    ("drivers", "activities", "drivers_activities"),
+    ("activities", "pressures", "activities_pressures"),
+    ("pressures", "states", "pressures_states"),
+    ("states", "impacts", "states_impacts"),
+    ("impacts", "welfare", "impacts_welfare"),
+    ("responses", "pressures", "responses_pressures"),
+    ("responses", "drivers", "responses_drivers"),
+    ("responses", "activities", "responses_activities"),
+    ("welfare", "drivers", "welfare_drivers"),
+    ("welfare", "responses", "welfare_responses"),
+]
+
+# 2-tuple projection of _CONN_TYPES — used by validation pipelines for
+# O(1) membership testing of model-emitted (from, to) pairs.
+_VALID_TYPE_PAIRS: frozenset[tuple[Slug, Slug]] = frozenset(
+    (from_slug, to_slug) for from_slug, to_slug, _key in _CONN_TYPES
+)
 
 
 @dataclass
