@@ -15,8 +15,14 @@ from sespy.claude_backend import (
 from sespy.data_structure import ConnectionSuggestion
 
 
-def test_claude_backend_error_is_frozen_dataclass_exception():
-    """ClaudeBackendError is the single error type — Literal-tagged reason."""
+def test_claude_backend_error_is_raisable_exception():
+    """ClaudeBackendError is the single error type — Literal-tagged reason.
+
+    It must NOT be a frozen dataclass: Shiny's @reactive.extended_task sets
+    `exc.__traceback__` in pure Python while propagating a task error, which a
+    frozen __setattr__ would reject with FrozenInstanceError (regression: the
+    SP4 e2e auth-error path failed this way until the dataclass was un-frozen).
+    """
     e = ClaudeBackendError(reason="auth")
     assert isinstance(e, Exception)
     assert e.reason == "auth"
@@ -24,8 +30,13 @@ def test_claude_backend_error_is_frozen_dataclass_exception():
     assert e.retry_after is None
     assert e.text_content is None
     assert str(e) == "auth"
-    with pytest.raises(FrozenInstanceError):
-        e.reason = "rate_limit"  # type: ignore[misc]
+    # Must support the pure-Python attribute assignment Python's exception
+    # machinery performs during propagation through extended_task (the guard).
+    try:
+        raise e
+    except ClaudeBackendError as caught:
+        assert caught.__traceback__ is not None
+        caught.__traceback__ = None  # explicit pure-Python __traceback__ set
 
 
 def test_claude_error_reason_has_seven_members():

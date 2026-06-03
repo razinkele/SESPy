@@ -87,7 +87,15 @@ ClaudeErrorReason = Literal[
 ]
 
 
-@dataclass(frozen=True)
+# NOTE: NOT frozen. A frozen dataclass Exception cannot be propagated through
+# Shiny's @reactive.extended_task: the framework sets `exc.__traceback__` in
+# pure Python (contextlib __exit__ inside DenialContext), which a frozen
+# __setattr__ rejects with FrozenInstanceError. (Plain `raise` works because
+# CPython sets __traceback__ at the C level, bypassing __setattr__ — which is
+# why unit tests that raise/catch directly never hit this.) `eq=False` keeps
+# exception-appropriate identity equality + hashability so the frozen
+# _ClaudeFailed(error=...) wrapper in the wizard module still hashes/compares.
+@dataclass(eq=False)
 class ClaudeBackendError(Exception):
     reason: ClaudeErrorReason
     status_code: int | None = None        # for reason='status'

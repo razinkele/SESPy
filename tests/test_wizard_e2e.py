@@ -443,8 +443,13 @@ async def case_back_from_step_11_dismisses_consent_modal(page):
     await _drive_to_step_11(page)
     await page.click("#wizard-wizard_claude_generate")
     await page.wait_for_selector("text=Send your project to Anthropic?", timeout=5000)
-    # Force-click bypasses the modal-backdrop intercept.
-    await page.click("#wizard-wizard_back", force=True)
+    # The Bootstrap .modal-backdrop overlay intercepts real pointer events to
+    # the Back button behind it — even page.click(..., force=True) lands on the
+    # backdrop, so the Back handler never fires. Dispatch a programmatic DOM
+    # click directly on the element (no hit-testing), which Shiny's action
+    # button still registers, incrementing wizard_back so _on_back runs and
+    # calls ui.modal_remove().
+    await page.eval_on_selector("#wizard-wizard_back", "el => el.click()")
     # Use 'hidden' (display:none) rather than 'detached' (removed from DOM).
     await page.wait_for_selector("text=Send your project to Anthropic?",
                                   state="hidden", timeout=5000)
