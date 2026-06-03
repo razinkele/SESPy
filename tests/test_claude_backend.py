@@ -751,3 +751,60 @@ def test_module_imports_with_no_env_var_set(monkeypatch):
     import sespy.claude_backend
     importlib.reload(sespy.claude_backend)
     assert sespy.claude_backend._DEFAULT_MODEL == "claude-sonnet-4-6"
+
+
+import json
+from pathlib import Path
+
+
+def _load_core_json():
+    path = Path(__file__).parent.parent / "sespy" / "translations" / "core.json"
+    with path.open(encoding="utf-8") as f:
+        return json.load(f)["translation"]
+
+
+def test_REASON_TO_I18N_bidirectional_check():
+    """Every Literal value has an i18n key; no orphan wizard.claude_error_*
+    keys in core.json beyond the map values + sdk_missing carve-out."""
+    translations = _load_core_json()
+    # Forward: every map value exists.
+    for key in _REASON_TO_I18N.values():
+        assert key in translations, f"missing i18n key: {key}"
+    # Backward: no orphan wizard.claude_error_* keys.
+    error_keys = {k for k in translations if k.startswith("wizard.claude_error_")}
+    expected = set(_REASON_TO_I18N.values()) | {"wizard.claude_error_sdk_missing"}
+    assert error_keys == expected, f"orphan or missing: {error_keys ^ expected}"
+
+
+def test_all_sp4_non_error_i18n_keys_exist_in_core_json():
+    """The 19 non-error keys (5 button/UI + 10 consent modal + 2 table
+    headers + 2 dedup/read-failure)."""
+    translations = _load_core_json()
+    expected = {
+        "wizard.claude_generate_button",
+        "wizard.claude_generating",
+        "wizard.claude_returned_zero",
+        "wizard.claude_retry_after",
+        "wizard.claude_drops_badge",
+        "wizard.claude_consent_title",
+        "wizard.claude_consent_body",
+        "wizard.claude_consent_field_sea",
+        "wizard.claude_consent_field_ecosystem",
+        "wizard.claude_consent_field_countries",
+        "wizard.claude_consent_field_issues",
+        "wizard.claude_consent_field_elements",
+        "wizard.claude_consent_privacy_note",
+        "wizard.claude_consent_confirm",
+        "wizard.claude_consent_cancel",
+        "wizard.suggestions_rule_based_n",
+        "wizard.suggestions_claude_n",
+        "wizard.duplicates_resolved_n",
+        "wizard.read_failures_n",
+    }
+    for key in expected:
+        assert key in translations, f"missing i18n key: {key}"
+        # Each must be a per-language object with all 9 languages.
+        value = translations[key]
+        assert isinstance(value, dict)
+        for lang in ["en", "es", "fr", "de", "lt", "pt", "it", "no", "el"]:
+            assert lang in value, f"key {key} missing language {lang}"
