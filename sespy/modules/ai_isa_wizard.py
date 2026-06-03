@@ -196,50 +196,134 @@ def _render_freeform_multiple(
     return ui.div(*rows, id=f"freeform_{target}_container")
 
 
-def _render_connection_review(suggestions: list) -> ui.Tag:
-    """Render the connection-review step (step 11)."""
-    if not suggestions:
-        return ui.tags.div(
+def _render_suggestions_table(
+    items: list[ConnectionSuggestion],
+    *,
+    prefix: str,
+    title: str,
+) -> ui.Tag:
+    """Render a suggestions table with accept-checkboxes.
+
+    `prefix` is the input-id prefix ('accept_sp3_' or 'accept_sp4_').
+    Extracted from the existing inline rendering in
+    _render_connection_review (SP1) to support the SP4 two-table flow.
+    Column order matches SP1: # | Source | Target | Polarity | Confidence
+    | Rationale | Accept (Polarity column added for SP4 parity).
+    """
+    rows = []
+    rows.append(ui.tags.tr(
+        ui.tags.th("#"),
+        ui.tags.th(t("wizard.source")),
+        ui.tags.th(t("wizard.target")),
+        ui.tags.th(t("wizard.polarity")),
+        ui.tags.th(t("wizard.confidence")),
+        ui.tags.th(t("wizard.rationale")),
+        ui.tags.th(t("wizard.accept")),
+    ))
+    for i, s in enumerate(items):
+        rows.append(ui.tags.tr(
+            ui.tags.td(str(i + 1)),
+            ui.tags.td(s.source),
+            ui.tags.td(s.target),
+            ui.tags.td(s.polarity),
+            ui.tags.td(f"{s.confidence:.2f}"),
+            ui.tags.td(s.rationale),
+            ui.tags.td(ui.input_checkbox(f"{prefix}{i}", "", value=False)),
+        ))
+    return ui.tags.div(
+        ui.tags.h6(title),
+        ui.tags.table(*rows, class_="table table-sm"),
+    )
+
+
+def _render_connection_review(
+    sp3: list[ConnectionSuggestion],
+    sp4_status: ClaudeBackendStatus,
+    claude_available: bool,
+) -> ui.Tag:
+    """Render the connection-review step (step 11).
+
+    Shows SP3 rule-based table always (when suggestions or Claude path
+    exists); SP4 Claude table below the Generate button after success.
+    Empty-state branch preserves the SP1 'no_suggestions' message when
+    SP3 is empty AND no Claude path.
+    """
+    parts: list[ui.Tag] = []
+
+    # Empty-state branch: preserve the friendly SP1 message when there's
+    # nothing to show AND no Claude path.
+    if not sp3 and not claude_available:
+        parts.append(ui.tags.div(
             ui.tags.p(t("wizard.no_suggestions"), class_="text-muted"),
             ui.tags.p(
                 "Click Finish to complete the wizard. You can add "
                 "connections manually via the Edit Data module.",
                 class_="text-muted",
             ),
-        )
-    # Suggestions present — render an accept/reject table (SP3+ path).
-    # Column 1 is the row number ("#"); the table label
-    # `wizard.connection_suggestions_table` is rendered as a <caption>
-    # above the rows, NOT as the first column header (which would
-    # mis-label the row-number column).
-    rows = [
-        ui.tags.tr(
-            ui.tags.th("#"),
-            ui.tags.th("Source"),
-            ui.tags.th("Target"),
-            ui.tags.th(t("wizard.confidence")),
-            ui.tags.th(t("wizard.rationale")),
-            ui.tags.th(t("wizard.accept")),
-        ),
-    ]
-    for i, s in enumerate(suggestions):
-        rows.append(
-            ui.tags.tr(
-                ui.tags.td(f"{i+1}"),
-                ui.tags.td(s.source),
-                ui.tags.td(s.target),
-                ui.tags.td(f"{s.confidence:.2f}"),
-                ui.tags.td(s.rationale),
-                ui.tags.td(
-                    ui.input_checkbox(f"accept_sp3_{i}", "", value=False),
-                ),
-            )
-        )
-    return ui.tags.table(
-        ui.tags.caption(t("wizard.connection_suggestions_table")),
-        *rows,
-        class_="table table-sm",
-    )
+        ))
+        return ui.tags.div(*parts)
+
+    # SP3 table — always shown (even if empty, for side-by-side layout).
+    parts.append(_render_suggestions_table(
+        sp3, prefix="accept_sp3_",
+        title=t("wizard.suggestions_rule_based_n").format(n=len(sp3)),
+    ))
+
+    # Generate-with-Claude button — only when env key set + not disabled.
+    if claude_available:
+        match sp4_status:
+            case _ClaudeLoading():
+                parts.append(ui.tags.div(
+                    ui.tags.span(class_="spinner-border spinner-border-sm me-2"),
+                    t("wizard.claude_generating"),
+                    class_="my-3 text-muted",
+                ))
+            case _ClaudeFailed(error=ClaudeBackendError(reason="rate_limit", retry_after=ra)) if ra is not None and ra > 0:
+                # Positive Retry-After only — zero/absent means "retry now".
+                parts.append(ui.input_action_button(
+                    "wizard_claude_generate",
+                    t("wizard.claude_retry_after").format(s=int(ra)),
+                    class_="btn btn-outline-primary my-3 disabled",
+                ))
+            case _ClaudeIdle() | _ClaudeReturned() | _ClaudeFailed():
+                parts.append(ui.input_action_button(
+                    "wizard_claude_generate",
+                    t("wizard.claude_generate_button"),
+                    class_="btn btn-outline-primary my-3",
+                ))
+            case _ as unreachable:
+                assert_never(unreachable)
+
+    # SP4 table — render based on status.
+    match sp4_status:
+        case _ClaudeReturned(outcome=outcome):
+            if outcome.suggestions:
+                if outcome.raw_count > len(outcome.suggestions):
+                    parts.append(ui.tags.div(
+                        t("wizard.claude_drops_badge").format(
+                            kept=len(outcome.suggestions),
+                            raw=outcome.raw_count,
+                            dropped=outcome.raw_count - len(outcome.suggestions),
+                        ),
+                        class_="alert alert-info py-1",
+                    ))
+                parts.append(_render_suggestions_table(
+                    outcome.suggestions, prefix="accept_sp4_",
+                    title=t("wizard.suggestions_claude_n").format(
+                        n=len(outcome.suggestions)
+                    ),
+                ))
+            else:
+                parts.append(ui.tags.div(
+                    t("wizard.claude_returned_zero"),
+                    class_="text-muted my-3",
+                ))
+        case _ClaudeIdle() | _ClaudeLoading() | _ClaudeFailed():
+            pass
+        case _ as unreachable:
+            assert_never(unreachable)
+
+    return ui.tags.div(*parts)
 
 
 def _replace_metadata(meta, **overrides):
@@ -834,7 +918,15 @@ def ai_isa_wizard_server(
                 step, wizard_answers.get(), freeform_counts.get(), input,
             )
         elif archetype == "connection_review":
-            widget = _render_connection_review(wizard_suggestions_sp3.get())
+            claude_available = bool(
+                os.environ.get("ANTHROPIC_API_KEY")
+                and not os.environ.get("SESPY_DISABLE_CLAUDE")
+            )
+            widget = _render_connection_review(
+                wizard_suggestions_sp3.get(),
+                wizard_claude_status.get(),
+                claude_available,
+            )
         else:
             widget = ui.tags.div(f"Unknown archetype: {archetype}")
 
