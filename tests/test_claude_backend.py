@@ -125,3 +125,80 @@ def test_tool_definition_additional_properties_false():
     items = _TOOL_DEFINITION["input_schema"]["properties"]["suggestions"]["items"]
     assert items["additionalProperties"] is False
     assert _TOOL_DEFINITION["input_schema"]["additionalProperties"] is False
+
+
+from sespy.claude_backend import _build_user_message
+from sespy.data_structure import Element, WizardState
+
+
+def _make_state(**overrides):
+    """Helper: build a minimal WizardState with sensible defaults."""
+    defaults = {
+        "regional_sea": "baltic",
+        "ecosystem_type": "Coastal lagoon",
+        "countries": ["LT", "LV"],
+        "main_issue": ["Eutrophication"],
+        "elements": [
+            Element(id="D001", type="Drivers", label="Agricultural runoff"),
+            Element(id="A001", type="Activities", label="Industrial farming"),
+            Element(id="P001", type="Pressures", label="Nutrient loading"),
+        ],
+    }
+    defaults.update(overrides)
+    return WizardState(**defaults)
+
+
+def test_user_message_includes_all_5_wizard_state_fields():
+    state = _make_state()
+    msg = _build_user_message(state)
+    assert "Regional sea: baltic" in msg
+    assert "Ecosystem type: Coastal lagoon" in msg
+    assert "Countries: LT, LV" in msg
+    assert "Main issue(s): Eutrophication" in msg
+    assert "## DRIVERS" in msg
+
+
+def test_user_message_skips_empty_element_groups():
+    """No `## RESPONSES` header when there are no Responses elements."""
+    state = _make_state()  # only D, A, P
+    msg = _build_user_message(state)
+    assert "## RESPONSES" not in msg
+    assert "## STATES" not in msg
+
+
+def test_user_message_groups_in_dapsiwrm_order():
+    elements = [
+        Element(id="W1", type="Goods & Benefits", label="welfare element"),
+        Element(id="D1", type="Drivers", label="driver element"),
+        Element(id="P1", type="Pressures", label="pressure element"),
+    ]
+    state = _make_state(elements=elements)
+    msg = _build_user_message(state)
+    # Even though elements list ordered W, D, P, output groups must be
+    # in DAPSI(W)R(M) canonical order: D before P before W.
+    d_pos = msg.index("## DRIVERS")
+    p_pos = msg.index("## PRESSURES")
+    w_pos = msg.index("## WELFARE")
+    assert d_pos < p_pos < w_pos
+
+
+def test_user_message_uses_id_label_format():
+    """Exact line shape: - id="X" label="Y" — quoted to clarify which
+    field is opaque (id) vs descriptive (label)."""
+    state = _make_state()
+    msg = _build_user_message(state)
+    assert '- id="D001" label="Agricultural runoff"' in msg
+
+
+def test_user_message_handles_empty_optional_fields():
+    state = _make_state(regional_sea="", countries=[], main_issue=[])
+    msg = _build_user_message(state)
+    assert "Regional sea: (unspecified)" in msg
+    assert "Countries: (unspecified)" in msg
+    assert "Main issue(s): (unspecified)" in msg
+
+
+def test_user_message_includes_use_ids_instruction():
+    state = _make_state()
+    msg = _build_user_message(state)
+    assert "Use IDs (not labels) in source and target." in msg

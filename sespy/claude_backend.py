@@ -267,3 +267,45 @@ _TOOL_DEFINITION = {
         "additionalProperties": False,
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# User-message serialization
+# ---------------------------------------------------------------------------
+
+_DAPSIWRM_ORDER: tuple[Slug, ...] = (
+    "drivers", "activities", "pressures", "states",
+    "impacts", "welfare", "responses",
+)
+
+
+def _build_user_message(state: WizardState) -> str:
+    """Serialize a WizardState into the model's user message.
+
+    - Elements grouped by DAPSI(W)R(M) type, canonical reading order.
+    - Empty groups skipped (saves tokens).
+    - id/label quoted to clarify which is opaque vs descriptive
+      (prompt-readability, not a tokenization guarantee).
+    - Empty optional fields render as `(unspecified)`.
+    """
+    grouped: dict[Slug, list[Element]] = {slug: [] for slug in _DAPSIWRM_ORDER}
+    for el in state.elements:
+        slug = _TYPE_TO_SLUG.get(el.type)
+        if slug is not None:
+            grouped[slug].append(el)
+    elements_block = "\n".join(
+        f"## {slug.upper()}\n" + "\n".join(
+            f'- id="{e.id}" label="{e.label}"' for e in grouped[slug]
+        )
+        for slug in _DAPSIWRM_ORDER
+        if grouped[slug]
+    )
+    return (
+        f"Regional sea: {state.regional_sea or '(unspecified)'}\n"
+        f"Ecosystem type: {state.ecosystem_type or '(unspecified)'}\n"
+        f"Countries: {', '.join(state.countries) or '(unspecified)'}\n"
+        f"Main issue(s): {', '.join(state.main_issue) or '(unspecified)'}\n\n"
+        f"## Elements\n\n{elements_block}\n\n"
+        f"Suggest connections per the rules. "
+        f"Use IDs (not labels) in source and target."
+    )
