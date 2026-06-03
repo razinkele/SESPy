@@ -23,6 +23,7 @@ from .data_structure import (
     ConnectionSuggestion,
     Element,
     ELEMENT_TYPE_MAP,  # post-Task-2 home (data_structure.py)
+    _CONN_TYPES,  # re-exported for SP3-era tests
 )
 
 
@@ -44,23 +45,6 @@ _TYPE_TO_SLUG = {v: k for k, v in ELEMENT_TYPE_MAP.items()}
 
 _MAX_PER_TYPE = 15
 _MIN_RELEVANCE = 0.3
-
-# 10 connection types as (from_slug, to_slug, conn_type_key) tuples.
-# Iteration order matches R's natural DAPSI(W)R(M) layer flow at
-# connection_generator.R:755+. The conn_type_key is f"{from_slug}_{to_slug}"
-# matching R's paste(from_type, to_type, sep="_") at line 373.
-_CONN_TYPES: list[tuple[str, str, str]] = [
-    ("drivers", "activities", "drivers_activities"),
-    ("activities", "pressures", "activities_pressures"),
-    ("pressures", "states", "pressures_states"),
-    ("states", "impacts", "states_impacts"),
-    ("impacts", "welfare", "impacts_welfare"),
-    ("responses", "pressures", "responses_pressures"),
-    ("responses", "drivers", "responses_drivers"),
-    ("responses", "activities", "responses_activities"),
-    ("welfare", "drivers", "welfare_drivers"),
-    ("welfare", "responses", "welfare_responses"),
-]
 
 # Reversal-compounds used by _analyze_polarity_phrase to detect
 # "negative-of-negative" phrases (e.g., "pollution reduction" → positive).
