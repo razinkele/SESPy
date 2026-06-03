@@ -326,6 +326,36 @@ def _render_connection_review(
     return ui.tags.div(*parts)
 
 
+def _dedup_accepted(
+    accepted: list[ConnectionSuggestion],
+) -> tuple[list[ConnectionSuggestion], int, int]:
+    """Pure-data dedup helper extracted from _on_finish.
+
+    Dedups by (source, target, polarity) — different polarity for the
+    same edge is NOT a duplicate. On confidence tie, the FIRST entry
+    wins (iteration order; in _on_finish, SP3 is iterated first so SP3
+    wins ties).
+
+    Returns (deduped_list, discarded_count, overwritten_count).
+    Extracted so tests/test_wizard.py can exercise the exact same
+    algorithm production code uses — NOT a copy.
+    """
+    seen: dict[tuple[str, str, str], ConnectionSuggestion] = {}
+    discarded = 0
+    overwritten = 0
+    for s in accepted:
+        key = (s.source, s.target, s.polarity)
+        prev = seen.get(key)
+        if prev is None:
+            seen[key] = s
+        elif s.confidence > prev.confidence:
+            seen[key] = s
+            overwritten += 1
+        else:
+            discarded += 1
+    return list(seen.values()), discarded, overwritten
+
+
 def _replace_metadata(meta, **overrides):
     """Build a new ProjectMetadata copying meta and overriding listed fields.
     `replace` is imported at module top alongside other stdlib imports."""
@@ -793,6 +823,15 @@ def ai_isa_wizard_server(
     @reactive.effect
     @reactive.event(input.wizard_back, ignore_init=True)
     def _on_back() -> None:
+        if wizard_step.get() == 11:
+            # Defensively dismiss any open consent modal.
+            ui.modal_remove()
+            wizard_claude_status.set(_ClaudeIdle())
+            # Bump generation; in-flight task results will fail the staleness check.
+            wizard_claude_generation.set(
+                wizard_claude_generation.get() + 1
+            )
+            # wizard_suggestions_sp3 will be repopulated on the next 10->11.
         if wizard_step.get() <= 0:
             return  # can't go before step 0
         new_step_idx = wizard_step.get() - 1
@@ -821,19 +860,72 @@ def ai_isa_wizard_server(
         # event could still arrive — bail before mutating state.
         if wizard_step.get() != 11:
             return
-        # Collect accepted suggestions (if any). SP1 stub returns [], so the
-        # accept_sp3_<i> inputs may not exist; defensive read.
+
         accepted: list[ConnectionSuggestion] = []
+        read_failures = 0
+
+        # Read SP3 acceptances first (so ties favor SP3 in dedup).
         for i, s in enumerate(wizard_suggestions_sp3.get()):
             try:
                 if input[f"accept_sp3_{i}"]():
                     accepted.append(s)
-            except Exception:
-                pass
-        if accepted:
+            except SilentException:
+                raise   # Shiny session disconnect — propagate, don't swallow.
+            except KeyError as e:
+                _logger.warning("accept checkbox sp3_%d not found: %s", i, e)
+                read_failures += 1
+
+        # Read SP4 acceptances if any.
+        sp4_outcome = (
+            wizard_claude_status.get().outcome
+            if isinstance(wizard_claude_status.get(), _ClaudeReturned)
+            else None
+        )
+        if sp4_outcome:
+            for i, s in enumerate(sp4_outcome.suggestions):
+                try:
+                    if input[f"accept_sp4_{i}"]():
+                        accepted.append(s)
+                except SilentException:
+                    raise
+                except KeyError as e:
+                    _logger.warning("accept checkbox sp4_%d not found: %s", i, e)
+                    read_failures += 1
+
+        if read_failures:
+            # Deliberate abort-and-retry semantics: if ANY checkbox read
+            # fails, we surface the toast and require the user to click
+            # Finish again. Rationale: a failed read indicates a transient
+            # render/session issue; partial commit could lose the user's
+            # accept clicks they THINK they made (the failed-to-read
+            # checkbox might have been ON). Aborting protects against
+            # silent partial-acceptance. The trade-off: if the same
+            # transient race recurs on the next Finish click, the user
+            # gets stuck — but in practice render races are rare and
+            # idempotent retries succeed.
+            ui.notification_show(
+                t("wizard.read_failures_n").format(n=read_failures),
+                type="warning", duration=6,
+            )
+            return
+
+        # Delegate dedup to the shared helper. This keeps the production
+        # code AND the unit tests in tests/test_wizard.py exercising the
+        # exact same algorithm — not a copy.
+        final, discarded, overwritten = _dedup_accepted(accepted)
+
+        if discarded or overwritten:
+            ui.notification_show(
+                t("wizard.duplicates_resolved_n").format(
+                    discarded=discarded, overwritten=overwritten,
+                ),
+                type="message", duration=4,
+            )
+
+        if final:
             current = project_data.get()
             new_conns = list(current.isa_data.connections)
-            for s in accepted:
+            for s in final:
                 new_conns.append(Connection(
                     source=s.source, target=s.target, polarity=s.polarity,
                 ))
