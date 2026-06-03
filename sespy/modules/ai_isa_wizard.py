@@ -289,6 +289,16 @@ def ai_isa_wizard_server(
     wizard_answers: reactive.Value[dict[str, Any]] = reactive.value({})
     wizard_active: reactive.Value[bool] = reactive.value(False)
     wizard_suggestions_sp3: reactive.Value[list[ConnectionSuggestion]] = reactive.value([])
+    # SP4 sum-typed status reactive (alongside wizard_suggestions_sp3 above).
+    wizard_claude_status: reactive.Value[ClaudeBackendStatus] = (
+        reactive.Value(_ClaudeIdle())
+    )
+    # One-time per-session consent flag; reset on new session.
+    wizard_claude_consent_given: reactive.Value[bool] = reactive.Value(False)
+    # Generation counter — incremented on Back-from-11. The extended task
+    # captures the generation at start; the observer compares before
+    # writing wizard_claude_status. Stale results are silently discarded.
+    wizard_claude_generation: reactive.Value[int] = reactive.Value(0)
     # Per-target counts for the freeform_multiple archetype's dynamic UI.
     freeform_counts: reactive.Value[dict[str, int]] = reactive.value({})
 
@@ -557,6 +567,88 @@ def ai_isa_wizard_server(
             main_issue=ans.get("main_issue", []),
             elements=list(isa.elements),
         )
+
+    @reactive.extended_task
+    async def _claude_task(
+        state: WizardState, generation: int,
+    ) -> tuple[int, ValidationOutcome]:
+        """Capture generation alongside outcome so the observer can discard
+        stale results (Back-while-loading race)."""
+        # Lazy import inside the task body — runs only when the task is
+        # invoked (not at module load).
+        from ..claude_backend import suggest_connections as _claude_impl
+        outcome = await asyncio.to_thread(_claude_impl, state)
+        return (generation, outcome)
+
+    def _trigger_claude_call() -> None:
+        """Snapshot state + generation, mark Loading, invoke the task.
+        Step assertion guards against stale events (e.g., Back-without-
+        dismiss + queued Confirm)."""
+        if wizard_step.get() != 11:
+            return
+        state = _assemble_wizard_state()
+        generation = wizard_claude_generation.get()
+        wizard_claude_status.set(_ClaudeLoading())
+        _claude_task(state, generation)
+
+    @reactive.effect
+    def _observe_claude_result() -> None:
+        """Maps task outcome into wizard_claude_status. NB: no
+        @reactive.event — the dependency on _claude_task.status is
+        registered by the unconditional .result() read. Adding
+        @reactive.event would break the dependency. The initial-run
+        SilentException is expected."""
+        try:
+            result = _claude_task.result()
+        except SilentException:
+            # .result() registers the status dependency before raising;
+            # re-raise so the effect re-fires on success/error.
+            raise
+        except (ImportError, ModuleNotFoundError):
+            _logger.exception("claude_backend SDK missing")
+            ui.notification_show(
+                t("wizard.claude_error_sdk_missing"),
+                type="warning", duration=8,
+            )
+            wizard_claude_status.set(_ClaudeIdle())
+            return
+        except ClaudeBackendError as e:
+            _logger.exception("claude backend failed: %s", e.reason)
+            i18n_key = _REASON_TO_I18N[e.reason]
+            msg = t(i18n_key)
+            if e.reason == "status" and e.status_code:
+                msg = f"{msg} (HTTP {e.status_code})"
+            ui.notification_show(msg, type="warning", duration=6)
+            wizard_claude_status.set(_ClaudeFailed(error=e))
+            return
+        except Exception as e:                            # noqa: BLE001
+            # Catch-all: AttributeError if response is None; RuntimeError
+            # from asyncio thread oddities; future SDK exceptions outside
+            # the documented set. Without this, an unforeseen exception
+            # leaves the spinner stuck in Loading forever.
+            _logger.exception("unexpected error in claude observer")
+            ui.notification_show(
+                t("wizard.claude_error_other"),
+                type="warning", duration=6,
+            )
+            wizard_claude_status.set(_ClaudeFailed(error=ClaudeBackendError(
+                reason="status",
+                text_content=f"unexpected: {type(e).__name__}: {e}",
+            )))
+            return
+
+        captured_generation, outcome = result
+        if captured_generation != wizard_claude_generation.get():
+            # Stale result — user clicked Back-from-11 and started fresh.
+            # Log so operators can detect Back-during-loading frequency
+            # (cost-ceiling honesty: the call was paid, result discarded).
+            _logger.info(
+                "claude observer: discarded stale result "
+                "(captured_generation=%d, current=%d)",
+                captured_generation, wizard_claude_generation.get(),
+            )
+            return
+        wizard_claude_status.set(_ClaudeReturned(outcome=outcome))
 
     @reactive.effect
     @reactive.event(input.wizard_back, ignore_init=True)
