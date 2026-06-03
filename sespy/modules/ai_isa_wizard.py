@@ -651,6 +651,62 @@ def ai_isa_wizard_server(
         wizard_claude_status.set(_ClaudeReturned(outcome=outcome))
 
     @reactive.effect
+    @reactive.event(input.wizard_claude_generate, ignore_init=True)
+    def _on_claude_generate_clicked() -> None:
+        """First-stage handler: in-flight guard, then consent or call."""
+        # In-flight guard — protects against rapid-clicks during Loading.
+        if isinstance(wizard_claude_status.get(), _ClaudeLoading):
+            return
+        if wizard_claude_consent_given.get():
+            # Already consented — go straight to call.
+            _trigger_claude_call()
+            return
+        # First click — show consent modal.
+        ui.modal_show(ui.modal(
+            ui.tags.p(t("wizard.claude_consent_body")),
+            ui.tags.ul(
+                ui.tags.li(t("wizard.claude_consent_field_sea")),
+                ui.tags.li(t("wizard.claude_consent_field_ecosystem")),
+                ui.tags.li(t("wizard.claude_consent_field_countries")),
+                ui.tags.li(t("wizard.claude_consent_field_issues")),
+                ui.tags.li(t("wizard.claude_consent_field_elements")),
+            ),
+            ui.tags.p(t("wizard.claude_consent_privacy_note")),
+            title=t("wizard.claude_consent_title"),
+            footer=ui.tags.div(
+                ui.input_action_button(
+                    "wizard_claude_consent_cancel",
+                    t("wizard.claude_consent_cancel"),
+                    class_="btn btn-secondary me-2",
+                ),
+                ui.input_action_button(
+                    "wizard_claude_consent_confirm",
+                    t("wizard.claude_consent_confirm"),
+                    class_="btn btn-primary",
+                ),
+            ),
+            easy_close=False,
+        ))
+
+
+    @reactive.effect
+    @reactive.event(input.wizard_claude_consent_cancel, ignore_init=True)
+    def _on_consent_cancel() -> None:
+        ui.modal_remove()
+
+
+    @reactive.effect
+    @reactive.event(input.wizard_claude_consent_confirm, ignore_init=True)
+    def _on_consent_confirm() -> None:
+        # Defensive guard against stale Shiny event replay on reconnect.
+        if isinstance(wizard_claude_status.get(), _ClaudeLoading):
+            ui.modal_remove()
+            return
+        wizard_claude_consent_given.set(True)
+        ui.modal_remove()
+        _trigger_claude_call()
+
+    @reactive.effect
     @reactive.event(input.wizard_back, ignore_init=True)
     def _on_back() -> None:
         if wizard_step.get() <= 0:
