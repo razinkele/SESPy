@@ -64,3 +64,64 @@ def test_REASON_TO_I18N_covers_every_ClaudeErrorReason():
     assert set(_REASON_TO_I18N.keys()) == set(get_args(ClaudeErrorReason))
     for v in _REASON_TO_I18N.values():
         assert v.startswith("wizard.claude_error_")
+
+
+from sespy.claude_backend import _SYSTEM_PROMPT, _TOOL_DEFINITION, _TOOL_NAME
+
+
+def test_system_prompt_mentions_tool_by_name():
+    """The prompt must reference the tool we force via tool_choice."""
+    assert _TOOL_NAME in _SYSTEM_PROMPT
+    assert "record_connection_suggestions" == _TOOL_NAME
+
+
+def test_system_prompt_lists_all_10_directions():
+    """Rule 1 lists the 10 valid type-pair directions verbatim."""
+    for direction in ["D->A", "A->P", "P->S", "S->I", "I->W",
+                      "R->P", "R->D", "R->A", "W->D", "W->R"]:
+        assert direction in _SYSTEM_PROMPT
+
+
+def test_system_prompt_pins_confidence_enum_values():
+    """Rule 3 anchors confidence to discrete {0.3, 0.5, 0.7, 0.9}."""
+    for value in ["0.3", "0.5", "0.7", "0.9"]:
+        assert value in _SYSTEM_PROMPT
+
+
+def test_system_prompt_contains_few_shot_block():
+    """Round-6 added a <good_examples> block — pin its presence."""
+    assert "<good_examples>" in _SYSTEM_PROMPT
+    assert "</good_examples>" in _SYSTEM_PROMPT
+
+
+def test_tool_definition_name_matches_TOOL_NAME():
+    """Single source of truth — _TOOL_DEFINITION['name'] == _TOOL_NAME."""
+    assert _TOOL_DEFINITION["name"] == _TOOL_NAME
+
+
+def test_tool_definition_confidence_is_enum():
+    """Schema constrains confidence to {0.3, 0.5, 0.7, 0.9}."""
+    sug_props = _TOOL_DEFINITION["input_schema"]["properties"]["suggestions"]["items"]["properties"]
+    assert sug_props["confidence"]["enum"] == [0.3, 0.5, 0.7, 0.9]
+
+
+def test_tool_definition_polarity_is_enum():
+    sug_props = _TOOL_DEFINITION["input_schema"]["properties"]["suggestions"]["items"]["properties"]
+    assert sug_props["polarity"]["enum"] == ["+", "-"]
+
+
+def test_tool_definition_rationale_max_length_150():
+    sug_props = _TOOL_DEFINITION["input_schema"]["properties"]["suggestions"]["items"]["properties"]
+    assert sug_props["rationale"]["maxLength"] == 150
+
+
+def test_tool_definition_max_items_150():
+    arr = _TOOL_DEFINITION["input_schema"]["properties"]["suggestions"]
+    assert arr["maxItems"] == 150
+
+
+def test_tool_definition_additional_properties_false():
+    """Schema-level defence — reject model-invented fields."""
+    items = _TOOL_DEFINITION["input_schema"]["properties"]["suggestions"]["items"]
+    assert items["additionalProperties"] is False
+    assert _TOOL_DEFINITION["input_schema"]["additionalProperties"] is False
