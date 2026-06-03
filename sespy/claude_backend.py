@@ -309,3 +309,62 @@ def _build_user_message(state: WizardState) -> str:
         f"Suggest connections per the rules. "
         f"Use IDs (not labels) in source and target."
     )
+
+
+def _extract_tool_input(response: object) -> list[object]:
+    """Return the suggestions list from the response's first ToolUseBlock.
+
+    Annotated as `object` (not `Any`) so the type checker forces structural
+    checks on this untrusted SDK output. Last-write-wins on duplicate
+    tool_use blocks. Raises ClaudeBackendError(reason='shape') if no
+    tool_use block; captures any text-block content for diagnosis.
+    """
+    text_content: list[str] = []
+    tool_use_input: list[object] | None = None
+    duplicate_tool_use_count = 0
+    for block in response.content:                       # type: ignore[attr-defined]
+        block_type = getattr(block, "type", None)
+        if block_type == "tool_use":
+            inp = block.input                            # type: ignore[attr-defined]
+            if not isinstance(inp, dict):
+                raise ClaudeBackendError(
+                    reason="shape",
+                    text_content=f"tool_use input is not dict: {type(inp).__name__}",
+                )
+            sugs = inp.get("suggestions")
+            if not isinstance(sugs, list):
+                raise ClaudeBackendError(
+                    reason="shape",
+                    text_content=f"'suggestions' is not list: {type(sugs).__name__}",
+                )
+            if tool_use_input is not None:
+                duplicate_tool_use_count += 1
+            tool_use_input = sugs
+        elif block_type == "text":
+            text_content.append(getattr(block, "text", ""))
+        else:
+            _logger.warning("unexpected block type=%r in response", block_type)
+
+    if duplicate_tool_use_count:
+        _logger.warning(
+            "claude response had %d duplicate tool_use block(s); used last",
+            duplicate_tool_use_count,
+        )
+
+    if tool_use_input is not None:
+        if text_content:
+            text_blob = " | ".join(text_content)[:500]
+            _logger.info(
+                "claude response contained mixed text+tool_use; model said: %r",
+                text_blob,
+            )
+        return tool_use_input
+
+    text_blob = " | ".join(text_content)[:500] if text_content else ""
+    raise ClaudeBackendError(
+        reason="shape",
+        text_content=(
+            f"no tool_use block; model said: {text_blob!r}" if text_blob
+            else "no tool_use block; response had no text either"
+        ),
+    )

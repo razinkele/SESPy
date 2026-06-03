@@ -202,3 +202,75 @@ def test_user_message_includes_use_ids_instruction():
     state = _make_state()
     msg = _build_user_message(state)
     assert "Use IDs (not labels) in source and target." in msg
+
+
+from types import SimpleNamespace
+
+from sespy.claude_backend import _extract_tool_input
+
+
+def _mock_response(*content_blocks):
+    """Helper: build a SimpleNamespace fake of an Anthropic Message."""
+    return SimpleNamespace(content=list(content_blocks))
+
+
+def _tool_use_block(suggestions):
+    return SimpleNamespace(
+        type="tool_use",
+        input={"suggestions": suggestions},
+    )
+
+
+def _text_block(text):
+    return SimpleNamespace(type="text", text=text)
+
+
+def test_extract_returns_suggestions_list_from_first_tool_use():
+    sugs = [{"source": "d1", "target": "a1"}]
+    response = _mock_response(_tool_use_block(sugs))
+    assert _extract_tool_input(response) == sugs
+
+
+def test_extract_uses_last_when_two_tool_use_blocks():
+    """Last-write-wins for duplicate tool_use blocks (rare; warn on it)."""
+    first = [{"source": "d1", "target": "a1"}]
+    last = [{"source": "d2", "target": "a2"}]
+    response = _mock_response(
+        _tool_use_block(first),
+        _tool_use_block(last),
+    )
+    assert _extract_tool_input(response) == last
+
+
+def test_extract_raises_shape_when_no_tool_use_block():
+    response = _mock_response(_text_block("I cannot comply."))
+    with pytest.raises(ClaudeBackendError) as excinfo:
+        _extract_tool_input(response)
+    assert excinfo.value.reason == "shape"
+    assert "I cannot comply" in (excinfo.value.text_content or "")
+
+
+def test_extract_raises_shape_when_no_blocks_at_all():
+    response = _mock_response()  # empty content
+    with pytest.raises(ClaudeBackendError) as excinfo:
+        _extract_tool_input(response)
+    assert excinfo.value.reason == "shape"
+    assert "had no text either" in (excinfo.value.text_content or "")
+
+
+def test_extract_raises_shape_when_input_not_dict():
+    block = SimpleNamespace(type="tool_use", input="not a dict")
+    response = _mock_response(block)
+    with pytest.raises(ClaudeBackendError) as excinfo:
+        _extract_tool_input(response)
+    assert excinfo.value.reason == "shape"
+    assert "is not dict" in (excinfo.value.text_content or "")
+
+
+def test_extract_raises_shape_when_suggestions_not_list():
+    block = SimpleNamespace(type="tool_use", input={"suggestions": "string"})
+    response = _mock_response(block)
+    with pytest.raises(ClaudeBackendError) as excinfo:
+        _extract_tool_input(response)
+    assert excinfo.value.reason == "shape"
+    assert "is not list" in (excinfo.value.text_content or "")
