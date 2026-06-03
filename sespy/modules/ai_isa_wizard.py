@@ -12,11 +12,21 @@ can swap in their own backends without touching this module.
 """
 from __future__ import annotations
 
-from dataclasses import replace
-from typing import Any
+import asyncio
+import logging
+import os
+from dataclasses import dataclass, replace
+from typing import Any, assert_never
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
+from shiny.types import SilentException
 
+from ..claude_backend import (    # NOTE: lazy import for runtime use lives in
+    ClaudeBackendError,           #       the @reactive.extended_task body (Task 13).
+    ClaudeErrorReason,            #       These top-level imports are types only —
+    ValidationOutcome,            #       claude_backend itself imports nothing from
+    _REASON_TO_I18N,              #       Shiny, and these classes are pure dataclasses
+)                                 #       so they're safe to import unconditionally.
 from ..constants import ELEMENT_ID_PREFIX
 from ..data_structure import (
     Connection,
@@ -35,6 +45,39 @@ from ..wizard import (
     WIZARD_STEPS,
     suggest_connections,
 )
+
+
+# ---------------------------------------------------------------------------
+# SP4 sum-typed status — distinguishes never-called, in-flight, returned-N,
+# and failed states that an empty-list reactive would conflate.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class _ClaudeIdle:
+    pass
+
+
+@dataclass(frozen=True)
+class _ClaudeLoading:
+    pass
+
+
+@dataclass(frozen=True)
+class _ClaudeReturned:
+    outcome: ValidationOutcome
+
+
+@dataclass(frozen=True)
+class _ClaudeFailed:
+    error: ClaudeBackendError
+
+
+ClaudeBackendStatus = (
+    _ClaudeIdle | _ClaudeLoading | _ClaudeReturned | _ClaudeFailed
+)
+
+
+_logger = logging.getLogger(__name__)
 
 
 def _render_choice_one(step: dict, answers: dict) -> ui.Tag:
@@ -188,7 +231,7 @@ def _render_connection_review(suggestions: list) -> ui.Tag:
                 ui.tags.td(f"{s.confidence:.2f}"),
                 ui.tags.td(s.rationale),
                 ui.tags.td(
-                    ui.input_checkbox(f"accept_suggestion_{i}", "", value=False),
+                    ui.input_checkbox(f"accept_sp3_{i}", "", value=False),
                 ),
             )
         )
@@ -245,7 +288,7 @@ def ai_isa_wizard_server(
     wizard_step: reactive.Value[int] = reactive.value(0)
     wizard_answers: reactive.Value[dict[str, Any]] = reactive.value({})
     wizard_active: reactive.Value[bool] = reactive.value(False)
-    wizard_suggestions: reactive.Value[list[ConnectionSuggestion]] = reactive.value([])
+    wizard_suggestions_sp3: reactive.Value[list[ConnectionSuggestion]] = reactive.value([])
     # Per-target counts for the freeform_multiple archetype's dynamic UI.
     freeform_counts: reactive.Value[dict[str, int]] = reactive.value({})
 
@@ -491,7 +534,7 @@ def ai_isa_wizard_server(
         # then advance the step LAST. Pinned order so wizard_step_render
         # fires once with all dependent reactives already at their new
         # values — otherwise setting wizard_step to 11 would re-render
-        # _render_connection_review before wizard_suggestions has been
+        # _render_connection_review before wizard_suggestions_sp3 has been
         # updated, showing the empty placeholder for one flush before
         # the real suggestions arrive.
         ans = dict(wizard_answers.get())
@@ -499,7 +542,7 @@ def ai_isa_wizard_server(
         wizard_answers.set(ans)
 
         if step_idx + 1 == 11:
-            wizard_suggestions.set(suggest_connections(_assemble_wizard_state()))
+            wizard_suggestions_sp3.set(suggest_connections(_assemble_wizard_state()))
 
         wizard_step.set(step_idx + 1)
 
@@ -547,11 +590,11 @@ def ai_isa_wizard_server(
         if wizard_step.get() != 11:
             return
         # Collect accepted suggestions (if any). SP1 stub returns [], so the
-        # accept_suggestion_<i> inputs may not exist; defensive read.
+        # accept_sp3_<i> inputs may not exist; defensive read.
         accepted: list[ConnectionSuggestion] = []
-        for i, s in enumerate(wizard_suggestions.get()):
+        for i, s in enumerate(wizard_suggestions_sp3.get()):
             try:
-                if input[f"accept_suggestion_{i}"]():
+                if input[f"accept_sp3_{i}"]():
                     accepted.append(s)
             except Exception:
                 pass
@@ -643,7 +686,7 @@ def ai_isa_wizard_server(
                 step, wizard_answers.get(), freeform_counts.get(), input,
             )
         elif archetype == "connection_review":
-            widget = _render_connection_review(wizard_suggestions.get())
+            widget = _render_connection_review(wizard_suggestions_sp3.get())
         else:
             widget = ui.tags.div(f"Unknown archetype: {archetype}")
 
