@@ -17,8 +17,8 @@ import math
 import os
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass, field
-from typing import Any, Literal, get_args
+from dataclasses import dataclass
+from typing import Literal, get_args
 
 from .data_structure import (
     Element,

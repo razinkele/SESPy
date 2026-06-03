@@ -23,10 +23,9 @@ from shiny.types import SilentException
 
 from ..claude_backend import (    # NOTE: lazy import for runtime use lives in
     ClaudeBackendError,           #       the @reactive.extended_task body (Task 13).
-    ClaudeErrorReason,            #       These top-level imports are types only —
-    ValidationOutcome,            #       claude_backend itself imports nothing from
-    _REASON_TO_I18N,              #       Shiny, and these classes are pure dataclasses
-)                                 #       so they're safe to import unconditionally.
+    ValidationOutcome,            #       These top-level imports are types only —
+    _REASON_TO_I18N,              #       claude_backend imports nothing from Shiny,
+)                                 #       and these are pure dataclasses, safe to import.
 from ..constants import ELEMENT_ID_PREFIX
 from ..data_structure import (
     Connection,
