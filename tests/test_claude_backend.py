@@ -455,3 +455,266 @@ def test_returns_empty_outcome_when_all_invalid():
     assert outcome.raw_count == 2
     assert outcome.drops_by_reason["unknown_source"] == 1
     assert outcome.drops_by_reason["missing_key"] == 1
+
+
+from unittest.mock import patch, MagicMock
+import logging
+
+import anthropic
+import httpx
+
+
+def _make_anthropic_response(suggestions, usage_in=100, usage_out=200):
+    return SimpleNamespace(
+        content=[SimpleNamespace(
+            type="tool_use",
+            input={"suggestions": suggestions},
+        )],
+        usage=SimpleNamespace(
+            input_tokens=usage_in, output_tokens=usage_out,
+        ),
+    )
+
+
+def _make_rate_limit_error(retry_after_header: str | None):
+    headers = {"retry-after": retry_after_header} if retry_after_header else {}
+    response = httpx.Response(
+        status_code=429, headers=headers,
+        request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+    )
+    return anthropic.RateLimitError(
+        message="rate limited", response=response, body=None,
+    )
+
+
+@pytest.fixture
+def state():
+    return WizardState(
+        regional_sea="baltic",
+        ecosystem_type="Coastal lagoon",
+        countries=["LT"],
+        main_issue=["Eutrophication"],
+        elements=[
+            Element(id="D001", type="Drivers", label="X"),
+            Element(id="A001", type="Activities", label="Y"),
+        ],
+    )
+
+
+def test_suggest_connections_calls_with_default_model(state):
+    from sespy.claude_backend import suggest_connections
+    sugs = [{"source": "D001", "target": "A001", "polarity": "+",
+             "confidence": 0.9, "rationale": "test rationale"}]
+    with patch("anthropic.Anthropic") as MockAnth:
+        client = MockAnth.return_value
+        client.messages.create.return_value = _make_anthropic_response(sugs)
+        outcome = suggest_connections(state)
+    assert len(outcome.suggestions) == 1
+    create_kwargs = client.messages.create.call_args.kwargs
+    assert create_kwargs["model"] == "claude-sonnet-4-6"
+    assert create_kwargs["max_tokens"] == 16384
+    assert create_kwargs["tool_choice"] == {"type": "tool", "name": _TOOL_NAME}
+
+
+def test_suggest_connections_env_override_model(state, monkeypatch):
+    from sespy.claude_backend import suggest_connections
+    monkeypatch.setenv("SESPY_CLAUDE_MODEL", "claude-opus-test")
+    with patch("anthropic.Anthropic") as MockAnth:
+        client = MockAnth.return_value
+        client.messages.create.return_value = _make_anthropic_response([])
+        suggest_connections(state)
+    assert client.messages.create.call_args.kwargs["model"] == "claude-opus-test"
+
+
+def test_suggest_connections_empty_string_env_uses_default(state, monkeypatch):
+    """`os.environ.get(key, default)` returns '' for explicitly-empty value;
+    the `or _DEFAULT_MODEL` chain handles this."""
+    from sespy.claude_backend import suggest_connections
+    monkeypatch.setenv("SESPY_CLAUDE_MODEL", "")
+    with patch("anthropic.Anthropic") as MockAnth:
+        client = MockAnth.return_value
+        client.messages.create.return_value = _make_anthropic_response([])
+        suggest_connections(state)
+    assert client.messages.create.call_args.kwargs["model"] == "claude-sonnet-4-6"
+
+
+def test_suggest_connections_too_many_elements_short_circuits():
+    from sespy.claude_backend import suggest_connections
+    big_state = WizardState(
+        regional_sea="x", ecosystem_type="x", countries=[], main_issue=[],
+        elements=[Element(id=f"X{i}", type="Drivers", label="x")
+                  for i in range(201)],
+    )
+    with patch("anthropic.Anthropic") as MockAnth:
+        with pytest.raises(ClaudeBackendError) as excinfo:
+            suggest_connections(big_state)
+        # SDK never called.
+        MockAnth.return_value.messages.create.assert_not_called()
+    assert excinfo.value.reason == "too_many"
+
+
+@pytest.mark.parametrize("sdk_exc, expected_reason", [
+    (anthropic.AuthenticationError(
+        message="bad key",
+        response=httpx.Response(status_code=401,
+                                request=httpx.Request("POST", "https://api.anthropic.com")),
+        body=None), "auth"),
+    (anthropic.APITimeoutError(
+        request=httpx.Request("POST", "https://api.anthropic.com")), "timeout"),
+    (anthropic.APIConnectionError(
+        request=httpx.Request("POST", "https://api.anthropic.com")), "network"),
+])
+def test_suggest_connections_maps_SDK_exceptions(state, sdk_exc, expected_reason):
+    from sespy.claude_backend import suggest_connections
+    with patch("anthropic.Anthropic") as MockAnth:
+        MockAnth.return_value.messages.create.side_effect = sdk_exc
+        with pytest.raises(ClaudeBackendError) as excinfo:
+            suggest_connections(state)
+    assert excinfo.value.reason == expected_reason
+
+
+def test_suggest_connections_rate_limit_extracts_retry_after_from_header(state):
+    from sespy.claude_backend import suggest_connections
+    with patch("anthropic.Anthropic") as MockAnth:
+        MockAnth.return_value.messages.create.side_effect = (
+            _make_rate_limit_error("30")
+        )
+        with pytest.raises(ClaudeBackendError) as excinfo:
+            suggest_connections(state)
+    assert excinfo.value.reason == "rate_limit"
+    assert excinfo.value.retry_after == 30.0
+
+
+def test_suggest_connections_rate_limit_no_retry_after_header(state):
+    from sespy.claude_backend import suggest_connections
+    with patch("anthropic.Anthropic") as MockAnth:
+        MockAnth.return_value.messages.create.side_effect = (
+            _make_rate_limit_error(None)
+        )
+        with pytest.raises(ClaudeBackendError) as excinfo:
+            suggest_connections(state)
+    assert excinfo.value.reason == "rate_limit"
+    assert excinfo.value.retry_after is None
+
+
+def test_suggest_connections_status_error_carries_status_code(state):
+    from sespy.claude_backend import suggest_connections
+    response = httpx.Response(
+        status_code=500,
+        request=httpx.Request("POST", "https://api.anthropic.com"),
+    )
+    with patch("anthropic.Anthropic") as MockAnth:
+        MockAnth.return_value.messages.create.side_effect = (
+            anthropic.APIStatusError(
+                message="server error", response=response, body=None,
+            )
+        )
+        with pytest.raises(ClaudeBackendError) as excinfo:
+            suggest_connections(state)
+    assert excinfo.value.reason == "status"
+    assert excinfo.value.status_code == 500
+
+
+def test_suggest_connections_unexpected_post_SDK_exception_wraps_as_shape(state):
+    """Round-8 fix: exceptions from _validate_and_coerce (e.g., a future
+    KeyError on _TYPE_TO_SLUG) MUST be wrapped, otherwise the finally
+    block misclassifies as status=ok."""
+    from sespy.claude_backend import suggest_connections
+    sugs = [{"source": "D001", "target": "A001", "polarity": "+",
+             "confidence": 0.9, "rationale": "ok"}]
+    with patch("anthropic.Anthropic") as MockAnth:
+        MockAnth.return_value.messages.create.return_value = (
+            _make_anthropic_response(sugs)
+        )
+        with patch("sespy.claude_backend._validate_and_coerce",
+                   side_effect=KeyError("synthetic")):
+            with pytest.raises(ClaudeBackendError) as excinfo:
+                suggest_connections(state)
+    assert excinfo.value.reason == "shape"
+    assert "KeyError" in (excinfo.value.text_content or "")
+
+
+def test_INFO_log_emitted_on_success(state, caplog):
+    from sespy.claude_backend import suggest_connections
+    sugs = [{"source": "D001", "target": "A001", "polarity": "+",
+             "confidence": 0.9, "rationale": "ok"}]
+    with patch("anthropic.Anthropic") as MockAnth:
+        MockAnth.return_value.messages.create.return_value = (
+            _make_anthropic_response(sugs, usage_in=123, usage_out=456)
+        )
+        with caplog.at_level(logging.INFO, logger="sespy.claude_backend"):
+            suggest_connections(state)
+    matches = [r for r in caplog.records if "claude_backend.call" in r.message]
+    assert len(matches) == 1
+    assert "status=ok" in matches[0].getMessage()
+    assert "tokens_in=123" in matches[0].getMessage()
+
+
+def test_INFO_log_emitted_on_too_many_path(caplog):
+    from sespy.claude_backend import suggest_connections
+    big_state = WizardState(
+        regional_sea="x", ecosystem_type="x", countries=[], main_issue=[],
+        elements=[Element(id=f"X{i}", type="Drivers", label="x")
+                  for i in range(201)],
+    )
+    with caplog.at_level(logging.INFO, logger="sespy.claude_backend"):
+        with pytest.raises(ClaudeBackendError):
+            suggest_connections(big_state)
+    matches = [r for r in caplog.records if "claude_backend.call" in r.message]
+    assert any("status=error reason=too_many" in r.getMessage() for r in matches)
+
+
+def test_anthropic_client_constructed_with_max_retries_zero(state):
+    """The 'no retries' cost-bounding contract from spec §1.4: SDK
+    defaults to max_retries=2; we must override to 0 to keep a single
+    user click bounded to one paid API call."""
+    from sespy.claude_backend import suggest_connections
+    sugs = [{"source": "D001", "target": "A001", "polarity": "+",
+             "confidence": 0.9, "rationale": "ok"}]
+    with patch("anthropic.Anthropic") as MockAnth:
+        MockAnth.return_value.messages.create.return_value = (
+            _make_anthropic_response(sugs)
+        )
+        suggest_connections(state)
+    # Constructor was called with max_retries=0.
+    constructor_kwargs = MockAnth.call_args.kwargs
+    assert constructor_kwargs.get("max_retries") == 0, (
+        "Anthropic client must be constructed with max_retries=0 to "
+        "enforce the no-retries cost-bounding contract."
+    )
+
+
+def test_messages_create_called_exactly_once_on_rate_limit(state):
+    """No retries on rate_limit. The SDK with max_retries=0 should
+    NOT retry the API call; the wrapper should propagate the
+    RateLimitError after exactly one attempt."""
+    from sespy.claude_backend import suggest_connections
+    with patch("anthropic.Anthropic") as MockAnth:
+        client = MockAnth.return_value
+        client.messages.create.side_effect = _make_rate_limit_error("30")
+        with pytest.raises(ClaudeBackendError):
+            suggest_connections(state)
+    assert client.messages.create.call_count == 1, (
+        "Expected exactly 1 call (no retries); got "
+        f"{client.messages.create.call_count}"
+    )
+
+
+def test_INFO_log_classification_on_shape_error(state, caplog):
+    """Round-5 bug-fix pin: shape error MUST log status=error reason=shape,
+    NOT status=ok. Without the post-SDK except wrapper, error_reason stays
+    None and the finally misclassifies."""
+    from sespy.claude_backend import suggest_connections
+    sugs = [{"source": "D001", "target": "A001", "polarity": "+",
+             "confidence": 0.9, "rationale": "ok"}]
+    with patch("anthropic.Anthropic") as MockAnth:
+        MockAnth.return_value.messages.create.return_value = (
+            _make_anthropic_response(sugs)
+        )
+        with patch("sespy.claude_backend._validate_and_coerce",
+                   side_effect=ClaudeBackendError(reason="shape", text_content="injected")):
+            with caplog.at_level(logging.INFO, logger="sespy.claude_backend"):
+                with pytest.raises(ClaudeBackendError):
+                    suggest_connections(state)
+    matches = [r for r in caplog.records if "claude_backend.call" in r.message]
+    assert any("status=error reason=shape" in r.getMessage() for r in matches)

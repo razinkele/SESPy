@@ -457,3 +457,130 @@ def _validate_and_coerce(
         raw_count=raw_count,
         drops_by_reason=drops,
     )
+
+
+def suggest_connections(state: WizardState) -> ValidationOutcome:
+    """SP4 contract: Anthropic-API-backed scoring.
+
+    Returns a ValidationOutcome envelope (suggestions + drop counts).
+    Synchronous — called from inside @reactive.extended_task via
+    asyncio.to_thread (see sespy.modules.ai_isa_wizard).
+
+    Raises ClaudeBackendError on:
+    - too_many: state.elements > _MAX_ELEMENTS (200) — SDK NOT called.
+    - auth, rate_limit, timeout, network, status: SDK exceptions, mapped
+      from anthropic.* exception subclasses.
+    - shape: malformed response (no tool_use block, non-dict input, or any
+      non-ClaudeBackendError exception from _extract_tool_input or
+      _validate_and_coerce — the latter is wrapped to preserve the
+      structured INFO log's status=error reason=shape classification).
+    """
+    if len(state.elements) > _MAX_ELEMENTS:
+        # Log before raising so the structured INFO line still fires for
+        # too_many rejections.
+        _logger.info(
+            "claude_backend.call status=error reason=too_many "
+            "element_count=%d", len(state.elements),
+        )
+        raise ClaudeBackendError(reason="too_many")
+
+    import anthropic                                   # lazy import
+    # `os.environ.get(key, default)` returns '' for explicitly-empty env
+    # var. `or _DEFAULT_MODEL` handles empty-string-as-falsy.
+    model = os.environ.get("SESPY_CLAUDE_MODEL") or _DEFAULT_MODEL
+    # max_retries=0 enforces the "no retries" cost-bounding contract
+    # documented in the spec (§1.4 row "Retries: None"). The Anthropic
+    # SDK defaults to max_retries=2; without overriding, a single user
+    # click on Generate could result in 3 paid API calls during a rate
+    # limit, silently violating the cost ceiling.
+    client = anthropic.Anthropic(timeout=_TIMEOUT_SECONDS, max_retries=0)
+    started = time.monotonic()
+    response = None
+    error_reason: ClaudeErrorReason | None = None
+    status_code: int | None = None
+    outcome: ValidationOutcome | None = None
+
+    try:
+        try:
+            response = client.messages.create(
+                model=model,
+                max_tokens=_MAX_OUTPUT_TOKENS,
+                system=[
+                    {"type": "text", "text": _SYSTEM_PROMPT,
+                     "cache_control": {"type": "ephemeral"}},
+                ],
+                tools=[_TOOL_DEFINITION],
+                tool_choice={"type": "tool", "name": _TOOL_NAME},
+                messages=[
+                    {"role": "user", "content": _build_user_message(state)},
+                ],
+            )
+        # ORDER MATTERS — most-specific first.
+        # AuthenticationError, RateLimitError are subclasses of
+        # APIStatusError. APITimeoutError is a subclass of
+        # APIConnectionError.
+        except anthropic.AuthenticationError as e:
+            error_reason = "auth"
+            raise ClaudeBackendError(reason="auth") from e
+        except anthropic.RateLimitError as e:
+            error_reason = "rate_limit"
+            # Retry-After is a response header; RateLimitError has no
+            # .retry_after attribute.
+            retry_after_hdr = e.response.headers.get("retry-after") if e.response else None
+            try:
+                retry_after = float(retry_after_hdr) if retry_after_hdr else None
+            except (TypeError, ValueError):
+                retry_after = None
+            raise ClaudeBackendError(
+                reason="rate_limit", retry_after=retry_after,
+            ) from e
+        except anthropic.APITimeoutError as e:
+            error_reason = "timeout"
+            raise ClaudeBackendError(reason="timeout") from e
+        except anthropic.APIConnectionError as e:
+            error_reason = "network"
+            raise ClaudeBackendError(reason="network") from e
+        except anthropic.APIStatusError as e:
+            error_reason = "status"
+            status_code = e.status_code
+            raise ClaudeBackendError(
+                reason="status", status_code=e.status_code,
+            ) from e
+
+        # Post-SDK path: any exception MUST set error_reason before
+        # propagating, otherwise the finally would misclassify the
+        # failure as status=ok.
+        try:
+            raw = _extract_tool_input(response)
+            valid_ids = {el.id for el in state.elements}
+            outcome = _validate_and_coerce(raw, valid_ids, state.elements)
+        except ClaudeBackendError as e:
+            error_reason = e.reason
+            status_code = e.status_code
+            raise
+        except Exception as e:                            # noqa: BLE001
+            error_reason = "shape"
+            raise ClaudeBackendError(
+                reason="shape",
+                text_content=f"unexpected post-SDK error: {type(e).__name__}: {e}",
+            ) from e
+        return outcome
+
+    finally:
+        # Always emit one structured INFO log, success OR failure.
+        latency_ms = int((time.monotonic() - started) * 1000)
+        usage = getattr(response, "usage", None)
+        tokens_in = getattr(usage, "input_tokens", None)
+        tokens_out = getattr(usage, "output_tokens", None)
+        _logger.info(
+            "claude_backend.call status=%s reason=%s status_code=%s "
+            "model=%s tokens_in=%s tokens_out=%s latency_ms=%d "
+            "raw_count=%s suggestions_after_validation=%s",
+            "ok" if error_reason is None else "error",
+            error_reason or "",
+            status_code or "",
+            model,
+            tokens_in, tokens_out, latency_ms,
+            outcome.raw_count if outcome else None,
+            len(outcome.suggestions) if outcome else 0,
+        )
