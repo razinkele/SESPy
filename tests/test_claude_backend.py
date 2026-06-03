@@ -718,3 +718,36 @@ def test_INFO_log_classification_on_shape_error(state, caplog):
                     suggest_connections(state)
     matches = [r for r in caplog.records if "claude_backend.call" in r.message]
     assert any("status=error reason=shape" in r.getMessage() for r in matches)
+
+
+# ---------------------------------------------------------------------------
+# Group 6 — module-import contract tests
+# ---------------------------------------------------------------------------
+import subprocess
+import sys
+
+
+def test_module_import_does_not_eagerly_import_anthropic():
+    """Fresh subprocess: importing sespy.claude_backend must NOT load
+    anthropic (the import is lazy inside suggest_connections)."""
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import sespy.claude_backend; import sys; "
+         "assert 'anthropic' not in sys.modules, 'anthropic loaded eagerly'; "
+         "print('ok')"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
+
+
+def test_module_imports_with_no_env_var_set(monkeypatch):
+    """Module-import time must NOT depend on ANTHROPIC_API_KEY being set."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("SESPY_CLAUDE_MODEL", raising=False)
+    # Re-import under cleared env (already imported in this test process,
+    # but verify the contract: no env reads at import).
+    import importlib
+    import sespy.claude_backend
+    importlib.reload(sespy.claude_backend)
+    assert sespy.claude_backend._DEFAULT_MODEL == "claude-sonnet-4-6"
