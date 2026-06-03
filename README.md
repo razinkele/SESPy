@@ -36,6 +36,50 @@ the why.
 | **Recent Projects** (`sespy/modules/recent_projects.py`) | `modules/recent_projects_module.R` | List of recently saved/loaded files with click-to-load and remove. Persisted across sessions in `~/.sespy/recent.json`. |
 | **Export Report** (`sespy/modules/report_export.py`) | `modules/prepare_report_module.R` + `export_reports_module.R` | HTML / PDF (WeasyPrint) / Word (python-docx) — same content, three formats. Live preview iframe. |
 
+### Optional Claude API backend (SP4)
+
+In addition to the SP3 rule-based scorer that runs on every wizard
+session, SESPy ships an optional Claude API backend for the
+connection-suggestion step. When `ANTHROPIC_API_KEY` is set in the
+environment, a [Generate with Claude API] button appears on step 11
+of the wizard. Clicking it opens a one-time per-session consent
+modal listing the data sent (regional sea, ecosystem type,
+countries, main issues, all element labels and IDs); on confirm,
+the backend calls Claude Sonnet 4.6 with structured tool-use output
+and renders results in a second table below the rule-based
+suggestions. SP3 results stay visible — the two backends are
+side-by-side, and the user accepts from either or both at Finish.
+
+**Getting an API key:** create an Anthropic account at
+https://console.anthropic.com/, generate a key under Settings →
+API Keys, and set it in your shell before launching SESPy:
+
+```bash
+# POSIX:
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Windows PowerShell:
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+```
+
+**Cost:** ~$0.02–$0.05 per click (Sonnet 4.6 input pricing). A
+typical wizard session is 10–30 clicks → $0.20–$1.50 per session.
+SESPy does NOT enforce a per-session spending cap; set spending
+alerts in the Anthropic console (Settings → Plans & Billing →
+Usage Limits) for cost protection. Override the default model with
+`SESPY_CLAUDE_MODEL=<model-id>`. For institutional deployments
+where Claude must be globally disabled even when a key is present,
+set `SESPY_DISABLE_CLAUDE=1`.
+
+**Privacy:** Anthropic processes API requests per their privacy
+policy at https://www.anthropic.com/legal/privacy (default 30-day
+retention); zero-retention requires a separate agreement with
+Anthropic. Each user provides their own key — SESPy does not store
+keys. Users handling politically-sensitive jurisdictions (sanctioned
+regions, named individuals in element labels, embargoed research)
+should consult their institutional data-governance policy before
+enabling the Claude backend.
+
 ### Shell + infrastructure
 
 | | What |
@@ -70,7 +114,7 @@ micromamba run -n shiny pytest tests/ -q
 # Skip e2e by ignoring tests/test_*_e2e.py
 ```
 
-180 unit tests + 21 e2e scripts. E2e scripts assume the app is running on
+258 unit tests + 21 e2e scripts. E2e scripts assume the app is running on
 `localhost:8000`; start the server first, then run them individually.
 
 ---
@@ -136,7 +180,7 @@ hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
 
 ## Testing
 
-**180 unit tests** across:
+**258 unit tests** across:
 
 - `tests/test_network.py` — graph metrics (centralities, leverage, loops, polarity, top-N, intervention impact, simplification)
 - `tests/test_persistent_storage.py` — save/load roundtrip, atomic writes, validation
