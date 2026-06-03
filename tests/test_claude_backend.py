@@ -274,3 +274,184 @@ def test_extract_raises_shape_when_suggestions_not_list():
         _extract_tool_input(response)
     assert excinfo.value.reason == "shape"
     assert "is not list" in (excinfo.value.text_content or "")
+
+
+from sespy.claude_backend import _validate_and_coerce
+
+
+def _valid_suggestion(**overrides):
+    """A minimum-valid suggestion dict for parametrized happy-path tests."""
+    base = {
+        "source": "D001",
+        "target": "A001",
+        "polarity": "+",
+        "confidence": 0.9,
+        "rationale": "drives the activity",
+    }
+    base.update(overrides)
+    return base
+
+
+def _three_elements():
+    return [
+        Element(id="D001", type="Drivers", label="X"),
+        Element(id="A001", type="Activities", label="Y"),
+        Element(id="P001", type="Pressures", label="Z"),
+    ]
+
+
+@pytest.mark.parametrize("invalid_field, invalid_value, expected_drop", [
+    ("source",     "UNKNOWN_ID",   "unknown_source"),
+    ("target",     "UNKNOWN_ID",   "unknown_target"),
+    ("source",     "A001",         "self_loop"),  # source == target after override
+])
+def test_drops_invalid_id_field(invalid_field, invalid_value, expected_drop):
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    if expected_drop == "self_loop":
+        sug = _valid_suggestion(source="A001", target="A001")
+    else:
+        sug = _valid_suggestion(**{invalid_field: invalid_value})
+    outcome = _validate_and_coerce([sug], valid_ids, elements)
+    assert outcome.suggestions == []
+    assert outcome.drops_by_reason[expected_drop] == 1
+
+
+def test_drops_invalid_type_pair_states_to_drivers():
+    """States -> Drivers is not in the 10 valid type-pair directions."""
+    elements = [
+        Element(id="S001", type="Marine Processes & Functioning", label="X"),
+        Element(id="D001", type="Drivers", label="Y"),
+    ]
+    valid_ids = {el.id for el in elements}
+    sug = _valid_suggestion(source="S001", target="D001")
+    outcome = _validate_and_coerce([sug], valid_ids, elements)
+    assert outcome.suggestions == []
+    assert outcome.drops_by_reason["invalid_pair"] == 1
+
+
+def test_drops_invalid_polarity():
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    sug = _valid_suggestion(polarity="garbage")
+    outcome = _validate_and_coerce([sug], valid_ids, elements)
+    assert outcome.suggestions == []
+    assert outcome.drops_by_reason["invalid_polarity"] == 1
+
+
+@pytest.mark.parametrize("bad_confidence", [
+    True,                  # bool — must be rejected BEFORE int/float check
+    False,
+    "0.9",                 # str
+    None,                  # None
+    [0.9],                 # list
+    float("nan"),          # NaN — clamp comparisons NaN-poison
+    float("inf"),
+    float("-inf"),
+])
+def test_drops_non_numeric_confidence(bad_confidence):
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    sug = _valid_suggestion(confidence=bad_confidence)
+    outcome = _validate_and_coerce([sug], valid_ids, elements)
+    assert outcome.suggestions == []
+    assert outcome.drops_by_reason["non_numeric_confidence"] == 1
+
+
+@pytest.mark.parametrize("conf, clamped", [
+    (-0.5, 0.0),
+    (1.5,  1.0),
+])
+def test_clamps_confidence_out_of_range(conf, clamped):
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    sug = _valid_suggestion(confidence=conf)
+    outcome = _validate_and_coerce([sug], valid_ids, elements)
+    assert len(outcome.suggestions) == 1
+    assert outcome.suggestions[0].confidence == clamped
+
+
+@pytest.mark.parametrize("rationale", ["", "   ", "\t\n"])
+def test_drops_empty_rationale(rationale):
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    sug = _valid_suggestion(rationale=rationale)
+    outcome = _validate_and_coerce([sug], valid_ids, elements)
+    assert outcome.suggestions == []
+    assert outcome.drops_by_reason["empty_rationale"] == 1
+
+
+def test_drops_non_dict_suggestion():
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    outcome = _validate_and_coerce(["not a dict"], valid_ids, elements)
+    assert outcome.suggestions == []
+    assert outcome.drops_by_reason["non_dict"] == 1
+
+
+def test_drops_missing_key():
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    sug = {"source": "D001"}  # missing target, polarity, etc.
+    outcome = _validate_and_coerce([sug], valid_ids, elements)
+    assert outcome.suggestions == []
+    assert outcome.drops_by_reason["missing_key"] == 1
+
+
+def test_drop_precedence_unknown_source_beats_invalid_polarity():
+    """Top-down precedence — first failing row in the §3.7 table wins."""
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    sug = _valid_suggestion(source="UNKNOWN", polarity="garbage")
+    outcome = _validate_and_coerce([sug], valid_ids, elements)
+    assert outcome.suggestions == []
+    assert outcome.drops_by_reason["unknown_source"] == 1
+    assert outcome.drops_by_reason["invalid_polarity"] == 0
+
+
+def test_drops_by_reason_contains_all_DropReason_members_with_all_valid_input():
+    """All-keys invariant: every Literal member is a key (zero if not encountered).
+    Catches the defaultdict-trap where never-seen keys are absent on serialization."""
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    sug = _valid_suggestion()  # all-valid
+    outcome = _validate_and_coerce([sug], valid_ids, elements)
+    assert len(outcome.suggestions) == 1
+    for reason in get_args(DropReason):
+        assert reason in outcome.drops_by_reason
+        assert outcome.drops_by_reason[reason] == 0
+
+
+def test_preserves_model_emitted_order_after_drops():
+    """5 entries; entry 2 (index 1) is invalid; output is [0, 2, 3, 4]."""
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    raw = [
+        _valid_suggestion(source="D001", target="A001"),  # 0 valid
+        _valid_suggestion(source="UNKNOWN"),               # 1 invalid
+        _valid_suggestion(source="D001", target="P001",
+                          polarity="-"),                  # 2 valid (D->P invalid pair?)
+        _valid_suggestion(source="A001", target="P001",
+                          rationale="r3"),                # 3 valid
+        _valid_suggestion(source="A001", target="P001",
+                          polarity="-",
+                          rationale="r4"),                # 4 valid
+    ]
+    # Note: D->P is invalid_pair. The valid surviving entries are 0, 3, 4.
+    outcome = _validate_and_coerce(raw, valid_ids, elements)
+    assert len(outcome.suggestions) == 3
+    assert outcome.suggestions[0].source == "D001"
+    assert outcome.suggestions[0].target == "A001"
+    assert outcome.suggestions[1].rationale == "r3"
+    assert outcome.suggestions[2].rationale == "r4"
+
+
+def test_returns_empty_outcome_when_all_invalid():
+    elements = _three_elements()
+    valid_ids = {el.id for el in elements}
+    raw = [_valid_suggestion(source="UNKNOWN"), {"missing": "fields"}]
+    outcome = _validate_and_coerce(raw, valid_ids, elements)
+    assert outcome.suggestions == []
+    assert outcome.raw_count == 2
+    assert outcome.drops_by_reason["unknown_source"] == 1
+    assert outcome.drops_by_reason["missing_key"] == 1

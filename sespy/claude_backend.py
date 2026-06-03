@@ -368,3 +368,92 @@ def _extract_tool_input(response: object) -> list[object]:
             else "no tool_use block; response had no text either"
         ),
     )
+
+
+def _validate_and_coerce(
+    raw: list[object],
+    valid_ids: set[str],
+    elements: list[Element],
+) -> ValidationOutcome:
+    """Top-down validation pipeline. Each check increments at-most-one
+    drop reason per entry and short-circuits via `continue`. Order is the
+    §3.7 table order — pinned by test_drop_precedence_*.
+
+    drops_by_reason invariant: every DropReason Literal member is a key
+    in the returned mapping (zero if not encountered). Use
+    dict.fromkeys(get_args(DropReason), 0) — NOT defaultdict, which
+    omits never-seen keys from serialized form.
+    """
+    drops: dict[DropReason, int] = dict.fromkeys(get_args(DropReason), 0)
+    by_id: dict[str, Element] = {el.id: el for el in elements}
+    surviving: list[ConnectionSuggestion] = []
+    raw_count = len(raw)
+
+    for entry in raw:
+        # 1. non_dict
+        if not isinstance(entry, dict):
+            drops["non_dict"] += 1
+            continue
+        # 2. missing_key
+        try:
+            source = entry["source"]
+            target = entry["target"]
+            polarity = entry["polarity"]
+            confidence = entry["confidence"]
+            rationale = entry["rationale"]
+        except KeyError:
+            drops["missing_key"] += 1
+            continue
+        # 3-5. ID checks (top-down)
+        if source not in valid_ids:
+            drops["unknown_source"] += 1
+            continue
+        if target not in valid_ids:
+            drops["unknown_target"] += 1
+            continue
+        if source == target:
+            drops["self_loop"] += 1
+            continue
+        # 6. type-pair (frozenset O(1) membership)
+        from_slug = _TYPE_TO_SLUG.get(by_id[source].type)
+        to_slug = _TYPE_TO_SLUG.get(by_id[target].type)
+        if (from_slug, to_slug) not in _VALID_TYPE_PAIRS:
+            drops["invalid_pair"] += 1
+            continue
+        # 7. polarity
+        if polarity not in ("+", "-"):
+            drops["invalid_polarity"] += 1
+            continue
+        # 8. confidence — bool BEFORE int/float (bool subclasses int).
+        if isinstance(confidence, bool):
+            drops["non_numeric_confidence"] += 1
+            continue
+        if not isinstance(confidence, (int, float)):
+            drops["non_numeric_confidence"] += 1
+            continue
+        confidence = float(confidence)
+        if not math.isfinite(confidence):
+            drops["non_numeric_confidence"] += 1
+            continue
+        if confidence < 0.0:
+            confidence = 0.0
+        elif confidence > 1.0:
+            confidence = 1.0
+        # 9. rationale
+        if not isinstance(rationale, str) or not rationale.strip():
+            drops["empty_rationale"] += 1
+            continue
+        # All checks passed.
+        surviving.append(ConnectionSuggestion(
+            source=source,
+            target=target,
+            polarity=polarity,
+            confidence=confidence,
+            rationale=rationale,
+        ))
+
+    return ValidationOutcome(
+        suggestions=surviving,
+        raw_count=raw_count,
+        drops_by_reason=drops,
+    )
