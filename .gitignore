@@ -33,6 +33,7 @@ Thumbs.db
 tests/screenshots/
 .tmp/
 .remember/
+.playwright-mcp/
 
 # Stray artifacts from shell mishaps (review and delete manually if you don't need them)
 0]
