@@ -52,7 +52,10 @@ def test_render_html_includes_leverage_section(project):
 
 def test_render_pdf_returns_pdf_bytes(project):
     """PDF round-trip — slow, but cheap insurance against template
-    breaking weasyprint's CSS parser."""
+    breaking weasyprint's CSS parser. PDF export is an optional feature
+    (the `pdf` extra / WeasyPrint + native libs), so skip when it's
+    absent rather than fail a core-only install."""
+    pytest.importorskip("weasyprint")
     pdf = render_pdf(project)
     assert isinstance(pdf, bytes)
     assert len(pdf) > 5000  # a non-empty PDF is at least a few KB

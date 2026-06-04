@@ -8,6 +8,7 @@ license-files = ["LICENSE"]
 dependencies = [
     "shiny>=1.5",
     "networkx>=3.0",
+    "scipy>=1.10",          # required by networkx for pagerank / eigenvector centrality (network.py)
     "htmltools>=0.5",
     "pandas>=2.0",
     "numpy>=1.24",          # dynamics.py / Boolean + simulation matrices (also pandas-transitive, declared explicitly)
