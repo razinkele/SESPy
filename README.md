@@ -102,6 +102,30 @@ enabling the Claude backend.
 | `sespy/constants.py` | DAPSI element types, Kumu-style colors and shapes, hierarchical level numbers, font/size scales, edge colors, polarity labels. |
 | `www/sespy-skin.css` | Visual port of `bs4dash-custom.css` "Deep Ocean Scientific" theme. Tokens (`--ocean-*`, `--bio-*`, `--foam-*`, `--mist-*`) lifted verbatim; selectors re-authored for bslib's DOM. Fonts: DM Sans + Source Serif 4. |
 
+### Install it
+
+Two paths, depending on what you need:
+
+**Full app — conda / micromamba (recommended).** The CLD/graph view renders
+through `pyvis.shiny`, which lives in a **fork of pyvis (v4.2) that is not on
+PyPI**. The maintainer's `shiny` env carries that fork (built locally) alongside
+the deps in `pyproject.toml`; set up an equivalent env with the fork installed
+before running the app.
+
+**Library / programmatic use — pip.** The pure-Python layer (data model,
+network + dynamics analysis, connection scoring, HTML report) installs cleanly
+from source or the wheel:
+
+```bash
+pip install .            # core dependencies
+pip install ".[pdf]"     # + WeasyPrint for PDF export (needs native cairo/pango)
+```
+
+⚠️ A plain `pip install` does **not** pull the pyvis fork, so `import app` and the
+graph-rendering modules won't work from a PyPI-only environment — use the
+conda/micromamba path for the full app. (Resolving this — publishing the fork or
+declaring it as a git dependency — is tracked as a TODO in `pyproject.toml`.)
+
 ### Run it
 
 ```bash
