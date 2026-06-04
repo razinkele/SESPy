@@ -4,6 +4,7 @@ from sespy.data_structure import (
     ProjectMetadata,
     Stakeholder,
 )
+from sespy.persistent_storage import load_project, save_project_atomic
 
 
 def _proj_with(stakeholders):
@@ -50,3 +51,28 @@ def test_from_dict_tolerates_unknown_stakeholder_key():
     }
     out = Project.from_dict(raw).stakeholders
     assert out == [Stakeholder(id="SH001", name="X")]
+
+
+def test_with_modified_now_preserves_stakeholders():
+    s = Stakeholder(id="SH001", name="X")
+    proj = _proj_with([s])
+    assert proj.with_modified_now().stakeholders == [s]
+
+
+def test_replace_preserves_other_fields():
+    s = Stakeholder(id="SH001", name="X")
+    proj = _proj_with([s])
+    new_meta = ProjectMetadata.new("Renamed")
+    out = proj.replace(metadata=new_meta)
+    assert out.metadata.name == "Renamed"
+    assert out.stakeholders == [s]
+    assert out.isa_data is proj.isa_data
+
+
+def test_save_path_roundtrip_preserves_stakeholders(tmp_path):
+    s = Stakeholder(id="SH001", name="Coastal NGO", stakeholder_type="ngo")
+    proj = _proj_with([s])
+    p = tmp_path / "proj.json"
+    save_project_atomic(proj, p)
+    back = load_project(p)
+    assert back.stakeholders == [s]

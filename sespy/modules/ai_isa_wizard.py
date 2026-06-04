@@ -463,10 +463,7 @@ def ai_isa_wizard_server(
         # wizard breadcrumb appear before CLD/autosave see the cleared
         # isa_data, producing a single-frame inconsistent UI.
         current = project_data.get()
-        project_data.set(Project(
-            metadata=current.metadata,
-            isa_data=IsaData(),
-        ))
+        project_data.set(current.replace(isa_data=IsaData()))
         # Emit BOTH so autosave + CLD see the clearance immediately.
         event_bus.emit_isa_change()
         event_bus.emit_cld_update()
@@ -574,13 +571,13 @@ def ai_isa_wizard_server(
         if step_idx == 0:
             # regional_sea — metadata write
             new_meta = _replace_metadata(current.metadata, regional_sea=answer)
-            new_proj = Project(metadata=new_meta, isa_data=current.isa_data)
+            new_proj = current.replace(metadata=new_meta)
             project_data.set(new_proj)
             event_bus.emit_isa_change()
             event_bus.emit_cld_update()
         elif step_idx == 1:
             new_meta = _replace_metadata(current.metadata, ecosystem_type=answer)
-            new_proj = Project(metadata=new_meta, isa_data=current.isa_data)
+            new_proj = current.replace(metadata=new_meta)
             project_data.set(new_proj)
             event_bus.emit_isa_change()
             event_bus.emit_cld_update()
@@ -648,7 +645,7 @@ def ai_isa_wizard_server(
                     elements=new_elements,
                     connections=connections_to_keep,
                 )
-                new_proj = Project(metadata=current.metadata, isa_data=new_isa)
+                new_proj = current.replace(isa_data=new_isa)
                 project_data.set(new_proj)
                 event_bus.emit_isa_change()
                 event_bus.emit_cld_update()
@@ -932,7 +929,7 @@ def ai_isa_wizard_server(
                 elements=list(current.isa_data.elements),
                 connections=new_conns,
             )
-            new_proj = Project(metadata=current.metadata, isa_data=new_isa)
+            new_proj = current.replace(isa_data=new_isa)
             project_data.set(new_proj)
             event_bus.emit_isa_change()
             event_bus.emit_cld_update()

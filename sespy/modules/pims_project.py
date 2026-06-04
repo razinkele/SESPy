@@ -169,7 +169,7 @@ def pims_project_server(
             modified_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             schema_version=current.schema_version,
         )
-        project_data.set(Project(metadata=new_meta, isa_data=current_project.isa_data))
+        project_data.set(current_project.replace(metadata=new_meta))
         pims_save_status.set(datetime.now().strftime("%H:%M:%S"))
         event_bus.emit_isa_change()
         ui.notification_show(

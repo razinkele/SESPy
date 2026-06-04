@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace as _dc_replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Literal
@@ -235,12 +235,18 @@ class Project:
     def from_isa(cls, isa: IsaData, *, name: str = "Untitled Project") -> "Project":
         return cls(metadata=ProjectMetadata.new(name), isa_data=isa)
 
+    def replace(self, **changes: Any) -> "Project":
+        """Return a copy with `changes` applied, preserving all other fields
+        (incl. stakeholders). Use this for every partial Project edit instead
+        of `Project(metadata=…, isa_data=…)`, which silently drops new fields."""
+        return _dc_replace(self, **changes)
+
     def with_modified_now(self) -> "Project":
         meta = ProjectMetadata(
             **{**asdict(self.metadata),
                "modified_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         )
-        return Project(metadata=meta, isa_data=self.isa_data)
+        return self.replace(metadata=meta)
 
 
 def to_visnetwork(

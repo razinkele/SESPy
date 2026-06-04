@@ -174,7 +174,7 @@ def isa_data_entry_server(
     # ---- Mutators -------------------------------------------------------
     def _replace(isa: IsaData) -> None:
         current = project_data.get()
-        project_data.set(Project(metadata=current.metadata, isa_data=isa))
+        project_data.set(current.replace(isa_data=isa))
         event_bus.emit_isa_change()
         event_bus.emit_cld_update()
 
