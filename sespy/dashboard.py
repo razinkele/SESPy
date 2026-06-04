@@ -229,6 +229,20 @@ def dashboard_page(
         }, true);  // capture phase, before bslib's own handler
     """)
 
+    # URL bookmarking: when the server sends the active view, reflect it in the
+    # address bar (replaceState, so navigation doesn't bloat history). Register
+    # on shiny:connected — the handler depends on `Shiny`, which (unlike the
+    # burger script) is not defined when this inline script first parses.
+    bookmark_js = ui.tags.script("""
+        $(document).on('shiny:connected', function() {
+          Shiny.addCustomMessageHandler('sespy_view_url', function(m) {
+            var u = new URL(window.location);
+            u.searchParams.set('view', m.view);
+            window.history.replaceState({}, '', u);
+          });
+        });
+    """)
+
     return ui.tags.div(
         # Inject the shell stylesheet at the page level. The skin contains the
         # design tokens, layout, AND the critical guards (display:block on
@@ -245,6 +259,7 @@ def dashboard_page(
                       "6.5.0/css/all.min.css"),
             ),
             burger_js,
+            bookmark_js,
         ),
         ui.page_sidebar(
             ui.sidebar(*sidebar_children, width=280, class_="sespy-sidebar"),
