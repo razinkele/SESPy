@@ -321,6 +321,28 @@ def dashboard_server(
                 continue  # no panel claims this step — leave it non-navigable
             _wire_step_button(input, session, step.id, target_nav, active_panel)
 
+    # --- URL bookmarking (view-only): restore ?view on load, sync on change ---
+    from .bookmark import parse_view
+
+    _did_restore = [False]  # per-session closure-local — NOT a module global
+    _valid_views = {item.id for item in nav_items}
+
+    @reactive.effect
+    def _restore_view_from_url():
+        search = session.clientdata.url_search()   # register the dependency
+        with reactive.isolate():
+            if _did_restore[0]:
+                return
+            _did_restore[0] = True
+        view = parse_view(search, _valid_views)
+        if view:
+            _goto(active_panel, session, view)
+
+    @reactive.effect
+    async def _sync_view_to_url():
+        view = active_panel.get()
+        await session.send_custom_message("sespy_view_url", {"view": view})
+
     return active_panel
 
 
