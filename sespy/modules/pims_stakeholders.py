@@ -61,7 +61,7 @@ def pims_stakeholders_ui() -> ui.Tag:
                 ui.input_select("sh_engagement_level", _t("stakeholders.engagement_level"),
                                 _choices(_ENGAGE_CODES, "engagement", _t)),
                 ui.input_action_button("save_stakeholder", _t("stakeholders.save"),
-                                       class_="btn-primary"),
+                                       class_="btn btn-primary"),
                 ui.input_action_button("cancel_edit", _t("stakeholders.cancel")),
             ),
             ui.card(
@@ -90,7 +90,7 @@ def pims_stakeholders_server(
     translator: Translator | None = None,
 ) -> None:
     T = translator
-    tr = (lambda k: T.t(k)) if T is not None else _t
+    tr = T.t if T is not None else _t
 
     editing_id: reactive.Value[str | None] = reactive.value(None)
 
@@ -150,9 +150,9 @@ def pims_stakeholders_server(
             new_list = add_stakeholder(_items(), f, today=date.today().isoformat())
         else:
             new_list = update_stakeholder(_items(), eid, f)
-        # Reset editing_id BEFORE project_data.set so the _repopulate effect
-        # (it subscribes to project_data via _items()) re-runs with editing_id
-        # == None and exits early, rather than re-filling the cleared form.
+        # Return to "add" mode: reset editing_id (which gates _repopulate) and
+        # clear the form. _repopulate is @reactive.event(editing_id), so the
+        # project_data.set below cannot re-fire it and re-fill the form.
         editing_id.set(None)
         project_data.set(project_data.get().replace(stakeholders=new_list))
         event_bus.emit_isa_change()
@@ -169,9 +169,12 @@ def pims_stakeholders_server(
             return
         editing_id.set(items[sel["rows"][0]].id)
 
-    # Repopulate the form ONLY when editing_id changes — never subscribe to the
-    # sh_* inputs here (that would clobber typing). Mirrors pims_project.py:195.
+    # Repopulate the form ONLY when editing_id changes. Gated on editing_id via
+    # @reactive.event so unrelated project_data writes (autosave, other modules)
+    # cannot re-fire this and clobber the user's in-progress edits. Never
+    # subscribe to the sh_* inputs here either. Mirrors pims_project.py:195.
     @reactive.effect
+    @reactive.event(editing_id)
     def _repopulate():
         eid = editing_id.get()
         if eid is None:
