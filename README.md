@@ -144,12 +144,22 @@ shiny run --port 8000 app.py
 ### Test it
 
 ```bash
-micromamba run -n shiny pytest tests/ -q
-# Skip e2e by ignoring tests/test_*_e2e.py
+# Unit tests (exclude the standalone browser scripts, which need a live server)
+micromamba run -n shiny pytest tests/ -q \
+  --ignore-glob='*e2e*' --ignore=tests/test_burger.py \
+  --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py
+
+# Full Playwright e2e — one command boots the server, runs all 22 browser
+# scripts, and handles the wizard's ANTHROPIC_API_KEY two-pass:
+micromamba run -n shiny python tests/run_e2e.py
 ```
 
-258 unit tests + 21 e2e scripts. E2e scripts assume the app is running on
-`localhost:8000`; start the server first, then run them individually.
+258 unit tests + 22 standalone Playwright scripts. `tests/run_e2e.py`
+orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
+passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
+against a server already on `localhost:8000`. Both layers run in CI on every
+push (see `.github/workflows/ci.yml`): pip unit tests on Python 3.11/3.12, a
+conda full-app job (import + boot smoke), and the full e2e suite.
 
 ---
 
@@ -228,7 +238,16 @@ hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
 - `tests/test_utils.py` — shared helpers (`next_id` gap-filling)
 - `tests/test_wizard.py` — wizard step flow, element-type map, regional-seas placeholder, stub
 
-**21 end-to-end test scripts** in `tests/test_*_e2e.py` (shell, data-entry, i18n, quick-actions, metrics, intervention, leverage, import, templates, autosave, report, boolean, boolean-happy, simulation, full-app). Each starts headless Chromium, asserts on the live app's DOM and reactive state. Run them after starting the server with `shiny run --port 8000`.
+**22 end-to-end test scripts** (`tests/test_*_e2e.py` plus the burger/stepper
+sidebar scripts: shell, data-entry, i18n, quick-actions, metrics, intervention,
+leverage, import, templates, autosave, report, boolean, boolean-happy,
+simulation, bot, pims-project, wizard, full-app, burger, stepper). Each starts
+headless Chromium and asserts on the live app's DOM and reactive state. Run the
+whole suite with `python tests/run_e2e.py` (it manages the server and the
+wizard's two ANTHROPIC_API_KEY passes), or run a single script against a server
+already on `localhost:8000`. Because the nav/stepper are reactive `@render.ui`
+outputs, e2e scripts `wait_for_selector`/`wait_for_function` on the target
+element before querying — never a fixed sleep (which races the first render).
 
 The diagnostic scripts (`tests/diagnose_browser.py`, `tests/probe_*.py`,
 `tests/inspect_frames.py`) are not pytest tests — they're throwaway tools
