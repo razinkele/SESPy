@@ -5,6 +5,7 @@ from sespy.data_structure import (
     Stakeholder,
 )
 from sespy.persistent_storage import load_project, save_project_atomic
+from sespy.stakeholders import add_stakeholder, remove_stakeholder, update_stakeholder
 
 
 def _proj_with(stakeholders):
@@ -85,9 +86,6 @@ def test_save_path_roundtrip_preserves_stakeholders(tmp_path):
     save_project_atomic(proj, p)
     back = load_project(p)
     assert back.stakeholders == [s]
-
-
-from sespy.stakeholders import add_stakeholder, remove_stakeholder, update_stakeholder
 
 
 def test_add_assigns_padded_id_and_created_at():
