@@ -88,3 +88,20 @@ jobs:
             --ignore=tests/test_stepper.py \
             --ignore=tests/test_stepper_click.py \
             -q
+
+      - name: Smoke-test app boots and serves HTTP 200
+        # A level up from `import app`: actually start the Shiny server and
+        # confirm it serves the page (exercises uvicorn startup, route mounting,
+        # static assets, dashboard render). No browser — plain HTTP, low flake.
+        run: |
+          shiny run --port 8000 app.py &
+          PID=$!
+          ok=1
+          for i in $(seq 1 40); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8000/; then
+              echo "app booted and served HTTP 200"; ok=0; break
+            fi
+            sleep 1
+          done
+          kill "$PID" 2>/dev/null || true
+          [ "$ok" = "0" ] || { echo "::error::app did not serve on :8000 within 40s"; exit 1; }
