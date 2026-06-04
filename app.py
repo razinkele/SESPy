@@ -1,4 +1,4 @@
-"""Top-level Shiny for Python app — POC port of MarineSABRES SES Toolbox.
+"""Top-level Shiny for Python app — port of the MarineSABRES SES Toolbox.
 
 Uses `sespy.dashboard.dashboard_page` as the visual shell, which mirrors the
 R app's bs4Dash layout: dark left sidebar (brand + nav + quick-actions),

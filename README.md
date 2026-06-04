@@ -239,4 +239,4 @@ The repeating pattern across all five existing modules makes module #6 mostly me
 ## Acknowledgements
 
 R source authored by the MarineSABRES Consortium (Horizon Europe Project).
-Python POC by the project maintainer with iterative review against the R app.
+Python port by the project maintainer, developed with iterative review against the R app.
