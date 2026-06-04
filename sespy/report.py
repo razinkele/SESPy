@@ -243,8 +243,20 @@ def render_html(project: Project) -> str:
 
 
 def render_pdf(project: Project) -> bytes:
-    """Render the report as PDF bytes (WeasyPrint underneath)."""
-    from weasyprint import HTML
+    """Render the report as PDF bytes (WeasyPrint underneath).
+
+    PDF export is optional: WeasyPrint pulls native system libraries
+    (cairo, pango, gdk-pixbuf), so it ships in the ``pdf`` extra rather
+    than the core dependencies. HTML and Word export work without it.
+    """
+    try:
+        from weasyprint import HTML
+    except ImportError as e:
+        raise RuntimeError(
+            "PDF export requires WeasyPrint and its native libraries. "
+            "Install it with: pip install sespy[pdf]. "
+            "HTML and Word export work without it."
+        ) from e
 
     html = render_html(project)
     return HTML(string=html).write_pdf()
