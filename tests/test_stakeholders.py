@@ -66,7 +66,16 @@ def test_replace_preserves_other_fields():
     out = proj.replace(metadata=new_meta)
     assert out.metadata.name == "Renamed"
     assert out.stakeholders == [s]
-    assert out.isa_data is proj.isa_data
+    assert out.isa_data == proj.isa_data
+
+
+def test_replace_isa_data_preserves_stakeholders():
+    # The exact failure mode this task fixes: 5 of 7 call sites replace
+    # isa_data, and the old bare-constructor form dropped stakeholders here.
+    s = Stakeholder(id="SH001", name="X")
+    proj = _proj_with([s])
+    out = proj.replace(isa_data=IsaData())
+    assert out.stakeholders == [s]
 
 
 def test_save_path_roundtrip_preserves_stakeholders(tmp_path):
