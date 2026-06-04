@@ -107,10 +107,16 @@ enabling the Claude backend.
 Two paths, depending on what you need:
 
 **Full app — conda / micromamba (recommended).** The CLD/graph view renders
-through `pyvis.shiny`, which lives in a **fork of pyvis (v4.2) that is not on
-PyPI**. The maintainer's `shiny` env carries that fork (built locally) alongside
-the deps in `pyproject.toml`; set up an equivalent env with the fork installed
-before running the app.
+through `pyvis.shiny`, which lives in a fork of pyvis (v4.x) published on the
+Anaconda channel [`razinka`](https://anaconda.org/razinka/pyvis) — conda-forge's
+`pyvis` tops out at 0.3.x and has no `.shiny`. Install pyvis from that channel,
+then the remaining dependencies into the same environment:
+
+```bash
+micromamba install -c razinka -c conda-forge pyvis   # pulls pyvis 4.x (with .shiny)
+# + the deps declared in pyproject.toml (shiny, networkx, scipy, pandas,
+#   numpy, matplotlib, jinja2, openpyxl, python-docx, anthropic; weasyprint for PDF)
+```
 
 **Library / programmatic use — pip.** The pure-Python layer (data model,
 network + dynamics analysis, connection scoring, HTML report) installs cleanly
@@ -121,10 +127,10 @@ pip install .            # core dependencies
 pip install ".[pdf]"     # + WeasyPrint for PDF export (needs native cairo/pango)
 ```
 
-⚠️ A plain `pip install` does **not** pull the pyvis fork, so `import app` and the
-graph-rendering modules won't work from a PyPI-only environment — use the
-conda/micromamba path for the full app. (Resolving this — publishing the fork or
-declaring it as a git dependency — is tracked as a TODO in `pyproject.toml`.)
+⚠️ A plain `pip install` pulls upstream pyvis from PyPI (0.3.x, no `.shiny`), so
+`import app` and the graph-rendering modules need the `razinka`-channel pyvis
+shown above — use the conda/micromamba path for the full app. (pip still gives
+the full pure-Python library layer.)
 
 ### Run it
 

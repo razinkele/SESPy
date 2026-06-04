@@ -12,11 +12,12 @@ dependencies = [
     "htmltools>=0.5",
     "pandas>=2.0",
     "numpy>=1.24",          # dynamics.py / Boolean + simulation matrices (also pandas-transitive, declared explicitly)
-    # TODO(pyvis-fork): the app's CLD/graph view needs `pyvis.shiny`, which is
-    # in a pyvis fork (v4.2) NOT on PyPI — `pip install pyvis` gets upstream
-    # ~0.3.2 without `.shiny`, so the full app won't import from a clean install.
-    # Resolve by publishing the fork or declaring it as a git dep
-    # (e.g. "pyvis @ git+https://github.com/<owner>/pyvis@<ref>"). See README "Install it".
+    # pyvis>=0.3 keeps the pip/library layer + CI installable from PyPI (upstream
+    # 0.3.x). The full app's CLD/graph view needs `pyvis.shiny`, which lives in
+    # the pyvis fork (v4.x) published on the `razinka` Anaconda channel:
+    #   micromamba install -c razinka -c conda-forge pyvis
+    # PyPI has no 4.x, so a pip-only env runs the library but not the app.
+    # See README "Install it".
     "pyvis>=0.3",
     "matplotlib>=3.7",      # analysis @render.plot outputs (BOT, Boolean, simulation, metrics)
     "jinja2>=3.1",          # report.py HTML template rendering (hard import)

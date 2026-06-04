@@ -1,0 +1,33 @@
+# Reproducible conda environment for the SESPy *full app* (Shiny UI + the
+# CLD / network graph view). The graph view renders through `pyvis.shiny`,
+# which lives in the pyvis 4.x fork published on the `razinka` Anaconda
+# channel — conda-forge's pyvis tops out at 0.3.x and has no `.shiny`.
+# Everything else is on conda-forge, except shiny-for-python (PyPI, via pip).
+#
+#   micromamba env create -f environment.yml     # or: conda env create -f environment.yml
+#   micromamba activate sespy
+#   shiny run --port 8000 app.py
+#
+# For library-only / programmatic use (no Shiny UI, no graph view) a plain
+# `pip install .` is enough — see README "Install it".
+name: sespy
+channels:
+  - razinka          # pyvis 4.x fork — provides the pyvis.shiny vis-network bridge
+  - conda-forge
+dependencies:
+  - python>=3.11
+  - pyvis>=4.0       # razinka channel (PyPI/conda-forge pyvis 0.3.x lacks .shiny)
+  - networkx>=3.0
+  - scipy>=1.10      # networkx pagerank / eigenvector centrality
+  - pandas>=2.0
+  - numpy>=1.24
+  - matplotlib>=3.7  # analysis @render.plot outputs
+  - jinja2>=3.1      # HTML report templating
+  - openpyxl>=3.1    # Excel import
+  - python-docx>=1.1 # Word report export
+  - htmltools>=0.5
+  - anthropic>=0.50,<0.101
+  - weasyprint>=60   # optional: PDF report export (native cairo/pango)
+  - pip
+  - pip:
+      - shiny>=1.5   # shiny-for-python — published on PyPI, not conda-forge
