@@ -85,3 +85,35 @@ def test_save_path_roundtrip_preserves_stakeholders(tmp_path):
     save_project_atomic(proj, p)
     back = load_project(p)
     assert back.stakeholders == [s]
+
+
+from sespy.stakeholders import add_stakeholder, remove_stakeholder, update_stakeholder
+
+
+def test_add_assigns_padded_id_and_created_at():
+    out = add_stakeholder([], {"name": "A", "stakeholder_type": "ngo"}, today="2026-06-04")
+    assert len(out) == 1
+    assert out[0].id == "SH001"
+    assert out[0].name == "A"
+    assert out[0].created_at == "2026-06-04"
+
+
+def test_add_is_pure_and_increments_id():
+    first = add_stakeholder([], {"name": "A"}, today="2026-06-04")
+    second = add_stakeholder(first, {"name": "B"}, today="2026-06-05")
+    assert [s.id for s in second] == ["SH001", "SH002"]
+    assert len(first) == 1  # original list untouched
+
+
+def test_update_replaces_by_id_preserving_id_and_created_at():
+    items = add_stakeholder([], {"name": "A"}, today="2026-06-04")
+    out = update_stakeholder(items, "SH001", {"name": "A2", "power": "HIGH"})
+    assert out[0].id == "SH001"
+    assert out[0].name == "A2"
+    assert out[0].power == "HIGH"
+    assert out[0].created_at == "2026-06-04"
+
+
+def test_remove_drops_by_id():
+    items = add_stakeholder([], {"name": "A"}, today="2026-06-04")
+    assert remove_stakeholder(items, "SH001") == []
