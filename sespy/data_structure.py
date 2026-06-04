@@ -16,7 +16,7 @@ from typing import Any, Iterable, Literal
 
 _log = logging.getLogger(__name__)
 
-PROJECT_SCHEMA_VERSION = 2
+PROJECT_SCHEMA_VERSION = 3
 
 
 # ---------------------------------------------------------------------------
@@ -166,10 +166,34 @@ class ProjectMetadata:
 
 
 @dataclass
+class Stakeholder:
+    """A single PIMS stakeholder. Ported from pims_stakeholder_module.R.
+
+    Controlled-vocabulary fields store canonical CODE strings (see
+    sespy/modules/pims_stakeholders.py for the code->label maps), not the
+    translated label — codes are i18n-stable. `created_at` mirrors R's
+    DateAdded.
+    """
+    id: str
+    name: str
+    stakeholder_type: str = ""
+    sector: str = ""
+    contact: str = ""
+    interests: str = ""
+    role: str = ""
+    power: str = ""            # "HIGH" | "MEDIUM" | "LOW" | ""
+    interest: str = ""         # "HIGH" | "MEDIUM" | "LOW" | ""
+    attitude: str = ""
+    engagement_level: str = ""
+    created_at: str = ""
+
+
+@dataclass
 class Project:
     """A complete saveable project: metadata + ISA data."""
     metadata: ProjectMetadata
     isa_data: IsaData
+    stakeholders: list["Stakeholder"] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -178,6 +202,7 @@ class Project:
                 "elements": [asdict(e) for e in self.isa_data.elements],
                 "connections": [asdict(c) for c in self.isa_data.connections],
             },
+            "stakeholders": [asdict(s) for s in self.stakeholders],
         }
 
     def to_json(self, *, indent: int = 2) -> str:
@@ -195,7 +220,12 @@ class Project:
             )
         meta = ProjectMetadata(**meta_filtered)
         isa = _isa_from_dict(raw.get("isa_data", raw))  # tolerate flat shapes
-        return cls(metadata=meta, isa_data=isa)
+        sh_keys = {f.name for f in fields(Stakeholder)}
+        stakeholders = [
+            Stakeholder(**{k: v for k, v in s.items() if k in sh_keys})
+            for s in (raw.get("stakeholders") or [])
+        ]
+        return cls(metadata=meta, isa_data=isa, stakeholders=stakeholders)
 
     @classmethod
     def from_json(cls, text: str) -> "Project":
