@@ -217,6 +217,7 @@ git commit -m "refactor(dashboard): factor nav/stepper view-switch into _goto he
 
 Notes for the implementer (do not paste as code):
 - The restore effect reads **only** `url_search()` as a dependency (never `active_panel`, which would couple it to the write path). The guard is defensive — `replaceState` does not re-report `url_search`, so it cannot self-retrigger.
+- **Not an empty-first-flush race (verified):** in shiny 1.6.1 the init websocket message carries `.clientdata_url_search`, and `_manage_inputs` sets all clientdata Values *synchronously before* `app.server` runs; the first `reactive_flush` fires this effect *after* inputs are set. So `url_search()` returns the real query string on its first (and only) run — setting `_did_restore` before the parse check is safe. Do not "re-fix" this.
 - The write effect is `async` because `session.send_custom_message` is a coroutine. It fires once on the initial flush (stamping `?view=<default>`, e.g. `?view=cld` — intended) and on every change. The transient default→target double-write on a `?view=metrics` load is harmless under `replaceState`.
 
 - [ ] **Step 2: Verify the module + app import cleanly**
@@ -327,8 +328,10 @@ async def main():
         await page.goto(f"{BASE}/?view=metrics", wait_until="networkidle")
         # navset_hidden renders every panel into the DOM, so assert the metrics
         # tab-pane is ACTIVE (visible), not merely present.
+        # NOTE: the .tab-pane panels live in a sibling `.tab-content` div, NOT
+        # inside `#main_nav` (which is the <ul class="nav nav-hidden"> strip).
         await page.wait_for_function(
-            "() => { const el = document.querySelector(\"#main_nav .tab-pane[data-value='metrics']\");"
+            "() => { const el = document.querySelector(\".tab-content > .tab-pane[data-value='metrics']\");"
             " return !!el && el.classList.contains('active'); }",
             timeout=20000,
         )
@@ -380,7 +383,7 @@ micromamba run -n shiny python tests/test_bookmark_e2e.py
 ```
 Expected: prints the three `ok` lines + "bookmark e2e assertions pass", exits 0.
 
-If case 1 fails on the `active` class, confirm Task 3's restore calls `_goto` (not just `active_panel.set`) and that `#main_nav` panels carry `data-value="<nav_id>"` (inspect the DOM); if the panel selector differs, assert instead that `#metrics-metrics_network` `is_visible()` is True while the `cld` pane is hidden. If case 2/3 URL never updates, confirm the Task 4 handler registered (browser console: no "no handler for sespy_view_url" warning) and that Task 3's async write effect is `async def` + `await`s `send_custom_message`.
+If case 1 fails on the `active` class, confirm Task 3's restore calls `_goto` (not just `active_panel.set`). The `.tab-pane` panels render inside a sibling `<div class="tab-content">`, **not** inside `#main_nav` (which is only the `<ul class="nav nav-hidden">` strip) — so anchor the selector on `.tab-content`, not `#main_nav`. An equivalent alternative assertion is `#metrics-metrics_network` `is_visible()` True while the `cld` pane is hidden. If case 2/3 URL never updates, confirm the Task 4 handler registered (browser console: no "no handler for sespy_view_url" warning) and that Task 3's async write effect is `async def` + `await`s `send_custom_message`.
 
 - [ ] **Step 3: Commit**
 
@@ -409,7 +412,7 @@ Expected: all pass (prior count + 7 new bookmark tests).
 ```
 micromamba run -n shiny python tests/run_e2e.py
 ```
-Expected: `23/23 e2e scripts passed, 0 failed` (22 prior + bookmark), 0 retries.
+Expected: **0 failed** (the gate is "0 failed", not the absolute count) — should be `23/23 passed` (22 prior + bookmark) with 0 retries, but don't fail the task if the denominator differs. Keep the e2e's `BASE=http://127.0.0.1:8000` in sync with the runner's default `--port 8000`.
 
 - [ ] **Step 3: Confirm clean tree + focused history**
 
