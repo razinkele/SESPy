@@ -50,6 +50,10 @@ from sespy.modules.analysis_simulation import (
     analysis_simulation_ui,
 )
 from sespy.modules.pims_project import pims_project_server, pims_project_ui
+from sespy.modules.pims_stakeholders import (
+    pims_stakeholders_server,
+    pims_stakeholders_ui,
+)
 from sespy.modules.cld_visualization import cld_viz_server, cld_viz_ui
 from sespy.modules.import_data import import_data_server, import_data_ui
 from sespy.modules.isa_data_entry import isa_data_entry_server, isa_data_entry_ui
@@ -73,6 +77,7 @@ _i18n.set_default(T)  # so modules can `from sespy.i18n import t` and use `t(...
 # later without changing the dashboard signature.
 NAV: list[NavItem] = [
     NavItem(id="pims",     icon="clipboard-list",  label="Project Setup",     label_key="nav.pims"),
+    NavItem(id="stakeholders", icon="users", label="Stakeholders", label_key="nav.stakeholders"),
     NavItem(id="templates", icon="layer-group",    label="Templates",         label_key="nav.templates"),
     NavItem(id="wizard",   icon="wand-magic-sparkles", label="SES Wizard",  label_key="nav.wizard"),
     NavItem(id="entry",    icon="pen-to-square",   label="Edit Data",         label_key="nav.entry"),
@@ -105,6 +110,7 @@ STEPPER: list[StepperItem] = [
 # Map a nav id to its stepper stage so the highlight follows panel changes.
 NAV_TO_STEP = {
     "pims": "setup",
+    "stakeholders": "setup",
     "templates": "create",
     "wizard": "create",
     "entry": "create",
@@ -118,6 +124,7 @@ NAV_TO_STEP = {
 
 PANELS = (
     ui.nav_panel("Project Setup",     pims_project_ui("pims"),                     value="pims"),
+    ui.nav_panel("Stakeholders", pims_stakeholders_ui("stakeholders"), value="stakeholders"),
     ui.nav_panel("Templates",         templates_ui("templates"),                   value="templates"),
     ui.nav_panel("SES Wizard",        ai_isa_wizard_ui("wizard"),                 value="wizard"),
     ui.nav_panel("Edit Data",         isa_data_entry_ui("entry"),                  value="entry"),
@@ -171,6 +178,12 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
 
     pims_project_server(
         "pims",
+        project_data=project_data,
+        event_bus=event_bus,
+        translator=T,
+    )
+    pims_stakeholders_server(
+        "stakeholders",
         project_data=project_data,
         event_bus=event_bus,
         translator=T,
