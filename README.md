@@ -1,5 +1,9 @@
 # SESPy — MarineSABRES SES Toolbox · Python port
 
+[![CI](https://github.com/razinkele/SESPy/actions/workflows/ci.yml/badge.svg)](https://github.com/razinkele/SESPy/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+
 A Shiny-for-Python port of the [MarineSABRES SES Toolbox](https://marinesabres.eu)
 that lives next door at `../SESToolbox/MarineSABRES_SES_Shiny`. The R app is
 ~90 KLOC across 46 modules with bs4Dash; this is the strategic-core port —

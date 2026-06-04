@@ -293,6 +293,10 @@ def test_pyvis_loop_payload_shape():
     the same {nodes, edges} dict shape the vis-network bridge expects, with
     DAPSIWRM colors/shapes already mapped per element type.
     """
+    # analysis_loops imports `pyvis.shiny`, which only exists in the pyvis
+    # fork (not upstream PyPI pyvis). Skip where the fork isn't installed
+    # rather than fail a fork-independent environment (e.g. CI on PyPI deps).
+    pytest.importorskip("pyvis.shiny")
     from sespy.constants import EDGE_COLORS, ELEMENT_COLORS, ELEMENT_SHAPES
     from sespy.modules.analysis_loops import build_loop_payload
 

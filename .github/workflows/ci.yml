@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: Unit tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package + test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test]
+
+      - name: Run unit tests
+        # Scope: fork-independent, server-independent unit tests only.
+        # Excluded and run elsewhere:
+        #   * tests/test_*_e2e.py + test_burger/test_stepper(_click) — need a
+        #     live Shiny server on :8000 and headless Chromium.
+        # Auto-skipped here (optional deps absent from the [test] extra):
+        #   * the PDF test (WeasyPrint — `pdf` extra, native libs)
+        #   * the pyvis-loop payload test (pyvis.shiny — the pyvis fork, not
+        #     on PyPI). Both use pytest.importorskip, so they run in dev where
+        #     those are installed and skip cleanly here.
+        run: |
+          pytest tests/ \
+            --ignore-glob='*e2e*' \
+            --ignore=tests/test_burger.py \
+            --ignore=tests/test_stepper.py \
+            --ignore=tests/test_stepper_click.py \
+            -q
