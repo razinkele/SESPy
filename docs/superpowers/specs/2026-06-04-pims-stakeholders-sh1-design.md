@@ -33,7 +33,12 @@ save path; the `test_schema_version_is_2` update.
 - Unit + e2e tests.
 
 ### 1.2 Out of scope (SH2 / later)
-- Power×Interest grid + engagement strategies (**SH2**).
+- Power×Interest grid + engagement strategies (**SH2**). NOTE for SH2: the
+  classic Mendelow grid is 2×2 (high/low × high/low). SH1 stores a 3-level
+  `HIGH`/`MEDIUM`/`LOW` scale (R's choice), so SH2 must define how 3 levels map
+  to grid zones — e.g. a 3×3 grid, or fold `MEDIUM` into one axis half. Per the
+  deep-review's literature lens, a 3-level scale is defensible; the binning rule
+  is an explicit SH2 decision, not implied by SH1.
 - Linking stakeholders to SES elements; import/export beyond project save/load; PII
   handling on `contact`. **No R↔SESPy file interop:** R stored stakeholders as a
   data.frame under `pd$data$pims`, not in the elements/connections JSON SESPy loads —

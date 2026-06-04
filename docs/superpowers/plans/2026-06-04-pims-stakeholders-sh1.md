@@ -37,7 +37,6 @@ Create `tests/test_stakeholders.py`:
 from dataclasses import fields
 
 from sespy.data_structure import (
-    PROJECT_SCHEMA_VERSION,
     IsaData,
     Project,
     ProjectMetadata,
@@ -53,8 +52,8 @@ def _proj_with(stakeholders):
     )
 
 
-def test_schema_version_is_3():
-    assert PROJECT_SCHEMA_VERSION == 3
+# NOTE: the schema-version assertion lives only in test_data_structure.py
+# (Step 4) — it's a global concern, not duplicated here.
 
 
 def test_stakeholder_defaults():
@@ -94,7 +93,7 @@ def test_from_dict_tolerates_unknown_stakeholder_key():
 - [ ] **Step 2: Run it; verify it fails**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_stakeholders.py -q`
-Expected: FAIL — `ImportError: cannot import name 'Stakeholder'` (and schema == 2).
+Expected: FAIL — `ImportError: cannot import name 'Stakeholder'`.
 
 - [ ] **Step 3: Implement the data model**
 
@@ -162,8 +161,7 @@ def test_schema_version_is_3():
     assert PROJECT_SCHEMA_VERSION == 3
 ```
 
-Run: `micromamba run -n shiny python -m pytest tests/ -q -k "schema_version"`
-Expected: confirm no other test still asserts `== 2` (grep first: `grep -rn "schema_version.*== *2\|== *2.*schema" tests/`). Fix any stragglers.
+Run: `grep -rn "== *2" sespy/ tests/ | grep -i schema` — the ONLY expected match is `tests/test_data_structure.py:14` (the test being retargeted). Fix any other straggler that pins `schema_version == 2`. Then `micromamba run -n shiny python -m pytest tests/ -q -k "schema_version"`.
 
 - [ ] **Step 5: Run tests; verify pass**
 
@@ -188,10 +186,15 @@ git commit -m "feat(data): Stakeholder model + Project.stakeholders, schema 2->3
 
 - [ ] **Step 1: Write the failing envelope/save-path tests**
 
-Append to `tests/test_stakeholders.py`:
+Append to `tests/test_stakeholders.py`. The save-path test uses the REAL
+on-disk helpers — verified to exist in `sespy/persistent_storage.py`:
+`save_project_atomic(project, path)` (project first; runs `with_modified_now()`
+internally at line 93) and `load_project(path)` (which goes through
+`validate_project_payload` → `Project.from_dict` at line 81). There is NO
+`project_from_bytes`; do not import one.
 
 ```python
-from sespy.persistent_storage import project_to_bytes, project_from_bytes
+from sespy.persistent_storage import load_project, save_project_atomic
 
 
 def test_with_modified_now_preserves_stakeholders():
@@ -210,17 +213,21 @@ def test_replace_preserves_other_fields():
     assert out.isa_data is proj.isa_data
 
 
-def test_save_path_roundtrip_preserves_stakeholders():
-    # Exercises the REAL save path (project_to_bytes runs with_modified_now
-    # in some call sites; this proves the on-disk bytes carry stakeholders).
+def test_save_path_roundtrip_preserves_stakeholders(tmp_path):
+    # Real persistence round-trip: save_project_atomic runs with_modified_now()
+    # (the drop-site) and writes on-disk JSON; load_project re-validates and
+    # rebuilds via Project.from_dict. Proves stakeholders survive a true save.
     s = Stakeholder(id="SH001", name="Coastal NGO", stakeholder_type="ngo")
     proj = _proj_with([s])
-    raw = project_to_bytes(proj.with_modified_now())
-    back = project_from_bytes(raw)
+    p = tmp_path / "proj.json"
+    save_project_atomic(proj, p)
+    back = load_project(p)
     assert back.stakeholders == [s]
 ```
 
-> NOTE: confirm the exact serialization helper names in `sespy/persistent_storage.py` before running (the implementer should `grep -n "^def \|to_bytes\|from_bytes\|def project_" sespy/persistent_storage.py`). If the public helpers differ (e.g. `save_project_atomic(path, project)` + a loader), adapt this test to write to a `tmp_path` file and read it back instead — the REQUIREMENT is that the round-trip goes through the real persistence layer, not just `to_dict`/`from_dict`.
+> The save-path test depends on Task 1's `from_dict` change (it carries
+> stakeholders) AND Task 2's `with_modified_now` fix. If it fails on the
+> `from_dict` side, Task 1 is incomplete; if on `with_modified_now`, Task 2 is.
 
 - [ ] **Step 2: Run; verify it fails**
 
@@ -265,10 +272,17 @@ Edit each site to preserve the full envelope. Exact replacements:
 ```
 
 `sespy/modules/ai_isa_wizard.py` — five sites:
-- `:466-469` (multi-line clear):
+- `:466-469` (multi-line clear — the wizard "start fresh" reset):
   ```python
           project_data.set(current.replace(isa_data=IsaData()))
   ```
+  DECISION: this **intentionally preserves stakeholders**. Restarting the SES
+  wizard clears the ISA element/connection graph, but the stakeholder register
+  is project-level data independent of that graph — wiping it on a wizard
+  restart would be data loss. `.replace(isa_data=IsaData())` is therefore the
+  correct behavior, not merely a mechanical substitution. (If a future "New
+  blank project" action is added, that — not this wizard reset — is where
+  stakeholders should be cleared.)
 - `:577`: `new_proj = current.replace(metadata=new_meta)`
 - `:583`: `new_proj = current.replace(metadata=new_meta)`
 - `:651`: `new_proj = current.replace(isa_data=new_isa)`
@@ -363,6 +377,9 @@ from sespy.utils import next_id
 def add_stakeholder(
     items: list[Stakeholder], fields_: dict, *, today: str
 ) -> list[Stakeholder]:
+    # INVARIANT: `fields_` contains only valid Stakeholder field names and
+    # NEVER `id` or `created_at` (those are assigned here). The module layer
+    # builds it from exactly the form inputs, so this holds.
     sid = next_id([s.id for s in items], "SH")
     return [*items, Stakeholder(id=sid, created_at=today, **fields_)]
 
@@ -466,9 +483,10 @@ from __future__ import annotations
 from datetime import date
 
 import pandas as pd
-from shiny import module, reactive, render, ui
+from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
-from sespy.data_structure import Stakeholder
+from sespy.data_structure import Project, Stakeholder
+from sespy.event_bus import EventBus
 from sespy.i18n import Translator, t as _t
 from sespy.stakeholders import add_stakeholder, remove_stakeholder, update_stakeholder
 
@@ -538,8 +556,15 @@ def pims_stakeholders_ui() -> ui.Tag:
 
 
 @module.server
-def pims_stakeholders_server(input, output, session, *, project_data,
-                             event_bus, translator: Translator | None = None):
+def pims_stakeholders_server(
+    input: Inputs,
+    output: Outputs,
+    session: Session,
+    *,
+    project_data: reactive.Value[Project],
+    event_bus: EventBus,
+    translator: Translator | None = None,
+) -> None:
     T = translator
     tr = (lambda k: T.t(k)) if T is not None else _t
 
@@ -601,9 +626,12 @@ def pims_stakeholders_server(input, output, session, *, project_data,
             new_list = add_stakeholder(_items(), f, today=date.today().isoformat())
         else:
             new_list = update_stakeholder(_items(), eid, f)
+        # Reset editing_id BEFORE project_data.set so the _repopulate effect
+        # (it subscribes to project_data via _items()) re-runs with editing_id
+        # == None and exits early, rather than re-filling the cleared form.
+        editing_id.set(None)
         project_data.set(project_data.get().replace(stakeholders=new_list))
         event_bus.emit_isa_change()
-        editing_id.set(None)
         _clear_form()
 
     @reactive.effect
@@ -743,22 +771,49 @@ git commit -m "feat(stakeholders): wire Stakeholders nav item, panel, and server
 
 - [ ] **Step 1: Write the e2e script**
 
-Follow the repo's e2e convention: a `run(page, base_url)` (or whatever signature `run_e2e.py` invokes — implementer must read `tests/run_e2e.py` + one existing `test_*_e2e.py` first and match the exact harness contract: server lifecycle is owned by `run_e2e.py`). Use `page.wait_for_selector` + the runner's retry; drive selects via the CODE value. Module-namespaced ids are `#<module-id>-<input-id>` → `#stakeholders-sh_name`. Nav button: `#sespy_nav_stakeholders` (confirm the nav-button id scheme in `dashboard.py`/an existing e2e test — adjust if the prefix differs).
+Harness contract (verified against `tests/run_e2e.py` + `tests/test_data_entry_e2e.py`):
+the file is a **standalone script** ending in `asyncio.run(main())`; `run_e2e.py`
+auto-discovers `tests/test_*_e2e.py`, boots `shiny run` on port 8000, and runs each
+as a subprocess (non-zero exit = fail). It must:
+- `async with async_playwright() as p: browser = await p.chromium.launch()`, new context/page, `await page.goto("http://127.0.0.1:8000", wait_until="networkidle")`, then `await page.wait_for_timeout(1500)`.
+- Nav via `#sespy_nav_<id>` (e.g. `#sespy_nav_stakeholders`, `#sespy_nav_pims`).
+- Module inputs via `#<module>-<input>` (e.g. `#stakeholders-sh_name`).
+- **Drive `<select>` the repo's proven way** — NOT `page.select_option`. Use the
+  `el.value = code; dispatchEvent('change')` pattern from `test_data_entry_e2e.py:35-38`:
+  ```python
+  await page.evaluate("""(v) => {
+    const el = document.getElementById('stakeholders-sh_type');
+    if (el) { el.value = v; el.dispatchEvent(new Event('change', {bubbles: true})); }
+  }""", "government")
+  await page.wait_for_timeout(400)
+  ```
+- Use `wait_for_timeout` + short polling loops (the repo's idiom — fixed waits are
+  acceptable here), and end with a `tests/screenshots/stakeholders.png` + a `print("... assertions pass")`.
 
-Behaviour to assert:
-1. Navigate to Stakeholders; wait for `#stakeholders-sh_name`.
-2. **Add**: fill `#stakeholders-sh_name`, `page.select_option('#stakeholders-sh_type', 'government')`, click `#stakeholders-save_stakeholder`; wait until the table (`#stakeholders-stakeholder_table`) shows the new name.
-3. **Validation**: clear name, click Save; assert a warning toast (`.shiny-notification`) appears AND the table row count did not increase.
-4. **Edit**: select the row, click `#stakeholders-edit_selected`, change name, Save; assert the row text updates.
-5. **Remove**: select the row, click `#stakeholders-remove_selected`; assert the row is gone (table back to the empty stub).
-6. **Persistence (in-session)**: add a stakeholder, click the `pims` nav (`#sespy_nav_pims`), then back to `#sespy_nav_stakeholders`; assert the row text is still present (proves `project_data` round-trip across nav).
+Behaviour to assert (each via text presence in `#stakeholders-stakeholder_table`):
+1. Click `#sespy_nav_stakeholders`; `wait_for_timeout(1500)`; assert `#stakeholders-sh_name` is present.
+2. **Add**: fill `#stakeholders-sh_name` = "Port Authority"; set `sh_type` = `government` via the evaluate/dispatch snippet; click `#stakeholders-save_stakeholder`; poll until the table text contains "Port Authority".
+3. **Validation**: clear `#stakeholders-sh_name` (`fill ""`); click Save; assert a `.shiny-notification` toast appears AND the table still shows exactly one data row (no new row).
+4. **Edit**: select the row (see selector note); click `#stakeholders-edit_selected`; `wait_for_timeout`; change `#stakeholders-sh_name` = "Port Authority (gov)"; Save; poll until the table text contains "Port Authority (gov)".
+5. **Remove**: select the row; click `#stakeholders-remove_selected`; poll until the table text shows the empty-stub label (`stakeholders.empty` English value) and no longer contains the name.
+6. **Persistence (in-session)**: add a stakeholder; click `#sespy_nav_pims`; `wait_for_timeout`; click `#sespy_nav_stakeholders`; assert the row text is still present (proves the `project_data` round-trip across nav).
 
-> Selecting a `render.data_frame` row in Playwright: click the row's first cell (`#stakeholders-stakeholder_table table tbody tr:first-child td:first-child`) and wait briefly for `cell_selection()` to propagate before clicking Edit/Remove. Match the exact selector approach used by any existing data-frame e2e test if one exists; otherwise this cell-click is the pattern.
+> **HIGH-RISK SELECTOR — row selection.** No existing e2e selects a
+> `render.data_frame` row (`test_data_entry_e2e.py` only adds via the form and
+> verifies via pyvis node counts; it never clicks a row). Shiny for Python's
+> `render.data_frame` renders a custom React grid, NOT a native table — so the
+> selection click target is unproven. The implementer MUST develop this selector
+> interactively against the running app (`micromamba run -n shiny shiny run app.py`
+> + the Playwright MCP `browser_snapshot` to read the live DOM) before finalizing.
+> Likely target: click the cell text, e.g. `await page.click("#stakeholders-stakeholder_table td:has-text('Port Authority')")`, then `wait_for_timeout(500)` for `cell_selection()` to propagate. Confirm via a screenshot that the row shows selected before clicking Edit/Remove. Do not assume `tbody tr` — verify the actual rendered markup.
 
 - [ ] **Step 2: Run it locally**
 
-Run: `micromamba run -n shiny python tests/run_e2e.py` (runs the full e2e battery incl. the new file) — or the single-file invocation the runner supports (check `run_e2e.py` for a filter arg).
-Expected: the new stakeholders e2e passes; existing e2e count unchanged + 1.
+During development, iterate fast against a manually-started server (the script
+hardcodes port 8000): in one shell `micromamba run -n shiny shiny run app.py --port 8000`,
+then `micromamba run -n shiny python tests/test_stakeholders_e2e.py`.
+Final check — the full battery (boots its own server): `micromamba run -n shiny python tests/run_e2e.py`.
+Expected: the new stakeholders e2e passes; the runner's discovered-script count is the previous count + 1.
 
 - [ ] **Step 3: Commit**
 
@@ -780,6 +835,6 @@ git commit -m "test(stakeholders): e2e — add/validate/edit/remove/persist CRUD
 
 **Spec coverage:** §2 model → Task 1; §2.1 envelope (replace + 8 sites) → Task 2; §3 codes → Task 5 (`_*_CODES`); §4 helpers → Task 3; §5 module/nav → Tasks 5–6; §6 i18n → Task 4; §7 persistence → Task 2 save-path test; §8 tests → Tasks 1–3, 7 + schema-test update (Task 1 Step 4); §9 files → all tasks. Covered.
 
-**Placeholder scan:** every code step has concrete code; the two soft spots (exact `persistent_storage` helper names in Task 2 Step 1; exact e2e harness contract in Task 7) carry explicit "read the file and adapt" instructions with a stated invariant, not vague TODOs — unavoidable because those public signatures must be read at implementation time.
+**Placeholder scan:** every code step has concrete code. After the plan deep-review, the previously-soft spots are now grounded against live code: Task 2's save-path test uses the real `save_project_atomic`/`load_project` (verified to exist; `project_from_bytes` does not and was removed), and Task 7 carries the exact verified harness contract (port 8000, `asyncio.run(main())`, `el.value`+dispatch for selects). The ONE remaining unprovable item — the `render.data_frame` row-selection selector — is explicitly flagged HIGH-RISK with instructions to develop it against the live DOM, because no existing e2e selects a grid row and the markup can only be read at runtime.
 
 **Type consistency:** `Stakeholder` field names identical across Tasks 1/3/5; `Project.replace(**changes)` signature identical in Tasks 2/5; helper names `add_stakeholder`/`update_stakeholder`/`remove_stakeholder` consistent Tasks 3/5; table renderer `stakeholder_table` + `.cell_selection()["rows"]` consistent Tasks 5/7; i18n keys in Task 4 match `tr(...)` calls in Task 5.
