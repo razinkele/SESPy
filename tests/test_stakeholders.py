@@ -1,5 +1,3 @@
-from dataclasses import fields
-
 from sespy.data_structure import (
     IsaData,
     Project,
