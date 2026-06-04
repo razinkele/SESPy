@@ -324,6 +324,19 @@ def dashboard_server(
     return active_panel
 
 
+def _goto(
+    active_panel: reactive.Value[str],
+    session: Session,
+    view: str,
+) -> None:
+    """Switch the active module: move the sidebar highlight AND switch the
+    `navset_hidden(id="main_nav")` panel content. `active_panel.set` alone
+    only moves the highlight — both calls are required (this mirrors the
+    existing nav/stepper handlers)."""
+    active_panel.set(view)
+    ui.update_navs("main_nav", selected=view, session=session)
+
+
 def _wire_nav_button(
     input: Inputs,
     session: Session,
@@ -333,8 +346,7 @@ def _wire_nav_button(
     @reactive.effect
     @reactive.event(input[item.input_id], ignore_init=True)
     def _switch():
-        active_panel.set(item.id)
-        ui.update_navs("main_nav", selected=item.id, session=session)
+        _goto(active_panel, session, item.id)
 
 
 def _wire_step_button(
@@ -348,5 +360,4 @@ def _wire_step_button(
     @reactive.effect
     @reactive.event(input[f"{STEP_INPUT_PREFIX}{step_id}"], ignore_init=True)
     def _switch():
-        active_panel.set(target_nav)
-        ui.update_navs("main_nav", selected=target_nav, session=session)
+        _goto(active_panel, session, target_nav)
