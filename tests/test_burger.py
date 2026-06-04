@@ -11,7 +11,11 @@ async def main():
         page = await (await browser.new_context()).new_page()
         await page.set_viewport_size({"width": 1280, "height": 800})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
-        await page.wait_for_timeout(1500)
+        # The nav and its .sespy-nav-icon elements are a reactive @render.ui
+        # output; wait for them before toggling so the mini-mode icon check
+        # doesn't race the first render (this test was intermittently flaky
+        # on a fixed 1.5s sleep).
+        await page.wait_for_selector(".sespy-nav-icon", timeout=20000)
 
         # OUTER toggle — direct child of the page-level sidebar layout,
         # NOT inside a .sespy-card.

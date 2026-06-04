@@ -29,16 +29,24 @@ async def main():
 
         # Run analysis
         await page.click("#boolean-run_boolean")
-        await page.wait_for_timeout(3000)
 
-        # Eigenvalue plot rendered (img tag inside the plot output)
+        # Eigenvalue plot rendered (img tag inside the plot output). This is the
+        # first matplotlib render in the session and the cold import can take
+        # several seconds, so wait for the <img> rather than a fixed sleep.
+        await page.wait_for_selector("#boolean-eigenvalue_plot img", timeout=30000)
         plot_visible = await page.evaluate(
             "() => !!document.querySelector('#boolean-eigenvalue_plot img')"
         )
         print(f"eigenvalue plot rendered: {plot_visible}")
         assert plot_visible, "eigenvalue plot did not render"
 
-        # Stability summary populated (a <dl> with at least 3 dt/dd pairs)
+        # Stability summary populated (a <dl> with at least 3 dt/dd pairs).
+        # It renders a tick after the plot, so wait for it to populate rather
+        # than asserting immediately.
+        await page.wait_for_function(
+            "() => document.querySelectorAll('#boolean-stability_summary dl dt').length >= 3",
+            timeout=15000,
+        )
         n_dt = await page.evaluate(
             "() => document.querySelectorAll('#boolean-stability_summary dl dt').length"
         )
@@ -47,7 +55,9 @@ async def main():
 
         # Switch to the Boolean attractors tab
         await page.click("text=Boolean attractors")
-        await page.wait_for_timeout(1500)
+        # Wait for the attractor panel's reactive content (the too_large
+        # warning alert) rather than racing a fixed sleep.
+        await page.wait_for_selector("#boolean-attractor_panel .alert-warning", timeout=15000)
 
         # On the default 17-node sample we expect the too_large warning,
         # not a crash and not a danger error.

@@ -105,3 +105,32 @@ jobs:
           done
           kill "$PID" 2>/dev/null || true
           [ "$ok" = "0" ] || { echo "::error::app did not serve on :8000 within 40s"; exit 1; }
+
+  e2e:
+    name: Playwright e2e (full app, conda)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Drives the live app through headless Chromium across all standalone
+    # tests/test_*_e2e.py scripts (+ burger/stepper) via tests/run_e2e.py,
+    # which manages the server lifecycle and the wizard's ANTHROPIC_API_KEY
+    # two-pass. Needs the full app (pyvis fork) — hence the conda env.
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create env from environment.yml (pyvis 4.x from razinka)
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+
+      - name: Install sespy (editable) + test deps
+        run: pip install -e .[test]
+
+      - name: Install Playwright Chromium (+ system libs)
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run full Playwright e2e suite
+        run: python tests/run_e2e.py --port 8000

@@ -13,7 +13,9 @@ async def main():
         page = await ctx.new_page()
         await page.set_viewport_size({"width": 1280, "height": 800})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
-        await page.wait_for_timeout(1500)
+        # Wait for the sidebar Quick Actions buttons rather than racing a sleep
+        # (this evaluate() hard-asserts and would flake on a slow first render).
+        await page.wait_for_selector(".sespy-quick-actions .btn", timeout=20000)
 
         # Quick Actions block is in the sidebar; check buttons exist
         quick = await page.evaluate(

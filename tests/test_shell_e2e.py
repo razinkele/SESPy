@@ -21,7 +21,8 @@ async def main():
         page.on("console", lambda m: errors.append(f"[{m.type}] {m.text}") if m.type == "error" else None)
 
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
-        await page.wait_for_timeout(1500)
+        # Wait for the reactive nav to render before querying it.
+        await page.wait_for_selector(".sespy-nav-btn", timeout=20000)
 
         nav_buttons = await page.eval_on_selector_all(
             ".sespy-nav-btn",

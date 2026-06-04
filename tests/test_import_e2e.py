@@ -42,7 +42,14 @@ async def main():
 
         # Upload the fixture
         await page.set_input_files("#import-xlsx", str(fixture))
-        await page.wait_for_timeout(2500)
+        # The upload round-trip parses the workbook server-side (cold pandas +
+        # openpyxl import is slow); wait for the preview to populate with the
+        # element/connection counts rather than racing a fixed sleep.
+        await page.wait_for_function(
+            "() => { const el = document.querySelector('#import-preview');"
+            " return el && el.textContent.includes('4') && el.textContent.includes('3'); }",
+            timeout=30000,
+        )
 
         # Preview should show 4 elements / 3 connections
         preview = await page.text_content("#import-preview")
@@ -54,9 +61,15 @@ async def main():
         await page.click("#import-commit")
         await page.wait_for_timeout(1500)
 
-        # Switch to CLD: should now show 4 nodes from the imported file
+        # Switch to CLD: should now show 4 nodes from the imported file.
         await page.click("#sespy_nav_cld")
-        await page.wait_for_timeout(3500)  # allow re-init of pyvis binding
+        # Wait for the pyvis binding to re-init with the imported data rather
+        # than racing a fixed sleep.
+        await page.wait_for_function(
+            "() => { const s = window.pyvisNetworks && window.pyvisNetworks['cld-network'];"
+            " return s && s.nodes && s.nodes.length === 4; }",
+            timeout=30000,
+        )
         cld_node_count = await page.evaluate("""() => {
           const s = window.pyvisNetworks && window.pyvisNetworks['cld-network'];
           return s && s.nodes ? s.nodes.length : null;
@@ -67,7 +80,11 @@ async def main():
 
         # And metrics tab should compute over the new data
         await page.click("#sespy_nav_metrics")
-        await page.wait_for_timeout(3500)
+        await page.wait_for_function(
+            "() => { const s = window.pyvisNetworks && window.pyvisNetworks['metrics-metrics_network'];"
+            " return s && s.nodes && s.nodes.length === 4; }",
+            timeout=30000,
+        )
         metrics_node_count = await page.evaluate("""() => {
           const s = window.pyvisNetworks && window.pyvisNetworks['metrics-metrics_network'];
           return s && s.nodes ? s.nodes.length : null;
