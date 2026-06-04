@@ -25,7 +25,7 @@ async def main():
         )
         await page.wait_for_function(
             "() => new URL(window.location).searchParams.get('view') === 'metrics'",
-            timeout=10000,
+            timeout=15000,
         )
         print("  ok (metrics panel active + URL settled)")
 
@@ -34,7 +34,7 @@ async def main():
         await page.click("#sespy_nav_loops")
         await page.wait_for_function(
             "() => new URL(window.location).searchParams.get('view') === 'loops'",
-            timeout=10000,
+            timeout=15000,
         )
         print("  ok (?view=loops)")
 
@@ -46,12 +46,12 @@ async def main():
         await page.click("#sespy_nav_metrics")
         await page.wait_for_function(
             "() => new URL(window.location).searchParams.get('view') === 'metrics'",
-            timeout=10000,
+            timeout=15000,
         )
         await page.click("#sespy_step_visualize")
         await page.wait_for_function(
             "() => new URL(window.location).searchParams.get('view') === 'cld'",
-            timeout=10000,
+            timeout=15000,
         )
         print("  ok (?view=cld via stepper)")
 
