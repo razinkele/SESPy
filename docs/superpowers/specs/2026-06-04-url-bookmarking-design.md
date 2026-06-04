@@ -1,163 +1,148 @@
-# URL Bookmarking (view-only) — Design
+# URL Bookmarking (active-view) — Design
 
-Date: 2026-06-04
+Date: 2026-06-04 (rev. 2 — after the 2026-06-04 deep review)
 Status: **Draft** — design phase, not yet implemented.
+
+## Revision note
+Rev. 1 scoped this as "active module **+ UI language**". The 2026-06-04 multi-agent
+review found the language half is architecturally unsound here (see §1.2): the app
+has a single module-level `Translator` and a static `app_ui` built once at import, so
+per-session/per-link language is not supported, and applying `?lang` via a reactive
+effect would yield a half-translated page. Rev. 2 **scopes the feature to the active
+module (`?view`) only** and defers language bookmarking with a clear prerequisite.
 
 ## 1. Goal & scope
 
-Let users share a link (or browser-bookmark a URL) that reopens the app at a
-specific **view**: the active module plus the UI language. The browser address
-bar always reflects the current view, so the URL itself is the shareable
-artifact — no explicit "share" button needed.
+Let users share/bookmark a link that reopens the app at a specific **module view**
+(e.g. Network Metrics). The browser address bar always reflects the current module,
+so the URL itself is the shareable artifact — no "share" button needed.
 
 ### 1.1 In scope
-- A query-string contract `?view=<nav_id>&lang=<code>`.
-- **Read on load:** seed the initial active module + language from the query
-  string (validated).
-- **Write on change:** keep the URL in sync as the user navigates modules and
-  switches language, via `history.replaceState` (no browser-history spam).
+- A query-string contract `?view=<nav_id>`.
+- **Read on load:** seed the initial active module from `?view` (validated against the
+  real nav-id set; invalid/missing → existing default).
+- **Write on change:** keep `?view` in sync with the active module via
+  `history.replaceState` — covering nav-button clicks, stepper clicks, and the
+  read-on-load restore (i.e., it tracks `active_panel`, not just nav clicks).
 - A pure, unit-tested parse/validate/build helper.
-- Unit tests + one e2e test (auto-runs in CI).
+- Unit tests + one e2e test (auto-runs in the e2e CI job).
 
-### 1.2 Out of scope (YAGNI)
-- **Full project state in the URL.** SESPy already has Save/Load (JSON) and
-  Recent Projects for persisting/sharing the elements/connections/metadata.
-  Putting that in a URL would duplicate existing functionality, require Shiny's
-  server-side bookmark store, and produce links that don't carry data across
-  machines. A bookmarked link restores the *view*, not the user's project.
-- A dedicated "Copy link" button — the auto-synced address bar suffices for v1
-  (can be added later).
-- Sub-module state (e.g. which tab inside an analysis module, scroll position,
-  selected rows) or wizard step.
+### 1.2 Out of scope (and why)
+- **UI language (`?lang`) — DEFERRED.** `sespy/i18n.py` exposes a tested
+  `detect_initial_language("?lang=es")`, but it is **not wired anywhere** in the app,
+  and the i18n architecture blocks per-session language: `T = Translator(...)` is built
+  **once at module import** (`app.py:68`) and shared across sessions, and `app_ui =
+  dashboard_page(...)` is a **static value built once at import** (not a per-request
+  function). Consequences flagged by the review:
+  (a) applying `?lang` via a reactive `set_language()` only re-renders `@render.ui`
+      content — static panel bodies/labels stay in the construction-time language →
+      a **half-translated** page;
+  (b) the module-level singleton `T` means a shared `?lang` link would flip language
+      for **all concurrent sessions**.
+  Proper `?lang` support is a **prerequisite feature**: a per-session translator + a
+  per-request `app_ui(request)` (dynamic UI), at which point wiring
+  `detect_initial_language` at construction becomes correct. Tracked as a follow-up;
+  out of scope here.
+- **Full project state in the URL** — covered by Save/Load (JSON) + Recent Projects.
+- **A "Copy link" button** — the auto-synced address bar suffices for v1.
+- **Sub-module state** (which tab/selection inside a module).
 
 ### 1.3 Decisions baked in
 
 | Decision | Choice | Reason |
 |---|---|---|
-| Mechanism | Custom query-param sync (not Shiny `bookmark_store`) | `bookmark_store="url"` serializes *all* inputs → ugly URLs + per-module exclusion upkeep; `active_panel` is a server-side `reactive.Value` derived from action-button counts and doesn't round-trip naturally. A 2-field custom contract yields clean, stable, human-readable links and stays isolated to the shell. |
-| URL update | `history.replaceState` | Reflects the current view without adding a history entry per navigation. |
-| Params | `view`, `lang` | The two pieces of "view" state. Both optional; invalid/missing → defaults. |
-| Validation | Against the real nav-id set + `translator.languages` | Never trust the URL; unknown values silently fall back to defaults. |
+| Mechanism | Custom `?view` query-param sync (not Shiny `bookmark_store`) | `bookmark_store="url"` serializes all inputs → ugly URLs + per-module exclusion upkeep; `active_panel` is a server-side `reactive.Value` derived from action-button counts and doesn't round-trip naturally. One clean param is simpler and isolated to the shell. |
+| URL update | `history.replaceState` | Reflects the current view without a history entry per navigation. |
+| Write trigger | A server effect on `active_panel` (not a client nav-click listener) | Catches **all** ways the module changes — nav buttons, stepper clicks, and restore — not just direct nav clicks. |
+| Client transport | `session.send_custom_message` + an **inline** `ui.tags.script` handler in `head_content` | Matches the existing inline-script pattern (the burger toggle); the app has **no** `www/*.js` files and no prior `addCustomMessageHandler`, so this is a new (but standard Shiny) handler, added inline — not a `www` asset. |
+| Scope | View only | The language half is deferred (§1.2); `view` is the sound, high-value core. |
 
 ## 2. URL contract
-
 ```
-<path>/?view=<nav_id>&lang=<code>
+<path>/?view=<nav_id>
 ```
-
-- `view` — the active nav item id, exactly the value held by
-  `active_panel: reactive.Value[str]` (e.g. `cld`, `loops`, `metrics`,
-  `leverage`, `import`). The canonical id set is `{item.id for item in nav_items}`.
-- `lang` — a code in `translator.languages` (e.g. `en`, `es`, `fr`, …).
-- Both optional. Missing or unrecognized → existing defaults
-  (`active_panel` default = `nav_items[0].id`; current translator language).
+- `view` = the active nav item id, exactly what `active_panel: reactive.Value[str]`
+  holds (e.g. `cld`, `loops`, `metrics`, `leverage`, `import`). Canonical set =
+  `{item.id for item in nav_items}`.
+- Optional. Missing/unrecognized → existing default (`active_panel` default =
+  `nav_items[0].id`).
+- Any other query params (incl. a future `?lang`) are left untouched.
 
 ## 3. Architecture
 
-Three small, isolated pieces:
-
 ```
- page load ──▶ session.clientdata.url_search()  ──┐
-                                                   ▼
-                                   sespy/bookmark.parse_bookmark()
-                                   (validate vs nav ids + langs)
-                                                   │ (view?, lang?)
-                                                   ▼
-            dashboard_server: one-shot @reactive.effect seeds
-              active_panel.set(view) + translator.set_language(lang)
+ page load ─▶ session.clientdata.url_search()
+                     │  bookmark.parse_view(search, valid_views)  (validate vs nav ids)
+                     ▼  view? 
+   dashboard_server: one-shot @reactive.effect → active_panel.set(view)   [guarded once]
 
- nav/lang change ──▶ dashboard_server: @reactive.effect
-        depends on active_panel.get() + translator.language.get()
-                       │  build_bookmark(view, lang) -> "?view=…&lang=…"
-                       ▼  session.send_custom_message("sespy_bookmark_url", {search})
-                www/sespy-bookmark.js handler ──▶ history.replaceState({}, "", search)
+ module change (nav click / stepper click / restore) ─▶ dashboard_server:
+   async @reactive.effect, depends on active_panel.get()
+                     │  bookmark.build_view(view) -> "view=<id>"
+                     ▼  await session.send_custom_message("sespy_view_url", {view})
+   inline head_content script: addCustomMessageHandler → URL.searchParams.set('view', …)
+                                                          history.replaceState(...)
 ```
 
 ### 3.1 `sespy/bookmark.py` (new — pure, no Shiny imports)
-
 ```python
-def parse_bookmark(
-    search: str, *, valid_views: set[str], valid_langs: set[str]
-) -> tuple[str | None, str | None]:
-    """Parse a URL query string into (view, lang), returning only values that
-    are present AND valid. Unknown/missing -> None (caller keeps its default)."""
+def parse_view(search: str, valid_views: set[str]) -> str | None:
+    """Return the ?view value iff present AND in valid_views; else None."""
 
-def build_bookmark(view: str, lang: str) -> str:
-    """Build the query string '?view=<view>&lang=<lang>' for replaceState."""
+def build_view(view: str) -> str:
+    """Return 'view=<view>' (urlencoded) for the client to set on the URL."""
 ```
+Uses `urllib.parse` (`parse_qs`, `urlencode`). Pure → fast unit tests. Tolerates a
+leading `?`, missing/empty/repeated keys (first valid wins).
 
-- Uses `urllib.parse` (`parse_qs`, `urlencode`). Pure functions → fast,
-  browser-free unit tests.
-- `parse_bookmark` tolerates a leading `?`, missing keys, repeated keys
-  (first wins), and empty values.
-
-### 3.2 `sespy/dashboard.py` (edit — ~15 LOC, in `dashboard_server`)
-
-`active_panel`, the nav wiring, and the language input already live here, so
-this is the natural and only home for the wiring.
-
+### 3.2 `sespy/dashboard.py` (edit — ~12 LOC, in `dashboard_server`)
 - **Read on load (one-shot):** a `@reactive.effect` reads
-  `session.clientdata.url_search()`, calls `parse_bookmark` against the live
-  nav-id set and `translator.languages`, and for each valid value calls
-  `active_panel.set(view)` / `translator.set_language(lang)`. A module-scoped
-  boolean flag (set inside `reactive.isolate()`) ensures it runs once per
-  session and does not re-fire when the URL it later writes changes.
-- **Write on change:** a `@reactive.effect` that reads `active_panel.get()` and
-  `translator.language.get()`, builds the query string via `build_bookmark`,
-  and `session.send_custom_message("sespy_bookmark_url", {"search": ...})`.
+  `session.clientdata.url_search()`, calls `parse_view(search, {ids})`, and if valid
+  `active_panel.set(view)`. A module-scoped flag (read/written inside
+  `reactive.isolate()`) makes it run once and not re-fire when the URL it later writes
+  changes. Empty/first-connect search → no-op (keep default).
+- **Write on change (async):** an `async @reactive.effect` that reads
+  `active_panel.get()` and `await session.send_custom_message("sespy_view_url",
+  {"view": build_view(active_panel.get())})`. (`send_custom_message` is a coroutine —
+  the effect must be async.)
 
-Self-trigger guard: the read-effect must not depend on the write path, and the
-write-effect only reads `active_panel`/`language` (not `url_search`), so there
-is no read↔write loop. The "restored once" flag is read/written inside
-`reactive.isolate()` so it does not register as a dependency.
-
-### 3.3 `www/sespy-bookmark.js` (new — tiny)
-
-```js
-Shiny.addCustomMessageHandler("sespy_bookmark_url", (payload) => {
-  history.replaceState({}, "", payload.search);
-});
+### 3.3 Inline handler (in `dashboard_page` `head_content`)
+```python
+ui.tags.script(
+    "Shiny.addCustomMessageHandler('sespy_view_url', function(m){"
+    "  var u = new URL(window.location);"
+    "  u.searchParams.set('view', m.view);"
+    "  window.history.replaceState({}, '', u);"
+    "});"
+)
 ```
-
-Registered the same way as the existing custom JS (burger toggle, pyvis
-bridge) — referenced from the dashboard page head/`www`.
+Added alongside the existing inline burger script — **not** a `www/*.js` file.
 
 ## 4. Edge cases
-
-- **Unknown `view`/`lang`** → ignored; defaults retained (validated against the
-  real id set + `translator.languages`).
-- **No query string** → unchanged default behavior.
-- **Repeated/garbage params** → `parse_bookmark` takes first valid, ignores the
-  rest; never raises.
-- **History:** `replaceState` (not `pushState`) so module navigation doesn't
-  bloat the back button.
-- **Collision:** Shiny does not use `?view`/`?lang`; we own them.
-- **clientdata timing:** `url_search()` is read inside a reactive effect (after
-  the session connects), not at module-construction time.
+- Unknown/missing `?view` → default module retained (validated against the live id set).
+- `replaceState` (not `pushState`) so module switching doesn't bloat history.
+- We touch only the `view` param; other params (future `?lang`) are preserved.
+- `url_search()` is read inside a reactive effect (post-connect), not at construction.
 
 ## 5. Testing
-
-- **Unit — `tests/test_bookmark.py`:** `parse_bookmark` (valid, invalid view,
-  invalid lang, missing keys, leading `?`, empty values) and `build_bookmark`
-  (formatting + round-trip with `parse_bookmark`). Pure; runs in the pip unit
-  CI job.
-- **E2e — `tests/test_bookmark_e2e.py`:** (1) load `?view=metrics&lang=es` →
-  Network Metrics module active and Spanish nav labels; (2) click a different
-  nav button → URL `view` param updates; (3) switch language → URL `lang`
-  param updates. Auto-discovered by `tests/run_e2e.py` → runs in the e2e CI
-  job. Uses `wait_for_selector`/`wait_for_function` per the project's e2e
-  convention (never fixed sleeps against reactive renders).
+- **Unit — `tests/test_bookmark.py`:** `parse_view` (valid, invalid, missing, leading
+  `?`, empty, repeated) and `build_view` (format + round-trip). Pure; runs in the pip
+  unit job.
+- **E2e — `tests/test_bookmark_e2e.py`:** (1) load `?view=metrics` → Network Metrics
+  module active; (2) click a different nav button → URL `view` updates; (3) click a
+  stepper step that changes module → URL `view` updates (proves it tracks
+  `active_panel`, not just nav clicks). Auto-discovered by `tests/run_e2e.py`; uses
+  `wait_for_selector`/`wait_for_function` (never fixed sleeps), per the project's e2e
+  convention.
 
 ## 6. Files
 
 | File | Status | Purpose |
 |---|---|---|
-| `sespy/bookmark.py` | new (~30 LOC) | pure parse/validate/build helpers |
-| `sespy/dashboard.py` | edit (~+15 LOC) | read-on-load + write-on-change effects in `dashboard_server` |
-| `www/sespy-bookmark.js` | new (~3 LOC) | `replaceState` custom-message handler |
-| `app.py` / dashboard head | edit (~1 LOC) | include the new JS asset |
-| `tests/test_bookmark.py` | new | unit tests for the helpers |
-| `tests/test_bookmark_e2e.py` | new | e2e: restore-from-URL + URL-sync-on-change |
+| `sespy/bookmark.py` | new (~20 LOC) | pure `parse_view`/`build_view` |
+| `sespy/dashboard.py` | edit (~+12 LOC) | read-on-load + async write-on-change effects in `dashboard_server`; inline `addCustomMessageHandler` script in `dashboard_page` head |
+| `tests/test_bookmark.py` | new | unit tests |
+| `tests/test_bookmark_e2e.py` | new | e2e: restore-from-URL + URL-sync (nav + stepper) |
 
-No changes to module servers, the project schema, or the App construction
-(`bookmark_store` stays unset).
+No `www` assets, no module-server/schema/`App()` changes. Language (`?lang`) is a
+separate, prerequisite-gated follow-up (§1.2).

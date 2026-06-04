@@ -1,7 +1,7 @@
 # AI-ISA Wizard SP4 — Optional Claude API Backend
 
 Date: 2026-05-09
-Status: **Draft** — design phase, not yet implemented.
+Status: **Implemented** — shipped to `main` 2026-06-04. Backed by `sespy/claude_backend.py`, the wizard consent/observer/sum-type flow in `sespy/modules/ai_isa_wizard.py`, the `anthropic` runtime dep, and 258 unit + e2e tests in CI. The §12 open items were resolved during implementation (incl. the frozen-dataclass-Exception fix for `@reactive.extended_task` propagation). (Footer corrected from "Draft" in the 2026-06-04 corpus review.)
 
 **Sub-project context:** SP4 of 4 in the AI-Assisted SES Creation series.
 - SP1 shipped 2026-05-01.

@@ -1,6 +1,6 @@
 # AI-ISA Wizard SP3: Connection Scoring Backend — Design
 
-Status: **Draft** — design phase, not yet implemented.
+Status: **Implemented** — shipped 2026-05-04. Backed by `sespy/connection_scorer.py` (note: `_CONN_TYPES` now lives in `sespy/data_structure.py` and is imported back, as the single source for SP3 + SP4) and 46 passing tests; re-confirmed against the live code in the 2026-06-04 corpus review. (Footer corrected from "Draft" then.)
 **Sub-project context:** SP3 of 4 in the AI-Assisted SES Creation series. SP1 shipped 2026-05-01 (commit `dfedd28`); SP2 shipped 2026-05-02 (commit `3c18fd8`); SP4 (optional Claude API backend, switchable via setting) follows. SP3 fills SP1's stub `def suggest_connections(state) -> []` (sespy/wizard.py:92) with a real rule-based scoring backend ported from R's `modules/ai_isa/connection_generator.R` (1009 LOC).
 
 ---
