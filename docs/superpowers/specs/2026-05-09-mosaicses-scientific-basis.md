@@ -487,7 +487,7 @@ These references are drawn from the Klaipėda University CORPI / Marine Research
 
 ### 9.5 ICES data sources and working groups
 
-ICES *Migratory species catalogue* — curated diadromous-species list with WoRMS Aphia IDs, accessed via `mcp__ices-fish-data__migratory_species_catalog`. v1 references AphiaIDs 127186, 127187, 127188, 126281, 126736, 126415, 126413, 154238, 101172, 101174, 151802, 126279, 127141, 126417, 126425, 126436.
+ICES *Migratory species catalogue* — curated diadromous-species list with WoRMS Aphia IDs, accessed via `mcp__ices-fish-data__migratory_species_catalog`. The **diadromous** species v1 references — all verified against the catalogue 2026-06-04 — are: salmon 127186, sea trout 127187, Arctic char 127188, European eel 126281, smelt 126736, twaite shad 126415, allis shad 126413, houting 154238, river lamprey 101172, sea lamprey 101174, Atlantic sturgeon 151802, **European sturgeon 126279** (*Acipenser sturio* — a second, distinct sturgeon, not a typo). The catalogue also includes Vendace 127178 (amphidromous), which v1 does not seed. The **marine-estuarine** species 127141 (flounder), 126417 (herring), 126425 (sprat), 126436 (cod) are from §4.6 / `organisms_marine_estuarine`, NOT this diadromous catalogue.
 
 ICES *Migratory working groups list* — accessed via `mcp__ices-fish-data__migratory_list_working_groups`:
 - WGBAST — Baltic Salmon and Trout Assessment Working Group
