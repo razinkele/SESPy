@@ -50,3 +50,41 @@ jobs:
             --ignore=tests/test_stepper.py \
             --ignore=tests/test_stepper_click.py \
             -q
+
+  full-app:
+    name: Full app (conda env + razinka pyvis fork)
+    runs-on: ubuntu-latest
+    # Validates environment.yml end-to-end on a clean machine: the env solves
+    # and creates, the full app imports (exercising the pyvis.shiny fork from
+    # the razinka channel), and the complete unit suite runs — the pyvis-loop
+    # and PDF tests RUN here (not skipped), since the fork and conda-forge's
+    # WeasyPrint (with bundled native libs) are both present.
+    defaults:
+      run:
+        shell: bash -el {0}   # login shell so the created env is activated
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create env from environment.yml (pyvis 4.x from razinka)
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+
+      - name: Install sespy (editable) + test deps
+        # Core/runtime deps + pyvis are already in the env; this adds the sespy
+        # package itself and the pytest tooling. pyvis 4.x (conda) satisfies
+        # pyvis>=0.3, so pip does not pull upstream pyvis over it.
+        run: pip install -e .[test]
+
+      - name: Smoke-test full-app import (exercises pyvis.shiny)
+        run: python -c "import app; print('full app import OK')"
+
+      - name: Run full unit suite
+        run: |
+          pytest tests/ \
+            --ignore-glob='*e2e*' \
+            --ignore=tests/test_burger.py \
+            --ignore=tests/test_stepper.py \
+            --ignore=tests/test_stepper_click.py \
+            -q
