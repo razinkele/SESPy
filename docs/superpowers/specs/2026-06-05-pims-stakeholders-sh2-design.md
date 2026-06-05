@@ -8,7 +8,8 @@ stakeholder **register** — data + CRUD + persistence) is on `main`. SH2 adds t
 **Power-Interest (Mendelow) grid** + per-quadrant engagement strategies as a
 second sub-tab of the existing Stakeholders panel. R source of truth:
 `../SESToolbox/MarineSABRES_SES_Shiny/modules/pims_stakeholder_module.R`, Tab 2
-("Power-Interest Grid", lines 116-150 UI; 515-593 server).
+("Power-Interest Grid": UI ~116-149, server **plot ~515-574**, server **summary
+~576-593**). The clicked-stakeholder handler (~595-628) is **deferred to SH3**.
 
 **Deferred to a later SH3 (out of scope here):** R's Tab 3 "Engagement Planning"
 — the per-stakeholder engagement-activity log (`eng_method`/`eng_objectives`/
@@ -55,6 +56,9 @@ empty `power` or `interest` is excluded from the grid (and reported as "unplotte
 in the summary — see §4).
 
 ## 3. Pure classification helpers (`sespy/stakeholders.py`, extend; no Shiny/matplotlib)
+
+These are **appended to the existing `sespy/stakeholders.py`**, which already imports
+`Stakeholder` (line 13) — no new import needed.
 
 ```python
 # Canonical quadrant keys + the level→axis-position map.
@@ -111,12 +115,21 @@ def pims_stakeholders_ui() -> ui.Tag:
         ui.navset_tab(
             ui.nav_panel(_t("stakeholders.tab_register"), _register_panel()),
             ui.nav_panel(_t("stakeholders.tab_grid"), _grid_panel()),
+            id="stakeholder_tabs",
         ),
         class_="sespy-card",
     )
 ```
-`_register_panel()` = the existing `layout_columns(...)` form+table content (extracted
-verbatim — no behavior change). `_grid_panel()` = `ui.output_plot("power_interest_grid", height="520px")` + `ui.output_ui("grid_summary")`.
+- The `id="stakeholder_tabs"` is **required** — Shiny uses it for active-tab tracking
+  (precedent: `analysis_boolean.py:69`, `id="boolean_tabs"`).
+- **Register is listed FIRST**, so it is the default-active sub-tab — the existing SH1
+  e2e (which queries `#stakeholders-sh_name` on load) keeps passing unmodified, and the
+  module-namespaced input ids (`#stakeholders-sh_name`, `#stakeholders-stakeholder_table`,
+  …) are unchanged by being nested in a `nav_panel`.
+- `_register_panel()` and `_grid_panel()` are **plain helper functions** (NOT `@module.ui`),
+  each returning a `ui.Tag`: `def _register_panel() -> ui.Tag:` / `def _grid_panel() -> ui.Tag:`.
+  `_register_panel()` = the existing `layout_columns(...)` form+table content (extracted
+  verbatim — no behavior change). `_grid_panel()` = `ui.output_plot("power_interest_grid", height="520px")` + `ui.output_ui("grid_summary")`.
 
 ### 4.2 Server — grid plot
 ```python
@@ -126,19 +139,31 @@ def power_interest_grid():
     import matplotlib.pyplot as plt
     items = [s for s in _items() if level_num(s.power) and level_num(s.interest)]
     fig, ax = plt.subplots()
-    # quadrant background rects (gray / blue / amber / green), dashed midlines at 2,
-    # quadrant labels (4 corners), axis ticks {1:Low,2:Med,3:High}, xlim/ylim 0.5–3.5.
-    # deterministic jitter: offset = ((idx * 0.37) % 1 - 0.5) * 0.3 on each axis
-    # scatter points (x=interest_num, y=power_num), annotate each with s.name.
-    # empty state: if not items -> ax.text("Add stakeholders with Power and Interest…")
+    ax.set_xlim(0.5, 3.5); ax.set_ylim(0.5, 3.5)
     ax.set_xlabel(tr("stakeholders.grid.interest_axis"))
     ax.set_ylabel(tr("stakeholders.grid.power_axis"))
     ax.set_title(tr("stakeholders.grid.title"))
+    if not items:
+        ax.text(2, 2, tr("stakeholders.grid.empty"), ha="center", va="center")
+        return fig
+    # quadrant background rects (gray monitor / blue keep-informed / amber
+    # keep-satisfied / green key-players), dashed midlines at x=2,y=2,
+    # quadrant labels (4 corners), axis ticks {1:Low,2:Med,3:High} via tr().
+    # deterministic jitter: offset = ((idx * 0.37) % 1 - 0.5) * 0.3 on each axis
+    # scatter points (x=interest_num, y=power_num), annotate each with s.name.
     return fig
 ```
+- **No click tracking.** R's `plotOutput(..., click = ns("plot_click"))` and its
+  `clicked_stakeholder` handler are **deferred to SH3** (§1.2). `@render.plot` is a
+  static image; an implementer porting the R code must NOT reintroduce `plot_click`.
 - Axis labels/ticks/quadrant labels all via `tr(...)` (i18n). Colors mirror R
   (gray monitor, blue keep-informed, amber keep-satisfied, green key-players).
 - Deterministic jitter keyed off the enumerate index keeps points stable.
+- **Boundary note (UX):** under the ≥MEDIUM=high binning, a MEDIUM/MEDIUM stakeholder
+  plots near the (2,2) cross (on the dashed midlines) yet the summary lists it under
+  *Key players* (upper-right). This is intended; the summary panel (§4.3) should make
+  the quadrant assignment explicit (it lists members per quadrant) so a point sitting
+  on the boundary line isn't misread as a misclassification.
 
 ### 4.3 Server — grid summary
 ```python
@@ -179,7 +204,10 @@ New keys (inside `"translation"`):
 - `stakeholders.grid.keep_satisfied.strategy` → "Keep satisfied — high power but lower interest; meet their needs without over-involving them."
 - `stakeholders.grid.keep_informed.strategy` → "Keep informed — lower power but high interest; consult and keep them in the loop."
 - `stakeholders.grid.monitor.strategy` → "Monitor — lower power and interest; minimal effort, periodic check-ins."
-- `stakeholders.grid.high` / `.medium` / `.low` → axis tick labels "High"/"Medium"/"Low" (or reuse existing `stakeholders.power.HIGH` etc. — implementer may reuse rather than add).
+
+**Axis tick labels REUSE the existing SH1 keys** — `tr("stakeholders.power.HIGH")`,
+`tr("stakeholders.power.MEDIUM")`, `tr("stakeholders.power.LOW")` (= "High"/"Medium"/
+"Low"). Do **not** add `stakeholders.grid.high/medium/low` keys.
 
 ## 6. Testing
 
@@ -193,6 +221,9 @@ New keys (inside `"translation"`):
   quadrant keys + "unplotted" always present (empty lists when none).
 
 ### 6.2 e2e (`tests/test_stakeholders_e2e.py`, extend the existing script)
+**The existing SH1 CRUD assertions pass UNMODIFIED** — Register is the first/
+default-active sub-tab (§4.1), so the script's on-load `#stakeholders-sh_name`
+interaction still works; the new grid steps simply EXTEND that passing baseline.
 After the existing CRUD assertions (or in a focused addition): add a stakeholder with
 power=HIGH, interest=HIGH; click the **Power-Interest Grid** sub-tab; assert (a) the
 plot image renders — `#stakeholders-power_interest_grid img` is present (matplotlib
