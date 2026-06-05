@@ -32,3 +32,44 @@ def update_stakeholder(
 
 def remove_stakeholder(items: list[Stakeholder], sid: str) -> list[Stakeholder]:
     return [s for s in items if s.id != sid]
+
+
+# --- SH2: Power-Interest grid classification (pure) -------------------------
+_LEVEL_NUM = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
+QUADRANTS = ("key_players", "keep_satisfied", "keep_informed", "monitor")
+
+
+def level_num(level: str) -> int | None:
+    """Map a power/interest code to its 1-3 axis position, or None if blank/unknown."""
+    return _LEVEL_NUM.get(level)
+
+
+def classify_quadrant(power: str, interest: str) -> str | None:
+    """Mendelow quadrant for a (power, interest) pair, or None if either is unset.
+
+    Binning: a value is "high" iff it is MEDIUM or HIGH (>= 2 on the 1-3 axis),
+    matching the plot's colored regions. This classifies MEDIUM stakeholders
+    (R dropped them from its summary entirely).
+    """
+    p, i = level_num(power), level_num(interest)
+    if p is None or i is None:
+        return None
+    high_p, high_i = p >= 2, i >= 2
+    if high_p and high_i:
+        return "key_players"
+    if high_p and not high_i:
+        return "keep_satisfied"
+    if not high_p and high_i:
+        return "keep_informed"
+    return "monitor"
+
+
+def summarize_quadrants(items: list[Stakeholder]) -> dict[str, list[str]]:
+    """Return {quadrant_key: [names]} for the 4 quadrants plus "unplotted"
+    (stakeholders missing power or interest). All 5 keys always present."""
+    out: dict[str, list[str]] = {q: [] for q in QUADRANTS}
+    out["unplotted"] = []
+    for s in items:
+        q = classify_quadrant(s.power, s.interest)
+        out[q if q is not None else "unplotted"].append(s.name)
+    return out

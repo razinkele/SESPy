@@ -5,7 +5,14 @@ from sespy.data_structure import (
     Stakeholder,
 )
 from sespy.persistent_storage import load_project, save_project_atomic
-from sespy.stakeholders import add_stakeholder, remove_stakeholder, update_stakeholder
+from sespy.stakeholders import (
+    add_stakeholder,
+    classify_quadrant,
+    level_num,
+    remove_stakeholder,
+    summarize_quadrants,
+    update_stakeholder,
+)
 
 
 def _proj_with(stakeholders):
@@ -115,3 +122,41 @@ def test_update_replaces_by_id_preserving_id_and_created_at():
 def test_remove_drops_by_id():
     items = add_stakeholder([], {"name": "A"}, today="2026-06-04")
     assert remove_stakeholder(items, "SH001") == []
+
+
+def test_level_num():
+    assert level_num("HIGH") == 3
+    assert level_num("MEDIUM") == 2
+    assert level_num("LOW") == 1
+    assert level_num("") is None
+    assert level_num("x") is None
+
+
+def test_classify_quadrant_truth_table():
+    assert classify_quadrant("HIGH", "HIGH") == "key_players"
+    assert classify_quadrant("MEDIUM", "MEDIUM") == "key_players"   # >=MEDIUM=high
+    assert classify_quadrant("HIGH", "LOW") == "keep_satisfied"
+    assert classify_quadrant("MEDIUM", "LOW") == "keep_satisfied"
+    assert classify_quadrant("LOW", "HIGH") == "keep_informed"
+    assert classify_quadrant("LOW", "MEDIUM") == "keep_informed"
+    assert classify_quadrant("LOW", "LOW") == "monitor"
+    assert classify_quadrant("", "HIGH") is None
+    assert classify_quadrant("HIGH", "") is None
+    assert classify_quadrant("junk", "HIGH") is None
+
+
+def test_summarize_quadrants():
+    items = [
+        Stakeholder(id="SH001", name="Key", power="HIGH", interest="HIGH"),
+        Stakeholder(id="SH002", name="Sat", power="HIGH", interest="LOW"),
+        Stakeholder(id="SH003", name="Inf", power="LOW", interest="HIGH"),
+        Stakeholder(id="SH004", name="Mon", power="LOW", interest="LOW"),
+        Stakeholder(id="SH005", name="Blank", power="", interest="HIGH"),
+    ]
+    out = summarize_quadrants(items)
+    assert out["key_players"] == ["Key"]
+    assert out["keep_satisfied"] == ["Sat"]
+    assert out["keep_informed"] == ["Inf"]
+    assert out["monitor"] == ["Mon"]
+    assert out["unplotted"] == ["Blank"]
+    assert set(out) == {"key_players", "keep_satisfied", "keep_informed", "monitor", "unplotted"}
