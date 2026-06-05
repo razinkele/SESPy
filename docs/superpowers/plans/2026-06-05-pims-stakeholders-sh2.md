@@ -242,22 +242,38 @@ def pims_stakeholders_ui() -> ui.Tag:
         class_="sespy-card",
     )
 ```
-IMPORTANT: move the EXACT existing form inputs into `_register_panel()` verbatim (read the current `pims_stakeholders_ui` and copy the `ui.card(...)` form + table contents — do not retype the input list from memory; the goal is zero behavior change to the register). `_register_panel`/`_grid_panel` are plain functions returning `ui.Tag` (NOT `@module.ui`). Register is FIRST → default-active tab → existing SH1 e2e unaffected.
+**IMPORTANT — do not lose inputs.** Move the EXISTING register content into
+`_register_panel()` by **reading the current `pims_stakeholders_ui` and copying the two
+`ui.card(...)` blocks (form + table) VERBATIM** — do NOT retype from the sketch above
+(it elides inputs with `# ...`). The form card has exactly **10 inputs** that must all
+survive: `sh_name`, `sh_type`, `sh_sector`, `sh_contact`, `sh_interests`, `sh_role`,
+`sh_power`, `sh_interest`, `sh_attitude`, `sh_engagement_level` (plus the `save_stakeholder`,
+`cancel_edit` buttons). `_form_fields()` in the server reads all 10 — dropping any
+breaks add/edit. Step 5 includes a count check to enforce this.
+
+`_register_panel`/`_grid_panel` are **plain module-level functions returning `ui.Tag`,
+with NO `@module.ui` decorator** (decorating them would double-namespace the ids to
+e.g. `stakeholders-_register_panel-sh_name` and break `input.sh_name()` resolution).
+The inputs they build still receive the `stakeholders` namespace because namespacing is
+applied by the enclosing `@module.ui` at render time. Register is listed FIRST →
+default-active tab → existing SH1 e2e unaffected.
 
 - [ ] **Step 2: Add imports for the helpers**
 
-At the top of `pims_stakeholders.py`, extend the stakeholders import:
+At the top of `pims_stakeholders.py`, extend the stakeholders import. The grid render
+uses `level_num` (to filter plottable rows) and the summary uses `summarize_quadrants`;
+**`classify_quadrant` is NOT imported here** — it's called internally by
+`summarize_quadrants` inside `sespy/stakeholders.py`, so importing it at module scope
+would be an unused import (flake8 F401). Correct import set (5 names):
 ```python
 from sespy.stakeholders import (
     add_stakeholder,
-    classify_quadrant,
     level_num,
     remove_stakeholder,
     summarize_quadrants,
     update_stakeholder,
 )
 ```
-(`classify_quadrant` is used by the summary; `level_num` filters plottable rows; `summarize_quadrants` builds the summary. If flake8 flags `classify_quadrant` as unused because the summary uses only `summarize_quadrants`, drop it from the import — keep the import set to exactly what the code references.)
 
 - [ ] **Step 3: Add the grid plot render (in the server)**
 
@@ -319,6 +335,8 @@ Add inside `pims_stakeholders_server` (after the existing renders/handlers). Mir
     @render.ui
     def grid_summary():
         summary = summarize_quadrants(_items())
+        # total counts only the 4 PLOTTED quadrants; "unplotted" (missing
+        # power/interest) is reported separately below.
         total = sum(len(summary[q]) for q in ("key_players", "keep_satisfied",
                                               "keep_informed", "monitor"))
 
@@ -348,7 +366,9 @@ micromamba run -n shiny python -c "from sespy.modules.pims_stakeholders import p
 micromamba run -n shiny python -m flake8 sespy/modules/pims_stakeholders.py --max-line-length=100
 micromamba run -n shiny python -c "import app; print('app ok')"
 ```
-Expected: `ok`, flake8 clean, `app ok`. Then full unit suite (exclude self-running e2e):
+**Input-preservation guard** — confirm all 10 register inputs survived the refactor:
+`grep -oE "sh_(name|type|sector|contact|interests|role|power|interest|attitude|engagement_level)" sespy/modules/pims_stakeholders.py | sort -u | wc -l` → must be **10**. If fewer, an input was dropped in the `_register_panel()` extraction — fix before proceeding.
+Expected: `ok`, flake8 clean, `app ok`, count 10. Then full unit suite (exclude self-running e2e):
 `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` → all pass.
 
 - [ ] **Step 6: Commit**
@@ -370,17 +390,20 @@ Launch `micromamba run -n shiny shiny run app.py --port 8000` (background). Usin
 
 - [ ] **Step 2: Extend the e2e script**
 
-After the existing CRUD assertions in `tests/test_stakeholders_e2e.py` (which stay UNCHANGED — Register is the default tab), add a focused grid section: ensure a stakeholder with power=HIGH & interest=HIGH exists; click the grid sub-tab (your Step 1 selector); then:
+After the existing CRUD assertions in `tests/test_stakeholders_e2e.py` (which stay UNCHANGED — Register is the default tab), add a focused grid section. In the Register tab, add a stakeholder with a **concrete, documented name** held in a variable — use `KEY_NAME = "TestKey"` — and power=HIGH & interest=HIGH (drive the selects via the `el.value`+dispatch pattern). Then click the grid sub-tab (your Step 1 selector) and assert. There is NO literal `<...>` placeholder — use the `KEY_NAME` variable in both the add step and the assertions:
 ```python
+KEY_NAME = "TestKey"
+# ... (add a stakeholder named KEY_NAME with sh_power=HIGH, sh_interest=HIGH, sh_type=government) ...
 # plot renders as an <img> (matplotlib @render.plot)
 await page.wait_for_selector("#stakeholders-power_interest_grid img", timeout=10000)
 # summary lists the stakeholder under Key players
+txt = ""
 for _ in range(16):
     txt = await page.inner_text("#stakeholders-grid_summary")
-    if "Key players" in txt and "<the name>" in txt:
+    if "Key players" in txt and KEY_NAME in txt:
         break
     await page.wait_for_timeout(500)
-assert "Key players" in txt and "<the name>" in txt, "grid summary missing key player"
+assert "Key players" in txt and KEY_NAME in txt, "grid summary missing key player"
 print("grid: plot img + key-player summary — PASS")
 ```
 
