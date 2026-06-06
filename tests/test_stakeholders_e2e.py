@@ -64,6 +64,11 @@ async def _select_row(page):
     await page.wait_for_timeout(600)
 
 
+# Name of the stakeholder used to exercise the Power-Interest grid (power=HIGH,
+# interest=HIGH → "Key players" quadrant).
+KEY_NAME = "TestKey"
+
+
 async def main():
     SCREENSHOTS.mkdir(parents=True, exist_ok=True)
 
@@ -156,6 +161,40 @@ async def main():
 
         await _poll_table_contains(page, "Coastal NGO")
         print("6. persist: 'Coastal NGO' survives nav away/back — PASS")
+
+        # ------------------------------------------------------------------ #
+        # 7. GRID — add a HIGH/HIGH stakeholder, switch to the Power-Interest
+        #    Grid sub-tab, assert the plot <img> + key-player summary
+        # ------------------------------------------------------------------ #
+        await page.fill("#stakeholders-sh_name", KEY_NAME)
+        await _set_select(page, "stakeholders-sh_type", "government")
+        await _set_select(page, "stakeholders-sh_power", "HIGH")
+        await _set_select(page, "stakeholders-sh_interest", "HIGH")
+        await page.click("#stakeholders-save_stakeholder")
+        await _poll_table_contains(page, KEY_NAME)
+
+        # Switch to the Power-Interest Grid sub-tab (Bootstrap nav-link).
+        await page.click(
+            "#stakeholders-stakeholder_tabs a[data-value='Power-Interest Grid']"
+        )
+        await page.wait_for_timeout(800)
+
+        # Plot renders as an <img> (matplotlib @render.plot).
+        await page.wait_for_selector(
+            "#stakeholders-power_interest_grid img", timeout=10000
+        )
+
+        # Summary lists the stakeholder under "Key players".
+        txt = ""
+        for _ in range(16):
+            txt = await page.inner_text("#stakeholders-grid_summary")
+            if "Key players" in txt and KEY_NAME in txt:
+                break
+            await page.wait_for_timeout(500)
+        assert "Key players" in txt and KEY_NAME in txt, (
+            "grid summary missing key player"
+        )
+        print("7. grid: plot img + key-player summary — PASS")
 
         # ------------------------------------------------------------------ #
         # Screenshot + done
