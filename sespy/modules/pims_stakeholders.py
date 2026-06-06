@@ -3,6 +3,7 @@
 A self-contained Shiny module: an add/edit form on the left, a render.data_frame
 table on the right with selection-based Edit/Remove. All envelope writes go
 through Project.replace() and emit isa_change so autosave fires.
+SH2: a second sub-tab adds a matplotlib Power-Interest grid + quadrant summary.
 """
 
 from __future__ import annotations
@@ -15,7 +16,13 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from sespy.data_structure import Project, Stakeholder
 from sespy.event_bus import EventBus
 from sespy.i18n import Translator, t as _t
-from sespy.stakeholders import add_stakeholder, remove_stakeholder, update_stakeholder
+from sespy.stakeholders import (
+    add_stakeholder,
+    level_num,
+    remove_stakeholder,
+    summarize_quadrants,
+    update_stakeholder,
+)
 
 # code -> i18n label-key suffix maps (codes are stored; labels are rendered)
 _TYPE_CODES = ["resource_users", "industry", "government", "ngo", "academic",
@@ -35,45 +42,70 @@ def _choices(codes: list[str], group: str, translate) -> dict[str, str]:
     return out
 
 
+def _register_panel() -> ui.Tag:
+    """The existing SH1 register content, extracted verbatim (no behaviour change).
+
+    Plain module-level function — NO @module.ui decorator — so the enclosing
+    @module.ui on pims_stakeholders_ui applies namespacing at render time.
+    """
+    return ui.layout_columns(
+        ui.card(
+            ui.card_header(_t("stakeholders.add_heading")),
+            ui.input_text("sh_name", _t("stakeholders.name")),
+            ui.input_select("sh_type", _t("stakeholders.type"),
+                            _choices(_TYPE_CODES, "type", _t)),
+            ui.input_select("sh_sector", _t("stakeholders.sector"),
+                            _choices(_SECTOR_CODES, "sector", _t)),
+            ui.input_text("sh_contact", _t("stakeholders.contact")),
+            ui.input_text_area("sh_interests", _t("stakeholders.interests")),
+            ui.input_text_area("sh_role", _t("stakeholders.role")),
+            ui.input_select("sh_power", _t("stakeholders.power"),
+                            _choices(_LEVEL_CODES, "power", _t)),
+            ui.input_select("sh_interest", _t("stakeholders.interest"),
+                            _choices(_LEVEL_CODES, "interest", _t)),
+            ui.input_select("sh_attitude", _t("stakeholders.attitude"),
+                            _choices(_ATTITUDE_CODES, "attitude", _t)),
+            ui.input_select("sh_engagement_level", _t("stakeholders.engagement_level"),
+                            _choices(_ENGAGE_CODES, "engagement", _t)),
+            ui.input_action_button("save_stakeholder", _t("stakeholders.save"),
+                                   class_="btn btn-primary"),
+            ui.input_action_button("cancel_edit", _t("stakeholders.cancel")),
+        ),
+        ui.card(
+            ui.card_header(_t("stakeholders.title")),
+            ui.output_data_frame("stakeholder_table"),
+            ui.div(
+                ui.input_action_button("edit_selected", _t("stakeholders.edit_selected")),
+                ui.input_action_button(
+                    "remove_selected", _t("stakeholders.remove_selected")),
+            ),
+        ),
+        col_widths=[5, 7],
+    )
+
+
+def _grid_panel() -> ui.Tag:
+    """Power-Interest grid tab content — plot + summary.
+
+    Plain module-level function — NO @module.ui decorator.
+    """
+    return ui.div(
+        ui.output_plot("power_interest_grid", height="520px"),
+        ui.tags.hr(),
+        ui.output_ui("grid_summary"),
+    )
+
+
 @module.ui
 def pims_stakeholders_ui() -> ui.Tag:
     # Static labels resolved via the module-level default translator (`_t`),
     # matching pims_project_ui's pattern.
     return ui.div(
         ui.h3(_t("stakeholders.title")),
-        ui.layout_columns(
-            ui.card(
-                ui.card_header(_t("stakeholders.add_heading")),
-                ui.input_text("sh_name", _t("stakeholders.name")),
-                ui.input_select("sh_type", _t("stakeholders.type"),
-                                _choices(_TYPE_CODES, "type", _t)),
-                ui.input_select("sh_sector", _t("stakeholders.sector"),
-                                _choices(_SECTOR_CODES, "sector", _t)),
-                ui.input_text("sh_contact", _t("stakeholders.contact")),
-                ui.input_text_area("sh_interests", _t("stakeholders.interests")),
-                ui.input_text_area("sh_role", _t("stakeholders.role")),
-                ui.input_select("sh_power", _t("stakeholders.power"),
-                                _choices(_LEVEL_CODES, "power", _t)),
-                ui.input_select("sh_interest", _t("stakeholders.interest"),
-                                _choices(_LEVEL_CODES, "interest", _t)),
-                ui.input_select("sh_attitude", _t("stakeholders.attitude"),
-                                _choices(_ATTITUDE_CODES, "attitude", _t)),
-                ui.input_select("sh_engagement_level", _t("stakeholders.engagement_level"),
-                                _choices(_ENGAGE_CODES, "engagement", _t)),
-                ui.input_action_button("save_stakeholder", _t("stakeholders.save"),
-                                       class_="btn btn-primary"),
-                ui.input_action_button("cancel_edit", _t("stakeholders.cancel")),
-            ),
-            ui.card(
-                ui.card_header(_t("stakeholders.title")),
-                ui.output_data_frame("stakeholder_table"),
-                ui.div(
-                    ui.input_action_button("edit_selected", _t("stakeholders.edit_selected")),
-                    ui.input_action_button(
-                        "remove_selected", _t("stakeholders.remove_selected")),
-                ),
-            ),
-            col_widths=[5, 7],
+        ui.navset_tab(
+            ui.nav_panel(_t("stakeholders.tab_register"), _register_panel()),
+            ui.nav_panel(_t("stakeholders.tab_grid"), _grid_panel()),
+            id="stakeholder_tabs",
         ),
         class_="sespy-card",
     )
@@ -215,3 +247,87 @@ def pims_stakeholders_server(
         if editing_id.get() == sid:
             editing_id.set(None)
             _clear_form()
+
+    # ------------------------------------------------------------------
+    # SH2: Power-Interest grid + quadrant summary
+    # ------------------------------------------------------------------
+
+    @output
+    @render.plot
+    def power_interest_grid():
+        import matplotlib.pyplot as plt
+
+        items = [s for s in _items()
+                 if level_num(s.power) and level_num(s.interest)]
+        fig, ax = plt.subplots()
+        ax.set_xlim(0.5, 3.5)
+        ax.set_ylim(0.5, 3.5)
+        ax.set_xlabel(tr("stakeholders.grid.interest_axis"))
+        ax.set_ylabel(tr("stakeholders.grid.power_axis"))
+        ax.set_title(tr("stakeholders.grid.title"))
+        ax.set_xticks([1, 2, 3])
+        ax.set_yticks([1, 2, 3])
+        tick_labels = [tr("stakeholders.power.LOW"),
+                       tr("stakeholders.power.MEDIUM"),
+                       tr("stakeholders.power.HIGH")]
+        ax.set_xticklabels(tick_labels)
+        ax.set_yticklabels(tick_labels)
+
+        if not items:
+            ax.text(2, 2, tr("stakeholders.grid.empty"),
+                    ha="center", va="center", wrap=True)
+            return fig
+
+        # Quadrant background rects (interest=x, power=y); colors mirror R.
+        ax.add_patch(plt.Rectangle((0.5, 0.5), 1.5, 1.5, color="#ececec", zorder=0))  # monitor
+        ax.add_patch(plt.Rectangle((2, 0.5), 1.5, 1.5, color="#dceaf6", zorder=0))   # keep_informed
+        ax.add_patch(plt.Rectangle((0.5, 2), 1.5, 1.5, color="#fbedcf", zorder=0))  # keep_satisfied
+        ax.add_patch(plt.Rectangle((2, 2), 1.5, 1.5, color="#d9f0d9", zorder=0))      # key_players
+        ax.axhline(2, color="gray", lw=1.5, ls="--")
+        ax.axvline(2, color="gray", lw=1.5, ls="--")
+        # Quadrant labels
+        ax.text(2.75, 2.75, tr("stakeholders.grid.key_players"),
+                ha="center", color="gray", fontweight="bold")
+        ax.text(1.25, 2.75, tr("stakeholders.grid.keep_satisfied"),
+                ha="center", color="gray")
+        ax.text(2.75, 1.25, tr("stakeholders.grid.keep_informed"),
+                ha="center", color="gray")
+        ax.text(1.25, 1.25, tr("stakeholders.grid.monitor"),
+                ha="center", color="gray")
+
+        # Deterministic jitter (stable across re-renders): +/- 0.15 from index.
+        for idx, s in enumerate(items):
+            off = ((idx * 0.37) % 1 - 0.5) * 0.3
+            x = level_num(s.interest) + off
+            y = level_num(s.power) + off
+            ax.scatter([x], [y], s=120, color="#2E86AB", zorder=3)
+            ax.annotate(s.name, (x, y), textcoords="offset points",
+                        xytext=(0, 8), ha="center", fontsize=8)
+        return fig
+
+    @output
+    @render.ui
+    def grid_summary():
+        summary = summarize_quadrants(_items())
+        # total counts only the 4 PLOTTED quadrants; "unplotted" (missing
+        # power/interest) is reported separately below.
+        total = sum(len(summary[q]) for q in ("key_players", "keep_satisfied",
+                                              "keep_informed", "monitor"))
+
+        def _block(key: str) -> ui.Tag:
+            names = summary[key]
+            return ui.div(
+                ui.tags.strong(f"{tr('stakeholders.grid.' + key)} ({len(names)})"),
+                ui.p(tr(f"stakeholders.grid.{key}.strategy")),
+                ui.p(", ".join(names) if names else "—"),
+            )
+
+        blocks = [_block(q) for q in ("key_players", "keep_satisfied",
+                                      "keep_informed", "monitor")]
+        unplotted = summary["unplotted"]
+        footer = [ui.tags.hr(),
+                  ui.p(f"{tr('stakeholders.grid.total')}: {total}")]
+        if unplotted:
+            footer.append(ui.p(f"{tr('stakeholders.grid.unplotted')}: "
+                               + ", ".join(unplotted)))
+        return ui.div(ui.h5(tr("stakeholders.grid.summary_heading")), *blocks, *footer)

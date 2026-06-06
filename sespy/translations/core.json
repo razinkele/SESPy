@@ -3794,6 +3794,193 @@
       "it": "Empower",
       "no": "Empower",
       "el": "Empower"
+    },
+    "stakeholders.tab_register": {
+      "en": "Register",
+      "es": "Register",
+      "fr": "Register",
+      "de": "Register",
+      "lt": "Register",
+      "pt": "Register",
+      "it": "Register",
+      "no": "Register",
+      "el": "Register"
+    },
+    "stakeholders.tab_grid": {
+      "en": "Power-Interest Grid",
+      "es": "Power-Interest Grid",
+      "fr": "Power-Interest Grid",
+      "de": "Power-Interest Grid",
+      "lt": "Power-Interest Grid",
+      "pt": "Power-Interest Grid",
+      "it": "Power-Interest Grid",
+      "no": "Power-Interest Grid",
+      "el": "Power-Interest Grid"
+    },
+    "stakeholders.grid.title": {
+      "en": "Stakeholder Power-Interest Grid",
+      "es": "Stakeholder Power-Interest Grid",
+      "fr": "Stakeholder Power-Interest Grid",
+      "de": "Stakeholder Power-Interest Grid",
+      "lt": "Stakeholder Power-Interest Grid",
+      "pt": "Stakeholder Power-Interest Grid",
+      "it": "Stakeholder Power-Interest Grid",
+      "no": "Stakeholder Power-Interest Grid",
+      "el": "Stakeholder Power-Interest Grid"
+    },
+    "stakeholders.grid.power_axis": {
+      "en": "Power / influence →",
+      "es": "Power / influence →",
+      "fr": "Power / influence →",
+      "de": "Power / influence →",
+      "lt": "Power / influence →",
+      "pt": "Power / influence →",
+      "it": "Power / influence →",
+      "no": "Power / influence →",
+      "el": "Power / influence →"
+    },
+    "stakeholders.grid.interest_axis": {
+      "en": "Interest / impact →",
+      "es": "Interest / impact →",
+      "fr": "Interest / impact →",
+      "de": "Interest / impact →",
+      "lt": "Interest / impact →",
+      "pt": "Interest / impact →",
+      "it": "Interest / impact →",
+      "no": "Interest / impact →",
+      "el": "Interest / impact →"
+    },
+    "stakeholders.grid.empty": {
+      "en": "Add stakeholders with Power and Interest set to populate the grid.",
+      "es": "Add stakeholders with Power and Interest set to populate the grid.",
+      "fr": "Add stakeholders with Power and Interest set to populate the grid.",
+      "de": "Add stakeholders with Power and Interest set to populate the grid.",
+      "lt": "Add stakeholders with Power and Interest set to populate the grid.",
+      "pt": "Add stakeholders with Power and Interest set to populate the grid.",
+      "it": "Add stakeholders with Power and Interest set to populate the grid.",
+      "no": "Add stakeholders with Power and Interest set to populate the grid.",
+      "el": "Add stakeholders with Power and Interest set to populate the grid."
+    },
+    "stakeholders.grid.summary_heading": {
+      "en": "Grid summary",
+      "es": "Grid summary",
+      "fr": "Grid summary",
+      "de": "Grid summary",
+      "lt": "Grid summary",
+      "pt": "Grid summary",
+      "it": "Grid summary",
+      "no": "Grid summary",
+      "el": "Grid summary"
+    },
+    "stakeholders.grid.total": {
+      "en": "Total plotted",
+      "es": "Total plotted",
+      "fr": "Total plotted",
+      "de": "Total plotted",
+      "lt": "Total plotted",
+      "pt": "Total plotted",
+      "it": "Total plotted",
+      "no": "Total plotted",
+      "el": "Total plotted"
+    },
+    "stakeholders.grid.unplotted": {
+      "en": "Not plotted (missing power/interest)",
+      "es": "Not plotted (missing power/interest)",
+      "fr": "Not plotted (missing power/interest)",
+      "de": "Not plotted (missing power/interest)",
+      "lt": "Not plotted (missing power/interest)",
+      "pt": "Not plotted (missing power/interest)",
+      "it": "Not plotted (missing power/interest)",
+      "no": "Not plotted (missing power/interest)",
+      "el": "Not plotted (missing power/interest)"
+    },
+    "stakeholders.grid.key_players": {
+      "en": "Key players",
+      "es": "Key players",
+      "fr": "Key players",
+      "de": "Key players",
+      "lt": "Key players",
+      "pt": "Key players",
+      "it": "Key players",
+      "no": "Key players",
+      "el": "Key players"
+    },
+    "stakeholders.grid.keep_satisfied": {
+      "en": "Keep satisfied",
+      "es": "Keep satisfied",
+      "fr": "Keep satisfied",
+      "de": "Keep satisfied",
+      "lt": "Keep satisfied",
+      "pt": "Keep satisfied",
+      "it": "Keep satisfied",
+      "no": "Keep satisfied",
+      "el": "Keep satisfied"
+    },
+    "stakeholders.grid.keep_informed": {
+      "en": "Keep informed",
+      "es": "Keep informed",
+      "fr": "Keep informed",
+      "de": "Keep informed",
+      "lt": "Keep informed",
+      "pt": "Keep informed",
+      "it": "Keep informed",
+      "no": "Keep informed",
+      "el": "Keep informed"
+    },
+    "stakeholders.grid.monitor": {
+      "en": "Monitor",
+      "es": "Monitor",
+      "fr": "Monitor",
+      "de": "Monitor",
+      "lt": "Monitor",
+      "pt": "Monitor",
+      "it": "Monitor",
+      "no": "Monitor",
+      "el": "Monitor"
+    },
+    "stakeholders.grid.key_players.strategy": {
+      "en": "Manage closely — engage and collaborate; these high-power, high-interest stakeholders are critical.",
+      "es": "Manage closely — engage and collaborate; these high-power, high-interest stakeholders are critical.",
+      "fr": "Manage closely — engage and collaborate; these high-power, high-interest stakeholders are critical.",
+      "de": "Manage closely — engage and collaborate; these high-power, high-interest stakeholders are critical.",
+      "lt": "Manage closely — engage and collaborate; these high-power, high-interest stakeholders are critical.",
+      "pt": "Manage closely — engage and collaborate; these high-power, high-interest stakeholders are critical.",
+      "it": "Manage closely — engage and collaborate; these high-power, high-interest stakeholders are critical.",
+      "no": "Manage closely — engage and collaborate; these high-power, high-interest stakeholders are critical.",
+      "el": "Manage closely — engage and collaborate; these high-power, high-interest stakeholders are critical."
+    },
+    "stakeholders.grid.keep_satisfied.strategy": {
+      "en": "Keep satisfied — high power but lower interest; meet their needs without over-involving them.",
+      "es": "Keep satisfied — high power but lower interest; meet their needs without over-involving them.",
+      "fr": "Keep satisfied — high power but lower interest; meet their needs without over-involving them.",
+      "de": "Keep satisfied — high power but lower interest; meet their needs without over-involving them.",
+      "lt": "Keep satisfied — high power but lower interest; meet their needs without over-involving them.",
+      "pt": "Keep satisfied — high power but lower interest; meet their needs without over-involving them.",
+      "it": "Keep satisfied — high power but lower interest; meet their needs without over-involving them.",
+      "no": "Keep satisfied — high power but lower interest; meet their needs without over-involving them.",
+      "el": "Keep satisfied — high power but lower interest; meet their needs without over-involving them."
+    },
+    "stakeholders.grid.keep_informed.strategy": {
+      "en": "Keep informed — lower power but high interest; consult and keep them in the loop.",
+      "es": "Keep informed — lower power but high interest; consult and keep them in the loop.",
+      "fr": "Keep informed — lower power but high interest; consult and keep them in the loop.",
+      "de": "Keep informed — lower power but high interest; consult and keep them in the loop.",
+      "lt": "Keep informed — lower power but high interest; consult and keep them in the loop.",
+      "pt": "Keep informed — lower power but high interest; consult and keep them in the loop.",
+      "it": "Keep informed — lower power but high interest; consult and keep them in the loop.",
+      "no": "Keep informed — lower power but high interest; consult and keep them in the loop.",
+      "el": "Keep informed — lower power but high interest; consult and keep them in the loop."
+    },
+    "stakeholders.grid.monitor.strategy": {
+      "en": "Monitor — lower power and interest; minimal effort, periodic check-ins.",
+      "es": "Monitor — lower power and interest; minimal effort, periodic check-ins.",
+      "fr": "Monitor — lower power and interest; minimal effort, periodic check-ins.",
+      "de": "Monitor — lower power and interest; minimal effort, periodic check-ins.",
+      "lt": "Monitor — lower power and interest; minimal effort, periodic check-ins.",
+      "pt": "Monitor — lower power and interest; minimal effort, periodic check-ins.",
+      "it": "Monitor — lower power and interest; minimal effort, periodic check-ins.",
+      "no": "Monitor — lower power and interest; minimal effort, periodic check-ins.",
+      "el": "Monitor — lower power and interest; minimal effort, periodic check-ins."
     }
   }
 }
