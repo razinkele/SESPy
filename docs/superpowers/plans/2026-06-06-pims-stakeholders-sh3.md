@@ -10,13 +10,15 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-06-pims-stakeholders-sh3-design.md` (rev. 2, post-deep-review).
 
+**Plan rev. 2 (from multi-agent plan deep-review):** (a) dropdown-populate effect uses the canonical `reactive.isolate()` + `input["eng_stakeholder"].is_set()` read (a direct read of an unset input raises `SilentException`); (b) `eng_status` choices precomputed into `status_choices` to stay under flake8's 100-char limit; (c) added a **migrated-v3-saves-as-schema-4-on-disk** test that inspects the raw JSON (the load-based test alone is masked by upgrade-on-load); (d) e2e polls for the `SH###` option before selecting and also asserts the **resolved stakeholder name** in the log; (e) `project_to_bytes` exists — clarified it's simply not the tool for a file round-trip.
+
 **Conventions verified against live code (2026-06-06):**
 - Data model (`data_structure.py`): `PROJECT_SCHEMA_VERSION = 3` (:19); `Stakeholder` (:169-188); `Project` (:192) with `to_dict` (:198-206, emits `metadata`/`isa_data`/`stakeholders`), `from_dict` (:211-228, field-filtered per-entity), `replace` (:238-242 → `_dc_replace`), `with_modified_now` (:244-249 → `self.replace(metadata=…)`).
 - Envelope: every **partial** writer already uses `.replace()` (`ai_isa_wizard.py:466,574,580,648,932`, `isa_data_entry.py:175`, `pims_project.py:172`, `pims_stakeholders.py:189,244`); whole-project loaders `set()` a full `from_dict` project (`import_data.py:147`, `recent_projects.py:174`, `templates.py:98`, `project_io.py:200/228/253`). Adding a field survives all of them.
 - Pure helpers (`stakeholders.py`): `add_stakeholder`/`update_stakeholder`/`remove_stakeholder` (new lists, injected `today`); SH2's `QUADRANTS`/`level_num`/`summarize_quadrants` were appended there.
 - Module (`pims_stakeholders.py`): code-list constants `_TYPE_CODES`…`_ENGAGE_CODES` (:28-34); `_choices(codes, group, translate)` builds `{"": "—", code: translate(f"stakeholders.{group}.{code}")}` (:37-42); plain `_register_panel`/`_grid_panel` (un-decorated, :45/:87); `navset_tab(..., id="stakeholder_tabs")` (:105-108); server has `T`/`tr`/`_t` (:124-125), `_items()` (:129-130), `render.DataGrid(pd.DataFrame(rows or stub))` (:143-144), `event_bus.emit_isa_change()` (:190,246), and the `_clear_form` `ui.update_select(..., selected="")` idiom (:162-170).
 - i18n (`core.json`): top-level `"translation"`; per-key 9-lang objects; SH1's `stakeholders.engagement.inform/consult/involve/collaborate/empower` (:3743-3797) are the **engagement-level** labels — SH3 uses a separate `stakeholders.activity.*` namespace.
-- Tests: `tests/test_stakeholders.py` imports `save_project_atomic`/`load_project` from `sespy.persistent_storage` and uses a `_proj_with(...)` factory; the **save-path round-trip pattern is `save_project_atomic(proj, p)` → `load_project(p)`** (not `project_to_bytes`). `tests/test_data_structure.py::test_schema_version_is_3` (:14-15) is the only exact-version assertion; `test_from_dict_loads_legacy_v1_files_silently` (:66-78) does **not** assert version preservation (so upgrade-on-load is safe). `utils.next_id(existing_ids, prefix)` → `f"{prefix}{n:03d}"`.
+- Tests: `tests/test_stakeholders.py` imports `save_project_atomic`/`load_project` from `sespy.persistent_storage` and uses a `_proj_with(...)` factory; the **save-path round-trip pattern is `save_project_atomic(proj, p)` → `load_project(p)`** (`project_to_bytes` exists at `persistent_storage.py:123` but isn't the tool for a file round-trip). `tests/test_data_structure.py::test_schema_version_is_3` (:14-15) is the only exact-version assertion; `test_from_dict_loads_legacy_v1_files_silently` (:66-78) does **not** assert version preservation (so upgrade-on-load is safe). `utils.next_id(existing_ids, prefix)` → `f"{prefix}{n:03d}"`.
 - e2e (`test_stakeholders_e2e.py`): the SH2 grid tab switches via `#stakeholders-stakeholder_tabs a[data-value='Power-Interest Grid']`; `_set_select(page, id, value)` drives a native `<select>` via `el.value`+`dispatchEvent('change')`; `_poll_table_contains` polls a table's inner text. A `nav_panel`'s `data-value` equals its label string.
 
 ---
@@ -100,6 +102,23 @@
       back = load_project(p)
       assert back.engagements == [e]
       assert back.metadata.schema_version == 4
+
+
+  def test_migrated_v3_saves_as_schema_4_on_disk(tmp_path):
+      # Start from a RAW v3 payload (not a fresh v4 project): load → save →
+      # inspect the RAW JSON so the on-disk version isn't masked by from_dict's
+      # upgrade-on-load.
+      import json
+      old = Project.from_dict({
+          "metadata": {"name": "old", "schema_version": 3},
+          "isa_data": {"elements": [], "connections": []},
+          "engagements": [{"id": "ENG001", "stakeholder_id": "SH001"}],
+      })
+      p = tmp_path / "old.json"
+      save_project_atomic(old, p)
+      raw = json.loads(p.read_text(encoding="utf-8"))
+      assert raw["metadata"]["schema_version"] == 4
+      assert raw["engagements"][0]["id"] == "ENG001"
   ```
   In `tests/test_data_structure.py` rename the schema test:
   ```python
@@ -351,6 +370,10 @@
   ```python
   def _engagement_panel() -> ui.Tag:
       """Engagement Planning tab — add-form + activity log. Plain (un-decorated)."""
+      status_choices = {
+          c: _t(f"stakeholders.activity.status.{c}")
+          for c in ENGAGEMENT_STATUSES
+      }
       return ui.div(
           ui.h5(_t("stakeholders.activity.add_heading")),
           ui.layout_columns(
@@ -362,8 +385,7 @@
                   ui.input_text_area("eng_objectives", _t("stakeholders.activity.objectives")),
                   ui.input_text_area("eng_outcomes", _t("stakeholders.activity.outcomes")),
                   ui.input_select("eng_status", _t("stakeholders.activity.status"),
-                                  {c: _t(f"stakeholders.activity.status.{c}") for c in ENGAGEMENT_STATUSES},
-                                  selected="planned"),
+                                  status_choices, selected="planned"),
                   ui.input_text("eng_facilitator", _t("stakeholders.activity.facilitator")),
                   ui.input_action_button("add_engagement", _t("stakeholders.activity.add"),
                                          class_="btn-success"),
@@ -390,17 +412,23 @@
       def _engagements():
           return project_data.get().engagements
   ```
-  Dropdown-populate effect (subscribe only to `_items()`; read selection isolated):
+  Dropdown-populate effect (subscribe only to `_items()`; read the current
+  selection dependency-free via `reactive.isolate()` + `is_set()`, tolerating the
+  input being unset on first render — a direct read of an unset input raises
+  `SilentException`):
   ```python
       @reactive.effect
       def _populate_eng_stakeholders():
           choices = {"": "—", **{s.id: s.name for s in _items()}}
           with reactive.isolate():
-              current = input.eng_stakeholder() if "eng_stakeholder" in input else ""
+              val = input["eng_stakeholder"]
+              current = (val() or "") if val.is_set() else ""
           selected = current if current in choices else ""
           ui.update_select("eng_stakeholder", choices=choices, selected=selected)
   ```
-  (If `"… in input"` membership is unsupported in this Shiny version, wrap the read in `try/except`; the goal is to avoid subscribing to `eng_stakeholder`.)
+  (`reactive.isolate()` suppresses the dependency that reading the input — or
+  `is_set()` — would otherwise create, so the effect re-runs only when `_items()`
+  changes, never in a loop.)
 
   Add handler:
   ```python
@@ -476,21 +504,33 @@
   # 8. ENGAGEMENT — add an activity for an existing stakeholder, assert in the log
   await page.click("#stakeholders-stakeholder_tabs a[data-value='Engagement Planning']")
   await page.wait_for_timeout(800)
-  # the dropdown is populated from existing stakeholders; pick the first real option
-  sid = await page.eval_on_selector(
-      "#stakeholders-eng_stakeholder",
-      "el => Array.from(el.options).map(o => o.value).find(v => v.startsWith('SH'))")
-  await _set_select(page, "stakeholders-eng_stakeholder", sid)
-  await _set_select(page, "stakeholders-eng_method", "workshop")
-  await page.click("#stakeholders-add_engagement")
-  # the log table shows the method label "Workshop"
+  # the dropdown is populated from existing stakeholders (an update-select message
+  # that may lag) — POLL until a real SH### option exists before selecting it.
+  sid = None
   for _ in range(16):
-      txt = await page.inner_text("#stakeholders-engagement_table")
-      if "Workshop" in txt:
+      sid = await page.eval_on_selector(
+          "#stakeholders-eng_stakeholder",
+          "el => Array.from(el.options).map(o => o.value).find(v => v.startsWith('SH'))")
+      if sid:
           break
       await page.wait_for_timeout(500)
-  assert "Workshop" in txt, "engagement not in log"
-  print("8. engagement: activity added + shown in log — PASS")
+  assert sid, "engagement stakeholder dropdown has no SH### option"
+  await _set_select(page, "stakeholders-eng_stakeholder", sid)
+  # capture the selected stakeholder's display name to assert name-resolution
+  sh_label = await page.eval_on_selector(
+      "#stakeholders-eng_stakeholder",
+      "el => el.options[el.selectedIndex].text")
+  await _set_select(page, "stakeholders-eng_method", "workshop")
+  await page.click("#stakeholders-add_engagement")
+  # the log table shows the method label "Workshop" AND the resolved stakeholder name
+  txt = ""
+  for _ in range(16):
+      txt = await page.inner_text("#stakeholders-engagement_table")
+      if "Workshop" in txt and sh_label in txt:
+          break
+      await page.wait_for_timeout(500)
+  assert "Workshop" in txt and sh_label in txt, "engagement not in log"
+  print("8. engagement: activity added + name-resolved in log — PASS")
   ```
   (A stakeholder exists by this point — section 6 added "Coastal NGO".)
 
