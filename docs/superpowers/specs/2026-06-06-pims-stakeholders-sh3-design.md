@@ -1,7 +1,21 @@
 # PIMS Stakeholders SH3 — Engagement Activity Log — Design
 
-Date: 2026-06-06
+Date: 2026-06-06 (rev. 2 — after multi-agent deep-review + codebase verification)
 Status: **Draft** — design phase, not yet implemented.
+
+**rev. 2 changes (from the review):** (a) i18n keys moved to a fresh
+`stakeholders.activity.*` namespace + `stakeholders.tab_activity` — the obvious
+`stakeholders.engagement.*` namespace is **already taken** by SH1's IAP2
+engagement-*level* labels (`…engagement.inform/consult/involve/collaborate/empower`),
+so reusing it would overload that namespace; (b) `from_dict` now **upgrades**
+`schema_version` to the current value on load (a loaded v3 project must not save back
+out claiming v3); (c) the stakeholder dropdown gets a leading blank option, is read
+under `reactive.isolate()`, and the add handler validates the FK is a live
+stakeholder; (d) `engagement_rows` only translates **known** codes (`Translator.t()`
+returns the key itself on a miss, so a raw/unknown code must be passed through
+verbatim); (e) guarded date conversion (`d.isoformat() if d else ""`); (f) the
+"every writer uses `.replace()`" claim narrowed to *partial* mutators; (g) extra
+edge-case tests.
 
 **Sub-project context:** SH3 of the PIMS Stakeholders port. SH1 (the stakeholder
 **register** — data + CRUD + persistence, schema v3) and SH2 (the **Power-Interest
@@ -29,7 +43,7 @@ a stakeholder.
   `navset_tab`: an "add engagement activity" form + a `render.data_frame` log table.
 - Pure, unit-tested list-mutation helpers (`add_engagement`, `remove_engagement`,
   `engagement_rows`) appended to `sespy/stakeholders.py` (no Shiny imports).
-- i18n keys (`stakeholders.engagement.*` + `stakeholders.tab_engagement`, 9 langs).
+- i18n keys (`stakeholders.activity.*` + `stakeholders.tab_activity`, 9 langs).
 - Unit + e2e tests.
 
 ### 1.2 Out of scope (SH4 / later)
@@ -51,10 +65,10 @@ a stakeholder.
 | Decision | Choice | Reason |
 |---|---|---|
 | Entity link | `Engagement.stakeholder_id` only — **no denormalized name** | R stored `StakeholderName` in the row (R:642), which goes stale on rename. SESPy resolves the name at render time from the live stakeholder list. Intentional divergence. |
-| Vocab storage | Canonical CODE strings for `method` + `status`; rendered via i18n | Mirrors SH1's all-codes choice (codes are i18n-stable); R stored translated labels. |
+| Vocab storage | Canonical CODE strings for `method` + `status`; rendered via i18n **only when the code is known** | Mirrors SH1's all-codes choice (codes are i18n-stable); R stored translated labels. `Translator.t()` returns the *key* on a miss, so `engagement_rows` falls back to the raw code for unknown values (§4). |
 | Helper location | Append to `sespy/stakeholders.py` (not a new module) | Same domain; mirrors SH2 appending grid helpers there. Keeps the stakeholder domain in one pure, Shiny-free file. |
-| ID scheme | `next_id([e.id for e in items], "ENG")` → `ENG001`… | Same `utils.next_id` convention as `SH###`; R used a separate `engagement_counter` + `ENG-` prefix — the id-derived counter is simpler and gap-tolerant. |
-| Envelope preservation | **Nothing new needed** — every `Project` writer already routes through `.replace()` (SH1 fix), and `with_modified_now` uses `self.replace(metadata=…)` | Verified 2026-06-06: all writers in `ai_isa_wizard.py`, `isa_data_entry.py`, `pims_project.py`, `pims_stakeholders.py` use `.replace()`. Adding `engagements` to `Project` makes it survive automatically; only `to_dict`/`from_dict` need the new key. |
+| ID scheme | `next_id([e.id for e in items], "ENG")` → `ENG001`… | Same `utils.next_id` convention (`f"{prefix}{n:03d}"`, verified `utils.py:10,29-37`) as `SH###`; R used a separate `engagement_counter` + prefix — the id-derived counter is simpler and gap-tolerant. SESPy ids are greenfield (no R file interop). |
+| Envelope preservation | **Nothing new needed for partial writers** — every *partial* `Project` mutator already routes through `.replace()` (SH1 fix), and `with_modified_now` uses `self.replace(metadata=…)`. Whole-project load/import/template/reset paths `set()` a complete `Project` straight from `from_dict`/a fresh build, so they carry `engagements` (or default `[]`) automatically | Verified 2026-06-06: partial writers in `ai_isa_wizard.py` (`:466,574,580,648,932`), `isa_data_entry.py:175`, `pims_project.py:172`, `pims_stakeholders.py:189,244` all use `.replace()`; whole-project setters (`import_data.py:147`, `recent_projects.py:174`, `templates.py:98`, `project_io.py:200/228/253`) set a full project. Adding `engagements` to `Project` survives all of them; only `to_dict`/`from_dict` need the new key. |
 | UI placement | A 3rd `ui.nav_panel` in the **existing** `navset_tab` (`id="stakeholder_tabs"`) | SH2 already restructured the panel into Register \| Power-Interest Grid; SH3 appends Engagement Planning. Register stays first → default-active → SH1/SH2 e2e unaffected. |
 | Reactive state + autosave | `project_data.set(current.replace(engagements=new_list))` then `event_bus.emit_isa_change()` | Identical to SH1's save path; autosave (`project_io.py`) is gated on `isa_change`. |
 | Empty-state guard | `add_engagement` requires a selected stakeholder **and** a method; else a warning toast, no mutation | Mirrors R's `req(input$eng_stakeholder, input$eng_method)` (R:632) and SH1's name+type validation. |
@@ -80,33 +94,46 @@ class Engagement:
 - `PROJECT_SCHEMA_VERSION = 4` (on `ProjectMetadata.schema_version`).
 - `to_dict`: add `"engagements": [asdict(e) for e in self.engagements]`.
 - `from_dict`: **field-filtered, unknown-key-tolerant**, exactly like the SH1
-  `stakeholders` block:
+  `stakeholders` block, **and now upgrades the schema version on load** so an older
+  project re-saved after an edit declares the current version (rev. 2 fix):
   ```python
   eng_keys = {f.name for f in fields(Engagement)}
   engagements = [Engagement(**{k: v for k, v in e.items() if k in eng_keys})
                  for e in (raw.get("engagements") or [])]
+  meta.schema_version = PROJECT_SCHEMA_VERSION   # upgrade-on-load (no down-convert)
   return cls(metadata=meta, isa_data=isa,
              stakeholders=stakeholders, engagements=engagements)
   ```
-  A v3 project (no `engagements` key) and the 4 templates load with `[]`.
+  A v3 project (no `engagements` key) and the 4 templates load with `[]`. The
+  `meta.schema_version = …` line is set after `meta` is built from the filtered dict;
+  it converts a loaded v1/v2/v3 file to v4 in memory (we never write an older shape).
+  NOTE: this also fixes a latent pre-SH3 gap (a loaded v2/v3 project previously
+  re-saved keeping its old version). A migration test covers it (§8).
 
-### 2.1 Envelope preservation — already handled
+### 2.1 Envelope preservation — already handled (partial writers)
 No new writer edits. `Project.replace()` (`dataclasses.replace`) and
-`with_modified_now()` carry `engagements` automatically once the field exists. The
-**only** persistence edits are `to_dict`/`from_dict` (above) and the schema bump.
-`validate_project_payload` (`persistent_storage.py`) does not read `schema_version`,
-so v4 is accepted unchanged (verified for v3 in SH1).
+`with_modified_now()` carry `engagements` automatically once the field exists; every
+*partial* mutator already uses `.replace()`. Whole-project load/import/template/reset
+paths `project_data.set(...)` a complete `Project` produced by `from_dict` or a fresh
+build, so they too carry `engagements` (or the `[]` default). The **only** persistence
+edits are `to_dict`/`from_dict` (above, incl. the schema-upgrade line) and the schema
+bump. `validate_project_payload` (`persistent_storage.py`) does not read
+`schema_version`, so v4 is accepted unchanged.
 
 ## 3. Controlled vocabularies — canonical codes (module-level constants)
-Stored as the **code**; rendered via i18n labels (`stakeholders.engagement.method.*`,
-`stakeholders.engagement.status.*`). A leading `""` ("—") option is offered so a
-field can be left blank (matching SH1's selects), except `status` which defaults to
-`planned`.
+Stored as the **code**; rendered via i18n labels under the **`stakeholders.activity.*`
+namespace** (`stakeholders.activity.method.*`, `stakeholders.activity.status.*`).
+**Do NOT use `stakeholders.engagement.*`** — that namespace already holds SH1's IAP2
+engagement-*level* labels (`…engagement.inform/consult/involve/collaborate/empower`,
+`core.json:3743-3797`) for the `Stakeholder.engagement_level` field; overloading it
+is confusing. A leading `""` ("—") option is offered so a field can be left blank
+(matching SH1's selects), except `status` which defaults to `planned`.
 - **method:** `workshop`, `interview`, `survey`, `focus_group`, `public_meeting`,
   `advisory_committee`, `email_newsletter`, `one_on_one`, `site_visit`, `other`
 - **status:** `planned`, `completed`, `cancelled`, `ongoing`
 
-Unknown codes on load are kept as-is and displayed (forward-tolerant).
+Unknown codes on load are kept as-is and **displayed verbatim** (forward-tolerant) —
+see the `engagement_rows` fallback in §4.
 
 ## 4. Pure list-mutation helpers (`sespy/stakeholders.py`, no Shiny imports)
 ```python
@@ -119,15 +146,20 @@ def engagement_rows(
     engagements: list[Engagement], stakeholders: list[Stakeholder], *, translate
 ) -> list[dict]
     # Build display rows for the log table: resolve stakeholder_id -> name from the
-    # live stakeholder list (unknown id -> "" ), map method/status codes -> labels via
-    # `translate`. Returns [{stakeholder, method, date, objectives, outcomes,
-    # status, facilitator}] in input order.
+    # live stakeholder list (unknown/dangling id -> ""), map method/status codes ->
+    # labels via `translate` ONLY for codes in the known vocab (_METHOD_CODES /
+    # _STATUS_CODES); an unknown code is passed through VERBATIM (Translator.t()
+    # returns the key on a miss, so a blind translate would render the full key
+    # string). Blank code -> "". Returns [{stakeholder, method, date, objectives,
+    # outcomes, status, facilitator}] in input order.
 ```
 `add_engagement`/`remove_engagement` are mechanical (mirror `add_stakeholder`/
 `remove_stakeholder`). `engagement_rows` is the one with logic worth unit-testing:
-name resolution + code→label mapping + stable order. `today` is injected (no
-`datetime.now()` inside) to keep these pure. Validation (a stakeholder + method are
-present) lives in the caller.
+name resolution (incl. dangling FK → `""`), **known-code-only** label mapping with
+verbatim fallback for unknown codes, and stable order. The set of known codes is
+passed in or imported as module constants so the helper stays Shiny-free. `today` is
+injected (no `datetime.now()` inside) to keep these pure. Validation (a stakeholder +
+method are present, and the stakeholder id is live) lives in the caller.
 
 ## 5. Module — Engagement Planning sub-tab (`sespy/modules/pims_stakeholders.py`)
 
@@ -138,7 +170,7 @@ plain module-level function (NO `@module.ui` decorator — same rule as
 ui.navset_tab(
     ui.nav_panel(_t("stakeholders.tab_register"), _register_panel()),
     ui.nav_panel(_t("stakeholders.tab_grid"), _grid_panel()),
-    ui.nav_panel(_t("stakeholders.tab_engagement"), _engagement_panel()),
+    ui.nav_panel(_t("stakeholders.tab_activity"), _engagement_panel()),
     id="stakeholder_tabs",
 )
 ```
@@ -158,20 +190,27 @@ ui.navset_tab(
 
 **Server** — add to `pims_stakeholders_server` (alongside the SH1/SH2 renders):
 - **Populate the stakeholder dropdown** — a `@reactive.effect` depending on `_items()`
-  that calls `ui.update_select("eng_stakeholder", choices={s.id: s.name for s in _items()})`
-  so newly-added stakeholders appear as engagement targets (mirrors R's
-  `updateSelectInput(..., "eng_stakeholder", …)` at R:512).
-- **Add handler** (`@reactive.event(input.add_engagement)`): if no `eng_stakeholder`
-  or no `eng_method` → `ui.notification_show(tr("stakeholders.engagement.required"),
-  type="warning", duration=3)` and return. Else build `fields_`
-  (`stakeholder_id`, `method`, `date` as `input.eng_date().isoformat()`, `objectives`,
-  `outcomes`, `status`, `facilitator`), then
+  that calls `ui.update_select("eng_stakeholder", choices={"": "—", **{s.id: s.name
+  for s in _items()}})` (a leading blank option, mirroring R's `c("", …)` at R:162-163,
+  so "no stakeholder selected" is a real, default-able state). Read the **current
+  selection inside `reactive.isolate()`** (so the effect subscribes only to `_items()`,
+  not to `input.eng_stakeholder()` — avoids a re-run loop) and pass `selected=` to keep
+  a still-valid selection, else fall back to `""`. This also drops a stale selection
+  when the chosen stakeholder is edited away or removed. Mirrors R's
+  `updateSelectInput(..., "eng_stakeholder", …)` at R:512.
+- **Add handler** (`@reactive.event(input.add_engagement)`): read `sid =
+  input.eng_stakeholder()` and `method = input.eng_method()`. Validate: if `sid` is
+  blank, `method` is blank, **or `sid not in {s.id for s in _items()}`** (FK no longer
+  live) → `ui.notification_show(tr("stakeholders.activity.required"), type="warning",
+  duration=3)` and return without mutating. Else build `fields_` (`stakeholder_id=sid`,
+  `method`, `date` via the **guarded** `d = input.eng_date(); date=d.isoformat() if d
+  else ""`, `objectives`, `outcomes`, `status`, `facilitator`), then
   `project_data.set(project_data.get().replace(engagements=add_engagement(_engagements(),
   fields_, today=date.today().isoformat())))`, `event_bus.emit_isa_change()`, and clear
   the free-text inputs (objectives/outcomes/facilitator) per R:656-658.
 - **Log table** (`@render.data_frame`): `render.DataGrid(pd.DataFrame(rows or stub))`
   where `rows = engagement_rows(_engagements(), _items(), translate=tr)`; empty stub
-  is one row of `tr("stakeholders.engagement.empty")`. (Selection-based removal can be
+  is one row of `tr("stakeholders.activity.empty")`. (Selection-based removal can be
   added later; R has no per-row delete for engagements, so SH3 omits it to stay
   faithful + small.)
 - `_engagements()` — a small accessor: `project_data.get().engagements`.
@@ -179,21 +218,26 @@ ui.navset_tab(
 No `app.py` change; the nav item/panel/server wiring from SH1 already mounts this module.
 
 ## 6. i18n (`sespy/translations/core.json`)
-Fresh `stakeholders.engagement.*` keys + `stakeholders.tab_engagement`, **inside the
-top-level `"translation"` wrapper**. Do NOT reuse R's `modules.pims.stakeholder.*`
-keys. Keys needed: `tab_engagement`; `engagement.heading`, `engagement.add_heading`,
-`engagement.stakeholder`, `engagement.method`, `engagement.date`,
-`engagement.objectives`, `engagement.outcomes`, `engagement.status`,
-`engagement.facilitator`, `engagement.add`, `engagement.required`,
-`engagement.empty`, `engagement.log_heading`; the 10 `engagement.method.<code>`
-labels and 4 `engagement.status.<code>` labels (§3). English values as placeholders
-for all 9 languages (per SP4).
+Fresh `stakeholders.activity.*` keys + `stakeholders.tab_activity`, **inside the
+top-level `"translation"` wrapper**. **Do NOT reuse `stakeholders.engagement.*`** (SH1's
+IAP2 engagement-*level* labels, `core.json:3743-3797`) nor R's
+`modules.pims.stakeholder.*` keys. Keys needed: `tab_activity` (English value
+**"Engagement Planning"** — this exact string becomes the tab's rendered `data-value`,
+which the e2e selects on); `activity.heading`, `activity.add_heading`,
+`activity.stakeholder`, `activity.method`, `activity.date`, `activity.objectives`,
+`activity.outcomes`, `activity.status`, `activity.facilitator`, `activity.add`,
+`activity.required`, `activity.empty`, `activity.log_heading`; the 10
+`activity.method.<code>` labels and 4 `activity.status.<code>` labels (§3). English
+values as placeholders for all 9 languages (per SP4).
 
 ## 7. Persistence & migration
-- Schema bump 3→4; v3 projects and the 4 templates load with `engagements=[]`.
-- Save/Load + Recent Projects round-trip automatically once §2 lands (writers use
-  `.replace()`; `with_modified_now` carries the field). No `project_io.py`,
-  `recent_projects.py`, or `persistent_storage.py` change.
+- Schema bump 3→4; v3 projects and the 4 templates load with `engagements=[]`, and
+  `from_dict` upgrades their `schema_version` to 4 in memory (§2) so a re-save is
+  self-consistent.
+- Save/Load + Recent Projects round-trip automatically once §2 lands (partial writers
+  use `.replace()`; whole-project loaders set a full `from_dict` project;
+  `with_modified_now` carries the field). No `project_io.py`, `recent_projects.py`, or
+  `persistent_storage.py` change.
 
 ## 8. Testing
 - **Unit — `tests/test_stakeholders.py`** (append): `Engagement` dataclass round-trip;
@@ -203,29 +247,36 @@ for all 9 languages (per SP4).
   record with an unknown extra key → tolerated; `add_engagement` assigns `ENG001` +
   `created_at`; `remove_engagement` drops by id; **`engagement_rows`**: resolves
   stakeholder name from the live list, maps method/status codes → labels, preserves
-  order, and yields `""` for a dangling `stakeholder_id`.
+  order, yields `""` for a dangling `stakeholder_id`, and **renders an unknown
+  method/status code verbatim** (not the i18n key).
+- **Migration test** (rev. 2): load a **v3** dict (with an engagement entry) →
+  `from_dict` → assert `metadata.schema_version == 4`; round-trip through
+  `project_to_bytes`/`save_project_atomic` and re-load → assert the saved bytes
+  declare schema 4 and the engagement survived.
 - **Unit — `tests/test_data_structure.py`:** rename `test_schema_version_is_3` →
-  `test_schema_version_is_4` and assert `== 4` (grep confirms it is the only
-  `schema_version == 3` fixture).
+  `test_schema_version_is_4` and assert `== 4`. (The only other hard-coded `3` is the
+  generated artifact `tests/screenshots/_save_test.json`, regenerated by
+  `test_quick_actions_e2e.py` and **not** asserted as an exact version — no change
+  needed; noted so it isn't mistaken for a fixture.)
 - **e2e — `tests/test_stakeholders_e2e.py`** (extend; the CRUD + grid sections stay
   UNCHANGED): add an engagement section — ensure a stakeholder exists (reuse one, or
   add `KEY_NAME`), switch to the Engagement Planning sub-tab via
   `#stakeholders-stakeholder_tabs a[data-value='Engagement Planning']` (the verified
-  SH2 `data-value` selector pattern — NOT `:has-text`), drive `eng_stakeholder` +
-  `eng_method` via the `el.value`+dispatch `_set_select` helper, click
-  `#stakeholders-add_engagement`, and assert the method/stakeholder text appears in
-  `#stakeholders-engagement_table`. Optionally assert it persists across a nav
+  SH2 `data-value` selector pattern — NOT `:has-text`), drive `eng_stakeholder` (to a
+  real stakeholder id) + `eng_method` via the `el.value`+dispatch `_set_select` helper,
+  click `#stakeholders-add_engagement`, and assert the method/stakeholder text appears
+  in `#stakeholders-engagement_table`. Optionally assert it persists across a nav
   away/back (the in-session `project_data` round-trip).
 
 ## 9. Files
 
 | File | Status | Purpose |
 |---|---|---|
-| `sespy/data_structure.py` | edit | `Engagement` dataclass; `Project.engagements`; `to_dict`/`from_dict` (field-filtered); schema 3→4 |
+| `sespy/data_structure.py` | edit | `Engagement` dataclass; `Project.engagements`; `to_dict`/`from_dict` (field-filtered + schema upgrade-on-load); schema 3→4 |
 | `sespy/stakeholders.py` | edit | append pure `add_engagement`/`remove_engagement`/`engagement_rows` (no Shiny) |
-| `sespy/modules/pims_stakeholders.py` | edit | 3rd `nav_panel`; `_engagement_panel()`; dropdown-populate effect; add handler; `engagement_table` render |
-| `sespy/translations/core.json` | edit | `stakeholders.engagement.*` + `stakeholders.tab_engagement` (inside `"translation"`, 9 langs) |
-| `tests/test_stakeholders.py` | edit | Engagement model + helpers + v4 save-path round-trip unit tests |
+| `sespy/modules/pims_stakeholders.py` | edit | 3rd `nav_panel`; `_engagement_panel()`; dropdown-populate effect (blank option + isolate); add handler (FK validation); `engagement_table` render |
+| `sespy/translations/core.json` | edit | `stakeholders.activity.*` + `stakeholders.tab_activity` (inside `"translation"`, 9 langs) |
+| `tests/test_stakeholders.py` | edit | Engagement model + helpers + v4 save-path round-trip + migration + unknown-code-fallback unit tests |
 | `tests/test_data_structure.py` | edit | `test_schema_version_is_3` → `_is_4` (assert 4) |
 | `tests/test_stakeholders_e2e.py` | edit | add engagement add+log e2e section (data-value tab selector) |
 
