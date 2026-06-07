@@ -1,7 +1,16 @@
 # PIMS Stakeholders SH5 — Analysis Summary — Design
 
-Date: 2026-06-07
+Date: 2026-06-07 (rev. 2 — after deep-review)
 Status: **Draft** — design phase, not yet implemented.
+
+**rev. 2 changes (from the review):** (a) **name-collision fix** — the pure helpers
+`stakeholder_stats`/`engagement_coverage` share names with their Shiny output
+functions, so the module imports them aliased (`compute_stakeholder_stats`,
+`compute_engagement_coverage`) and the renders call the aliases (§4); (b) the
+distribution renders use a `_analysis_code_label` helper so an **unknown** type/sector
+code renders verbatim (not the i18n key), blanks → `analysis.unset`, known →
+`stakeholders.type/sector.<code>` (§4); (c) the e2e **polls** the stats output (§6);
+(d) distribution charts rotate tick labels + `fig.tight_layout()` for legibility (§4).
 
 **Sub-project context:** SH5 of the PIMS Stakeholders port. SH1 (register), SH2
 (Power-Interest grid), SH3 (engagement log), and SH4 (communication plan) are all on
@@ -88,20 +97,41 @@ ui.nav_panel(_t("stakeholders.tab_analysis"), _analysis_panel()),
 - `ui.output_plot("sector_distribution", height="300px")`.
 
 **Server** — add (read-only; `_items()`/`_engagements()`/`_communications()` already
-exist):
-- **Stats** (`@render.ui`): `s = stakeholder_stats(_items(), _engagements(),
-  _communications())`; if `s["total"] == 0` → a single `ui.p(tr(
-  "stakeholders.analysis.empty"))`; else a `ui.tags.ul` of seven
+exist). **Import the pure helpers ALIASED** to avoid clashing with the output-function
+names (`stakeholder_stats`/`engagement_coverage` are also the `output_ui`/`output_plot`
+ids):
+```python
+from sespy.stakeholders import (
+    stakeholder_stats as compute_stakeholder_stats,
+    engagement_coverage as compute_engagement_coverage,
+    count_by,
+)
+```
+A small module-level label helper for the distribution charts (known code → label,
+blank → "unset", unknown → verbatim; uses SH1's `_TYPE_CODES`/`_SECTOR_CODES`):
+```python
+def _code_label(code, group, known, translate):
+    if not code:
+        return translate("stakeholders.analysis.unset")
+    if code in known:
+        return translate(f"stakeholders.{group}.{code}")
+    return code  # unknown code: verbatim, not the i18n key
+```
+- **Stats** (`@render.ui def stakeholder_stats`): `s = compute_stakeholder_stats(
+  _items(), _engagements(), _communications())`; if `s["total"] == 0` → a single
+  `ui.p(tr("stakeholders.analysis.empty"))`; else a `ui.tags.ul` of seven
   `ui.tags.li(f"{tr('stakeholders.analysis.<key>')}: {value}")` rows.
-- **Coverage plot** (`@render.plot`, SH2 idiom): `import matplotlib.pyplot as plt`;
-  if no stakeholders, `ax.text(...)` the empty message + return `fig`; else
-  `cov = engagement_coverage(_items(), _engagements())` and a 2-bar barplot
-  (engaged `cov`, not-engaged `100-cov`) with a title showing `round(cov, 1)`%.
-- **Type distribution** (`@render.plot`): `counts = count_by(_items(), "stakeholder_type")`;
-  empty guard; bars over `counts`, x-labels via `tr(f"stakeholders.type.{code}")`
-  (reuse SH1's existing type labels; a blank code → `tr("stakeholders.analysis.unset")`).
-- **Sector distribution** (`@render.plot`): same with `count_by(_items(), "sector")`
-  and `tr(f"stakeholders.sector.{code}")`.
+- **Coverage plot** (`@render.plot def engagement_coverage`, SH2 idiom): `import
+  matplotlib.pyplot as plt`; if no stakeholders, `ax.text(...)` the
+  `analysis.add_stakeholders` message + return `fig`; else `cov =
+  compute_engagement_coverage(_items(), _engagements())` and a 2-bar barplot
+  (engaged `cov`, not-engaged `100-cov`) titled with `round(cov, 1)`%.
+- **Type distribution** (`@render.plot def type_distribution`): `counts = count_by(
+  _items(), "stakeholder_type")`; empty guard; bars over `counts`, x-labels via
+  `_code_label(code, "type", _TYPE_CODES, tr)`; rotate tick labels (`rotation=45,
+  ha="right"`) + `fig.tight_layout()`.
+- **Sector distribution** (`@render.plot def sector_distribution`): same with
+  `count_by(_items(), "sector")` and `_code_label(code, "sector", _SECTOR_CODES, tr)`.
 
 No `app.py` change.
 
@@ -129,11 +159,12 @@ x-axes (no new keys for those).
 - **No** `test_data_structure.py` change (no schema bump).
 - **e2e — `tests/test_stakeholders_e2e.py`** (extend; sections 1–9 UNCHANGED): add a
   section 10 — switch to the Analysis sub-tab via
-  `#stakeholders-stakeholder_tabs a[data-value='Analysis']`, then assert the stats
-  summary `#stakeholders-stakeholder_stats` inner text contains a known label and a
-  count (e.g. the total-stakeholders label with a number ≥ 1, since earlier sections
-  added stakeholders). Reading the `@render.ui` text is reliable (avoids plot-img
-  flake); optionally also `wait_for_selector` the `#stakeholders-type_distribution img`.
+  `#stakeholders-stakeholder_tabs a[data-value='Analysis']`, then **poll**
+  `#stakeholders-stakeholder_stats` inner text (a short loop, like the grid/engagement
+  sections) until it contains a known label and a count (e.g. the total-stakeholders
+  label, since earlier sections added stakeholders). Reading the `@render.ui` text is
+  reliable (avoids plot-img flake); optionally also `wait_for_selector` the
+  `#stakeholders-type_distribution img`.
 
 ## 7. Files
 
