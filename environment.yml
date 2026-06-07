@@ -25,6 +25,7 @@ dependencies:
   - jinja2>=3.1      # HTML report templating
   - openpyxl>=3.1    # Excel import
   - python-docx>=1.1 # Word report export
+  - reportlab>=4.0   # PIMS stakeholder summary PDF export (pure-Python)
   - htmltools>=0.5
   - anthropic>=0.50,<0.101
   - weasyprint>=60   # optional: PDF report export (native cairo/pango)

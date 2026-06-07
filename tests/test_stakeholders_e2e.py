@@ -74,7 +74,7 @@ async def main():
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        page = await (await browser.new_context()).new_page()
+        page = await (await browser.new_context(accept_downloads=True)).new_page()
         await page.set_viewport_size({"width": 1280, "height": 900})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
         await page.wait_for_timeout(1500)
@@ -276,6 +276,19 @@ async def main():
             await page.wait_for_timeout(500)
         assert "Total stakeholders" in stats_txt, "analysis stats not rendered"
         print("10. analysis: stats summary rendered — PASS")
+
+        # ------------------------------------------------------------------ #
+        # 11. EXPORT — the three download buttons fire with the right file types
+        # ------------------------------------------------------------------ #
+        for btn, ext in (("download_stakeholder_xlsx", ".xlsx"),
+                         ("download_power_interest_png", ".png"),
+                         ("download_summary_pdf", ".pdf")):
+            async with page.expect_download() as dl_info:
+                await page.click(f"#stakeholders-{btn}")
+            download = await dl_info.value
+            assert download.suggested_filename.endswith(ext), (
+                f"{btn} -> {download.suggested_filename}")
+        print("11. export: xlsx/png/pdf downloads fire — PASS")
 
         # ------------------------------------------------------------------ #
         # Screenshot + done

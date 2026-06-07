@@ -4894,6 +4894,50 @@
       "lt": "Add stakeholders to see this chart.",
       "no": "Add stakeholders to see this chart.",
       "pt": "Add stakeholders to see this chart."
+    },
+    "stakeholders.analysis.export_heading": {
+      "de": "Export stakeholder data",
+      "el": "Export stakeholder data",
+      "en": "Export stakeholder data",
+      "es": "Export stakeholder data",
+      "fr": "Export stakeholder data",
+      "it": "Export stakeholder data",
+      "lt": "Export stakeholder data",
+      "no": "Export stakeholder data",
+      "pt": "Export stakeholder data"
+    },
+    "stakeholders.analysis.export_excel": {
+      "de": "Download full report (Excel)",
+      "el": "Download full report (Excel)",
+      "en": "Download full report (Excel)",
+      "es": "Download full report (Excel)",
+      "fr": "Download full report (Excel)",
+      "it": "Download full report (Excel)",
+      "lt": "Download full report (Excel)",
+      "no": "Download full report (Excel)",
+      "pt": "Download full report (Excel)"
+    },
+    "stakeholders.analysis.export_png": {
+      "de": "Download Power-Interest grid (PNG)",
+      "el": "Download Power-Interest grid (PNG)",
+      "en": "Download Power-Interest grid (PNG)",
+      "es": "Download Power-Interest grid (PNG)",
+      "fr": "Download Power-Interest grid (PNG)",
+      "it": "Download Power-Interest grid (PNG)",
+      "lt": "Download Power-Interest grid (PNG)",
+      "no": "Download Power-Interest grid (PNG)",
+      "pt": "Download Power-Interest grid (PNG)"
+    },
+    "stakeholders.analysis.export_pdf": {
+      "de": "Download summary (PDF)",
+      "el": "Download summary (PDF)",
+      "en": "Download summary (PDF)",
+      "es": "Download summary (PDF)",
+      "fr": "Download summary (PDF)",
+      "it": "Download summary (PDF)",
+      "lt": "Download summary (PDF)",
+      "no": "Download summary (PDF)",
+      "pt": "Download summary (PDF)"
     }
   }
 }

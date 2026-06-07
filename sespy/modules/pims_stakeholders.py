@@ -8,7 +8,7 @@ SH2: a second sub-tab adds a matplotlib Power-Interest grid + quadrant summary.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
@@ -16,6 +16,11 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from sespy.data_structure import Project, Stakeholder
 from sespy.event_bus import EventBus
 from sespy.i18n import Translator, t as _t
+from sespy.stakeholder_reports import (
+    build_power_interest_png,
+    build_stakeholder_workbook,
+    build_summary_pdf,
+)
 from sespy.stakeholders import (
     COMMUNICATION_AUDIENCES,
     COMMUNICATION_FREQUENCIES,
@@ -61,6 +66,10 @@ def _code_label(code, group, known, translate):
     if code in known:
         return translate(f"stakeholders.{group}.{code}")
     return code
+
+
+def _stamp() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
 def _register_panel() -> ui.Tag:
@@ -195,6 +204,15 @@ def _analysis_panel() -> ui.Tag:
             ui.card(ui.output_plot("type_distribution", height="300px")),
             ui.card(ui.output_plot("sector_distribution", height="300px")),
             col_widths=[6, 6],
+        ),
+        ui.card(
+            ui.h5(_t("stakeholders.analysis.export_heading")),
+            ui.download_button("download_stakeholder_xlsx",
+                               _t("stakeholders.analysis.export_excel")),
+            ui.download_button("download_power_interest_png",
+                               _t("stakeholders.analysis.export_png")),
+            ui.download_button("download_summary_pdf",
+                               _t("stakeholders.analysis.export_pdf")),
         ),
     )
 
@@ -598,3 +616,20 @@ def pims_stakeholders_server(
     def sector_distribution():
         return _distribution_plot("sector", _SECTOR_CODES, "sector",
                                   "stakeholders.analysis.by_sector")
+
+    # ------------------------------------------------------------------
+    # SH6: Export downloads (xlsx / png / pdf)
+    # ------------------------------------------------------------------
+
+    @render.download(filename=lambda: f"stakeholders-{_stamp()}.xlsx")
+    def download_stakeholder_xlsx():
+        yield build_stakeholder_workbook(_items(), _engagements(), _communications())
+
+    @render.download(filename=lambda: f"power-interest-{_stamp()}.png")
+    def download_power_interest_png():
+        yield build_power_interest_png(_items(), translate=tr)
+
+    @render.download(filename=lambda: f"stakeholder-summary-{_stamp()}.pdf")
+    def download_summary_pdf():
+        stats = compute_stakeholder_stats(_items(), _engagements(), _communications())
+        yield build_summary_pdf(project_data.get().metadata.name, stats, _items())
