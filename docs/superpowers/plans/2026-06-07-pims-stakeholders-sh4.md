@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-07-pims-stakeholders-sh4-design.md` (rev. 2).
 
+**Plan rev. 2 (from deep-review):** split the `from_dict` `return cls(...)` across lines (the one-line form exceeded flake8's 100-char limit). Review verified everything else — the `_label` refactor keeps SH3 tests green, all four 4→5 schema assertions are covered, snippets run, and the i18n key set is complete.
+
 **Conventions verified against live code (2026-06-07, post-SH3):**
 - Data model (`data_structure.py`): `PROJECT_SCHEMA_VERSION = 4` (:19); `to_dict` emits `metadata`/`isa_data`/`stakeholders`/`engagements`; `from_dict` parses each entity field-filtered and runs `meta.schema_version = PROJECT_SCHEMA_VERSION` (upgrade-on-load) before `return cls(...)`; `fields` already imported from `dataclasses`.
 - Pure helpers (`stakeholders.py`): SH3 added `_label(code, known, translate, group)` → `translate(f"stakeholders.activity.{group}.{code}")`, called as `_label(e.method, ENGAGEMENT_METHODS, translate, "method")` and `_label(e.status, ENGAGEMENT_STATUSES, translate, "status")`; `add_engagement`/`remove_engagement`/`engagement_rows`; `ENGAGEMENT_METHODS`/`ENGAGEMENT_STATUSES` tuples; `next_id` + `Engagement`/`Stakeholder` imported.
@@ -131,7 +133,16 @@
          for c in (raw.get("communications") or [])
      ]
      ```
-     and extend the return: `return cls(metadata=meta, isa_data=isa, stakeholders=stakeholders, engagements=engagements, communications=communications)`.
+     and extend the return (split across lines to stay under flake8's 100-char limit):
+     ```python
+     return cls(
+         metadata=meta,
+         isa_data=isa,
+         stakeholders=stakeholders,
+         engagements=engagements,
+         communications=communications,
+     )
+     ```
 
 - [ ] **Step 4: Run; verify pass** — `micromamba run -n shiny python -m pytest tests/test_stakeholders.py tests/test_data_structure.py -q` → green.
 
