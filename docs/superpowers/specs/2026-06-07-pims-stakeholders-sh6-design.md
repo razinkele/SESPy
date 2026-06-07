@@ -1,7 +1,18 @@
 # PIMS Stakeholders SH6 — Export Downloads — Design
 
-Date: 2026-06-07
+Date: 2026-06-07 (rev. 2 — after deep-review + library-idiom verification)
 Status: **Draft** — design phase, not yet implemented.
+
+**rev. 2 notes (verified idioms, detailed in the plan):** (a) Excel headers come from
+`dataclasses.fields(cls)` (NOT `items[0]`) so empty exports yield header-only sheets;
+build sheets via `wb.active.title = "Stakeholders"` + two `create_sheet()` (no stray
+`"Sheet"`). (b) reportlab `Table([])` **raises** — always include a header row + a
+placeholder row when data is empty. (c) PNG uses the no-pyplot idiom
+(`matplotlib.figure.Figure` + `FigureCanvasAgg` + `matplotlib.patches.Rectangle`),
+axes **x = interest, y = power**. (d) e2e asserts `download.suggested_filename`
+endswith the extension; `@render.download` handlers do **not** use `@output`. All
+three byte-builder idioms were run and confirmed (PNG `\x89PNG`, xlsx `PK`, PDF `%PDF`;
+header-only reportlab table is fine).
 
 **Sub-project context:** SH6 (final) of the PIMS Stakeholders port. SH1–SH5 are on
 `main`. SH6 adds the three **export downloads** from R Tab 5's "Export stakeholder
