@@ -197,6 +197,50 @@ async def main():
         print("7. grid: plot img + key-player summary — PASS")
 
         # ------------------------------------------------------------------ #
+        # 8. ENGAGEMENT — add an activity for an existing stakeholder; assert it
+        #    (method label + resolved stakeholder name) shows in the log
+        # ------------------------------------------------------------------ #
+        await page.click(
+            "#stakeholders-stakeholder_tabs a[data-value='Engagement Planning']"
+        )
+        await page.wait_for_timeout(800)
+
+        # The dropdown is populated from existing stakeholders via an update-select
+        # message that may lag — poll until a real SH### option exists.
+        sid = None
+        for _ in range(16):
+            sid = await page.eval_on_selector(
+                "#stakeholders-eng_stakeholder",
+                "el => Array.from(el.options).map(o => o.value)"
+                ".find(v => v.startsWith('SH'))",
+            )
+            if sid:
+                break
+            await page.wait_for_timeout(500)
+        assert sid, "engagement stakeholder dropdown has no SH### option"
+
+        # Capture the selected stakeholder's display name to assert name-resolution.
+        sh_label = await page.eval_on_selector(
+            "#stakeholders-eng_stakeholder",
+            "el => { const o = Array.from(el.options)"
+            ".find(x => x.value.startsWith('SH')); return o ? o.text : ''; }",
+        )
+        await _set_select(page, "stakeholders-eng_stakeholder", sid)
+        await _set_select(page, "stakeholders-eng_method", "workshop")
+        await page.click("#stakeholders-add_engagement")
+
+        eng_txt = ""
+        for _ in range(16):
+            eng_txt = await page.inner_text("#stakeholders-engagement_table")
+            if "Workshop" in eng_txt and sh_label in eng_txt:
+                break
+            await page.wait_for_timeout(500)
+        assert "Workshop" in eng_txt and sh_label in eng_txt, (
+            "engagement not in log"
+        )
+        print("8. engagement: activity added + name-resolved in log — PASS")
+
+        # ------------------------------------------------------------------ #
         # Screenshot + done
         # ------------------------------------------------------------------ #
         await page.screenshot(path=str(SCREENSHOTS / "stakeholders.png"))
