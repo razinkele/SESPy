@@ -10,9 +10,17 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-07-pims-stakeholders-sh6-design.md` (rev. 2).
 
+**Plan rev. 2 (from deep-review):** (a) **`reportlab>=4.0` declared** as a runtime
+dependency in `pyproject.toml` + `environment.yml` (it was only present locally; clean
+installs would `ModuleNotFoundError`); (b) the PDF builder **escapes** the project
+name via `xml.sax.saxutils.escape` before `Paragraph` (reportlab parses markup — a
+name like `<b>Bad` would raise), with a unit test; (c) corrected the e2e citation —
+`test_report_e2e.py` uses accept-downloads/`expect_download` but saves bytes; SH6 uses
+the lighter `download.suggested_filename` assertion.
+
 **Conventions verified against live code + a runnable library check (2026-06-07):**
 - `@render.download` pattern (`report_export.py:84-97`): `@render.download(filename=lambda: f"…-{_stamp()}.<ext>")` then `yield <bytes>`; handlers do **NOT** use `@output`; `_stamp()` = `datetime.now().strftime("%Y%m%d-%H%M%S")`. `render` is already imported in `pims_stakeholders.py`.
-- Playwright downloads (`test_report_e2e.py:12,31-36`): `browser.new_context(accept_downloads=True)`; `async with page.expect_download() as dl_info: await page.click(...)`; `download = await dl_info.value`; assert `download.suggested_filename.endswith("...")`.
+- Playwright downloads (`test_report_e2e.py:12,31-36`): `browser.new_context(accept_downloads=True)`; `async with page.expect_download() as dl_info: await page.click(...)`; `download = await dl_info.value`. (That test then saves bytes; SH6 uses the lighter `download.suggested_filename.endswith("...")` assertion — a standard Playwright `Download` attribute.)
 - Libs present + idioms CONFIRMED by running them: openpyxl `wb.save(BytesIO()); buf.getvalue()` → `PK\x03\x04`; matplotlib `Figure()`+`FigureCanvasAgg(fig)`+`fig.savefig(buf, format="png")` → `\x89PNG\r\n\x1a\n` (no pyplot/global state); reportlab `SimpleDocTemplate(BytesIO())`+`doc.build([...])` → `%PDF` (a header-only `Table` is fine; `Table([])` RAISES). PDF uses **reportlab** (installed, pure-Python) — NOT `report.py`'s optional WeasyPrint.
 - Data model: `Stakeholder`/`Engagement`/`Communication` dataclasses (`data_structure.py`); `Communication` field is `comm_type`. `level_num` (`stakeholders.py`) maps power/interest → 1..3. `compute_stakeholder_stats` (aliased in the module) returns the 7-key dict.
 - Module (`pims_stakeholders.py`): SH5 `_analysis_panel()` (two `layout_columns` rows); server `_items()`/`_engagements()`/`_communications()`/`tr`/`compute_stakeholder_stats`/`project_data`. Existing output ids: `power_interest_grid`, `engagement_coverage`, `type_distribution`, `sector_distribution`, `stakeholder_stats`, the tables — the new download ids (`download_stakeholder_xlsx`/`download_power_interest_png`/`download_summary_pdf`) do **not** collide.
@@ -22,7 +30,7 @@
 
 ## Task 1: Pure byte-builders (`sespy/stakeholder_reports.py`)
 
-**Files:** Create `sespy/stakeholder_reports.py`; create `tests/test_stakeholder_reports.py`
+**Files:** Create `sespy/stakeholder_reports.py`; create `tests/test_stakeholder_reports.py`; edit `pyproject.toml` + `environment.yml` (declare `reportlab>=4.0`)
 
 - [ ] **Step 1: Write the failing tests** (`tests/test_stakeholder_reports.py`):
   ```python
@@ -93,6 +101,13 @@
   def test_pdf_empty_inputs_still_valid():
       from sespy.stakeholders import stakeholder_stats
       data = build_summary_pdf("Empty", stakeholder_stats([], [], []), [])
+      assert data[:4] == b"%PDF"
+
+
+  def test_pdf_escapes_markup_in_project_name():
+      # reportlab Paragraph parses markup; an unescaped "<b>" would raise.
+      from sespy.stakeholders import stakeholder_stats
+      data = build_summary_pdf("<b>Bad & Co", stakeholder_stats([], [], []), [])
       assert data[:4] == b"%PDF"
   ```
 
@@ -169,6 +184,8 @@
 
 
   def build_summary_pdf(project_name, stats, stakeholders) -> bytes:
+      from xml.sax.saxutils import escape
+
       from reportlab.lib.pagesizes import A4
       from reportlab.lib.styles import getSampleStyleSheet
       from reportlab.platypus import (
@@ -178,8 +195,8 @@
       buf = BytesIO()
       doc = SimpleDocTemplate(buf, pagesize=A4)
       styles = getSampleStyleSheet()
-      story = [Paragraph(f"Stakeholder summary — {project_name}", styles["Title"]),
-               Spacer(1, 12)]
+      title = f"Stakeholder summary — {escape(str(project_name))}"
+      story = [Paragraph(title, styles["Title"]), Spacer(1, 12)]
       stat_rows = [["Metric", "Value"]]
       for k in ("total", "types", "sectors", "high_power", "high_interest",
                 "engagements", "communications"):
@@ -201,10 +218,10 @@
 
 - [ ] **Step 4: Run + flake8** — `micromamba run -n shiny python -m pytest tests/test_stakeholder_reports.py -q` + `flake8 sespy/stakeholder_reports.py tests/test_stakeholder_reports.py --max-line-length=100` → green/clean.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit** (include the dependency declarations)
   ```bash
-  git add sespy/stakeholder_reports.py tests/test_stakeholder_reports.py
-  git commit -m "feat(stakeholders): pure export byte-builders (xlsx/png/pdf)"
+  git add sespy/stakeholder_reports.py tests/test_stakeholder_reports.py pyproject.toml environment.yml
+  git commit -m "feat(stakeholders): pure export byte-builders (xlsx/png/pdf) + reportlab dep"
   ```
 
 ---
