@@ -10,6 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-07-pims-stakeholders-sh5-design.md` (rev. 2).
 
+**Plan rev. 2 (from deep-review):** (a) the Task 3 import snippet is now the full,
+pasteable block (the `...,  # existing` placeholder was invalid Python); (b)
+distribution charts use `ax.set_xticks(x, labels, rotation=45, ha="right")` over
+integer positions — the warning-free matplotlib 3.10 idiom (`ax.set_xticklabels` after
+`ax.bar(labels,…)` emits a FixedFormatter warning). Review verified the helper
+semantics/test values, the alias requirement, and i18n/e2e are all correct.
+
 **Conventions verified against live code (2026-06-07, post-SH4):**
 - `Stakeholder` fields: `stakeholder_type`, `sector`, `power`, `interest` (`data_structure.py`); `Engagement.stakeholder_id`; `Project.stakeholders`/`.engagements`/`.communications`. **No schema change** (`PROJECT_SCHEMA_VERSION = 5` stays).
 - `@render.plot` idiom (`pims_stakeholders.py:336-385`, SH2 grid): `import matplotlib.pyplot as plt` inside; `fig, ax = plt.subplots()`; draw; `return fig`. UI companion `ui.output_plot("id", height="...")`.
@@ -165,13 +172,26 @@
 
 **Files:** Modify `sespy/modules/pims_stakeholders.py`
 
-- [ ] **Step 1: Imports + panel** — extend the `from sespy.stakeholders import (...)` block, **aliasing** the two colliding helper names:
+- [ ] **Step 1: Imports + panel** — replace the `from sespy.stakeholders import (...)` block with the full set (existing names + `count_by` + the two **aliased** helpers, since `stakeholder_stats`/`engagement_coverage` collide with the output-function names):
   ```python
   from sespy.stakeholders import (
-      ...,  # existing
+      COMMUNICATION_AUDIENCES,
+      COMMUNICATION_FREQUENCIES,
+      COMMUNICATION_TYPES,
+      ENGAGEMENT_METHODS,
+      ENGAGEMENT_STATUSES,
+      add_communication,
+      add_engagement,
+      add_stakeholder,
+      communication_rows,
       count_by,
       engagement_coverage as compute_engagement_coverage,
+      engagement_rows,
+      level_num,
+      remove_stakeholder,
       stakeholder_stats as compute_stakeholder_stats,
+      summarize_quadrants,
+      update_stakeholder,
   )
   ```
   Add a module-level label helper (near `_choices`):
@@ -255,10 +275,11 @@
               return fig
           counts = count_by(items, field)
           labels = [_code_label(c, group, known, tr) for c in counts]
-          ax.bar(labels, list(counts.values()), color="#A23B72")
+          x = range(len(labels))
+          ax.bar(x, list(counts.values()), color="#A23B72")
           ax.set_ylabel(tr("stakeholders.analysis.count"))
           ax.set_title(tr(title_key))
-          ax.set_xticklabels(labels, rotation=45, ha="right")
+          ax.set_xticks(x, labels, rotation=45, ha="right")
           fig.tight_layout()
           return fig
 
@@ -274,7 +295,9 @@
           return _distribution_plot("sector", _SECTOR_CODES, "sector",
                                     "stakeholders.analysis.by_sector")
   ```
-  (`ax.set_xticklabels(labels, ...)` after `ax.bar(labels, ...)` is safe — the ticks are already the label positions; alternatively use `ax.tick_params(axis="x", rotation=45)`. Keep `fig.tight_layout()`.)
+  (Use `ax.set_xticks(x, labels, ...)` — the warning-free idiom in matplotlib 3.10
+  for rotated categorical labels; `ax.bar(x, ...)` over integer positions pairs with
+  it. Keep `fig.tight_layout()`.)
 
 - [ ] **Step 3: Verify**
   ```
