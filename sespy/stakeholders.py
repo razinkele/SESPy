@@ -169,3 +169,32 @@ def communication_rows(
         }
         for c in communications
     ]
+
+
+# --- SH5: analysis summary (pure) ------------------------------------------
+def stakeholder_stats(stakeholders, engagements, communications) -> dict:
+    return {
+        "total": len(stakeholders),
+        "types": len({s.stakeholder_type for s in stakeholders if s.stakeholder_type}),
+        "sectors": len({s.sector for s in stakeholders if s.sector}),
+        "high_power": sum(1 for s in stakeholders if s.power == "HIGH"),
+        "high_interest": sum(1 for s in stakeholders if s.interest == "HIGH"),
+        "engagements": len(engagements),
+        "communications": len(communications),
+    }
+
+
+def engagement_coverage(stakeholders, engagements) -> float:
+    if not stakeholders:
+        return 0.0
+    engaged = {e.stakeholder_id for e in engagements}
+    covered = sum(1 for s in stakeholders if s.id in engaged)
+    return covered / len(stakeholders) * 100
+
+
+def count_by(stakeholders, field: str) -> dict:
+    counts: dict = {}
+    for s in stakeholders:
+        key = getattr(s, field)
+        counts[key] = counts.get(key, 0) + 1
+    return counts

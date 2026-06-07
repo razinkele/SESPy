@@ -13,11 +13,14 @@ from sespy.stakeholders import (
     add_stakeholder,
     classify_quadrant,
     communication_rows,
+    count_by,
+    engagement_coverage,
     engagement_rows,
     level_num,
     remove_communication,
     remove_engagement,
     remove_stakeholder,
+    stakeholder_stats,
     summarize_quadrants,
     update_stakeholder,
 )
@@ -407,3 +410,54 @@ def test_communication_rows_unknown_code_passes_through_verbatim():
     assert rows[0]["audience"] == "aliens"
     assert rows[0]["type"] == "smoke_signal"
     assert rows[0]["frequency"] == "hourly"
+
+
+# --- SH5: analysis summary helpers -----------------------------------------
+def test_stakeholder_stats_counts():
+    sh = [
+        Stakeholder(id="SH001", name="A", stakeholder_type="government",
+                    sector="fisheries", power="HIGH", interest="HIGH"),
+        Stakeholder(id="SH002", name="B", stakeholder_type="ngo",
+                    sector="fisheries", power="HIGH", interest="LOW"),
+        Stakeholder(id="SH003", name="C", stakeholder_type="ngo",
+                    sector="", power="LOW", interest="HIGH"),
+    ]
+    eng = [Engagement(id="ENG001", stakeholder_id="SH001")]
+    comm = [Communication(id="COMM001"), Communication(id="COMM002")]
+    s = stakeholder_stats(sh, eng, comm)
+    assert s["total"] == 3
+    assert s["types"] == 2          # government, ngo (distinct non-empty)
+    assert s["sectors"] == 1        # fisheries (blank not counted)
+    assert s["high_power"] == 2
+    assert s["high_interest"] == 2
+    assert s["engagements"] == 1
+    assert s["communications"] == 2
+
+
+def test_stakeholder_stats_empty_is_all_zero():
+    s = stakeholder_stats([], [], [])
+    assert s == {"total": 0, "types": 0, "sectors": 0, "high_power": 0,
+                 "high_interest": 0, "engagements": 0, "communications": 0}
+
+
+def test_engagement_coverage():
+    sh = [Stakeholder(id="SH001", name="A"), Stakeholder(id="SH002", name="B")]
+    assert engagement_coverage([], []) == 0.0
+    assert engagement_coverage(sh, []) == 0.0
+    # one of two engaged, deduped across multiple engagements
+    eng = [Engagement(id="ENG001", stakeholder_id="SH001"),
+           Engagement(id="ENG002", stakeholder_id="SH001")]
+    assert engagement_coverage(sh, eng) == 50.0
+    eng2 = eng + [Engagement(id="ENG003", stakeholder_id="SH002")]
+    assert engagement_coverage(sh, eng2) == 100.0
+
+
+def test_count_by_first_seen_order_and_blanks():
+    sh = [
+        Stakeholder(id="SH001", name="A", stakeholder_type="ngo"),
+        Stakeholder(id="SH002", name="B", stakeholder_type="government"),
+        Stakeholder(id="SH003", name="C", stakeholder_type="ngo"),
+        Stakeholder(id="SH004", name="D", stakeholder_type=""),
+    ]
+    assert count_by(sh, "stakeholder_type") == {"ngo": 2, "government": 1, "": 1}
+    assert count_by([], "sector") == {}

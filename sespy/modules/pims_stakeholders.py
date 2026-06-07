@@ -26,9 +26,12 @@ from sespy.stakeholders import (
     add_engagement,
     add_stakeholder,
     communication_rows,
+    count_by,
+    engagement_coverage as compute_engagement_coverage,
     engagement_rows,
     level_num,
     remove_stakeholder,
+    stakeholder_stats as compute_stakeholder_stats,
     summarize_quadrants,
     update_stakeholder,
 )
@@ -49,6 +52,15 @@ def _choices(codes: list[str], group: str, translate) -> dict[str, str]:
     for c in codes:
         out[c] = translate(f"stakeholders.{group}.{c}")
     return out
+
+
+def _code_label(code, group, known, translate):
+    # Known code -> i18n label; blank -> "(unset)"; unknown -> verbatim.
+    if not code:
+        return translate("stakeholders.analysis.unset")
+    if code in known:
+        return translate(f"stakeholders.{group}.{code}")
+    return code
 
 
 def _register_panel() -> ui.Tag:
@@ -167,6 +179,26 @@ def _communication_panel() -> ui.Tag:
     )
 
 
+def _analysis_panel() -> ui.Tag:
+    """Analysis tab — statistics summary + distribution charts. Plain (un-decorated)."""
+    return ui.div(
+        ui.h5(_t("stakeholders.analysis.heading")),
+        ui.layout_columns(
+            ui.card(
+                ui.h5(_t("stakeholders.analysis.stats_heading")),
+                ui.output_ui("stakeholder_stats"),
+            ),
+            ui.card(ui.output_plot("engagement_coverage", height="300px")),
+            col_widths=[5, 7],
+        ),
+        ui.layout_columns(
+            ui.card(ui.output_plot("type_distribution", height="300px")),
+            ui.card(ui.output_plot("sector_distribution", height="300px")),
+            col_widths=[6, 6],
+        ),
+    )
+
+
 @module.ui
 def pims_stakeholders_ui() -> ui.Tag:
     # Static labels resolved via the module-level default translator (`_t`),
@@ -178,6 +210,7 @@ def pims_stakeholders_ui() -> ui.Tag:
             ui.nav_panel(_t("stakeholders.tab_grid"), _grid_panel()),
             ui.nav_panel(_t("stakeholders.tab_activity"), _engagement_panel()),
             ui.nav_panel(_t("stakeholders.tab_comm"), _communication_panel()),
+            ui.nav_panel(_t("stakeholders.tab_analysis"), _analysis_panel()),
             id="stakeholder_tabs",
         ),
         class_="sespy-card",
@@ -495,3 +528,73 @@ def pims_stakeholders_server(
         stub = [{"audience": tr("stakeholders.comm.empty"), "type": "", "date": "",
                  "frequency": "", "message": "", "responsible": ""}]
         return render.DataGrid(pd.DataFrame(rows or stub), height="320px")
+
+    # ------------------------------------------------------------------
+    # SH5: Analysis — statistics summary + distribution charts
+    # ------------------------------------------------------------------
+
+    @output
+    @render.ui
+    def stakeholder_stats():
+        s = compute_stakeholder_stats(_items(), _engagements(), _communications())
+        if s["total"] == 0:
+            return ui.p(tr("stakeholders.analysis.empty"))
+        keys = ("total", "types", "sectors", "high_power", "high_interest",
+                "engagements", "communications")
+        return ui.tags.ul(*[
+            ui.tags.li(f"{tr('stakeholders.analysis.' + k)}: {s[k]}")
+            for k in keys
+        ])
+
+    @output
+    @render.plot
+    def engagement_coverage():
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+        items = _items()
+        if not items:
+            ax.text(0.5, 0.5, tr("stakeholders.analysis.add_stakeholders"),
+                    ha="center", va="center")
+            ax.axis("off")
+            return fig
+        cov = compute_engagement_coverage(items, _engagements())
+        ax.bar([tr("stakeholders.analysis.engaged"),
+                tr("stakeholders.analysis.not_engaged")],
+               [cov, 100 - cov], color=["#2E86AB", "#CCCCCC"])
+        ax.set_ylim(0, 100)
+        ax.set_ylabel(tr("stakeholders.analysis.percentage"))
+        ax.set_title(f"{tr('stakeholders.analysis.coverage_title')} ({round(cov, 1)}%)")
+        return fig
+
+    def _distribution_plot(field, known, group, title_key):
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+        items = _items()
+        if not items:
+            ax.text(0.5, 0.5, tr("stakeholders.analysis.add_stakeholders"),
+                    ha="center", va="center")
+            ax.axis("off")
+            return fig
+        counts = count_by(items, field)
+        labels = [_code_label(c, group, known, tr) for c in counts]
+        x = range(len(labels))
+        ax.bar(x, list(counts.values()), color="#A23B72")
+        ax.set_ylabel(tr("stakeholders.analysis.count"))
+        ax.set_title(tr(title_key))
+        ax.set_xticks(x, labels, rotation=45, ha="right")
+        fig.tight_layout()
+        return fig
+
+    @output
+    @render.plot
+    def type_distribution():
+        return _distribution_plot("stakeholder_type", _TYPE_CODES, "type",
+                                  "stakeholders.analysis.by_type")
+
+    @output
+    @render.plot
+    def sector_distribution():
+        return _distribution_plot("sector", _SECTOR_CODES, "sector",
+                                  "stakeholders.analysis.by_sector")
