@@ -262,6 +262,22 @@ async def main():
         print("9. communication: item added + shown in log — PASS")
 
         # ------------------------------------------------------------------ #
+        # 10. ANALYSIS — switch to the Analysis tab; assert the stats summary
+        # ------------------------------------------------------------------ #
+        await page.click(
+            "#stakeholders-stakeholder_tabs a[data-value='Analysis']"
+        )
+        await page.wait_for_timeout(800)
+        stats_txt = ""
+        for _ in range(16):
+            stats_txt = await page.inner_text("#stakeholders-stakeholder_stats")
+            if "Total stakeholders" in stats_txt:
+                break
+            await page.wait_for_timeout(500)
+        assert "Total stakeholders" in stats_txt, "analysis stats not rendered"
+        print("10. analysis: stats summary rendered — PASS")
+
+        # ------------------------------------------------------------------ #
         # Screenshot + done
         # ------------------------------------------------------------------ #
         await page.screenshot(path=str(SCREENSHOTS / "stakeholders.png"))
