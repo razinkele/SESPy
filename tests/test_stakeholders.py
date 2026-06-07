@@ -1,4 +1,5 @@
 from sespy.data_structure import (
+    Engagement,
     IsaData,
     Project,
     ProjectMetadata,
@@ -6,9 +7,12 @@ from sespy.data_structure import (
 )
 from sespy.persistent_storage import load_project, save_project_atomic
 from sespy.stakeholders import (
+    add_engagement,
     add_stakeholder,
     classify_quadrant,
+    engagement_rows,
     level_num,
+    remove_engagement,
     remove_stakeholder,
     summarize_quadrants,
     update_stakeholder,
@@ -20,6 +24,15 @@ def _proj_with(stakeholders):
         metadata=ProjectMetadata.new("T"),
         isa_data=IsaData(),
         stakeholders=stakeholders,
+    )
+
+
+def _proj_with_eng(stakeholders, engagements):
+    return Project(
+        metadata=ProjectMetadata.new("T"),
+        isa_data=IsaData(),
+        stakeholders=stakeholders,
+        engagements=engagements,
     )
 
 
@@ -160,3 +173,132 @@ def test_summarize_quadrants():
     assert out["monitor"] == ["Mon"]
     assert out["unplotted"] == ["Blank"]
     assert set(out) == {"key_players", "keep_satisfied", "keep_informed", "monitor", "unplotted"}
+
+
+# --- SH3: Engagement model + persistence -----------------------------------
+def test_engagement_defaults():
+    e = Engagement(id="ENG001", stakeholder_id="SH001")
+    assert e.method == "" and e.outcomes == ""
+    assert e.status == "planned"
+    assert e.created_at == ""
+
+
+def test_project_roundtrip_preserves_engagements():
+    e = Engagement(id="ENG001", stakeholder_id="SH001", method="workshop",
+                   date="2026-06-06", objectives="align", outcomes="agreed",
+                   status="completed", facilitator="A. B.", created_at="2026-06-06")
+    proj = _proj_with_eng([Stakeholder(id="SH001", name="X")], [e])
+    back = Project.from_dict(proj.to_dict())
+    assert back.engagements == [e]
+
+
+def test_from_dict_missing_engagements_key_yields_empty_list():
+    raw = {"metadata": {"name": "v3"}, "isa_data": {"elements": [], "connections": []},
+           "stakeholders": [{"id": "SH001", "name": "X"}]}
+    assert Project.from_dict(raw).engagements == []
+
+
+def test_from_dict_tolerates_unknown_engagement_key():
+    raw = {"metadata": {"name": "T"}, "isa_data": {"elements": [], "connections": []},
+           "engagements": [{"id": "ENG001", "stakeholder_id": "SH001", "future_field": 1}]}
+    assert Project.from_dict(raw).engagements == [
+        Engagement(id="ENG001", stakeholder_id="SH001")]
+
+
+def test_from_dict_upgrades_schema_version_on_load():
+    raw = {"metadata": {"name": "old", "schema_version": 3},
+           "isa_data": {"elements": [], "connections": []},
+           "engagements": [{"id": "ENG001", "stakeholder_id": "SH001"}]}
+    assert Project.from_dict(raw).metadata.schema_version == 4
+
+
+def test_with_modified_now_preserves_engagements():
+    e = Engagement(id="ENG001", stakeholder_id="SH001")
+    proj = _proj_with_eng([], [e])
+    assert proj.with_modified_now().engagements == [e]
+
+
+def test_save_path_roundtrip_preserves_engagements(tmp_path):
+    e = Engagement(id="ENG001", stakeholder_id="SH001", method="survey")
+    proj = _proj_with_eng([Stakeholder(id="SH001", name="X")], [e])
+    p = tmp_path / "proj.json"
+    save_project_atomic(proj, p)
+    back = load_project(p)
+    assert back.engagements == [e]
+    assert back.metadata.schema_version == 4
+
+
+def test_migrated_v3_saves_as_schema_4_on_disk(tmp_path):
+    # Start from a RAW v3 payload (not a fresh v4 project): load -> save ->
+    # inspect the RAW JSON so the on-disk version isn't masked by from_dict's
+    # upgrade-on-load.
+    import json
+    old = Project.from_dict({
+        "metadata": {"name": "old", "schema_version": 3},
+        "isa_data": {"elements": [], "connections": []},
+        "engagements": [{"id": "ENG001", "stakeholder_id": "SH001"}],
+    })
+    p = tmp_path / "old.json"
+    save_project_atomic(old, p)
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    assert raw["metadata"]["schema_version"] == 4
+    assert raw["engagements"][0]["id"] == "ENG001"
+
+
+# --- SH3: pure engagement helpers ------------------------------------------
+def _ident(key):  # mimic Translator.t() returning the key on a miss
+    return key
+
+
+def test_add_engagement_assigns_id_and_created_at():
+    out = add_engagement([], {"stakeholder_id": "SH001", "method": "workshop"},
+                         today="2026-06-06")
+    assert len(out) == 1 and out[0].id == "ENG001"
+    assert out[0].created_at == "2026-06-06"
+    assert out[0].stakeholder_id == "SH001"
+
+
+def test_add_engagement_is_pure_and_increments_id():
+    first = add_engagement([], {"stakeholder_id": "SH001"}, today="2026-06-06")
+    second = add_engagement(first, {"stakeholder_id": "SH002"}, today="2026-06-07")
+    assert [e.id for e in second] == ["ENG001", "ENG002"]
+    assert len(first) == 1  # original untouched
+
+
+def test_remove_engagement_drops_by_id():
+    items = [Engagement(id="ENG001", stakeholder_id="SH001"),
+             Engagement(id="ENG002", stakeholder_id="SH002")]
+    out = remove_engagement(items, "ENG001")
+    assert [e.id for e in out] == ["ENG002"]
+
+
+def test_engagement_rows_resolves_name_and_labels():
+    sh = [Stakeholder(id="SH001", name="Port Authority")]
+    eng = [Engagement(id="ENG001", stakeholder_id="SH001", method="workshop",
+                      status="completed", date="2026-06-06")]
+    rows = engagement_rows(eng, sh, translate=_ident)
+    assert rows[0]["stakeholder"] == "Port Authority"
+    assert rows[0]["method"] == "stakeholders.activity.method.workshop"
+    assert rows[0]["status"] == "stakeholders.activity.status.completed"
+    assert rows[0]["date"] == "2026-06-06"
+
+
+def test_engagement_rows_dangling_fk_yields_blank_name():
+    eng = [Engagement(id="ENG001", stakeholder_id="GONE")]
+    rows = engagement_rows(eng, [], translate=_ident)
+    assert rows[0]["stakeholder"] == ""
+
+
+def test_engagement_rows_unknown_code_passes_through_verbatim():
+    eng = [Engagement(id="ENG001", stakeholder_id="SH001",
+                      method="telepathy", status="vibes")]
+    rows = engagement_rows(eng, [Stakeholder(id="SH001", name="X")], translate=_ident)
+    assert rows[0]["method"] == "telepathy"     # NOT the i18n key
+    assert rows[0]["status"] == "vibes"
+
+
+def test_engagement_rows_blank_code_is_blank():
+    eng = [Engagement(id="ENG001", stakeholder_id="SH001")]  # method="" status="planned"
+    rows = engagement_rows(eng, [Stakeholder(id="SH001", name="X")], translate=_ident)
+    assert rows[0]["method"] == ""
+    assert rows[0]["status"] == "stakeholders.activity.status.planned"

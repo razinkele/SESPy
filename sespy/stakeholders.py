@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from sespy.data_structure import Stakeholder
+from sespy.data_structure import Engagement, Stakeholder
 from sespy.utils import next_id
 
 
@@ -73,3 +73,52 @@ def summarize_quadrants(items: list[Stakeholder]) -> dict[str, list[str]]:
         q = classify_quadrant(s.power, s.interest)
         out[q if q is not None else "unplotted"].append(s.name)
     return out
+
+
+# --- SH3: engagement activity log (pure) -----------------------------------
+ENGAGEMENT_METHODS = ("workshop", "interview", "survey", "focus_group",
+                      "public_meeting", "advisory_committee", "email_newsletter",
+                      "one_on_one", "site_visit", "other")
+ENGAGEMENT_STATUSES = ("planned", "completed", "cancelled", "ongoing")
+
+
+def add_engagement(
+    items: list[Engagement], fields_: dict, *, today: str
+) -> list[Engagement]:
+    # INVARIANT: `fields_` contains only valid Engagement field names and NEVER
+    # `id` or `created_at` (those are assigned here).
+    eid = next_id([e.id for e in items], "ENG")
+    return [*items, Engagement(id=eid, created_at=today, **fields_)]
+
+
+def remove_engagement(items: list[Engagement], eid: str) -> list[Engagement]:
+    return [e for e in items if e.id != eid]
+
+
+def _label(code: str, known: tuple[str, ...], translate, group: str) -> str:
+    # Translate only KNOWN codes (Translator.t() returns the key on a miss);
+    # an unknown or blank code is passed through verbatim.
+    if code and code in known:
+        return translate(f"stakeholders.activity.{group}.{code}")
+    return code
+
+
+def engagement_rows(
+    engagements: list[Engagement], stakeholders: list[Stakeholder], *, translate
+) -> list[dict]:
+    """Display rows for the engagement log table: resolve stakeholder_id -> name
+    (dangling id -> ""), map method/status codes -> labels (known codes only),
+    in input order."""
+    names = {s.id: s.name for s in stakeholders}
+    return [
+        {
+            "stakeholder": names.get(e.stakeholder_id, ""),
+            "method": _label(e.method, ENGAGEMENT_METHODS, translate, "method"),
+            "date": e.date,
+            "objectives": e.objectives,
+            "outcomes": e.outcomes,
+            "status": _label(e.status, ENGAGEMENT_STATUSES, translate, "status"),
+            "facilitator": e.facilitator,
+        }
+        for e in engagements
+    ]

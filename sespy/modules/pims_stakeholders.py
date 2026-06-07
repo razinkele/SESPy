@@ -17,7 +17,11 @@ from sespy.data_structure import Project, Stakeholder
 from sespy.event_bus import EventBus
 from sespy.i18n import Translator, t as _t
 from sespy.stakeholders import (
+    ENGAGEMENT_METHODS,
+    ENGAGEMENT_STATUSES,
+    add_engagement,
     add_stakeholder,
+    engagement_rows,
     level_num,
     remove_stakeholder,
     summarize_quadrants,
@@ -96,6 +100,37 @@ def _grid_panel() -> ui.Tag:
     )
 
 
+def _engagement_panel() -> ui.Tag:
+    """Engagement Planning tab — add-form + activity log. Plain (un-decorated)."""
+    status_choices = {
+        c: _t(f"stakeholders.activity.status.{c}")
+        for c in ENGAGEMENT_STATUSES
+    }
+    return ui.div(
+        ui.h5(_t("stakeholders.activity.add_heading")),
+        ui.layout_columns(
+            ui.card(
+                ui.input_select("eng_stakeholder", _t("stakeholders.activity.stakeholder"), {}),
+                ui.input_select("eng_method", _t("stakeholders.activity.method"),
+                                _choices(list(ENGAGEMENT_METHODS), "activity.method", _t)),
+                ui.input_date("eng_date", _t("stakeholders.activity.date")),
+                ui.input_text_area("eng_objectives", _t("stakeholders.activity.objectives")),
+                ui.input_text_area("eng_outcomes", _t("stakeholders.activity.outcomes")),
+                ui.input_select("eng_status", _t("stakeholders.activity.status"),
+                                status_choices, selected="planned"),
+                ui.input_text("eng_facilitator", _t("stakeholders.activity.facilitator")),
+                ui.input_action_button("add_engagement", _t("stakeholders.activity.add"),
+                                       class_="btn-success"),
+            ),
+            ui.card(
+                ui.h5(_t("stakeholders.activity.log_heading")),
+                ui.output_data_frame("engagement_table"),
+            ),
+            col_widths=[5, 7],
+        ),
+    )
+
+
 @module.ui
 def pims_stakeholders_ui() -> ui.Tag:
     # Static labels resolved via the module-level default translator (`_t`),
@@ -105,6 +140,7 @@ def pims_stakeholders_ui() -> ui.Tag:
         ui.navset_tab(
             ui.nav_panel(_t("stakeholders.tab_register"), _register_panel()),
             ui.nav_panel(_t("stakeholders.tab_grid"), _grid_panel()),
+            ui.nav_panel(_t("stakeholders.tab_activity"), _engagement_panel()),
             id="stakeholder_tabs",
         ),
         class_="sespy-card",
@@ -128,6 +164,9 @@ def pims_stakeholders_server(
 
     def _items() -> list[Stakeholder]:
         return project_data.get().stakeholders
+
+    def _engagements():
+        return project_data.get().engagements
 
     @output
     @render.data_frame
@@ -331,3 +370,51 @@ def pims_stakeholders_server(
             footer.append(ui.p(f"{tr('stakeholders.grid.unplotted')}: "
                                + ", ".join(unplotted)))
         return ui.div(ui.h5(tr("stakeholders.grid.summary_heading")), *blocks, *footer)
+
+    # ------------------------------------------------------------------
+    # SH3: Engagement Planning — dropdown, add handler, activity log
+    # ------------------------------------------------------------------
+
+    @reactive.effect
+    def _populate_eng_stakeholders():
+        choices = {"": "—", **{s.id: s.name for s in _items()}}
+        with reactive.isolate():
+            val = input["eng_stakeholder"]
+            current = (val() or "") if val.is_set() else ""
+        selected = current if current in choices else ""
+        ui.update_select("eng_stakeholder", choices=choices, selected=selected)
+
+    @reactive.effect
+    @reactive.event(input.add_engagement, ignore_init=True)
+    def _add_engagement():
+        sid = input.eng_stakeholder()
+        method = input.eng_method()
+        if not sid or not method or sid not in {s.id for s in _items()}:
+            ui.notification_show(tr("stakeholders.activity.required"),
+                                 type="warning", duration=3)
+            return
+        d = input.eng_date()
+        fields_ = {
+            "stakeholder_id": sid,
+            "method": method,
+            "date": d.isoformat() if d else "",
+            "objectives": input.eng_objectives().strip(),
+            "outcomes": input.eng_outcomes().strip(),
+            "status": input.eng_status(),
+            "facilitator": input.eng_facilitator().strip(),
+        }
+        new_list = add_engagement(_engagements(), fields_, today=date.today().isoformat())
+        project_data.set(project_data.get().replace(engagements=new_list))
+        event_bus.emit_isa_change()
+        ui.update_text_area("eng_objectives", value="")
+        ui.update_text_area("eng_outcomes", value="")
+        ui.update_text("eng_facilitator", value="")
+
+    @output
+    @render.data_frame
+    def engagement_table():
+        rows = engagement_rows(_engagements(), _items(), translate=tr)
+        stub = [{"stakeholder": tr("stakeholders.activity.empty"), "method": "",
+                 "date": "", "objectives": "", "outcomes": "", "status": "",
+                 "facilitator": ""}]
+        return render.DataGrid(pd.DataFrame(rows or stub), height="320px")
