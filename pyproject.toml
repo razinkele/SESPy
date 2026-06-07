@@ -23,6 +23,7 @@ dependencies = [
     "jinja2>=3.1",          # report.py HTML template rendering (hard import)
     "openpyxl>=3.1",        # pandas .xlsx engine for the Excel import feature
     "python-docx>=1.1",     # Word (.docx) report export
+    "reportlab>=4.0",       # PIMS stakeholder summary PDF export (pure-Python, no native deps)
     "anthropic>=0.50,<0.101",
 ]
 
