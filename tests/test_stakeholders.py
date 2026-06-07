@@ -1,4 +1,5 @@
 from sespy.data_structure import (
+    Communication,
     Engagement,
     IsaData,
     Project,
@@ -7,11 +8,14 @@ from sespy.data_structure import (
 )
 from sespy.persistent_storage import load_project, save_project_atomic
 from sespy.stakeholders import (
+    add_communication,
     add_engagement,
     add_stakeholder,
     classify_quadrant,
+    communication_rows,
     engagement_rows,
     level_num,
+    remove_communication,
     remove_engagement,
     remove_stakeholder,
     summarize_quadrants,
@@ -33,6 +37,14 @@ def _proj_with_eng(stakeholders, engagements):
         isa_data=IsaData(),
         stakeholders=stakeholders,
         engagements=engagements,
+    )
+
+
+def _proj_with_comm(communications):
+    return Project(
+        metadata=ProjectMetadata.new("T"),
+        isa_data=IsaData(),
+        communications=communications,
     )
 
 
@@ -209,7 +221,7 @@ def test_from_dict_upgrades_schema_version_on_load():
     raw = {"metadata": {"name": "old", "schema_version": 3},
            "isa_data": {"elements": [], "connections": []},
            "engagements": [{"id": "ENG001", "stakeholder_id": "SH001"}]}
-    assert Project.from_dict(raw).metadata.schema_version == 4
+    assert Project.from_dict(raw).metadata.schema_version == 5
 
 
 def test_with_modified_now_preserves_engagements():
@@ -225,11 +237,11 @@ def test_save_path_roundtrip_preserves_engagements(tmp_path):
     save_project_atomic(proj, p)
     back = load_project(p)
     assert back.engagements == [e]
-    assert back.metadata.schema_version == 4
+    assert back.metadata.schema_version == 5
 
 
-def test_migrated_v3_saves_as_schema_4_on_disk(tmp_path):
-    # Start from a RAW v3 payload (not a fresh v4 project): load -> save ->
+def test_migrated_v3_saves_as_schema_5_on_disk(tmp_path):
+    # Start from a RAW v3 payload (not a fresh project): load -> save ->
     # inspect the RAW JSON so the on-disk version isn't masked by from_dict's
     # upgrade-on-load.
     import json
@@ -241,7 +253,7 @@ def test_migrated_v3_saves_as_schema_4_on_disk(tmp_path):
     p = tmp_path / "old.json"
     save_project_atomic(old, p)
     raw = json.loads(p.read_text(encoding="utf-8"))
-    assert raw["metadata"]["schema_version"] == 4
+    assert raw["metadata"]["schema_version"] == 5
     assert raw["engagements"][0]["id"] == "ENG001"
 
 
@@ -302,3 +314,96 @@ def test_engagement_rows_blank_code_is_blank():
     rows = engagement_rows(eng, [Stakeholder(id="SH001", name="X")], translate=_ident)
     assert rows[0]["method"] == ""
     assert rows[0]["status"] == "stakeholders.activity.status.planned"
+
+
+# --- SH4: Communication model + persistence --------------------------------
+def test_communication_defaults():
+    c = Communication(id="COMM001")
+    assert c.audience == "" and c.comm_type == "" and c.message == ""
+    assert c.frequency == "one_time"
+    assert c.created_at == ""
+
+
+def test_project_roundtrip_preserves_communications():
+    c = Communication(id="COMM001", audience="key_players", comm_type="report",
+                      date="2026-06-07", frequency="monthly", message="status",
+                      responsible="A. B.", created_at="2026-06-07")
+    proj = _proj_with_comm([c])
+    back = Project.from_dict(proj.to_dict())
+    assert back.communications == [c]
+
+
+def test_from_dict_missing_communications_key_yields_empty_list():
+    raw = {"metadata": {"name": "v4"}, "isa_data": {"elements": [], "connections": []}}
+    assert Project.from_dict(raw).communications == []
+
+
+def test_from_dict_tolerates_unknown_communication_key():
+    raw = {"metadata": {"name": "T"}, "isa_data": {"elements": [], "connections": []},
+           "communications": [{"id": "COMM001", "audience": "ngos", "future_field": 1}]}
+    assert Project.from_dict(raw).communications == [
+        Communication(id="COMM001", audience="ngos")]
+
+
+def test_with_modified_now_preserves_communications():
+    c = Communication(id="COMM001", audience="government")
+    proj = _proj_with_comm([c])
+    assert proj.with_modified_now().communications == [c]
+
+
+def test_save_path_roundtrip_preserves_communications(tmp_path):
+    c = Communication(id="COMM001", comm_type="newsletter")
+    proj = _proj_with_comm([c])
+    p = tmp_path / "proj.json"
+    save_project_atomic(proj, p)
+    back = load_project(p)
+    assert back.communications == [c]
+    assert back.metadata.schema_version == 5
+
+
+def test_migrated_v4_saves_as_schema_5_on_disk(tmp_path):
+    import json
+    old = Project.from_dict({
+        "metadata": {"name": "old", "schema_version": 4},
+        "isa_data": {"elements": [], "connections": []},
+        "communications": [{"id": "COMM001", "audience": "ngos"}],
+    })
+    p = tmp_path / "old.json"
+    save_project_atomic(old, p)
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    assert raw["metadata"]["schema_version"] == 5
+    assert raw["communications"][0]["id"] == "COMM001"
+
+
+# --- SH4: pure communication helpers ---------------------------------------
+def test_add_communication_assigns_id_and_created_at():
+    out = add_communication([], {"audience": "key_players", "comm_type": "report"},
+                            today="2026-06-07")
+    assert len(out) == 1 and out[0].id == "COMM001"
+    assert out[0].created_at == "2026-06-07"
+
+
+def test_remove_communication_drops_by_id():
+    items = [Communication(id="COMM001"), Communication(id="COMM002")]
+    assert [c.id for c in remove_communication(items, "COMM001")] == ["COMM002"]
+
+
+def test_communication_rows_maps_known_codes_to_labels():
+    c = [Communication(id="COMM001", audience="key_players", comm_type="report",
+                       frequency="monthly", date="2026-06-07", message="m",
+                       responsible="r")]
+    rows = communication_rows(c, translate=_ident)
+    assert rows[0]["audience"] == "stakeholders.comm.audience.key_players"
+    assert rows[0]["type"] == "stakeholders.comm.type.report"
+    assert rows[0]["frequency"] == "stakeholders.comm.frequency.monthly"
+    assert rows[0]["date"] == "2026-06-07"
+    assert rows[0]["message"] == "m" and rows[0]["responsible"] == "r"
+
+
+def test_communication_rows_unknown_code_passes_through_verbatim():
+    c = [Communication(id="COMM001", audience="aliens", comm_type="smoke_signal",
+                       frequency="hourly")]
+    rows = communication_rows(c, translate=_ident)
+    assert rows[0]["audience"] == "aliens"
+    assert rows[0]["type"] == "smoke_signal"
+    assert rows[0]["frequency"] == "hourly"

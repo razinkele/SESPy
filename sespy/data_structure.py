@@ -16,7 +16,7 @@ from typing import Any, Iterable, Literal
 
 _log = logging.getLogger(__name__)
 
-PROJECT_SCHEMA_VERSION = 4
+PROJECT_SCHEMA_VERSION = 5
 
 
 # ---------------------------------------------------------------------------
@@ -208,12 +208,30 @@ class Engagement:
 
 
 @dataclass
+class Communication:
+    """A planned/tracked stakeholder communication item.
+
+    Ported from pims_stakeholder_module.R Tab 4 (add_communication ~677-686).
+    `audience` is a category code (not a Stakeholder FK).
+    """
+    id: str
+    audience: str = ""
+    comm_type: str = ""
+    date: str = ""
+    frequency: str = "one_time"
+    message: str = ""
+    responsible: str = ""
+    created_at: str = ""
+
+
+@dataclass
 class Project:
     """A complete saveable project: metadata + ISA data."""
     metadata: ProjectMetadata
     isa_data: IsaData
     stakeholders: list["Stakeholder"] = field(default_factory=list)
     engagements: list["Engagement"] = field(default_factory=list)
+    communications: list["Communication"] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -224,6 +242,7 @@ class Project:
             },
             "stakeholders": [asdict(s) for s in self.stakeholders],
             "engagements": [asdict(e) for e in self.engagements],
+            "communications": [asdict(c) for c in self.communications],
         }
 
     def to_json(self, *, indent: int = 2) -> str:
@@ -251,9 +270,19 @@ class Project:
             Engagement(**{k: v for k, v in e.items() if k in eng_keys})
             for e in (raw.get("engagements") or [])
         ]
+        comm_keys = {f.name for f in fields(Communication)}
+        communications = [
+            Communication(**{k: v for k, v in c.items() if k in comm_keys})
+            for c in (raw.get("communications") or [])
+        ]
         meta.schema_version = PROJECT_SCHEMA_VERSION   # upgrade-on-load (no down-convert)
-        return cls(metadata=meta, isa_data=isa,
-                   stakeholders=stakeholders, engagements=engagements)
+        return cls(
+            metadata=meta,
+            isa_data=isa,
+            stakeholders=stakeholders,
+            engagements=engagements,
+            communications=communications,
+        )
 
     @classmethod
     def from_json(cls, text: str) -> "Project":

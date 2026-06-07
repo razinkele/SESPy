@@ -17,10 +17,15 @@ from sespy.data_structure import Project, Stakeholder
 from sespy.event_bus import EventBus
 from sespy.i18n import Translator, t as _t
 from sespy.stakeholders import (
+    COMMUNICATION_AUDIENCES,
+    COMMUNICATION_FREQUENCIES,
+    COMMUNICATION_TYPES,
     ENGAGEMENT_METHODS,
     ENGAGEMENT_STATUSES,
+    add_communication,
     add_engagement,
     add_stakeholder,
+    communication_rows,
     engagement_rows,
     level_num,
     remove_stakeholder,
@@ -131,6 +136,37 @@ def _engagement_panel() -> ui.Tag:
     )
 
 
+def _communication_panel() -> ui.Tag:
+    """Communication Plan tab — add-form + communications log. Plain (un-decorated)."""
+    freq_choices = {
+        c: _t(f"stakeholders.comm.frequency.{c}")
+        for c in COMMUNICATION_FREQUENCIES
+    }
+    return ui.div(
+        ui.h5(_t("stakeholders.comm.add_heading")),
+        ui.layout_columns(
+            ui.card(
+                ui.input_select("comm_audience", _t("stakeholders.comm.audience"),
+                                _choices(list(COMMUNICATION_AUDIENCES), "comm.audience", _t)),
+                ui.input_select("comm_type", _t("stakeholders.comm.type"),
+                                _choices(list(COMMUNICATION_TYPES), "comm.type", _t)),
+                ui.input_date("comm_date", _t("stakeholders.comm.date")),
+                ui.input_select("comm_frequency", _t("stakeholders.comm.frequency"),
+                                freq_choices, selected="one_time"),
+                ui.input_text_area("comm_message", _t("stakeholders.comm.message")),
+                ui.input_text("comm_responsible", _t("stakeholders.comm.responsible")),
+                ui.input_action_button("add_communication", _t("stakeholders.comm.add"),
+                                       class_="btn-success"),
+            ),
+            ui.card(
+                ui.h5(_t("stakeholders.comm.log_heading")),
+                ui.output_data_frame("communication_table"),
+            ),
+            col_widths=[5, 7],
+        ),
+    )
+
+
 @module.ui
 def pims_stakeholders_ui() -> ui.Tag:
     # Static labels resolved via the module-level default translator (`_t`),
@@ -141,6 +177,7 @@ def pims_stakeholders_ui() -> ui.Tag:
             ui.nav_panel(_t("stakeholders.tab_register"), _register_panel()),
             ui.nav_panel(_t("stakeholders.tab_grid"), _grid_panel()),
             ui.nav_panel(_t("stakeholders.tab_activity"), _engagement_panel()),
+            ui.nav_panel(_t("stakeholders.tab_comm"), _communication_panel()),
             id="stakeholder_tabs",
         ),
         class_="sespy-card",
@@ -167,6 +204,9 @@ def pims_stakeholders_server(
 
     def _engagements():
         return project_data.get().engagements
+
+    def _communications():
+        return project_data.get().communications
 
     @output
     @render.data_frame
@@ -417,4 +457,41 @@ def pims_stakeholders_server(
         stub = [{"stakeholder": tr("stakeholders.activity.empty"), "method": "",
                  "date": "", "objectives": "", "outcomes": "", "status": "",
                  "facilitator": ""}]
+        return render.DataGrid(pd.DataFrame(rows or stub), height="320px")
+
+    # ------------------------------------------------------------------
+    # SH4: Communication Plan — add handler + communications log
+    # ------------------------------------------------------------------
+
+    @reactive.effect
+    @reactive.event(input.add_communication, ignore_init=True)
+    def _add_communication():
+        audience = input.comm_audience()
+        comm_type = input.comm_type()
+        if not audience or not comm_type:
+            ui.notification_show(tr("stakeholders.comm.required"),
+                                 type="warning", duration=3)
+            return
+        d = input.comm_date()
+        fields_ = {
+            "audience": audience,
+            "comm_type": comm_type,
+            "date": d.isoformat() if d else "",
+            "frequency": input.comm_frequency(),
+            "message": input.comm_message().strip(),
+            "responsible": input.comm_responsible().strip(),
+        }
+        new_list = add_communication(_communications(), fields_,
+                                     today=date.today().isoformat())
+        project_data.set(project_data.get().replace(communications=new_list))
+        event_bus.emit_isa_change()
+        ui.update_text_area("comm_message", value="")
+        ui.update_text("comm_responsible", value="")
+
+    @output
+    @render.data_frame
+    def communication_table():
+        rows = communication_rows(_communications(), translate=tr)
+        stub = [{"audience": tr("stakeholders.comm.empty"), "type": "", "date": "",
+                 "frequency": "", "message": "", "responsible": ""}]
         return render.DataGrid(pd.DataFrame(rows or stub), height="320px")

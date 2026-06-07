@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from sespy.data_structure import Engagement, Stakeholder
+from sespy.data_structure import Communication, Engagement, Stakeholder
 from sespy.utils import next_id
 
 
@@ -95,11 +95,11 @@ def remove_engagement(items: list[Engagement], eid: str) -> list[Engagement]:
     return [e for e in items if e.id != eid]
 
 
-def _label(code: str, known: tuple[str, ...], translate, group: str) -> str:
+def _label(code: str, known: tuple[str, ...], translate, prefix: str) -> str:
     # Translate only KNOWN codes (Translator.t() returns the key on a miss);
     # an unknown or blank code is passed through verbatim.
     if code and code in known:
-        return translate(f"stakeholders.activity.{group}.{code}")
+        return translate(f"{prefix}.{code}")
     return code
 
 
@@ -113,12 +113,59 @@ def engagement_rows(
     return [
         {
             "stakeholder": names.get(e.stakeholder_id, ""),
-            "method": _label(e.method, ENGAGEMENT_METHODS, translate, "method"),
+            "method": _label(e.method, ENGAGEMENT_METHODS, translate,
+                             "stakeholders.activity.method"),
             "date": e.date,
             "objectives": e.objectives,
             "outcomes": e.outcomes,
-            "status": _label(e.status, ENGAGEMENT_STATUSES, translate, "status"),
+            "status": _label(e.status, ENGAGEMENT_STATUSES, translate,
+                             "stakeholders.activity.status"),
             "facilitator": e.facilitator,
         }
         for e in engagements
+    ]
+
+
+# --- SH4: communication plan (pure) ----------------------------------------
+COMMUNICATION_AUDIENCES = ("all_stakeholders", "key_players", "government",
+                           "industry", "ngos", "local_communities",
+                           "scientific_community", "specific_stakeholder")
+COMMUNICATION_TYPES = ("report", "newsletter", "presentation", "website_update",
+                       "press_release", "social_media", "email", "meeting_notes",
+                       "other")
+COMMUNICATION_FREQUENCIES = ("one_time", "weekly", "monthly", "quarterly",
+                             "annual", "as_needed")
+
+
+def add_communication(
+    items: list[Communication], fields_: dict, *, today: str
+) -> list[Communication]:
+    cid = next_id([c.id for c in items], "COMM")
+    return [*items, Communication(id=cid, created_at=today, **fields_)]
+
+
+def remove_communication(
+    items: list[Communication], cid: str
+) -> list[Communication]:
+    return [c for c in items if c.id != cid]
+
+
+def communication_rows(
+    communications: list[Communication], *, translate
+) -> list[dict]:
+    """Display rows for the communication log: map audience/type/frequency codes
+    -> labels (known codes only), in input order."""
+    return [
+        {
+            "audience": _label(c.audience, COMMUNICATION_AUDIENCES, translate,
+                               "stakeholders.comm.audience"),
+            "type": _label(c.comm_type, COMMUNICATION_TYPES, translate,
+                           "stakeholders.comm.type"),
+            "date": c.date,
+            "frequency": _label(c.frequency, COMMUNICATION_FREQUENCIES, translate,
+                                "stakeholders.comm.frequency"),
+            "message": c.message,
+            "responsible": c.responsible,
+        }
+        for c in communications
     ]
