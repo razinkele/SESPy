@@ -4674,6 +4674,226 @@
       "lt": "As needed",
       "no": "As needed",
       "pt": "As needed"
+    },
+    "stakeholders.tab_analysis": {
+      "de": "Analysis",
+      "el": "Analysis",
+      "en": "Analysis",
+      "es": "Analysis",
+      "fr": "Analysis",
+      "it": "Analysis",
+      "lt": "Analysis",
+      "no": "Analysis",
+      "pt": "Analysis"
+    },
+    "stakeholders.analysis.heading": {
+      "de": "Stakeholder analysis summary",
+      "el": "Stakeholder analysis summary",
+      "en": "Stakeholder analysis summary",
+      "es": "Stakeholder analysis summary",
+      "fr": "Stakeholder analysis summary",
+      "it": "Stakeholder analysis summary",
+      "lt": "Stakeholder analysis summary",
+      "no": "Stakeholder analysis summary",
+      "pt": "Stakeholder analysis summary"
+    },
+    "stakeholders.analysis.stats_heading": {
+      "de": "Stakeholder statistics",
+      "el": "Stakeholder statistics",
+      "en": "Stakeholder statistics",
+      "es": "Stakeholder statistics",
+      "fr": "Stakeholder statistics",
+      "it": "Stakeholder statistics",
+      "lt": "Stakeholder statistics",
+      "no": "Stakeholder statistics",
+      "pt": "Stakeholder statistics"
+    },
+    "stakeholders.analysis.empty": {
+      "de": "No stakeholders added yet.",
+      "el": "No stakeholders added yet.",
+      "en": "No stakeholders added yet.",
+      "es": "No stakeholders added yet.",
+      "fr": "No stakeholders added yet.",
+      "it": "No stakeholders added yet.",
+      "lt": "No stakeholders added yet.",
+      "no": "No stakeholders added yet.",
+      "pt": "No stakeholders added yet."
+    },
+    "stakeholders.analysis.unset": {
+      "de": "(unset)",
+      "el": "(unset)",
+      "en": "(unset)",
+      "es": "(unset)",
+      "fr": "(unset)",
+      "it": "(unset)",
+      "lt": "(unset)",
+      "no": "(unset)",
+      "pt": "(unset)"
+    },
+    "stakeholders.analysis.total": {
+      "de": "Total stakeholders",
+      "el": "Total stakeholders",
+      "en": "Total stakeholders",
+      "es": "Total stakeholders",
+      "fr": "Total stakeholders",
+      "it": "Total stakeholders",
+      "lt": "Total stakeholders",
+      "no": "Total stakeholders",
+      "pt": "Total stakeholders"
+    },
+    "stakeholders.analysis.types": {
+      "de": "Stakeholder types",
+      "el": "Stakeholder types",
+      "en": "Stakeholder types",
+      "es": "Stakeholder types",
+      "fr": "Stakeholder types",
+      "it": "Stakeholder types",
+      "lt": "Stakeholder types",
+      "no": "Stakeholder types",
+      "pt": "Stakeholder types"
+    },
+    "stakeholders.analysis.sectors": {
+      "de": "Sectors represented",
+      "el": "Sectors represented",
+      "en": "Sectors represented",
+      "es": "Sectors represented",
+      "fr": "Sectors represented",
+      "it": "Sectors represented",
+      "lt": "Sectors represented",
+      "no": "Sectors represented",
+      "pt": "Sectors represented"
+    },
+    "stakeholders.analysis.high_power": {
+      "de": "High-power stakeholders",
+      "el": "High-power stakeholders",
+      "en": "High-power stakeholders",
+      "es": "High-power stakeholders",
+      "fr": "High-power stakeholders",
+      "it": "High-power stakeholders",
+      "lt": "High-power stakeholders",
+      "no": "High-power stakeholders",
+      "pt": "High-power stakeholders"
+    },
+    "stakeholders.analysis.high_interest": {
+      "de": "High-interest stakeholders",
+      "el": "High-interest stakeholders",
+      "en": "High-interest stakeholders",
+      "es": "High-interest stakeholders",
+      "fr": "High-interest stakeholders",
+      "it": "High-interest stakeholders",
+      "lt": "High-interest stakeholders",
+      "no": "High-interest stakeholders",
+      "pt": "High-interest stakeholders"
+    },
+    "stakeholders.analysis.engagements": {
+      "de": "Total engagements",
+      "el": "Total engagements",
+      "en": "Total engagements",
+      "es": "Total engagements",
+      "fr": "Total engagements",
+      "it": "Total engagements",
+      "lt": "Total engagements",
+      "no": "Total engagements",
+      "pt": "Total engagements"
+    },
+    "stakeholders.analysis.communications": {
+      "de": "Total communications",
+      "el": "Total communications",
+      "en": "Total communications",
+      "es": "Total communications",
+      "fr": "Total communications",
+      "it": "Total communications",
+      "lt": "Total communications",
+      "no": "Total communications",
+      "pt": "Total communications"
+    },
+    "stakeholders.analysis.coverage_title": {
+      "de": "Stakeholder engagement coverage",
+      "el": "Stakeholder engagement coverage",
+      "en": "Stakeholder engagement coverage",
+      "es": "Stakeholder engagement coverage",
+      "fr": "Stakeholder engagement coverage",
+      "it": "Stakeholder engagement coverage",
+      "lt": "Stakeholder engagement coverage",
+      "no": "Stakeholder engagement coverage",
+      "pt": "Stakeholder engagement coverage"
+    },
+    "stakeholders.analysis.engaged": {
+      "de": "Engaged",
+      "el": "Engaged",
+      "en": "Engaged",
+      "es": "Engaged",
+      "fr": "Engaged",
+      "it": "Engaged",
+      "lt": "Engaged",
+      "no": "Engaged",
+      "pt": "Engaged"
+    },
+    "stakeholders.analysis.not_engaged": {
+      "de": "Not engaged",
+      "el": "Not engaged",
+      "en": "Not engaged",
+      "es": "Not engaged",
+      "fr": "Not engaged",
+      "it": "Not engaged",
+      "lt": "Not engaged",
+      "no": "Not engaged",
+      "pt": "Not engaged"
+    },
+    "stakeholders.analysis.percentage": {
+      "de": "Percentage",
+      "el": "Percentage",
+      "en": "Percentage",
+      "es": "Percentage",
+      "fr": "Percentage",
+      "it": "Percentage",
+      "lt": "Percentage",
+      "no": "Percentage",
+      "pt": "Percentage"
+    },
+    "stakeholders.analysis.by_type": {
+      "de": "Stakeholders by type",
+      "el": "Stakeholders by type",
+      "en": "Stakeholders by type",
+      "es": "Stakeholders by type",
+      "fr": "Stakeholders by type",
+      "it": "Stakeholders by type",
+      "lt": "Stakeholders by type",
+      "no": "Stakeholders by type",
+      "pt": "Stakeholders by type"
+    },
+    "stakeholders.analysis.by_sector": {
+      "de": "Stakeholders by sector",
+      "el": "Stakeholders by sector",
+      "en": "Stakeholders by sector",
+      "es": "Stakeholders by sector",
+      "fr": "Stakeholders by sector",
+      "it": "Stakeholders by sector",
+      "lt": "Stakeholders by sector",
+      "no": "Stakeholders by sector",
+      "pt": "Stakeholders by sector"
+    },
+    "stakeholders.analysis.count": {
+      "de": "Count",
+      "el": "Count",
+      "en": "Count",
+      "es": "Count",
+      "fr": "Count",
+      "it": "Count",
+      "lt": "Count",
+      "no": "Count",
+      "pt": "Count"
+    },
+    "stakeholders.analysis.add_stakeholders": {
+      "de": "Add stakeholders to see this chart.",
+      "el": "Add stakeholders to see this chart.",
+      "en": "Add stakeholders to see this chart.",
+      "es": "Add stakeholders to see this chart.",
+      "fr": "Add stakeholders to see this chart.",
+      "it": "Add stakeholders to see this chart.",
+      "lt": "Add stakeholders to see this chart.",
+      "no": "Add stakeholders to see this chart.",
+      "pt": "Add stakeholders to see this chart."
     }
   }
 }
