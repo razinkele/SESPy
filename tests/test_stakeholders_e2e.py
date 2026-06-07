@@ -241,6 +241,27 @@ async def main():
         print("8. engagement: activity added + name-resolved in log — PASS")
 
         # ------------------------------------------------------------------ #
+        # 9. COMMUNICATION — add a communication item; assert it shows in the log
+        # ------------------------------------------------------------------ #
+        await page.click(
+            "#stakeholders-stakeholder_tabs a[data-value='Communication Plan']"
+        )
+        await page.wait_for_timeout(800)
+        await _set_select(page, "stakeholders-comm_audience", "key_players")
+        await _set_select(page, "stakeholders-comm_type", "report")
+        await page.click("#stakeholders-add_communication")
+        comm_txt = ""
+        for _ in range(16):
+            comm_txt = await page.inner_text("#stakeholders-communication_table")
+            if "Report" in comm_txt and "Key players" in comm_txt:
+                break
+            await page.wait_for_timeout(500)
+        assert "Report" in comm_txt and "Key players" in comm_txt, (
+            "communication not in log"
+        )
+        print("9. communication: item added + shown in log — PASS")
+
+        # ------------------------------------------------------------------ #
         # Screenshot + done
         # ------------------------------------------------------------------ #
         await page.screenshot(path=str(SCREENSHOTS / "stakeholders.png"))
