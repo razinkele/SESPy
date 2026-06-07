@@ -1,7 +1,15 @@
 # PIMS Stakeholders SH4 — Communication Plan — Design
 
-Date: 2026-06-07
+Date: 2026-06-07 (rev. 2 — after deep-review)
 Status: **Draft** — design phase, not yet implemented.
+
+**rev. 2 changes (from the review):** (a) the 4→5 schema bump touches **four** existing
+assertions, not one — besides `test_data_structure.py::test_schema_version_is_4`, the
+SH3 tests `test_from_dict_upgrades_schema_version_on_load`,
+`test_save_path_roundtrip_preserves_engagements`, and
+`test_migrated_v3_saves_as_schema_4_on_disk` all assert `4` and must move to `5`
+(§8); (b) the e2e reads `#stakeholders-communication_table` **inline** (like SH3's
+section 8), not via the stakeholder-table-hardcoded `_poll_table_contains` helper.
 
 **Sub-project context:** SH4 of the PIMS Stakeholders port. SH1 (register), SH2
 (Power-Interest grid), and SH3 (engagement-activity log) are all on `main`. SH4 adds
@@ -195,13 +203,21 @@ e2e); `comm.add_heading`, `comm.audience`, `comm.type`, `comm.date`, `comm.frequ
   `from_dict` → save → inspect raw JSON declares schema 5 and the communication
   survived. Keep the SH3 `engagement_rows` tests green after the `_label` refactor.
 - **Unit — `tests/test_data_structure.py`:** rename `test_schema_version_is_4` →
-  `test_schema_version_is_5` and assert `== 5` (the only exact-version assertion).
+  `test_schema_version_is_5` and assert `== 5`.
+- **Unit — update existing SH3 schema assertions (4→5)** — these were added in SH3 and
+  track "the current version", so the bump requires editing them (do NOT leave at 4):
+  `test_from_dict_upgrades_schema_version_on_load` (assert `== 5`),
+  `test_save_path_roundtrip_preserves_engagements` (assert `== 5`), and rename
+  `test_migrated_v3_saves_as_schema_4_on_disk` → `…_schema_5_on_disk` (assert raw
+  JSON `== 5`). Grep for `schema_version == 4` / `"schema_version"] == 4` to catch all.
 - **e2e — `tests/test_stakeholders_e2e.py`** (extend; sections 1–8 UNCHANGED): add a
   section 9 — switch to the Communication Plan sub-tab via
   `#stakeholders-stakeholder_tabs a[data-value='Communication Plan']`, drive
   `comm_audience` + `comm_type` via the `el.value`+dispatch `_set_select` helper, click
-  `#stakeholders-add_communication`, and assert the type/audience label appears in
-  `#stakeholders-communication_table`.
+  `#stakeholders-add_communication`, and assert the type/audience label appears by
+  reading `#stakeholders-communication_table` **inline** in a poll loop (as SH3's
+  section 8 does for `engagement_table` — NOT the `_poll_table_contains` helper, which
+  is hardcoded to `#stakeholders-stakeholder_table`).
 
 ## 9. Files
 
