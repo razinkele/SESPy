@@ -2,10 +2,10 @@
 
 **Repository:** `razinkele/MosaicSES` (code location: per-page modules in `multises_app/modules/`)
 
-**Date:** 2026-05-30
-**Status:** Design — awaiting user review
+**Date:** 2026-05-30 (rev. 2, 2026-06-08 review fixes applied)
+**Status:** Design — revised after in-loop multi-angle review
 **Scope class:** Focused single-chunk UI change
-**Depends on:** chunk-4b shipped to `origin/main` (collapsible-panes work is queued *behind* the 4b smoke + push; no code changes here begin until 4b is on origin).
+**Depends on:** chunk-4b shipped to `origin/main` (historical sequencing gate from 2026-05-30; if already satisfied, proceed directly with this chunk).
 
 ## 1. Problem
 
@@ -67,10 +67,10 @@ Rationale (decision locked with user 2026-05-30): bslib's `sidebar` ships its
 own chevron toggle, is keyboard- and screen-reader-accessible by default
 (`aria-expanded` handled by the framework), and reflows the main content
 automatically on collapse. Because MosaicSES already sits on bslib layout
-primitives, this is a ~5-lines-per-panel drop-in with **zero custom JS** —
-strictly better maintenance and accessibility than porting osmopy's hand-rolled
-approach. It matches osmopy's *behavior* (controls collapse → graph widens),
-not its *implementation*.
+primitives, this is a ~5-lines-per-panel drop-in with **no new custom JS for
+collapse mechanics** — strictly better maintenance and accessibility than
+porting osmopy's hand-rolled approach. It matches osmopy's *behavior* (controls
+collapse → graph widens), not its *implementation*.
 
 ### Sidebar configuration conventions
 
@@ -125,10 +125,14 @@ needs no logic changes.
 ### 4.2 Cross-view — filter toolbar → collapsible left sidebar
 
 Move the horizontal filter toolbar (the `ui.row` of `dapsi`/`channels`/
-`cycles_only` switches, `types` selectize, and the `refresh` button, plus the
-`dirty_hint` aria-live status) into a **collapsible left sidebar**
+`cycles_only` switches, `types` selectize, and the `refresh` button) into a
+**collapsible left sidebar**
 (`id="cross_view_filters_sb"`, `position="left"`, `open="desktop"`). The
 composite-graph card reclaims the freed width and gains `full_screen=True`.
+
+Keep `dirty_hint` as an always-mounted `aria-live` output **outside** the
+collapsible sidebar (directly above the composite card) so status updates remain
+announced even while filters are collapsed.
 
 **Input ids preserved** (`dapsi`, `channels`, `cycles_only`, `types`,
 `refresh`) and the `dirty_hint` output id preserved, so `cross_view_server`
@@ -169,8 +173,8 @@ against the installed Shiny/bslib in the `shiny` micromamba env:
    (canvas width is read at render; confirm reflow on collapse/expand does not
    leave a zero-width or clipped canvas).
 
-Record results in `docs/2026-05-30-chunk4c-ui-probe-results.md`. If probe 2 or
-4 fails, fall back to single-sidebar-per-panel (left only for Topology,
+Record results in `MosaicSES/docs/2026-05-30-chunk4c-ui-probe-results.md`. If
+probe 2 or 4 fails, fall back to single-sidebar-per-panel (left only for Topology,
 Inspector becoming a `full_screen` card or an `accordion`) and re-confirm with
 the user.
 
@@ -194,12 +198,22 @@ The contract to preserve in every test update: **all server-bound input/output
 ids are unchanged**, so only structural/DOM assertions move — no behavioral
 assertions should change.
 
+### Required automated e2e assertions (new)
+
+In addition to existing module/e2e coverage, add explicit collapse/reflow checks:
+
+- Sidebar toggle `aria-expanded` changes on click and keyboard activation
+  (`Enter`/`Space`).
+- Topology and Cross-view canvas containers grow when control sidebars collapse
+  and shrink when expanded.
+- pyvis canvas dimensions remain non-zero after every collapse/expand cycle.
+- `dirty_hint` remains present and observable when filters sidebar is collapsed.
+
 ### Manual smoke gate (ships the chunk)
 
-Per `[[feedback_runtime_verify_before_shared_state]]`, collapse-reflow is a
-render-state property unit tests cannot observe, so this chunk ends with a
-manual browser smoke checklist (`docs/2026-05-30-chunk4c-ui-smoke-checklist.md`)
-covering, at minimum:
+Per `[[feedback_runtime_verify_before_shared_state]]`, this chunk still ends
+with a manual browser smoke checklist
+(`MosaicSES/docs/2026-05-30-chunk4c-ui-smoke-checklist.md`) covering, at minimum:
 
 - Topology: collapse left pane → canvas widens; collapse right pane → canvas
   widens further; collapse both → canvas near-full-width; expand each back.
@@ -210,6 +224,8 @@ covering, at minimum:
 - Comparative: meta-graph and heatmap cards enter/exit full-screen cleanly.
 - Keyboard: each sidebar toggle is reachable by Tab and operable by Enter/
   Space; `aria-expanded` reflects state (screen-reader spot-check).
+- Cross-view: `dirty_hint` announcements still surface while filters are
+  collapsed.
 - Mobile/narrow viewport: sidebars start collapsed (`open="desktop"`).
 
 Push to `origin/main` only after the smoke checklist is green.
@@ -224,8 +240,8 @@ Push to `origin/main` only after the smoke checklist is green.
   `tests/test_comparative_module.py` — structural assertion updates.
 - `tests/test_cross_view_e2e.py`, `tests/test_comparative_e2e.py` — selector
   updates if needed.
-- `docs/2026-05-30-chunk4c-ui-probe-results.md` (new) — Task 0 probe log.
-- `docs/2026-05-30-chunk4c-ui-smoke-checklist.md` (new) — manual smoke gate.
+- `MosaicSES/docs/2026-05-30-chunk4c-ui-probe-results.md` (new) — Task 0 probe log.
+- `MosaicSES/docs/2026-05-30-chunk4c-ui-smoke-checklist.md` (new) — manual smoke gate.
 
 `app.py` is **not** touched: panels are wired by id and the ids are preserved.
 
@@ -241,6 +257,12 @@ Push to `origin/main` only after the smoke checklist is green.
 ## 9. Out-of-scope follow-ups (future chunks)
 
 Theme/skin, CSS extraction to `www/mosaic-skin.css`, JS extraction, collapse
-persistence, Compartments restructure, Project Setup redesign, bridge-chart
-axis fix, pyvis tabular a11y fallbacks (these last two already tracked from
-chunk-4a/4b deferrals).
+persistence, Compartments restructure, Project Setup redesign.
+
+## 10. Definition of done (explicit)
+
+- Topology and Cross-view control panes are collapsible via native bslib
+  sidebars, with unchanged server-bound ids.
+- `dirty_hint` stays outside collapsed filters and remains announced.
+- Automated tests cover toggle state, reflow, and non-zero canvas dimensions.
+- Manual smoke checklist is green.
