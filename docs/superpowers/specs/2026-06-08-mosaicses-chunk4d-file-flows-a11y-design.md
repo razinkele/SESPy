@@ -1,7 +1,7 @@
 # MosaicSES Chunk 4d — File Flows + Topology Accessibility — Design
 
 Date: 2026-06-08 (rev. 2 — after deep-review)
-Status: **Draft** — design phase, not yet implemented.
+Status: **Implemented** — shipped in MosaicSES `main` (through `7f122e3`, 2026-06-08).
 
 **rev. 2 changes (from the review):** (a) **Bridge-chart axis fix RE-INCLUDED** — the
 chart DOES exist (in `cross_view.py`, not `comparative.py` which the first exploration

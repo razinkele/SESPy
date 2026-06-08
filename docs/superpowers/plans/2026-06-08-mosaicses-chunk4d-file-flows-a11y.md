@@ -30,7 +30,7 @@
 
 **Files:** `multises_app/state.py`; `tests/test_state_bridge.py` (or `tests/test_project_setup_module.py`)
 
-- [ ] **Step 1: Failing test** — in the state test module, build a 2nd MultiSES (e.g. a renamed `seed_curonian()`), construct state via `create_multises_state(seed_curonian())`, call `state.load_multises(other_ms)`, and assert under the repo's required `reactive.isolate()` read pattern (`EventBus` has **no** subscribe API — assert the `isa_change` counter increments):
+- [x] **Step 1: Failing test** — in the state test module, build a 2nd MultiSES (e.g. a renamed `seed_curonian()`), construct state via `create_multises_state(seed_curonian())`, call `state.load_multises(other_ms)`, and assert under the repo's required `reactive.isolate()` read pattern (`EventBus` has **no** subscribe API — assert the `isa_change` counter increments):
   ```python
   import multises_app.state as state_mod
   from shiny import reactive
@@ -45,8 +45,8 @@
       assert s.active_compartment_project.get() is state_mod._initial_active_project(other_ms)
       assert s.event_bus.isa_change.get() == before + 1
   ```
-- [ ] **Step 2: Run; verify fail** (no `load_multises`).
-- [ ] **Step 3: Implement** — add the method to `MultiSESState` exactly as spec §2:
+- [x] **Step 2: Run; verify fail** (no `load_multises`).
+- [x] **Step 3: Implement** — add the method to `MultiSESState` exactly as spec §2:
   ```python
   def load_multises(self, ms: MultiSES) -> None:
       self.active_multises.set(ms)
@@ -54,8 +54,8 @@
       self.active_compartment_project.set(_initial_active_project(ms))
       self.event_bus.emit_isa_change()
   ```
-- [ ] **Step 4: Run; verify pass** + `flake8 multises_app/state.py` (match repo's lint config).
-- [ ] **Step 5: Commit** — `feat(mosaicses): MultiSESState.load_multises atomic project swap (chunk-4d)`
+- [x] **Step 4: Run; verify pass** + `flake8 multises_app/state.py` (match repo's lint config).
+- [x] **Step 5: Commit** — `feat(mosaicses): MultiSESState.load_multises atomic project swap (chunk-4d)`
 
 ---
 
@@ -63,11 +63,11 @@
 
 **Files:** `multises_app/modules/project_setup.py`; `tests/test_project_setup_module.py`
 
-- [ ] **Step 1: Failing tests** — extend `test_project_setup_module.py`: render `project_setup_ui("project")` and assert its HTML/str contains `download_multises`, `open_multises`, `new_multises` (the three control ids). (Behavior of Open/New is covered by the Task-1 `load_multises` test + the Task-5 e2e; module tests assert UI presence per the repo's existing module-test style.)
-- [ ] **Step 2: Run; verify fail.**
-- [ ] **Step 3: Implement** — add the "Project file" section to `project_setup_ui` (3 controls, spec §3) and the 3 server handlers (`download_multises` `@render.download`; `_open` `@reactive.event(input.open_multises)` with the **broad `except Exception` + `_log.exception` + toast**; `_new` resetting to `seed_curonian()`), all per spec §3. Extend the existing import (`project_setup.py:19` already imports `MultiSES, MultiSESMetadata` — **keep both**, `_build_new_metadata` needs `MultiSESMetadata`): `from multises import MultiSES, MultiSESMetadata, seed_curonian`. Add `from pathlib import Path`, `from datetime import datetime`, `import logging` + `_log = logging.getLogger("multises")`. Route Open/New through `state.load_multises(...)`.
-- [ ] **Step 4: Run; verify pass** + `flake8` + `micromamba run -n shiny python -c "import app; print('app ok')"` (in MosaicSES) to confirm the panel still imports.
-- [ ] **Step 5: Commit** — `feat(mosaicses): New/Open/Save MultiSES file flows in Project panel (chunk-4d)`
+- [x] **Step 1: Failing tests** — extend `test_project_setup_module.py`: render `project_setup_ui("project")` and assert its HTML/str contains `download_multises`, `open_multises`, `new_multises` (the three control ids). (Behavior of Open/New is covered by the Task-1 `load_multises` test + the Task-5 e2e; module tests assert UI presence per the repo's existing module-test style.)
+- [x] **Step 2: Run; verify fail.**
+- [x] **Step 3: Implement** — add the "Project file" section to `project_setup_ui` (3 controls, spec §3) and the 3 server handlers (`download_multises` `@render.download`; `_open` `@reactive.event(input.open_multises)` with the **broad `except Exception` + `_log.exception` + toast**; `_new` resetting to `seed_curonian()`), all per spec §3. Extend the existing import (`project_setup.py:19` already imports `MultiSES, MultiSESMetadata` — **keep both**, `_build_new_metadata` needs `MultiSESMetadata`): `from multises import MultiSES, MultiSESMetadata, seed_curonian`. Add `from pathlib import Path`, `from datetime import datetime`, `import logging` + `_log = logging.getLogger("multises")`. Route Open/New through `state.load_multises(...)`.
+- [x] **Step 4: Run; verify pass** + `flake8` + `micromamba run -n shiny python -c "import app; print('app ok')"` (in MosaicSES) to confirm the panel still imports.
+- [x] **Step 5: Commit** — `feat(mosaicses): New/Open/Save MultiSES file flows in Project panel (chunk-4d)`
 
 ---
 
@@ -75,11 +75,11 @@
 
 **Files:** `multises_app/modules/topology.py`; `tests/test_topology_module.py`
 
-- [ ] **Step 1: Failing tests** — extend `test_topology_module.py`: (a) test the pure `_channel_summary_rows(ms)` helper — for `seed_curonian()` one dict per channel with keys `source/target/type/polarity/strength/delay`; empty-channel MultiSES → `[]`; a channel with `_unknown_channel_type_original` surfaces in `type`. (b) test the pure `_network_table_ui(ms)` helper — `str(_network_table_ui(ms).tagify())` contains `<table>`, the "Compartments"/"Channels" captions, a row per compartment + per channel, and a "No channels" cell for an empty-channel MultiSES. (c) assert `str(topology_ui("topology").tagify())` contains `network_table` and `<details>`/`summary`.
-- [ ] **Step 2: Run; verify fail** (no helpers / no output).
-- [ ] **Step 3: Implement** — add module-level `_channel_summary_rows(ms)` AND `_network_table_ui(ms)` (the latter builds the two `ui.tags.table`s incl. the "No channels" colspan row — spec §4); add `ui.tags.details(ui.tags.summary(...), ui.output_ui("network_table"))` in `topology_ui` adjacent to the network output; the `@render.ui def network_table(): return _network_table_ui(state.active_multises.get())` is a thin wrapper so the logic is unit-tested via the pure helper.
-- [ ] **Step 4: Run; verify pass** + `flake8` + app-import check.
-- [ ] **Step 5: Commit** — `feat(mosaicses): topology screen-reader tabular fallback (chunk-4d)`
+- [x] **Step 1: Failing tests** — extend `test_topology_module.py`: (a) test the pure `_channel_summary_rows(ms)` helper — for `seed_curonian()` one dict per channel with keys `source/target/type/polarity/strength/delay`; empty-channel MultiSES → `[]`; a channel with `_unknown_channel_type_original` surfaces in `type`. (b) test the pure `_network_table_ui(ms)` helper — `str(_network_table_ui(ms).tagify())` contains `<table>`, the "Compartments"/"Channels" captions, a row per compartment + per channel, and a "No channels" cell for an empty-channel MultiSES. (c) assert `str(topology_ui("topology").tagify())` contains `network_table` and `<details>`/`summary`.
+- [x] **Step 2: Run; verify fail** (no helpers / no output).
+- [x] **Step 3: Implement** — add module-level `_channel_summary_rows(ms)` AND `_network_table_ui(ms)` (the latter builds the two `ui.tags.table`s incl. the "No channels" colspan row — spec §4); add `ui.tags.details(ui.tags.summary(...), ui.output_ui("network_table"))` in `topology_ui` adjacent to the network output; the `@render.ui def network_table(): return _network_table_ui(state.active_multises.get())` is a thin wrapper so the logic is unit-tested via the pure helper.
+- [x] **Step 4: Run; verify pass** + `flake8` + app-import check.
+- [x] **Step 5: Commit** — `feat(mosaicses): topology screen-reader tabular fallback (chunk-4d)`
 
 ---
 
@@ -87,11 +87,11 @@
 
 **Files:** `multises_app/modules/cross_view.py`; `tests/test_cross_view_module.py`
 
-- [ ] **Step 1: Failing test** — extend `test_cross_view_module.py`: test a NEW pure helper `_bridge_chart_figure(ms) -> matplotlib.figure.Figure` (extracted from `bridge_chart`). For `seed_curonian()`: `fig = _bridge_chart_figure(ms)`; assert `len(fig.axes) == 2` (primary + twinx); the 2nd axis ylabel mentions "betweenness" and its ylim covers 0–1; the primary axis ylabel is "degree (count)". (Fails before the fix — currently a single axis.)
-- [ ] **Step 2: Run; verify fail** (helper doesn't exist / single axis).
-- [ ] **Step 3: Implement** — extract `_bridge_chart_figure(ms)` containing the plotting logic with the `twinx` fix (spec §5: degrees on `ax`, betweenness on `ax2 = ax.twinx()`, combined legend, `ax2.set_ylim(0, max(1.0, ...))`, `fig.tight_layout()`); `bridge_chart()` `@render.image` becomes thin plumbing — `fig = _bridge_chart_figure(ms)`, savefig to the temp PNG, return the image dict with `_bridge_chart_alt_text(ms)` unchanged.
-- [ ] **Step 4: Run; verify pass** + `flake8`. Optionally launch the app and eyeball the Cross-view "Bridge metrics" card (betweenness bars now visible on the right axis).
-- [ ] **Step 5: Commit** — `fix(mosaicses): bridge-chart betweenness on secondary y-axis (chunk-4d)`
+- [x] **Step 1: Failing test** — extend `test_cross_view_module.py`: test a NEW pure helper `_bridge_chart_figure(ms) -> matplotlib.figure.Figure` (extracted from `bridge_chart`). For `seed_curonian()`: `fig = _bridge_chart_figure(ms)`; assert `len(fig.axes) == 2` (primary + twinx); the 2nd axis ylabel mentions "betweenness" and its ylim covers 0–1; the primary axis ylabel is "degree (count)". (Fails before the fix — currently a single axis.)
+- [x] **Step 2: Run; verify fail** (helper doesn't exist / single axis).
+- [x] **Step 3: Implement** — extract `_bridge_chart_figure(ms)` containing the plotting logic with the `twinx` fix (spec §5: degrees on `ax`, betweenness on `ax2 = ax.twinx()`, combined legend, `ax2.set_ylim(0, max(1.0, ...))`, `fig.tight_layout()`); `bridge_chart()` `@render.image` becomes thin plumbing — `fig = _bridge_chart_figure(ms)`, savefig to the temp PNG, return the image dict with `_bridge_chart_alt_text(ms)` unchanged.
+- [x] **Step 4: Run; verify pass** + `flake8`. Optionally launch the app and eyeball the Cross-view "Bridge metrics" card (betweenness bars now visible on the right axis).
+- [x] **Step 5: Commit** — `fix(mosaicses): bridge-chart betweenness on secondary y-axis (chunk-4d)`
 
 ---
 
@@ -99,8 +99,8 @@
 
 **Files:** `tests/test_project_setup_e2e.py` (new)
 
-- [ ] **Step 1: Develop against the live app** — `shiny run app.py --port 8000`; with a sync Playwright probe, confirm the selectors: nav `#sespy_nav_project`, name `#project-name`, metadata Save `#project-save`, plus the new `#project-download_multises` / `#project-open_multises` / `#project-new_multises`. Seed project name is `"Curonian Lagoon LOAC seed"`.
-- [ ] **Step 2: Write the test** — the `mosaicses_app_url` fixture gives only a URL (no page); the test **creates its own sync Playwright page with a download-enabled context** (matching `test_comparative_e2e.py`'s sync style):
+- [x] **Step 1: Develop against the live app** — `shiny run app.py --port 8000`; with a sync Playwright probe, confirm the selectors: nav `#sespy_nav_project`, name `#project-name`, metadata Save `#project-save`, plus the new `#project-download_multises` / `#project-open_multises` / `#project-new_multises`. Seed project name is `"Curonian Lagoon LOAC seed"`.
+- [x] **Step 2: Write the test** — the `mosaicses_app_url` fixture gives only a URL (no page); the test **creates its own sync Playwright page with a download-enabled context** (matching `test_comparative_e2e.py`'s sync style):
   ```python
   from playwright.sync_api import sync_playwright, expect
 
@@ -130,17 +130,17 @@
           # assert the name field updates to the opened project's name
           browser.close()
   ```
-- [ ] **Step 3: Run** — `micromamba run -n shiny pytest tests/test_project_setup_e2e.py -q` → green. Stop the app.
-- [ ] **Step 4: Commit** — `test(mosaicses): e2e New/Save/Open file flows (chunk-4d)`
+- [x] **Step 3: Run** — `micromamba run -n shiny pytest tests/test_project_setup_e2e.py -q` → green. Stop the app.
+- [x] **Step 4: Commit** — `test(mosaicses): e2e New/Save/Open file flows (chunk-4d)`
 
 ---
 
 ## Final verification
-- [ ] `micromamba run -n shiny pytest tests/ -q` (full MosaicSES suite) → green (was 276; chunk 4d adds ~10–14 tests).
+- [x] `micromamba run -n shiny pytest tests/ -q` (full MosaicSES suite) → green (was 276; chunk 4d adds ~10–14 tests).
 - [ ] Manual smoke: launch app, exercise New/Open/Save on Project, the `<details>` tabular view on Topology, and the Cross-view bridge chart.
 - [ ] Commit any smoke-checklist doc under MosaicSES `docs/` per the repo's chunk convention (optional).
-- [ ] Update this plan's checkboxes + the SESPy spec status line on completion.
+- [x] Update this plan's checkboxes + the SESPy spec status line on completion.
 
 ## Sequencing notes
 - TDD order: state helper (1) → file flows (2) → a11y (3) → bridge fix (4, independent) → e2e (5). Tasks 1–4 are independently committable; Task 4 is fully independent of 1–3.
-- All code commits land in the **MosaicSES repo** (`..\MosaicSES\`), not SESPy. The MosaicSES repo is currently 9 commits ahead of its origin (unpushed) — chunk-4d commits add to that; pushing is a separate user decision.
+- All code commits land in the **MosaicSES repo** (`..\MosaicSES\`), not SESPy. Chunk 4d is now implemented and pushed to `origin/main` (`7f122e3`).
