@@ -1,4 +1,6 @@
-# SESPy burger_js per-page sidebar fix — Implementation Plan (trimmed + sturdier)
+# SESPy burger_js per-page sidebar fix — Implementation Plan
+
+**Status:** ✅ **Completed** (2026-06-08 · all 4 tasks done, 1 commit shipped: `9977aba`)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,7 +12,7 @@
 
 **Spec:** `SESPy/docs/superpowers/specs/2026-06-01-sespy-burger-js-per-page-sidebar-fix-design.md` (note: spec describes the one-line allowlist; this plan implements the sturdier bind-at-init variant the user chose at impl time — same behavior, better architecture).
 
-**Repo:** `C:/Users/arturas.baziukas/OneDrive - ku.lt/HORIZON_EUROPE/Marine-SABRES/SESPy` — NOT a git repo yet (Task 0). Shared shell; `MosaicSES` consumes it via an editable install (`pip show sespy` → Editable project location = this tree), so edits are live in MosaicSES with no reinstall.
+**Repo:** `C:/Users/arturas.baziukas/OneDrive - ku.lt/HORIZON_EUROPE/Marine-SABRES/SESPy` — already a git repo (versioned 2026-01 onward). Shared shell; `MosaicSES` consumes it via an editable install (`pip show sespy` → Editable project location = this tree), so edits are live in MosaicSES with no reinstall.
 
 **Environment:** all commands run via the **Bash tool** (POSIX-style; `grep`/`rm`/`curl`/`netstat` work there, not in PowerShell). Python in the `shiny` micromamba env: prefix with `micromamba run -n shiny`.
 

@@ -1,7 +1,6 @@
 # SESPy burger_js per-page sidebar fix — Design
 
-**Date:** 2026-06-01
-**Status:** Design — awaiting user review
+**Date:** 2026-06-01 | **Status:** Implemented ✓ (2026-06-08 · commit `9977aba` · browser verified + test_burger.py passing)
 **Scope class:** Focused bug fix in the shared shell + test + repo hygiene
 **Repo:** `Marine-SABRES/SESPy` (the shared dashboard shell used by MosaicSES and other Marine-SABRES apps)
 
