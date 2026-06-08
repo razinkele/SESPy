@@ -1,7 +1,7 @@
 # URL Bookmarking (active-view) — Design
 
-Date: 2026-06-04 (rev. 4 — converged after three multi-agent reviews + Shiny-API validation)
-Status: **Draft** — design phase, not yet implemented.
+Date: 2026-06-04 (rev. 5 — status update after implementation + deep review)
+Status: **Implemented** ✓ (2026-06-08 · 317 unit tests + 24/24 e2e tests pass)
 
 ## Revision history
 - **rev. 1** — scoped "module + UI language".
@@ -15,6 +15,13 @@ Status: **Draft** — design phase, not yet implemented.
   (a) the stepper e2e was vacuous (identity short-circuit on `cld`→`cld`); (b) the restore
   assertion checked existence, not visibility (`navset_hidden` renders all panels);
   (c) the restore once-guard must be a **per-session closure-local**, not a module global.
+- **rev. 5** — implementation complete (2026-06-08). Status updated from Draft to Implemented.
+  **Critical note on `?lang` deferral:** v1 is module-level `app_ui` (static) + singleton
+  `Translator` (captured at import). Per-session language requires a three-part refactor:
+  (a) per-request `app_ui(request)` builder (same refactor Shiny native bookmarking needs);
+  (b) per-request translator instance (not singleton); (c) reload or re-render of static UI
+  blocks on language change. This is a *deliberate architectural deque* (§1.2), not a bug.
+  Phase-2 language bookmark is the natural follow-up after per-session infrastructure lands.
 
 ## 1. Goal & scope
 
