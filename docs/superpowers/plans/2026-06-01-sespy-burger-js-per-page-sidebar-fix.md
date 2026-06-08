@@ -28,42 +28,9 @@
 
 ---
 
-## Task 0: Version-control SESPy (prerequisite)
+## Task 0: Version-control prerequisite (historical; skipped)
 
-SESPy is the shared shell and unversioned. Initialize git so the fix is a clean, revertible diff and the spec+plan land in a baseline. Verified safe: no parent dir is a git repo (no nested-repo risk); `data/` holds only `sample_ses.json` (no secrets).
-
-**Files:** `.gitignore` (add `.tmp/`); new `.git/` + baseline commit.
-
-- [ ] **Step 1: Add `.tmp/` to `.gitignore`**
-
-The existing `.gitignore` covers caches, `tests/screenshots/`, stray artifacts, `*.egg-info/` — but NOT `.tmp/` (dev scratch). Append:
-```gitignore
-
-# Developer scratch (probes, logs, render dumps)
-.tmp/
-```
-
-- [ ] **Step 2: Initialize**
-```bash
-git init
-git add -A
-```
-
-- [ ] **Step 3: Review staged set BEFORE committing (mandatory gate)**
-
-Automated check (Bash tool — deny-list must have ZERO staged matches):
-```bash
-git status --short | grep -E '(^|/)(\.tmp/|__pycache__/|\.pytest_cache/|\.mypy_cache/|.*\.egg-info/|tests/screenshots/|0\]|e\.id)' && echo "DENYLIST HIT — STOP" || echo "staged set clean"
-```
-Expected: `staged set clean`. If `DENYLIST HIT`, fix `.gitignore`, `git rm --cached <path>`, re-run until clean.
-
-**Human gate:** this is the first-ever commit to a shared shell. ALSO surface the full `git status --short` to the user and get explicit go-ahead before Step 4. A subagent MUST pause and report the staged set, not auto-commit.
-
-- [ ] **Step 4: Baseline commit**
-```bash
-git commit -m "chore: initial commit — SESPy shared shell (pre burger_js fix baseline)"
-```
-Run `git log --oneline -1` — expect the baseline as HEAD.
+This task was part of an early draft and is now obsolete. SESPy was already versioned when this fix shipped, so no `git init`, baseline bootstrap, or `.tmp/` ignore edit was required for this plan execution.
 
 ---
 
@@ -237,7 +204,7 @@ Expected: `Half A pass`, `Half B pass`, `ALL VERIFIED`, exit 0. If Half B fails,
 
 - [ ] **Step 3: Clean up**
 
-`rm .tmp/verify_fix.py`. (Scratch only — no commit. `.tmp/` is gitignored from Task 0.)
+`rm .tmp/verify_fix.py`. (Scratch only — no commit.)
 
 ---
 
@@ -298,7 +265,7 @@ Optionally tag `chunk-4c-ui-shipped`. User's shared-state action — do not push
 
 ## Definition of done
 
-- [ ] SESPy is a git repo; `.tmp/` ignored; baseline + fix commits present.
+- [ ] SESPy was already a git repo; burger-js fix commit shipped with no bootstrap baseline step.
 - [ ] `sespy/dashboard.py`: nav sidebar carries `sespy-nav-shell`; `burger_js` binds at init to the nav layout with the identity check; no `.sespy-card` denylist remains.
 - [ ] Task 2 probe printed `ALL VERIFIED` (Half A mini-mode + Half B per-page native collapse, no hijack).
 - [ ] Existing `tests/test_burger.py` passes (outer-nav mini-mode guard intact).
@@ -310,7 +277,7 @@ Optionally tag `chunk-4c-ui-shipped`. User's shared-state action — do not push
 - Spec §3 guard fix → Task 1 (implemented as the sturdier bind-at-init variant per user's "do the sturdier fix now" decision, not the spec's one-line allowlist).
 - Spec §3.2 demo panel → DROPPED per user's "trim hard" decision; verification uses MosaicSES's real per-page sidebars (Task 2) instead of a SESPy demo panel.
 - Spec §5 test → reduced to: keep existing `test_burger.py` (Task 3) + a throwaway verification probe (Task 2) + MosaicSES smoke (Task 4). No permanent SESPy Playwright rewrite.
-- Spec §3.3 git init + `.tmp/` + status gate → Task 0.
+- Spec §3.3 git-init bootstrap was de-scoped as stale (repo already versioned at execution time).
 - Spec §7 ship handoff → Task 4.
 
 ## Consistency self-check

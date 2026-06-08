@@ -1,6 +1,6 @@
 # Analysis: Boolean & Simulation Modules — Implementation Plan
 
-> **Status: Implemented** · shipped on `feat/analysis-boolean-simulation` (tip `a55583b`), fast-forwarded to `main` 2026-04-28. The plan's `project_data: reactive.Value[IsaData]` signature was subsequently changed to `reactive.Value[Project]` by the architectural refactor in commit `af051c1` (2026-04-30); current code reads `project_data.get().isa_data` where the plan shows `project_data.get()`. The plan's pre-flight note "Git: SESPy is **not currently a git repository**" (line 19) is now stale — SESPy was initialized as a git repo as part of executing this plan (commit `55d7640`), and every subsequent plan in this corpus was authored and executed against a git working tree.
+> **Status: Implemented** · shipped on `feat/analysis-boolean-simulation` (tip `a55583b`), fast-forwarded to `main` 2026-04-28. The plan's `project_data: reactive.Value[IsaData]` signature was subsequently changed to `reactive.Value[Project]` by the architectural refactor in commit `af051c1` (2026-04-30); current code reads `project_data.get().isa_data` where the plan shows `project_data.get()`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -16,7 +16,7 @@
 
 **Environment:** `micromamba run -n shiny <cmd>`. Never `pip install`.
 
-**Git:** SESPy is **not currently a git repository**. The "Commit" steps in this plan are best-effort: if you have run `git init` once at the start, they will work; otherwise they are safe no-ops (treat them as save-points). Do NOT initialize git unless the user has explicitly authorized it. If git is unavailable, skip the `git add`/`git commit` steps and just continue to the next task.
+**Git:** Historical note — SESPy was initialized as a git repo during execution of this plan (commit `55d7640`) and is now versioned. Treat any `git init` wording in older steps as obsolete.
 
 ---
 
