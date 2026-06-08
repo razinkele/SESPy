@@ -6,7 +6,7 @@
 
 - **2026-05-09 (initial)** — Plan written.
 - **2026-05-09 (review pass)** — Five-agent review (spec-coverage / test-coverage / silent-failure / executability / type-design). Applied changes:
-  - **Blockers:** new Task 0 (Bootstrap) handles `git init` (env reports no git repo), `pip install -e ../SESPy` and `pip install -e .` *before* any test runs, and replaces bash `mkdir -p` with PowerShell `New-Item -ItemType Directory -Force` (env shell is PowerShell). Fixes the three executability blockers that would have halted execution at Task 1 Step 8.
+  - **Blockers:** new Task 0 (Bootstrap) handles `git init` (**historical runtime note:** this reflected the design-time environment state), `pip install -e ../SESPy` and `pip install -e .` *before* any test runs, and replaces bash `mkdir -p` with PowerShell `New-Item -ItemType Directory -Force` (env shell is PowerShell). Fixes the three executability blockers that would have halted execution at Task 1 Step 8.
   - **DFS replaced** in `validate.py` `_check_downstream_dag` with `nx.simple_cycles` (networkx is already a SESPy runtime dep). The hand-rolled iterative tri-colour DFS had dead `path` tracking and was confirmed buggy by two reviewers; the networkx replacement is one line and exercised by SESPy's own test suite.
   - **`from_dict` no longer lossy** for unknown channel_type / archetype: original strings are preserved in private `_unknown_*_original` fields on Channel/Compartment so JSON round-trip is non-destructive (rather than the v1 plan's silent coercion to `nutrients` / `lagoon`).
   - **OneDrive fsync claim corrected.** Docstrings now say "local-FS-aware" not "OneDrive-aware"; sanity check switches from 64-byte-prefix to SHA-256 of full body (truncation typically affects tail, not head — the prefix check was structurally wrong). Windows-specific note added that `os.fsync` calls `_commit` which flushes to FS driver but does not guarantee OneDrive cloud sync.
@@ -100,9 +100,9 @@ Marine-SABRES/
 
 ---
 
-## Task 0: Bootstrap — git init, directory tree (PowerShell)
+## Task 0: Bootstrap — git init, directory tree (PowerShell, historical bring-up)
 
-The execution environment is Windows-PowerShell (env `Shell: PowerShell`). The parent directory `Marine-SABRES/` is not yet a git repository (env reports "Is directory a git repo: No"). This task initialises both before Task 1 starts.
+The execution environment is Windows-PowerShell (env `Shell: PowerShell`). At design time, the parent directory `Marine-SABRES/` was not yet a git repository (env reported "Is directory a git repo: No"). If running this plan in an already-versioned checkout, skip Step 1/Step 4 and proceed with directory/env validation only.
 
 **Files:**
 - Initialise: git repository at `Marine-SABRES/` level
