@@ -22,6 +22,23 @@ translator) — it must be revised before implementation.
 
 ---
 
+## 2026-06-08 update — resolution status
+
+Most actionable items from this review have been completed and shipped since publication:
+
+- ✅ URL bookmarking shipped and spec marked implemented (`9977aba`, `06937df`).
+- ✅ PIMS project-setup stepper attribution corrected to `app.py` (`5d52e74`).
+- ✅ MosaicSES parent spec now defines `with_compartment_replaced()` and clarifies CLD naming (`dcbe28f`).
+- ✅ chunk4a/chunk4b brittle commit-hash/test-count anchors removed; pyvis accessor convention documented (`f44a2cd`).
+- ✅ MosaicSES docs now explicitly state code lives in separate repo `razinkele/MosaicSES` (`622df38`).
+- ✅ Scientific-basis citation nits fixed (Murase author, Selfati attribution, missing DOI additions, cci normalization note, upwelling wording) (`f46c926`).
+- ✅ SH1–SH6 stakeholders specs updated from Draft to Implemented (`2dde297`).
+- ✅ Historical stale git-bootstrap instructions cleaned in completed plans (`c20ad0b`).
+
+The sections below remain as a **historical snapshot** of findings on 2026-06-04, not a live-open backlog.
+
+---
+
 ## Part A — Scientific validation (scite MCP, in-loop, main session)
 
 Validated every DOI-bearing citation in `2026-05-09-mosaicses-scientific-basis.md`.
