@@ -473,6 +473,20 @@ class MultiSES:
         self.channels = [ch for ch in self.channels if ch not in cascaded]
         self.compartments = [c for c in self.compartments if c.id != compartment_id]
         return cascaded
+
+    def with_compartment_replaced(self, compartment_id: str, edited_project: Project) -> "MultiSES":
+        """Return a new MultiSES with the specified compartment's project
+        updated to edited_project. The compartment's id, archetype, and metadata
+        remain unchanged; only the DAPSI graph (sespy.Project.isa_data) is
+        replaced. Raises ValueError if compartment_id not found."""
+        cmp = next((c for c in self.compartments if c.id == compartment_id), None)
+        if not cmp:
+            raise ValueError(f"Compartment {compartment_id!r} not found")
+        new_cmp = cmp.replace(project=edited_project)
+        new_compartments = [new_cmp if c.id == compartment_id else c
+                           for c in self.compartments]
+        return MultiSES(metadata=self.metadata, compartments=new_compartments,
+                       channels=self.channels)
 ```
 
 ### 3.1 Validation invariants
@@ -978,7 +992,7 @@ Compartment-switcher + embedded SESPy. The "drill into one compartment" page.
 
 **Top bar:** compartment picker, archetype label, element/connection counts.
 
-**Nested tabs (re-using SESPy modules unchanged):** Edit Data, CLD Visualization, Loop Analysis, Network Metrics, Leverage Points, Boolean & Laplacian, Dynamic Simulation, Behaviour Over Time, Intervention, Simplify Network. Each tab mounts `sespy.modules.<module>_ui("compartments-<module>")` and `<module>_server(...)` with `project_data = active_compartment_project` (a shared `reactive.value(Project)`).
+**Nested tabs (re-using SESPy modules unchanged):** Edit Data, CLD Visualization, Loop Analysis, Network Metrics, Leverage Points, Boolean & Laplacian, Dynamic Simulation, Behaviour Over Time, Intervention, Simplify Network. Each tab mounts the corresponding module's `*_ui` and `*_server` functions with `project_data = active_compartment_project` (a shared `reactive.value(Project)`). Example: `sespy.modules.loop_analysis_ui("compartments-loop-analysis")` and `loop_analysis_server(...)`; CLD Visualization uses `cld_viz_ui` and `cld_viz_server` (not the generic `<module>_ui` pattern).
 
 **Compartment switch protocol (REQUIRED — silent corruption otherwise).** SESPy modules hold session-scoped derived state that only invalidates on `event_bus.isa_change` — most importantly `analysis_loops.py:141`'s `detected` reactive. When the picker rebinds `active_compartment_project`, derived state from the previous compartment survives unless explicitly invalidated. The switcher MUST therefore:
 
