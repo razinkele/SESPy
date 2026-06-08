@@ -13,6 +13,7 @@
   - **§9 reorganised**: new §9.0 EG framework references promoted to top; new §9.6 Connectivity literature; new §9.7 Lagoon ES literature.
   - **New §11 EG framework alignment matrix** documenting which EG concepts v1 implements vs defers, with phase-2 backlog cross-references.
   - **References added (15)**: Tagliapietra et al. 2020 (was inexplicably absent from the original §9 — a critical citation gap caught by review); Elliott 2011 (endogenic/exogenic); Lonsdale et al. 2018 (EPSS); Povilanskas & Razinkovas-Baziukas 2023 (CCI); Povilanskas et al. 2024 (CCS Lake Liepāja); Vannote 1980 (RCC); Junk 1989 (flood-pulse); Polis 1997 (spatial subsidies); Helfield-Naiman 2001 (salmon-N); Cowen-Sponaugle 2009 (larval); Pineda 2007 (larval transport); Waldman-Quinn 2022 (diadromous decline); Nakamura 2006 (dam barrier); Karstens 2022 (Baltic hydrological connectivity); Liu et al. 2013 (telecoupling foundational); Inácio et al. 2018 (Curonian/Szczecin ES); Bartoli et al. 2018 (Curonian cyanobacteria); Sruoga et al. 2007 (Curonian eel genetics); Robbe et al. 2024 (Baltic macrophyte ES).
+- **2026-06-08 (citation precision pass)** — Corrected author attributions (Murase et al. third author, Selfati single-author record), added missing DOIs to key Curonian references, clarified `cci_index` as a 0–10 normalization of the source index scale, and softened the upwelling wording to match the cited abstract.
 
 ---
 
@@ -39,7 +40,7 @@ This definition has four operational consequences for MosaicSES:
 1. **Four connectivity flows must be representable.** Materials, energy, organisms, finance — both ecological and societal. v1 covers materials (4 channels), organisms (2 channels), finance (`economic_telecoupling`, partial). v1 acknowledges energy and socio-cultural connectivity as gaps left for phase-2 (`trophic_energy`, `cultural_connectivity` channel slots reserved).
 2. **The system is *not* the catchment, *not* the coastal sea, *not* their union — it is the TW with the catchment and coastal sea as *bordering contexts*.** This is encoded in the spec via `Compartment.is_focal_tw` (defaulting True for `delta`/`estuary`/`lagoon`).
 3. **Three management regimes meet at TW** — WFD (river-basin), EPSS (estuarine, Lonsdale et al. 2018), MSFD-MSPD (coastal-marine). Encoded as `governance_regime` field on `Channel`.
-4. **Transboundary character is structural, not incidental.** Many TW span international borders; for the 108 transboundary TW worldwide (Povilanskas & Razinkovas-Baziukas 2023, [`10.3390/su15139922`]), cooperation-vs-confrontation patterns determine management feasibility. Encoded as `cci_index` (0-10) on transboundary `governance` channels.
+4. **Transboundary character is structural, not incidental.** Many TW span international borders; for the 108 transboundary TW worldwide (Povilanskas & Razinkovas-Baziukas 2023, [`10.3390/su15139922`]), cooperation-vs-confrontation patterns determine management feasibility. Encoded as `cci_index` (0-10 normalized operationalization of the source-scale index) on transboundary `governance` channels.
 
 The Emerald Growth concept is the **direct parent of MosaicSES** — not the Elliott (2017) DAPSI(W)R(M) paper alone. The DAPSI(W)R(M) framework provides the *intra-compartment* graph-theoretic vocabulary (Drivers, Activities, Pressures, States, Impacts, Welfare, Responses); EG provides the *inter-compartment* connectivity vocabulary and the TW-centric analytical focus. MosaicSES composes both.
 
@@ -93,7 +94,7 @@ The `lagoon` archetype's defaults are derived from a tighter literature focused 
 
 **Cheung, Žilius & Politi (2025)** [`10.1029/2024jg008510`] document nitrate-driven N₂O production in coastal lagoons including the Curonian, supporting the framing of lagoons as nutrient-processing compartments — a *State* characteristic that motivates the `nutrient_retention` ecosystem service in the archetype defaults. This is also the empirical basis for showing lagoons as net positive contributors to the coastal sea's nutrient budget when their retention capacity is exceeded — relevant for cross-compartment loops.
 
-**Murase, Yamasaki & Mukai (2025)** [`10.1111/maec.70031`] document blackfin seabass juveniles using small (<1 km²) estuarine lagoons as nurseries in temperate Japan, showing the lagoon-as-nursery function is not restricted to large systems — relevant for phase-2 expansion to smaller European lagoons.
+**Murase, Yamasaki & Ikehara (2025)** [`10.1111/maec.70031`] document blackfin seabass juveniles using small (<1 km²) estuarine lagoons as nurseries in temperate Japan, showing the lagoon-as-nursery function is not restricted to large systems — relevant for phase-2 expansion to smaller European lagoons.
 
 ### 3.3 Rivers, deltas, and the longitudinal-connectivity literature
 
@@ -103,7 +104,7 @@ The `lagoon` archetype's defaults are derived from a tighter literature focused 
 
 **Avigliano, Ibáñez & Fabré (2021)** [`10.1002/aqc.3486`] use otolith Sr/Ca microchemistry to trace habitat use of *Mugil curema* across river, lagoon, estuary and sea — providing one of the cleanest empirical pictures of compartment-crossing habitat use, and the strongest case for representing fish movements as edges crossing compartment boundaries rather than internal compartment dynamics.
 
-**Selfati et al. (2023)** [`10.21608/ejabf.2023.291755`] document fish-fauna response to hydrological intervention in the Marchica Lagoon (Mediterranean) — relevant for understanding how engineering interventions propagate through guild composition.
+**Selfati (2023)** [`10.21608/ejabf.2023.291755`] documents fish-fauna response to hydrological intervention in the Marchica Lagoon (Mediterranean) — relevant for understanding how engineering interventions propagate through guild composition.
 
 **Whitfield (2020)**, again, supplies the *philosophical* anchor for treating partial vs. complete estuarine dependency as a continuum (rather than a binary) — directly mapped into how MosaicSES treats compartment-archetype boundaries as graded rather than crisp.
 
@@ -189,7 +190,7 @@ The full v1 diadromous seed contains seven species (six original + sturgeon adde
 
 ### 5.5 Coastal upwelling — a phase-2 channel candidate
 
-**Dabulevičienė, Vaičiūtė & Kozlov (2020)** [`10.3390/rs12213661`] document chlorophyll-a variability during upwelling events at the Curonian Lagoon mouth and southeastern Baltic. Coastal upwelling inverts the conventional sea→lagoon Chl-a gradient — that is, during upwelling events, the *coastal sea* has higher productivity than the lagoon, the reverse of the year-averaged pattern. This is one of the most distinctive marine-physical features of the pilot system.
+**Dabulevičienė, Vaičiūtė & Kozlov (2020)** [`10.3390/rs12213661`] document chlorophyll-a variability during upwelling events at the Curonian Lagoon mouth and southeastern Baltic. Upwelling episodes can shift the local sea↔lagoon productivity contrast (including reduced Chl-a at the lagoon mouth relative to typical non-upwelling periods), i.e., temporarily weakening or reversing the usual gradient pattern. This is one of the most distinctive marine-physical features of the pilot system.
 
 The v1 channel typology cannot represent upwelling cleanly: it is a directional process (coastal sea → strait → lagoon) but the direction is opposite to the conventional `water_discharge` direction, and it operates on a timescale (event-driven, days) far shorter than the v1 "annual" implicit timestep. Phase-2 introduces an `upwelling` channel type or a `physical_exchange` superchannel to address this.
 
@@ -258,7 +259,7 @@ The 2026-05-09 review verified the following against authoritative sources:
 | AphiaID 101172 = River lamprey | ICES `migratory_species_catalog` | ✓ verified |
 | AphiaID 151802 = Atlantic sturgeon | ICES `migratory_species_catalog` | ✓ verified |
 | AphiaID 154238 = Houting (taxonomically contested) | ICES `migratory_species_catalog` | ⚠ flagged |
-| Coastal upwelling Chl-a inversion at Curonian mouth | Dabulevičienė et al. 2020 | ✓ confirmed |
+| Coastal upwelling Chl-a gradient shift at Curonian mouth during events | Dabulevičienė et al. 2020 | ✓ confirmed |
 | ICES WGDIAD covers diadromous species | ICES `migratory_list_working_groups` | ✓ confirmed |
 | Elliott et al. 2017 quote on nested framework | DOI 10.1016/j.marpolbul.2017.03.049 | ✓ verbatim from abstract |
 
@@ -281,7 +282,7 @@ This matrix records exactly which EG framework dimensions are implemented in v1 
 | Cultural / social connectivity | Elliott (EG definition); Robbe et al. 2024 | ✗ deferred | Phase-2 `cultural_connectivity` channel (§11 #18) |
 | Endogenic vs exogenic pressures | Elliott 2011 | ✓ implemented (archetype level) | §3 PressureOrigin Literal; §4.3 archetype defaults |
 | Three-management-regime intersection (WFD/EPSS/MSFD-MSPD) | Tagliapietra et al. 2020 §3; Lonsdale et al. 2018 | ✓ implemented | §3 GovernanceRegime Literal; §5.5 |
-| Cooperation/Confrontation Integrity Index for TTW | Povilanskas & Razinkovas-Baziukas 2023 | ✓ implemented | §3 `cci_index`; §5.5 |
+| Cooperation/Confrontation Integrity Index for TTW (0-10 normalized in v1) | Povilanskas & Razinkovas-Baziukas 2023 | ✓ implemented | §3 `cci_index`; §5.5 |
 | CICES v5.1 ES coding | Haines-Young & Potschin 2018 (CICES) | ✓ implemented (optional) | §3 `cices_code`; §4.3 archetype defaults |
 | 10-tenets evaluation framework | Elliott et al. 2017, 2025 revisited | ✗ deferred | Phase-2 `tenet_scores` (§11 #19) |
 | Emerald Justice equity dimensions | Nyka, EG monograph; emerald_justice working draft | ✗ deferred | Phase-2 `equity_dimensions` (§11 #20) |
@@ -308,7 +309,7 @@ Povilanskas, R., Jurkienė, A., & Dailidienė, I. (2024). Circles of Coastal Sus
 
 Elliott, M. (2011). Marine science and management means tackling exogenic unmanaged pressures and endogenic managed pressures — A numbered guide. *Marine Pollution Bulletin*, 62(4), 651–655. https://doi.org/10.1016/j.marpolbul.2011.01.040
 
-Lonsdale, J., Nicholson, R., Judd, A., et al. (2018). A user's guide to coping with estuarine management bureaucracy: An Estuarine Planning Support System (EPSS) tool. *Marine Pollution Bulletin*, 133, 935–948.
+Lonsdale, J.-A., Nicholson, R., Weston, K., et al. (2018). A user's guide to coping with estuarine management bureaucracy: An Estuarine Planning Support System (EPSS) tool. *Marine Pollution Bulletin*, 127, 463–477. https://doi.org/10.1016/j.marpolbul.2017.12.032
 
 ### 9.1 Conceptual framework (DPSIR / DAPSI(W)R(M) / nested)
 
@@ -338,11 +339,11 @@ Tulp, I., Chen, C., & Vrooman, J. (2022). The nursery function of the Ems estuar
 
 Bruno, D. O., Delpiani, S. M., & Eduardo, M. (2018). Diel variation of ichthyoplankton recruitment in a wind-dominated temperate coastal lagoon (Argentina). *Estuarine, Coastal and Shelf Science*, 205, 91–99. https://doi.org/10.1016/j.ecss.2018.03.015
 
-Murase, A., Yamasaki, Y., & Mukai, M. (2025). Blackfin Seabass Utilize Small Estuarine Lagoons as Nurseries: Implications From Juvenile Sampling at Habitat and Seascape Scales. *Marine Ecology*, 46(4). https://doi.org/10.1111/maec.70031
+Murase, A., Yamasaki, Y., & Ikehara, Y. (2025). Blackfin Seabass Utilize Small Estuarine Lagoons as Nurseries: Implications From Juvenile Sampling at Habitat and Seascape Scales. *Marine Ecology*, 46(4). https://doi.org/10.1111/maec.70031
 
 Avigliano, E., Ibáñez, A. L., & Fabré, N. N. (2021). Unravelling the complex habitat use of the white mullet, *Mugil curema*, in several coastal environments from Neotropical Pacific and Atlantic waters. *Aquatic Conservation: Marine and Freshwater Ecosystems*, 31(4), 789–801. https://doi.org/10.1002/aqc.3486
 
-Selfati, M., et al. (2023). Updated and comprehensive checklist of the fish fauna of the Marchica Lagoon (Alboran Sea, Morocco), following hydrological intervention. *Egyptian Journal of Aquatic Biology and Fisheries*, 27(2), 251–274. https://doi.org/10.21608/ejabf.2023.291755
+Selfati, M. (2023). Updated and comprehensive checklist of the fish fauna of the Marchica Lagoon (Alboran Sea, Morocco), following hydrological intervention. *Egyptian Journal of Aquatic Biology and Fisheries*, 27(2), 251–274. https://doi.org/10.21608/ejabf.2023.291755
 
 Park, J. M., Riedel, R., & Ju, H. H. (2020). Fish Assemblage Structure Comparison between Freshwater and Estuarine Habitats in the Lower Nakdong River, South Korea. *Journal of Marine Science and Engineering*, 8(7), 496. https://doi.org/10.3390/jmse8070496
 
@@ -459,17 +460,17 @@ The Klaipėda University / CORPI research group (Žilius, Vybernaite-Lubiene, Le
 
 Žilius, M., Bartoli, M., Nizzoli, D., et al. (2021). Denitrification, Nitrogen Uptake, and Organic Matter Quality Undergo Different Seasonality in Sandy and Muddy Sediments of a Turbid Estuary. *Frontiers in Microbiology*, 11, 612700. https://doi.org/10.3389/fmicb.2020.612700 — Denitrification attenuates N delivery from estuary to coastal area by ~35 % in spring; nearly 100 % attenuation in summer. **Quantitative anchor for the lagoon→strait `nutrients` channel attenuation in the seed; demonstrates the lagoon's nutrient-retention ES (one of the lagoon archetype's `default_es`).**
 
-Vybernaite-Lubiene, I., Žilius, M., Bartoli, M., et al. (2017). Recent trends (2012–2016) of N, Si, and P export from the Nemunas River watershed: Loads, unbalanced stoichiometry, and threats for downstream aquatic ecosystems. *Water*, 9(11), 880. — Catchment N/P/Si load time-series; **basis for `nemunas_lower → nemunas_delta` and `nemunas_delta → curonian_lagoon` channel strength values in the seed.**
+Vybernaite-Lubiene, I., Žilius, M., Bartoli, M., et al. (2018). Recent trends (2012–2016) of N, Si, and P export from the Nemunas River watershed: Loads, unbalanced stoichiometry, and threats for downstream aquatic ecosystems. *Water*, 10(9), 1178. https://doi.org/10.3390/w10091178 — Catchment N/P/Si load time-series; **basis for `nemunas_lower → nemunas_delta` and `nemunas_delta → curonian_lagoon` channel strength values in the seed.**
 
 Lesutienė, J., Bukaveckas, P. A., Gasiūnaitė, Z. R., Pilkaitytė, R., & Razinkovas-Baziukas, A. (2014). Tracing the isotopic signal of a cyanobacteria bloom through the food web of a Baltic Sea coastal lagoon. *Estuarine, Coastal and Shelf Science*, 138, 47–56. https://doi.org/10.1016/j.ecss.2013.12.017 — Stable-isotope tracing of cyanobacterial-bloom carbon and nitrogen through the Curonian food web. **Empirical basis for phase-2 `trophic_energy` and `trophic_subsidy` channels — the user is co-author.**
 
-Pilkaitytė, R., & Razinkovas, A. (2006). Factors controlling phytoplankton blooms in a temperate estuary: Nutrient limitation and physical forcing. *Hydrobiologia*, 555(1), 41–48. — User-co-authored phytoplankton-bloom controls; basis for the `lagoon` archetype's `phytoplankton_biomass` State default.
+Pilkaitytė, R., & Razinkovas, A. (2006). Factors controlling phytoplankton blooms in a temperate estuary: Nutrient limitation and physical forcing. *Hydrobiologia*, 555(1), 41–48. https://doi.org/10.1007/s10750-005-1104-6 — User-co-authored phytoplankton-bloom controls; basis for the `lagoon` archetype's `phytoplankton_biomass` State default.
 
 Daunys, D., Zemlys, P., Olenin, S., Zaiko, A., & Ferrarin, C. (2006). Impact of the zebra mussel *Dreissena polymorpha* invasion on the budget of suspended material in a shallow lagoon ecosystem. *Helgoland Marine Research*, 60(2), 113–120. https://doi.org/10.1007/s10152-006-0028-5 — Zebra mussel impact on lagoon suspended-material budget; **basis for representing invasive-species filtration as a phase-2 channel attribute.**
 
 Ferrarin, C., Razinkovas, A., Gulbinskas, S., Umgiesser, G., & Bliūdžiutė, L. (2008). Hydraulic regime-based zonation scheme of the Curonian Lagoon. *Hydrobiologia*, 611(1), 133–146. https://doi.org/10.1007/s10750-008-9453-6 — User-co-authored hydrodynamic zonation; **basis for compartmental sub-zonation if phase-2 promotes intra-lagoon resolution.**
 
-Bresciani, M., Adamo, M., De Carolis, G., et al. (2012). Monitoring blooms and surface accumulation of cyanobacteria in the Curonian Lagoon by combining MERIS and ASAR data. *Remote Sensing of Environment*, 146, 124–135. — Remote-sensing of Curonian cyanobacterial blooms; **complements Dabulevičienė 2020 for lagoon Chl-a monitoring.**
+Bresciani, M., Adamo, M., De Carolis, G., et al. (2014). Monitoring blooms and surface accumulation of cyanobacteria in the Curonian Lagoon by combining MERIS and ASAR data. *Remote Sensing of Environment*, 146, 124–135. https://doi.org/10.1016/j.rse.2013.07.040 — Remote-sensing of Curonian cyanobacterial blooms; **complements Dabulevičienė 2020 for lagoon Chl-a monitoring.**
 
 Krevš, A., Koreivienė, J., Paškauskas, R., & Šulijienė, R. (2007). Phytoplankton production and community respiration in different zones of the Curonian Lagoon during the mid-summer vegetation period. *Transitional Waters Bulletin*, 1(1), 17–26. — Lagoon zonation by primary-production regime; basis for lagoon-archetype default States.
 
