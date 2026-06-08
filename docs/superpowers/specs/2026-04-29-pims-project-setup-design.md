@@ -45,8 +45,7 @@ Port the **Project Setup** sub-module of R's PIMS suite into SESPy as a new top-
 - `sespy/data_structure.py` — five new fields on `ProjectMetadata`; bump `PROJECT_SCHEMA_VERSION`; add unknown-key filter to `from_dict`.
 - `sespy/constants.py` — three new tuples: `DA_SITES`, `SPATIAL_SCALES`, `TEMPORAL_SCALES`. Mirror the R values exactly.
 - `sespy/event_bus.py` — add `project_change: reactive.Value[int]` and `emit_project_change()` method, alongside the existing `isa_change` pair. *[HISTORICAL — superseded by `af051c1`; `project_change` was never shipped. See §2 blockquote at the EventBus dataclass.]*
-- `sespy/dashboard.py` — add `setup` to the workflow stepper stage list, ordered before `create`.
-- `app.py` — register `pims` in `NAV` (top of list), `NAV_TO_STEP` (`"pims": "setup"`), `PANELS`, and the server-side registration block.
+- `app.py` — add `setup` to the workflow stepper stage list (lines 101-108), ordered before `create`; register `pims` in `NAV` (top of list), `NAV_TO_STEP` (`"pims": "setup"`), `PANELS`, and the server-side registration block.
 - `sespy/translations/core.json` — add ~22 new keys (see §2 i18n below).
 - `sespy/templates/{coastal_tourism,minimal_demo,offshore_wind,small_scale_fisheries}.json` — re-emit with the five new metadata fields populated. One commit per template, or a single "templates: populate PIMS metadata" commit.
 - `README.md` — bump module count 14 → 15; add a row to the modules table; bump test count by 1.
