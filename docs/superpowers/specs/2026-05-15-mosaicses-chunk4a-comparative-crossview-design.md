@@ -2,7 +2,7 @@
 
 **Status:** design — v3 (2026-05-15, revised after **two** rounds of in-loop agent review; first round caught 12 findings, second round caught 37 across 4 lenses)
 **Parent spec:** [`2026-05-08-mosaicses-design.md`](2026-05-08-mosaicses-design.md) — chunk 4 is decomposed per the parent spec §7 distinction between "substantive UI work" (chunk 4a) and "bookkeeping" (chunk 4b).
-**Predecessor chunk:** [`2026-05-12-mosaicses-chunk3-shiny-shell-topology-compartments.md`](../plans/2026-05-12-mosaicses-chunk3-shiny-shell-topology-compartments.md) — chunk 3 shipped 2026-05-15 (HEAD `80d0100`, 241 tests passing).
+**Predecessor chunk:** [`2026-05-12-mosaicses-chunk3-shiny-shell-topology-compartments.md`](../plans/2026-05-12-mosaicses-chunk3-shiny-shell-topology-compartments.md) — chunk 3 shipped 2026-05-15 with all tests passing. See chunk-3 test run for current count.
 **Sibling spec (forthcoming):** `2026-05-??-mosaicses-chunk4b-...-design.md` covering `project_setup.py`, `recent_projects.py`, `mosaic-skin.css`, the remaining 2 e2e tests, accessibility tabular fallbacks for pyvis, JS extraction, and the v1 ship checklist.
 
 ---
@@ -305,6 +305,8 @@ async def _on_loop_selection():
 - Reactive on `state.active_multises.get()` directly (cheap; no refresh gate).
 
 **JS handler block** (top-level in `cross_view_ui()`, embedded as `ui.tags.script(...)`):
+
+> **Load-bearing detail:** The global `window.__mosaicses_get_cross_view_network` accessor is set up by `pyvis.shiny.render_pyvis_network` when it mounts the canvas. The name convention is derived from the canvas's Shiny output id (`"cross_view"`). The handler closure captures this accessor once per page load, ensuring the handler always operates on the correct canvas instance. A hardcoded accessor per canvas id prevents collisions if multiple pyvis canvases are later added.
 
 ```javascript
 (function () {

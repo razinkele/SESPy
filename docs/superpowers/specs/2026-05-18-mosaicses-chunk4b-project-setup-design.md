@@ -1,7 +1,6 @@
 # MosaicSES Chunk 4b — Project Setup form (design spec)
 
 **Date:** 2026-05-18
-**Branch base:** `origin/main` at `27e3476` (chunk-4a shipped 2026-05-18; 269 tests passing).
 **Spec author:** Brainstorm session 2026-05-18.
 
 ## 1. Goal + scope
