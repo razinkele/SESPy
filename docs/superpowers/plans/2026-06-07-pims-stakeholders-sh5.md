@@ -1,6 +1,6 @@
 # PIMS Stakeholders SH5 — Analysis Summary — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a read-only **Analysis** sub-tab to the Stakeholders panel: a 7-metric statistics summary + 3 matplotlib charts (engagement coverage, type distribution, sector distribution). Pure helpers + render layer; i18n; tests.
 
@@ -32,7 +32,7 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
 
 **Files:** Modify `sespy/stakeholders.py`, `tests/test_stakeholders.py`
 
-- [ ] **Step 1: Write the failing tests** — extend the `from sespy.stakeholders import (...)` block with `count_by`, `engagement_coverage`, `stakeholder_stats`. Append:
+- [x] **Step 1: Write the failing tests** — extend the `from sespy.stakeholders import (...)` block with `count_by`, `engagement_coverage`, `stakeholder_stats`. Append:
   ```python
   def test_stakeholder_stats_counts():
       sh = [
@@ -84,9 +84,9 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
       assert count_by([], "sector") == {}
   ```
 
-- [ ] **Step 2: Run; verify fail** — ImportError on the new names.
+- [x] **Step 2: Run; verify fail** — ImportError on the new names.
 
-- [ ] **Step 3: Implement** — append to `sespy/stakeholders.py`:
+- [x] **Step 3: Implement** — append to `sespy/stakeholders.py`:
   ```python
   # --- SH5: analysis summary (pure) ------------------------------------------
   def stakeholder_stats(stakeholders, engagements, communications) -> dict:
@@ -118,9 +118,9 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
   ```
   (`Stakeholder`/`Engagement`/`Communication` are already imported in this file.)
 
-- [ ] **Step 4: Run + flake8** — `micromamba run -n shiny python -m pytest tests/test_stakeholders.py -q` + `flake8 sespy/stakeholders.py tests/test_stakeholders.py --max-line-length=100` → green/clean.
+- [x] **Step 4: Run + flake8** — `micromamba run -n shiny python -m pytest tests/test_stakeholders.py -q` + `flake8 sespy/stakeholders.py tests/test_stakeholders.py --max-line-length=100` → green/clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add sespy/stakeholders.py tests/test_stakeholders.py
   git commit -m "feat(stakeholders): pure analysis helpers (stats/coverage/count_by)"
@@ -132,7 +132,7 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
 
 **Files:** Modify `sespy/translations/core.json`
 
-- [ ] **Step 1: Add the keys (programmatic)** — temp script: load JSON, reuse the 9-lang set from `stakeholders.tab_activity`, add each key as `{lang: english}`, dump with `json.dumps(data, indent=2, ensure_ascii=False) + "\n"`, then delete the script. Keys + English:
+- [x] **Step 1: Add the keys (programmatic)** — temp script: load JSON, reuse the 9-lang set from `stakeholders.tab_activity`, add each key as `{lang: english}`, dump with `json.dumps(data, indent=2, ensure_ascii=False) + "\n"`, then delete the script. Keys + English:
   - `stakeholders.tab_analysis` → **"Analysis"**
   - `stakeholders.analysis.heading` → "Stakeholder analysis summary"
   - `stakeholders.analysis.stats_heading` → "Stakeholder statistics"
@@ -154,13 +154,13 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
   - `stakeholders.analysis.count` → "Count"
   - `stakeholders.analysis.add_stakeholders` → "Add stakeholders to see this chart."
 
-- [ ] **Step 2: Validate**
+- [x] **Step 2: Validate**
   ```
   micromamba run -n shiny python -c "import json; d=json.load(open('sespy/translations/core.json',encoding='utf-8'))['translation']; ks=['stakeholders.tab_analysis','stakeholders.analysis.total','stakeholders.analysis.by_type','stakeholders.analysis.empty','stakeholders.analysis.add_stakeholders']; [print(k, sorted(d[k].keys())==sorted(d['stakeholders.tab_activity'].keys()), repr(d[k]['en'])) for k in ks]"
   ```
   Expect each present, language set identical to `tab_activity`'s; `git diff --stat` shows only insertions.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   ```bash
   git add sespy/translations/core.json
   git commit -m "i18n: stakeholders.analysis.* + tab_analysis (9 langs)"
@@ -172,7 +172,7 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
 
 **Files:** Modify `sespy/modules/pims_stakeholders.py`
 
-- [ ] **Step 1: Imports + panel** — replace the `from sespy.stakeholders import (...)` block with the full set (existing names + `count_by` + the two **aliased** helpers, since `stakeholder_stats`/`engagement_coverage` collide with the output-function names):
+- [x] **Step 1: Imports + panel** — replace the `from sespy.stakeholders import (...)` block with the full set (existing names + `count_by` + the two **aliased** helpers, since `stakeholder_stats`/`engagement_coverage` collide with the output-function names):
   ```python
   from sespy.stakeholders import (
       COMMUNICATION_AUDIENCES,
@@ -229,7 +229,7 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
   ui.nav_panel(_t("stakeholders.tab_analysis"), _analysis_panel()),
   ```
 
-- [ ] **Step 2: Server renders** — append after the SH4 communication renders:
+- [x] **Step 2: Server renders** — append after the SH4 communication renders:
   ```python
       @output
       @render.ui
@@ -299,7 +299,7 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
   for rotated categorical labels; `ax.bar(x, ...)` over integer positions pairs with
   it. Keep `fig.tight_layout()`.)
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
   ```
   micromamba run -n shiny python -c "from sespy.modules.pims_stakeholders import pims_stakeholders_ui; pims_stakeholders_ui('stakeholders'); print('ui ok')"
   micromamba run -n shiny python -m flake8 sespy/modules/pims_stakeholders.py --max-line-length=100
@@ -309,7 +309,7 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
   `(Select-String -Path sespy\modules\pims_stakeholders.py -Pattern 'sh_(name|type|sector|contact|interests|role|power|interest|attitude|engagement_level)' -AllMatches | ForEach-Object { $_.Matches.Value }) | Sort-Object -Unique | Measure-Object | Select-Object -ExpandProperty Count`
   Then the unit suite: `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` → green.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add sespy/modules/pims_stakeholders.py
   git commit -m "feat(stakeholders): Analysis sub-tab (stats summary + distribution charts)"
@@ -321,9 +321,9 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
 
 **Files:** Modify `tests/test_stakeholders_e2e.py` (extend; sections 1–9 UNCHANGED)
 
-- [ ] **Step 1: Develop selectors against the live app** — `micromamba run -n shiny shiny run app.py --port 8000` (background). Probe: nav `#sespy_nav_stakeholders`, ensure a stakeholder exists, switch to the analysis tab via `#stakeholders-stakeholder_tabs a[data-value='Analysis']`, read `#stakeholders-stakeholder_stats` inner text — confirm it shows the "Total stakeholders" label and a count. Delete the probe.
+- [x] **Step 1: Develop selectors against the live app** — `micromamba run -n shiny shiny run app.py --port 8000` (background). Probe: nav `#sespy_nav_stakeholders`, ensure a stakeholder exists, switch to the analysis tab via `#stakeholders-stakeholder_tabs a[data-value='Analysis']`, read `#stakeholders-stakeholder_stats` inner text — confirm it shows the "Total stakeholders" label and a count. Delete the probe.
 
-- [ ] **Step 2: Extend the e2e script** — after section 9, add section 10 (poll the stats UI; reliable, avoids plot-img flake):
+- [x] **Step 2: Extend the e2e script** — after section 9, add section 10 (poll the stats UI; reliable, avoids plot-img flake):
   ```python
   # 10. ANALYSIS — switch to the Analysis tab; assert the stats summary
   await page.click(
@@ -341,9 +341,9 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
   ```
   (Insert before the screenshot block. A stakeholder exists by this point — section 6 added "Coastal NGO".)
 
-- [ ] **Step 3: Run** — with the app on :8000: `micromamba run -n shiny python tests/test_stakeholders_e2e.py` → exit 0 (re-run once if the section-7 grid img flakes). Stop the server.
+- [x] **Step 3: Run** — with the app on :8000: `micromamba run -n shiny python tests/test_stakeholders_e2e.py` → exit 0 (re-run once if the section-7 grid img flakes). Stop the server.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add tests/test_stakeholders_e2e.py
   git commit -m "test(stakeholders): e2e — Analysis stats summary"
@@ -352,9 +352,9 @@ semantics/test values, the alias requirement, and i18n/e2e are all correct.
 ---
 
 ## Final verification
-- [ ] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
-- [ ] `micromamba run -n shiny python tests/run_e2e.py` — stakeholders e2e passes (note: `test_data_entry_e2e`/`test_simulation_e2e` have a KNOWN pre-existing pyvis/render-timing flakiness reproducible on `main`, unrelated to SH5).
-- [ ] Then invoke **superpowers:finishing-a-development-branch** (merge no-ff into `main`, delete the branch).
+- [x] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
+- [x] `micromamba run -n shiny python tests/run_e2e.py` — stakeholders e2e passes (note: `test_data_entry_e2e`/`test_simulation_e2e` have a KNOWN pre-existing pyvis/render-timing flakiness reproducible on `main`, unrelated to SH5).
+- [x] Then invoke **superpowers:finishing-a-development-branch** (merge no-ff into `main`, delete the branch).
 
 ## Sequencing notes
 - TDD order: pure helpers (1) → i18n (2) → module (3) → e2e (4). No data-model task (no schema change). Branch `feat/pims-stakeholders-sh5` is already cut from `main`.

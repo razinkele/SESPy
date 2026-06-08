@@ -1,6 +1,6 @@
 # PIMS Stakeholders SH2 — Power-Interest Grid Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a Power-Interest (Mendelow) grid + per-quadrant engagement strategies as a second sub-tab of the Stakeholders panel.
 
@@ -26,7 +26,7 @@
 - Modify: `sespy/stakeholders.py` (append `level_num`, `classify_quadrant`, `summarize_quadrants`, `QUADRANTS`, `_LEVEL_NUM`)
 - Test: `tests/test_stakeholders.py` (append)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_stakeholders.py` (the import goes at the TOP with the other imports, not mid-file — to avoid E402):
 
@@ -79,12 +79,12 @@ def test_summarize_quadrants():
     assert set(out) == {"key_players", "keep_satisfied", "keep_informed", "monitor", "unplotted"}
 ```
 
-- [ ] **Step 2: Run; verify fail**
+- [x] **Step 2: Run; verify fail**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_stakeholders.py -q -k "level_num or classify or summarize"`
 Expected: FAIL — `ImportError: cannot import name 'level_num'`.
 
-- [ ] **Step 3: Implement the helpers**
+- [x] **Step 3: Implement the helpers**
 
 Append to `sespy/stakeholders.py` (it already imports `Stakeholder`; no new import):
 ```python
@@ -129,12 +129,12 @@ def summarize_quadrants(items: list[Stakeholder]) -> dict[str, list[str]]:
     return out
 ```
 
-- [ ] **Step 4: Run; verify pass**
+- [x] **Step 4: Run; verify pass**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_stakeholders.py -q`
 Expected: PASS (all stakeholder tests).
 
-- [ ] **Step 5: flake8 + commit**
+- [x] **Step 5: flake8 + commit**
 
 Run: `micromamba run -n shiny python -m flake8 sespy/stakeholders.py tests/test_stakeholders.py --max-line-length=100` (expect clean).
 ```bash
@@ -149,7 +149,7 @@ git commit -m "feat(stakeholders): pure Power-Interest quadrant classification h
 **Files:**
 - Modify: `sespy/translations/core.json`
 
-- [ ] **Step 1: Add the keys (programmatic, lowest-risk)**
+- [x] **Step 1: Add the keys (programmatic, lowest-risk)**
 
 Add these keys inside the top-level `"translation"` object, each as an object with all 9 language codes (`en,es,fr,de,lt,pt,it,no,el`) set to the same English string. Use a one-off Python script (load json, add keys if absent, `json.dump(..., indent=2, ensure_ascii=False)` + trailing newline, utf-8) and DELETE the script after. Verify the diff is additive-only and existing non-ASCII (Greek) is preserved (`ensure_ascii=False`).
 
@@ -175,13 +175,13 @@ Keys (values are the English placeholder for all 9 langs):
 Do NOT add `stakeholders.grid.high/medium/low` — axis ticks reuse the existing
 `stakeholders.power.HIGH/MEDIUM/LOW`.
 
-- [ ] **Step 2: Validate**
+- [x] **Step 2: Validate**
 
 Run (single line):
 `micromamba run -n shiny python -c "import json;d=json.load(open('sespy/translations/core.json',encoding='utf-8'));t=d['translation'];ks=['stakeholders.tab_grid','stakeholders.grid.title','stakeholders.grid.key_players.strategy','stakeholders.grid.monitor'];import sys;[sys.exit('MISSING '+k) for k in ks if k not in t or len(t[k])!=9];print('ok')"`
 Expected: `ok`. Then confirm app still imports: `micromamba run -n shiny python -c "import app; print('app ok')"`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 ```bash
 git add sespy/translations/core.json
 git commit -m "i18n: stakeholders.grid.* + tab keys (9 langs)"
@@ -194,7 +194,7 @@ git commit -m "i18n: stakeholders.grid.* + tab keys (9 langs)"
 **Files:**
 - Modify: `sespy/modules/pims_stakeholders.py`
 
-- [ ] **Step 1: Restructure the UI into a `navset_tab`**
+- [x] **Step 1: Restructure the UI into a `navset_tab`**
 
 In `pims_stakeholders_ui`, extract the existing `ui.layout_columns(...)` (the form card + table card) into a module-level plain helper `_register_panel()`, add `_grid_panel()`, and wrap both in a `navset_tab`. Replace the current `pims_stakeholders_ui` body:
 
@@ -258,7 +258,7 @@ The inputs they build still receive the `stakeholders` namespace because namespa
 applied by the enclosing `@module.ui` at render time. Register is listed FIRST →
 default-active tab → existing SH1 e2e unaffected.
 
-- [ ] **Step 2: Add imports for the helpers**
+- [x] **Step 2: Add imports for the helpers**
 
 At the top of `pims_stakeholders.py`, extend the stakeholders import. The grid render
 uses `level_num` (to filter plottable rows) and the summary uses `summarize_quadrants`;
@@ -275,7 +275,7 @@ from sespy.stakeholders import (
 )
 ```
 
-- [ ] **Step 3: Add the grid plot render (in the server)**
+- [x] **Step 3: Add the grid plot render (in the server)**
 
 Add inside `pims_stakeholders_server` (after the existing renders/handlers). Mirror `analysis_metrics.py:191`'s `@render.plot` idiom (build `fig, ax`, return `fig`):
 ```python
@@ -329,7 +329,7 @@ Add inside `pims_stakeholders_server` (after the existing renders/handlers). Mir
         return fig
 ```
 
-- [ ] **Step 4: Add the grid summary render (in the server)**
+- [x] **Step 4: Add the grid summary render (in the server)**
 ```python
     @output
     @render.ui
@@ -359,7 +359,7 @@ Add inside `pims_stakeholders_server` (after the existing renders/handlers). Mir
         return ui.div(ui.h5(tr("stakeholders.grid.summary_heading")), *blocks, *footer)
 ```
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```
 micromamba run -n shiny python -c "from sespy.modules.pims_stakeholders import pims_stakeholders_ui, pims_stakeholders_server; pims_stakeholders_ui('stakeholders'); print('ok')"
@@ -371,7 +371,7 @@ micromamba run -n shiny python -c "import app; print('app ok')"
 Expected: `ok`, flake8 clean, `app ok`, count 10. Then full unit suite (exclude self-running e2e):
 `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` → all pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 ```bash
 git add sespy/modules/pims_stakeholders.py
 git commit -m "feat(stakeholders): Power-Interest grid sub-tab (plot + quadrant summary)"
@@ -384,11 +384,11 @@ git commit -m "feat(stakeholders): Power-Interest grid sub-tab (plot + quadrant 
 **Files:**
 - Modify: `tests/test_stakeholders_e2e.py` (extend the existing script)
 
-- [ ] **Step 1: Develop the tab-switch selector against the live app**
+- [x] **Step 1: Develop the tab-switch selector against the live app**
 
 Launch `micromamba run -n shiny shiny run app.py --port 8000` (background). Using the Playwright MCP: nav to `#sespy_nav_stakeholders`, add a stakeholder with power=HIGH & interest=HIGH (via the existing form pattern + `el.value`+dispatch selects), then find the selector that switches to the **Power-Interest Grid** sub-tab (a Bootstrap `nav-link` — likely `#stakeholders-stakeholder_tabs` contains `a.nav-link` elements; click the one whose text is the grid tab label, e.g. `page.click("#stakeholders-stakeholder_tabs a:has-text('Power-Interest Grid')")`). Confirm via snapshot that the plot `<img>` appears and the summary text shows the name. Record the working selector.
 
-- [ ] **Step 2: Extend the e2e script**
+- [x] **Step 2: Extend the e2e script**
 
 After the existing CRUD assertions in `tests/test_stakeholders_e2e.py` (which stay UNCHANGED — Register is the default tab), add a focused grid section. In the Register tab, add a stakeholder with a **concrete, documented name** held in a variable — use `KEY_NAME = "TestKey"` — and power=HIGH & interest=HIGH (drive the selects via the `el.value`+dispatch pattern). Then click the grid sub-tab (your Step 1 selector) and assert. There is NO literal `<...>` placeholder — use the `KEY_NAME` variable in both the add step and the assertions:
 ```python
@@ -407,11 +407,11 @@ assert "Key players" in txt and KEY_NAME in txt, "grid summary missing key playe
 print("grid: plot img + key-player summary — PASS")
 ```
 
-- [ ] **Step 3: Run**
+- [x] **Step 3: Run**
 
 With the app running on :8000: `micromamba run -n shiny python tests/test_stakeholders_e2e.py` → exit 0. Stop the background server. Optionally run the full battery `micromamba run -n shiny python tests/run_e2e.py` (24→still 24 scripts; the stakeholders script now also asserts the grid).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 ```bash
 git add tests/test_stakeholders_e2e.py
 git commit -m "test(stakeholders): e2e — Power-Interest grid renders + summary"
@@ -420,9 +420,9 @@ git commit -m "test(stakeholders): e2e — Power-Interest grid renders + summary
 ---
 
 ## Final verification
-- [ ] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
-- [ ] `micromamba run -n shiny python tests/run_e2e.py` — all scripts pass (incl. the extended stakeholders e2e).
-- [ ] Then invoke **superpowers:finishing-a-development-branch**.
+- [x] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
+- [x] `micromamba run -n shiny python tests/run_e2e.py` — all scripts pass (incl. the extended stakeholders e2e).
+- [x] Then invoke **superpowers:finishing-a-development-branch**.
 
 ## Self-review (against spec rev.2)
 **Spec coverage:** §3 helpers → Task 1; §5 i18n → Task 2 (and the "reuse power.* for ticks, no grid.high/medium/low" decision is honored); §4.1 navset restructure (id, Register-first, plain helpers) → Task 3 Step 1; §4.2 plot (empty-state, deterministic jitter, no click tracking, quadrant rects/labels/ticks) → Task 3 Step 3; §4.3 summary → Task 3 Step 4; §6.1 unit → Task 1; §6.2 e2e (existing CRUD unchanged + grid img + summary) → Task 4. Covered.

@@ -1,6 +1,6 @@
 # PIMS Stakeholders SH4 — Communication Plan — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a **communication plan** log as a fourth sub-tab of the Stakeholders panel: a `Communication` child entity (persisted, schema 4→5), pure helpers, an add-form + log table, i18n, and tests.
 
@@ -27,7 +27,7 @@
 **Files:**
 - Modify: `sespy/data_structure.py`, `tests/test_stakeholders.py`, `tests/test_data_structure.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
   Extend the `from sespy.data_structure import (...)` block in `tests/test_stakeholders.py` to add `Communication`. Add a factory + tests:
   ```python
@@ -103,10 +103,10 @@
 
   In `tests/test_data_structure.py` rename `test_schema_version_is_4` → `test_schema_version_is_5` (assert `== 5`).
 
-- [ ] **Step 2: Run; verify fail**
+- [x] **Step 2: Run; verify fail**
   `micromamba run -n shiny python -m pytest tests/test_stakeholders.py tests/test_data_structure.py -q` → ImportError (no `Communication`) / version-5 assertion failures.
 
-- [ ] **Step 3: Implement** in `sespy/data_structure.py`:
+- [x] **Step 3: Implement** in `sespy/data_structure.py`:
   1. `PROJECT_SCHEMA_VERSION = 5`.
   2. Add the dataclass after `Engagement` (before `Project`):
      ```python
@@ -144,9 +144,9 @@
      )
      ```
 
-- [ ] **Step 4: Run; verify pass** — `micromamba run -n shiny python -m pytest tests/test_stakeholders.py tests/test_data_structure.py -q` → green.
+- [x] **Step 4: Run; verify pass** — `micromamba run -n shiny python -m pytest tests/test_stakeholders.py tests/test_data_structure.py -q` → green.
 
-- [ ] **Step 5: flake8 + commit**
+- [x] **Step 5: flake8 + commit**
   `micromamba run -n shiny python -m flake8 sespy/data_structure.py tests/test_stakeholders.py --max-line-length=100` (note: `tests/test_data_structure.py` has PRE-EXISTING E402/F401 at ~line 124 unrelated to SH4 — do not fix).
   ```bash
   git add sespy/data_structure.py tests/test_stakeholders.py tests/test_data_structure.py
@@ -160,7 +160,7 @@
 **Files:**
 - Modify: `sespy/stakeholders.py`, `tests/test_stakeholders.py`
 
-- [ ] **Step 1: Write the failing tests** — extend the `from sespy.stakeholders import (...)` block with `add_communication`, `communication_rows`, `remove_communication`. Append:
+- [x] **Step 1: Write the failing tests** — extend the `from sespy.stakeholders import (...)` block with `add_communication`, `communication_rows`, `remove_communication`. Append:
   ```python
   def test_add_communication_assigns_id_and_created_at():
       out = add_communication([], {"audience": "key_players", "comm_type": "report"},
@@ -196,9 +196,9 @@
   ```
   (`Communication` is imported into the test file in Task 1; `_ident` was added in SH3's tests.)
 
-- [ ] **Step 2: Run; verify fail** — ImportError on the new helper names.
+- [x] **Step 2: Run; verify fail** — ImportError on the new helper names.
 
-- [ ] **Step 3: Implement** in `sespy/stakeholders.py`:
+- [x] **Step 3: Implement** in `sespy/stakeholders.py`:
   - Add `Communication` to the `from sespy.data_structure import ...` line.
   - **Generalize `_label`** to take a full prefix, and update the two SH3 call sites:
     ```python
@@ -254,9 +254,9 @@
         ]
     ```
 
-- [ ] **Step 4: Run + flake8** — `micromamba run -n shiny python -m pytest tests/test_stakeholders.py -q` (incl. the unchanged SH3 engagement_rows tests) + `flake8 sespy/stakeholders.py tests/test_stakeholders.py --max-line-length=100` → green/clean.
+- [x] **Step 4: Run + flake8** — `micromamba run -n shiny python -m pytest tests/test_stakeholders.py -q` (incl. the unchanged SH3 engagement_rows tests) + `flake8 sespy/stakeholders.py tests/test_stakeholders.py --max-line-length=100` → green/clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add sespy/stakeholders.py tests/test_stakeholders.py
   git commit -m "feat(stakeholders): pure communication helpers + generalize _label"
@@ -268,7 +268,7 @@
 
 **Files:** Modify `sespy/translations/core.json`
 
-- [ ] **Step 1: Add the keys (programmatic)** — a temp script that loads the JSON, reuses the 9-lang set from `stakeholders.tab_activity`, adds each key as `{lang: english_value}`, dumps with `json.dumps(data, indent=2, ensure_ascii=False) + "\n"`, then is deleted. Keys + English:
+- [x] **Step 1: Add the keys (programmatic)** — a temp script that loads the JSON, reuses the 9-lang set from `stakeholders.tab_activity`, adds each key as `{lang: english_value}`, dumps with `json.dumps(data, indent=2, ensure_ascii=False) + "\n"`, then is deleted. Keys + English:
   - `stakeholders.tab_comm` → **"Communication Plan"**
   - `stakeholders.comm.add_heading` → "Add communication item"
   - `stakeholders.comm.audience` → "Target audience"
@@ -285,13 +285,13 @@
   - `stakeholders.comm.type.<code>` (9): report→"Report", newsletter→"Newsletter", presentation→"Presentation", website_update→"Website update", press_release→"Press release", social_media→"Social media", email→"Email", meeting_notes→"Meeting notes", other→"Other"
   - `stakeholders.comm.frequency.<code>` (6): one_time→"One-time", weekly→"Weekly", monthly→"Monthly", quarterly→"Quarterly", annual→"Annual", as_needed→"As needed"
 
-- [ ] **Step 2: Validate**
+- [x] **Step 2: Validate**
   ```
   micromamba run -n shiny python -c "import json; d=json.load(open('sespy/translations/core.json',encoding='utf-8'))['translation']; ks=['stakeholders.tab_comm','stakeholders.comm.audience.key_players','stakeholders.comm.type.report','stakeholders.comm.frequency.one_time','stakeholders.comm.required']; [print(k, sorted(d[k].keys())==sorted(d['stakeholders.tab_activity'].keys()), repr(d[k]['en'])) for k in ks]"
   ```
   Expect each key present, language set identical to `tab_activity`'s; `git diff --stat` shows only insertions.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   ```bash
   git add sespy/translations/core.json
   git commit -m "i18n: stakeholders.comm.* + tab_comm (9 langs)"
@@ -303,7 +303,7 @@
 
 **Files:** Modify `sespy/modules/pims_stakeholders.py`
 
-- [ ] **Step 1: Imports + panel** — extend the `from sespy.stakeholders import (...)` block with `COMMUNICATION_AUDIENCES`, `COMMUNICATION_TYPES`, `COMMUNICATION_FREQUENCIES`, `add_communication`, `communication_rows`. Add a plain panel next to `_engagement_panel`:
+- [x] **Step 1: Imports + panel** — extend the `from sespy.stakeholders import (...)` block with `COMMUNICATION_AUDIENCES`, `COMMUNICATION_TYPES`, `COMMUNICATION_FREQUENCIES`, `add_communication`, `communication_rows`. Add a plain panel next to `_engagement_panel`:
   ```python
   def _communication_panel() -> ui.Tag:
       """Communication Plan tab — add-form + communications log. Plain (un-decorated)."""
@@ -340,7 +340,7 @@
   ui.nav_panel(_t("stakeholders.tab_comm"), _communication_panel()),
   ```
 
-- [ ] **Step 2: Server logic** — add an accessor near `_engagements()`:
+- [x] **Step 2: Server logic** — add an accessor near `_engagements()`:
   ```python
       def _communications():
           return project_data.get().communications
@@ -381,7 +381,7 @@
           return render.DataGrid(pd.DataFrame(rows or stub), height="320px")
   ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
   ```
   micromamba run -n shiny python -c "from sespy.modules.pims_stakeholders import pims_stakeholders_ui, pims_stakeholders_server; pims_stakeholders_ui('stakeholders'); print('ui ok')"
   micromamba run -n shiny python -m flake8 sespy/modules/pims_stakeholders.py --max-line-length=100
@@ -391,7 +391,7 @@
   `(Select-String -Path sespy\modules\pims_stakeholders.py -Pattern 'sh_(name|type|sector|contact|interests|role|power|interest|attitude|engagement_level)' -AllMatches | ForEach-Object { $_.Matches.Value }) | Sort-Object -Unique | Measure-Object | Select-Object -ExpandProperty Count`
   Then the unit suite: `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` → green.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add sespy/modules/pims_stakeholders.py
   git commit -m "feat(stakeholders): Communication Plan sub-tab (form + communications log)"
@@ -403,9 +403,9 @@
 
 **Files:** Modify `tests/test_stakeholders_e2e.py` (extend; sections 1–8 UNCHANGED)
 
-- [ ] **Step 1: Develop selectors against the live app** — `micromamba run -n shiny shiny run app.py --port 8000` (background). Probe: nav `#sespy_nav_stakeholders`, switch to the comm tab via `#stakeholders-stakeholder_tabs a[data-value='Communication Plan']`, `_set_select` `comm_audience`=`key_players` + `comm_type`=`report`, click `#stakeholders-add_communication`, confirm "Report" (and/or "Key players") shows in `#stakeholders-communication_table`. Delete the probe.
+- [x] **Step 1: Develop selectors against the live app** — `micromamba run -n shiny shiny run app.py --port 8000` (background). Probe: nav `#sespy_nav_stakeholders`, switch to the comm tab via `#stakeholders-stakeholder_tabs a[data-value='Communication Plan']`, `_set_select` `comm_audience`=`key_players` + `comm_type`=`report`, click `#stakeholders-add_communication`, confirm "Report" (and/or "Key players") shows in `#stakeholders-communication_table`. Delete the probe.
 
-- [ ] **Step 2: Extend the e2e script** — after section 8, add section 9 (mirror SH3's inline-read pattern, NOT `_poll_table_contains`):
+- [x] **Step 2: Extend the e2e script** — after section 8, add section 9 (mirror SH3's inline-read pattern, NOT `_poll_table_contains`):
   ```python
   # 9. COMMUNICATION — add a communication item; assert it shows in the log
   await page.click(
@@ -426,9 +426,9 @@
   ```
   (Insert before the screenshot block.)
 
-- [ ] **Step 3: Run** — with the app on :8000: `micromamba run -n shiny python tests/test_stakeholders_e2e.py` → exit 0 (re-run once if the section-7 grid img flakes; `run_e2e.py` has retry-once). Stop the server.
+- [x] **Step 3: Run** — with the app on :8000: `micromamba run -n shiny python tests/test_stakeholders_e2e.py` → exit 0 (re-run once if the section-7 grid img flakes; `run_e2e.py` has retry-once). Stop the server.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add tests/test_stakeholders_e2e.py
   git commit -m "test(stakeholders): e2e — communication item add + log"
@@ -437,9 +437,9 @@
 ---
 
 ## Final verification
-- [ ] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
-- [ ] `micromamba run -n shiny python tests/run_e2e.py` — all scripts pass (incl. the extended stakeholders e2e).
-- [ ] Then invoke **superpowers:finishing-a-development-branch** (merge no-ff into `main`, delete the branch).
+- [x] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
+- [x] `micromamba run -n shiny python tests/run_e2e.py` — all scripts pass (incl. the extended stakeholders e2e).
+- [x] Then invoke **superpowers:finishing-a-development-branch** (merge no-ff into `main`, delete the branch).
 
 ## Sequencing notes
 - TDD order: data model (1) → pure helpers + `_label` refactor (2) → i18n (3) → module (4) → e2e (5). Branch `feat/pims-stakeholders-sh4` is already cut from `main`.

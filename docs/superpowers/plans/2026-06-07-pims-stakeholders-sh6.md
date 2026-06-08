@@ -1,6 +1,6 @@
 # PIMS Stakeholders SH6 — Export Downloads — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add R Tab 5's three export downloads to the SH5 Analysis sub-tab: an Excel full report (openpyxl), a Power-Interest grid PNG (matplotlib), and a summary PDF (reportlab). Pure byte-builders + `@render.download` wiring; i18n; unit + e2e tests.
 
@@ -32,7 +32,7 @@ the lighter `download.suggested_filename` assertion.
 
 **Files:** Create `sespy/stakeholder_reports.py`; create `tests/test_stakeholder_reports.py`; edit `pyproject.toml` + `environment.yml` (declare `reportlab>=4.0`)
 
-- [ ] **Step 1: Write the failing tests** (`tests/test_stakeholder_reports.py`):
+- [x] **Step 1: Write the failing tests** (`tests/test_stakeholder_reports.py`):
   ```python
   import io
 
@@ -111,9 +111,9 @@ the lighter `download.suggested_filename` assertion.
       assert data[:4] == b"%PDF"
   ```
 
-- [ ] **Step 2: Run; verify fail** — `micromamba run -n shiny python -m pytest tests/test_stakeholder_reports.py -q` → ImportError (no module).
+- [x] **Step 2: Run; verify fail** — `micromamba run -n shiny python -m pytest tests/test_stakeholder_reports.py -q` → ImportError (no module).
 
-- [ ] **Step 3: Implement** `sespy/stakeholder_reports.py`:
+- [x] **Step 3: Implement** `sespy/stakeholder_reports.py`:
   ```python
   """Pure byte-builders for the PIMS Stakeholders export downloads (SH6).
 
@@ -216,9 +216,9 @@ the lighter `download.suggested_filename` assertion.
   (The PNG reuses the SH2 grid's deterministic jitter + axis i18n keys, which already
   exist; `translate` is injected so the builder stays Shiny-free.)
 
-- [ ] **Step 4: Run + flake8** — `micromamba run -n shiny python -m pytest tests/test_stakeholder_reports.py -q` + `flake8 sespy/stakeholder_reports.py tests/test_stakeholder_reports.py --max-line-length=100` → green/clean.
+- [x] **Step 4: Run + flake8** — `micromamba run -n shiny python -m pytest tests/test_stakeholder_reports.py -q` + `flake8 sespy/stakeholder_reports.py tests/test_stakeholder_reports.py --max-line-length=100` → green/clean.
 
-- [ ] **Step 5: Commit** (include the dependency declarations)
+- [x] **Step 5: Commit** (include the dependency declarations)
   ```bash
   git add sespy/stakeholder_reports.py tests/test_stakeholder_reports.py pyproject.toml environment.yml
   git commit -m "feat(stakeholders): pure export byte-builders (xlsx/png/pdf) + reportlab dep"
@@ -230,19 +230,19 @@ the lighter `download.suggested_filename` assertion.
 
 **Files:** Modify `sespy/translations/core.json`
 
-- [ ] **Step 1: Add the keys (programmatic)** — temp script: load JSON, reuse the 9-lang set from `stakeholders.tab_activity`, add `{lang: english}`, dump with `json.dumps(data, indent=2, ensure_ascii=False) + "\n"`, delete the script. Keys:
+- [x] **Step 1: Add the keys (programmatic)** — temp script: load JSON, reuse the 9-lang set from `stakeholders.tab_activity`, add `{lang: english}`, dump with `json.dumps(data, indent=2, ensure_ascii=False) + "\n"`, delete the script. Keys:
   - `stakeholders.analysis.export_heading` → "Export stakeholder data"
   - `stakeholders.analysis.export_excel` → "Download full report (Excel)"
   - `stakeholders.analysis.export_png` → "Download Power-Interest grid (PNG)"
   - `stakeholders.analysis.export_pdf` → "Download summary (PDF)"
 
-- [ ] **Step 2: Validate**
+- [x] **Step 2: Validate**
   ```
   micromamba run -n shiny python -c "import json; d=json.load(open('sespy/translations/core.json',encoding='utf-8'))['translation']; ks=['stakeholders.analysis.export_heading','stakeholders.analysis.export_excel','stakeholders.analysis.export_png','stakeholders.analysis.export_pdf']; [print(k, sorted(d[k].keys())==sorted(d['stakeholders.tab_activity'].keys()), repr(d[k]['en'])) for k in ks]"
   ```
   Expect each present, lang set identical; `git diff --stat` shows only insertions.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   ```bash
   git add sespy/translations/core.json
   git commit -m "i18n: stakeholders.analysis.export_* (9 langs)"
@@ -254,7 +254,7 @@ the lighter `download.suggested_filename` assertion.
 
 **Files:** Modify `sespy/modules/pims_stakeholders.py`
 
-- [ ] **Step 1: Imports + `_stamp` + UI** — add near the top:
+- [x] **Step 1: Imports + `_stamp` + UI** — add near the top:
   ```python
   from datetime import date, datetime   # extend the existing `from datetime import date`
   from sespy.stakeholder_reports import (
@@ -283,7 +283,7 @@ the lighter `download.suggested_filename` assertion.
   (Add it inside the `_analysis_panel` `ui.div(...)`, after the second
   `layout_columns` row — i.e. as the div's last child.)
 
-- [ ] **Step 2: Server handlers** — append after the SH5 analysis renders (NO `@output`
+- [x] **Step 2: Server handlers** — append after the SH5 analysis renders (NO `@output`
   on download handlers, per the report_export precedent):
   ```python
       @render.download(filename=lambda: f"stakeholders-{_stamp()}.xlsx")
@@ -300,7 +300,7 @@ the lighter `download.suggested_filename` assertion.
           yield build_summary_pdf(project_data.get().metadata.name, stats, _items())
   ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
   ```
   micromamba run -n shiny python -c "from sespy.modules.pims_stakeholders import pims_stakeholders_ui; pims_stakeholders_ui('stakeholders'); print('ui ok')"
   micromamba run -n shiny python -m flake8 sespy/modules/pims_stakeholders.py --max-line-length=100
@@ -310,7 +310,7 @@ the lighter `download.suggested_filename` assertion.
   `(Select-String -Path sespy\modules\pims_stakeholders.py -Pattern 'sh_(name|type|sector|contact|interests|role|power|interest|attitude|engagement_level)' -AllMatches | ForEach-Object { $_.Matches.Value }) | Sort-Object -Unique | Measure-Object | Select-Object -ExpandProperty Count`
   Then the unit suite: `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` → green.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add sespy/modules/pims_stakeholders.py
   git commit -m "feat(stakeholders): Analysis export downloads (xlsx/png/pdf buttons)"
@@ -322,11 +322,11 @@ the lighter `download.suggested_filename` assertion.
 
 **Files:** Modify `tests/test_stakeholders_e2e.py`
 
-- [ ] **Step 1: Enable downloads on the context** — change the single
+- [x] **Step 1: Enable downloads on the context** — change the single
   `browser.new_context()` call to `browser.new_context(accept_downloads=True)`
   (sections 1–10 don't download, so this is safe). Find the exact current call first.
 
-- [ ] **Step 2: Add section 11** — after section 10 (still on the Analysis tab), before
+- [x] **Step 2: Add section 11** — after section 10 (still on the Analysis tab), before
   the screenshot:
   ```python
   # 11. EXPORT — the three download buttons fire with the right file types
@@ -341,9 +341,9 @@ the lighter `download.suggested_filename` assertion.
   print("11. export: xlsx/png/pdf downloads fire — PASS")
   ```
 
-- [ ] **Step 3: Run** — `micromamba run -n shiny shiny run app.py --port 8000` (background); `micromamba run -n shiny python tests/test_stakeholders_e2e.py` → exit 0 (re-run once if the section-7 grid img flakes). Stop the server.
+- [x] **Step 3: Run** — `micromamba run -n shiny shiny run app.py --port 8000` (background); `micromamba run -n shiny python tests/test_stakeholders_e2e.py` → exit 0 (re-run once if the section-7 grid img flakes). Stop the server.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add tests/test_stakeholders_e2e.py
   git commit -m "test(stakeholders): e2e — Analysis export downloads fire"
@@ -352,9 +352,9 @@ the lighter `download.suggested_filename` assertion.
 ---
 
 ## Final verification
-- [ ] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
-- [ ] `micromamba run -n shiny python tests/run_e2e.py` — stakeholders e2e passes (note known pre-existing pyvis/render flakiness on data_entry/simulation under load).
-- [ ] Then invoke **superpowers:finishing-a-development-branch** (merge no-ff into `main`, delete the branch).
+- [x] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
+- [x] `micromamba run -n shiny python tests/run_e2e.py` — stakeholders e2e passes (note known pre-existing pyvis/render flakiness on data_entry/simulation under load).
+- [x] Then invoke **superpowers:finishing-a-development-branch** (merge no-ff into `main`, delete the branch).
 
 ## Sequencing notes
 - TDD order: byte-builders (1) → i18n (2) → module wiring (3) → e2e (4). No data-model task. Branch `feat/pims-stakeholders-sh6` is already cut from `main`.

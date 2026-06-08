@@ -1,6 +1,6 @@
 # PIMS Stakeholders SH3 — Engagement Activity Log — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a per-stakeholder **engagement-activity log** as a third sub-tab of the Stakeholders panel: an `Engagement` child entity (persisted, schema 3→4), pure helpers, an add-form + log table, i18n, and tests.
 
@@ -29,7 +29,7 @@
 - Modify: `sespy/data_structure.py` (add `Engagement`; `Project.engagements`; `to_dict`/`from_dict` + schema upgrade-on-load; `PROJECT_SCHEMA_VERSION` 3→4)
 - Test: `tests/test_stakeholders.py` (append), `tests/test_data_structure.py` (rename schema test)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
   Append to `tests/test_stakeholders.py`. Extend the top import to add `Engagement`:
   ```python
@@ -126,10 +126,10 @@
       assert PROJECT_SCHEMA_VERSION == 4
   ```
 
-- [ ] **Step 2: Run; verify fail**
+- [x] **Step 2: Run; verify fail**
   `micromamba run -n shiny python -m pytest tests/test_stakeholders.py tests/test_data_structure.py -q` → ImportError / assertion failures (no `Engagement`, version is 3).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
   In `sespy/data_structure.py`:
   1. `PROJECT_SCHEMA_VERSION = 4` (:19).
@@ -161,10 +161,10 @@
                 stakeholders=stakeholders, engagements=engagements)
      ```
 
-- [ ] **Step 4: Run; verify pass**
+- [x] **Step 4: Run; verify pass**
   `micromamba run -n shiny python -m pytest tests/test_stakeholders.py tests/test_data_structure.py -q` → green.
 
-- [ ] **Step 5: flake8 + commit**
+- [x] **Step 5: flake8 + commit**
   `micromamba run -n shiny python -m flake8 sespy/data_structure.py tests/test_stakeholders.py tests/test_data_structure.py --max-line-length=100`
   ```bash
   git add sespy/data_structure.py tests/test_stakeholders.py tests/test_data_structure.py
@@ -179,7 +179,7 @@
 - Modify: `sespy/stakeholders.py` (append helpers + `ENGAGEMENT_METHODS`/`ENGAGEMENT_STATUSES` constants)
 - Test: `tests/test_stakeholders.py` (append)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
   Extend the top import:
   ```python
@@ -249,9 +249,9 @@
   ```
   (Add `Engagement` to the `from sespy.data_structure import (...)` block if not already present from Task 1.)
 
-- [ ] **Step 2: Run; verify fail** — ImportError on the new helper names.
+- [x] **Step 2: Run; verify fail** — ImportError on the new helper names.
 
-- [ ] **Step 3: Implement** — append to `sespy/stakeholders.py` (add `Engagement` to its import from `data_structure`):
+- [x] **Step 3: Implement** — append to `sespy/stakeholders.py` (add `Engagement` to its import from `data_structure`):
   ```python
   # --- SH3: engagement activity log (pure) -----------------------------------
   ENGAGEMENT_METHODS = ("workshop", "interview", "survey", "focus_group",
@@ -294,9 +294,9 @@
   ```
   Type hints mirror the existing helpers' style (`list[Engagement]`, etc.); add them to match `add_stakeholder`'s signature form.
 
-- [ ] **Step 4: Run; verify pass** — `micromamba run -n shiny python -m pytest tests/test_stakeholders.py -q` green.
+- [x] **Step 4: Run; verify pass** — `micromamba run -n shiny python -m pytest tests/test_stakeholders.py -q` green.
 
-- [ ] **Step 5: flake8 + commit**
+- [x] **Step 5: flake8 + commit**
   ```bash
   git add sespy/stakeholders.py tests/test_stakeholders.py
   git commit -m "feat(stakeholders): pure engagement add/remove/rows helpers"
@@ -309,7 +309,7 @@
 **Files:**
 - Modify: `sespy/translations/core.json`
 
-- [ ] **Step 1: Add the keys (programmatic, lowest-risk)**
+- [x] **Step 1: Add the keys (programmatic, lowest-risk)**
 
   Use a script (mirrors how SH1/SH2 added keys) so all 9 languages get the same English placeholder and the `"translation"` wrapper is respected. Keys + English values:
   - `stakeholders.tab_activity` → **"Engagement Planning"** (this exact value becomes the tab's rendered `data-value`).
@@ -331,13 +331,13 @@
 
   The 9 language codes are whatever the existing `stakeholders.tab_grid` entry uses — read that key's object and reuse its key set (English string for every language, per SP4).
 
-- [ ] **Step 2: Validate**
+- [x] **Step 2: Validate**
   ```
   micromamba run -n shiny python -c "import json; d=json.load(open('sespy/translations/core.json',encoding='utf-8'))['translation']; ks=['stakeholders.tab_activity','stakeholders.activity.method.workshop','stakeholders.activity.status.planned','stakeholders.activity.required','stakeholders.activity.empty']; [print(k, sorted(d[k].keys())==sorted(d['stakeholders.tab_grid'].keys()), d[k]['en']) for k in ks]"
   ```
   Expect each key present, language-set identical to `tab_grid`'s, English values as above. Confirm valid JSON (the load itself proves it).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   ```bash
   git add sespy/translations/core.json
   git commit -m "i18n: stakeholders.activity.* + tab_activity (9 langs)"
@@ -350,7 +350,7 @@
 **Files:**
 - Modify: `sespy/modules/pims_stakeholders.py`
 
-- [ ] **Step 1: Add code-list constants + the engagement panel**
+- [x] **Step 1: Add code-list constants + the engagement panel**
 
   Import the canonical code tuples from the pure module (single source of truth) and add module-level method/status code lists for `_choices`:
   ```python
@@ -405,7 +405,7 @@
   (immediately after the `tab_grid` panel, before `id="stakeholder_tabs"`).
   Note: `eng_status` uses a code→label dict WITHOUT a blank option (status always set, defaults `planned`); `eng_method` uses `_choices(...)` which DOES prepend `""`.
 
-- [ ] **Step 2: Add the server logic**
+- [x] **Step 2: Add the server logic**
 
   In `pims_stakeholders_server`, add an accessor near `_items()`:
   ```python
@@ -470,7 +470,7 @@
           return render.DataGrid(pd.DataFrame(rows or stub), height="320px")
   ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
   ```
   micromamba run -n shiny python -c "from sespy.modules.pims_stakeholders import pims_stakeholders_ui, pims_stakeholders_server; pims_stakeholders_ui('stakeholders'); print('ok')"
   micromamba run -n shiny python -m flake8 sespy/modules/pims_stakeholders.py --max-line-length=100
@@ -480,7 +480,7 @@
   `(Select-String -Path sespy\modules\pims_stakeholders.py -Pattern 'sh_(name|type|sector|contact|interests|role|power|interest|attitude|engagement_level)' | ForEach-Object { ($_.Line | Select-String -Pattern 'sh_\w+' -AllMatches).Matches.Value } | Sort-Object -Unique).Count` → must be **10**.
   Then the unit suite: `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` → green.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add sespy/modules/pims_stakeholders.py
   git commit -m "feat(stakeholders): Engagement Planning sub-tab (form + activity log)"
@@ -493,11 +493,11 @@
 **Files:**
 - Modify: `tests/test_stakeholders_e2e.py` (extend; CRUD + grid sections stay UNCHANGED)
 
-- [ ] **Step 1: Develop the selectors against the live app**
+- [x] **Step 1: Develop the selectors against the live app**
 
   Launch `micromamba run -n shiny shiny run app.py --port 8000` (background). Using a throwaway Playwright probe: nav `#sespy_nav_stakeholders`, ensure a stakeholder exists, switch to the activity tab via `#stakeholders-stakeholder_tabs a[data-value='Engagement Planning']` (the verified SH2 `data-value` pattern — NOT `:has-text`), set `#stakeholders-eng_stakeholder` (to a real `SH###` id) and `#stakeholders-eng_method` via the `el.value`+dispatch helper, click `#stakeholders-add_engagement`, and confirm a row text appears in `#stakeholders-engagement_table`. **Record the stakeholder id** the dropdown actually exposes (it is `SH001`-style; the e2e must select that option value, not the name). Delete the probe afterward.
 
-- [ ] **Step 2: Extend the e2e script**
+- [x] **Step 2: Extend the e2e script**
 
   After the grid section (section 7), add a section 8. Reuse the SH2 `_set_select` and `_poll_table_contains`-style helpers (add a small `_poll_eng_table_contains` or generalize). Pseudocode:
   ```python
@@ -534,10 +534,10 @@
   ```
   (A stakeholder exists by this point — section 6 added "Coastal NGO".)
 
-- [ ] **Step 3: Run**
+- [x] **Step 3: Run**
   With the app on :8000: `micromamba run -n shiny python tests/test_stakeholders_e2e.py` → exit 0. Stop the background server.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add tests/test_stakeholders_e2e.py
   git commit -m "test(stakeholders): e2e — engagement activity add + log"
@@ -547,9 +547,9 @@
 
 ## Final verification
 
-- [ ] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
-- [ ] `micromamba run -n shiny python tests/run_e2e.py` — all scripts pass (incl. the extended stakeholders e2e).
-- [ ] Then invoke **superpowers:finishing-a-development-branch**.
+- [x] `micromamba run -n shiny python -m pytest tests/ -q --ignore-glob="*_e2e.py" --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — green.
+- [x] `micromamba run -n shiny python tests/run_e2e.py` — all scripts pass (incl. the extended stakeholders e2e).
+- [x] Then invoke **superpowers:finishing-a-development-branch**.
 
 ## Sequencing notes
 - Tasks are ordered for TDD: data model (1) → pure helpers (2) → i18n (3) → module (4) → e2e (5). Tasks 1–3 are independent of the live app; Task 4 wires them; Task 5 exercises the running app.
