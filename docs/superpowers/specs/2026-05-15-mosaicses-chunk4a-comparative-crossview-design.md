@@ -1,5 +1,7 @@
 # MosaicSES Chunk 4a — Comparative + Cross-view modules
 
+**Repository:** `razinkele/MosaicSES` (code location: `multises_app/modules/comparative.py`, `multises_app/modules/cross_view.py`)
+
 **Status:** design — v3 (2026-05-15, revised after **two** rounds of in-loop agent review; first round caught 12 findings, second round caught 37 across 4 lenses)
 **Parent spec:** [`2026-05-08-mosaicses-design.md`](2026-05-08-mosaicses-design.md) — chunk 4 is decomposed per the parent spec §7 distinction between "substantive UI work" (chunk 4a) and "bookkeeping" (chunk 4b).
 **Predecessor chunk:** [`2026-05-12-mosaicses-chunk3-shiny-shell-topology-compartments.md`](../plans/2026-05-12-mosaicses-chunk3-shiny-shell-topology-compartments.md) — chunk 3 shipped 2026-05-15 with all tests passing. See chunk-3 test run for current count.

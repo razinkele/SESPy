@@ -1,5 +1,7 @@
 # MosaicSES Chunk 4b — Project Setup form (design spec)
 
+**Repository:** `razinkele/MosaicSES` (code location: `multises_app/modules/project_setup.py`)
+
 **Date:** 2026-05-18
 **Spec author:** Brainstorm session 2026-05-18.
 

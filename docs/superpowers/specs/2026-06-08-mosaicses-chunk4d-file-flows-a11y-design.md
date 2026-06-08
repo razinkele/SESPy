@@ -1,5 +1,7 @@
 # MosaicSES Chunk 4d — File Flows + Topology Accessibility — Design
 
+**Repository:** `razinkele/MosaicSES` (code location: `multises_app/modules/recent_projects.py`, `multises_app/modules/topology.py` accessibility table)
+
 Date: 2026-06-08 (rev. 2 — after deep-review)
 Status: **Implemented** — shipped in MosaicSES `main` (through `7f122e3`, 2026-06-08).
 

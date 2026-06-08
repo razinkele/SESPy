@@ -1,5 +1,7 @@
 # MosaicSES chunk-4c-ui — Collapsible panes (native bslib)
 
+**Repository:** `razinkele/MosaicSES` (code location: per-page modules in `multises_app/modules/`)
+
 **Date:** 2026-05-30
 **Status:** Design — awaiting user review
 **Scope class:** Focused single-chunk UI change

@@ -1,5 +1,7 @@
 # MosaicSES — Spatially Distributed, Connected SES Along the Land–Ocean Aquatic Continuum
 
+**Repository:** `razinkele/MosaicSES` (separate from `razinkele/SESPy`; consumes SESPy as `sespy` library dependency via editable install)
+
 **Status:** Draft — design phase, not yet implemented.
 **Working name:** `MosaicSES` (alternatives: `SESPy-LOAC`, `SES-Continuum`).
 **Pilot system:** Curonian Lagoon (Nemunas → Delta → Lagoon → Klaipėda Strait → SE Baltic).
