@@ -209,24 +209,40 @@ def dashboard_page(
         )
     )
 
-    # Hijack bslib's OUTER sidebar collapse-toggle: instead of bslib's default
-    # full-hide animation, flip `body.sespy-sidebar-mini` so the sidebar
-    # narrows to an icon-only strip (bs4Dash sidebar-mini behaviour). The
-    # inner sidebar toggle (inside .sespy-card) is left alone — bslib's
-    # default fully-collapse is what we want there.
+    # Mini-mode for the OUTER nav sidebar only. We bind ONE capture-phase
+    # listener on the nav LAYOUT (resolved once at init via the dedicated
+    # `sespy-nav-shell` marker on its sidebar). Capture on the layout — an
+    # ancestor of the toggle — pre-empts bslib's own target-phase collapse
+    # handler, so the nav toggle drives mini-mode instead of bslib's full
+    # collapse. Every OTHER collapse-toggle (per-page layout_sidebars,
+    # .sespy-card module sidebars, any future sidebar) is untouched and falls
+    # through to bslib's native collapse.
+    #
+    # Why an identity check (`=== layout`): the nav layout contains all
+    # per-page layouts (page_sidebar wraps the whole page), so a click on a
+    # nested per-page toggle still bubbles through this listener — we act ONLY
+    # when the clicked toggle's NEAREST sidebar-layout IS the nav layout.
+    # `sespy-nav-shell` is LOAD-BEARING FOR BEHAVIOR — do not rename/remove it
+    # without updating this script and the marker on the nav sidebar below.
     burger_js = ui.tags.script("""
-        document.addEventListener('click', function(e) {
-          var btn = e.target.closest('.collapse-toggle');
-          if (!btn) return;
-          // Only the OUTER sidebar's toggle drives mini mode. The toggle is
-          // a child of .bslib-sidebar-layout; the outer one is at page
-          // level (not nested inside a .sespy-card).
-          var layout = btn.closest('.bslib-sidebar-layout');
-          if (!layout || layout.closest('.sespy-card')) return;
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          document.body.classList.toggle('sespy-sidebar-mini');
-        }, true);  // capture phase, before bslib's own handler
+        (function () {
+          function wire() {
+            var sidebar = document.querySelector('.sidebar.sespy-nav-shell');
+            if (!sidebar) return false;
+            var layout = sidebar.closest('.bslib-sidebar-layout');
+            if (!layout) return false;
+            layout.addEventListener('click', function (e) {
+              var btn = e.target.closest('.collapse-toggle');
+              if (!btn) return;
+              if (btn.closest('.bslib-sidebar-layout') !== layout) return;
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              document.body.classList.toggle('sespy-sidebar-mini');
+            }, true);  // capture on the layout — pre-empts bslib's handler
+            return true;
+          }
+          if (!wire()) document.addEventListener('DOMContentLoaded', wire);
+        })();
     """)
 
     # URL bookmarking: when the server sends the active view, reflect it in the
@@ -262,7 +278,7 @@ def dashboard_page(
             bookmark_js,
         ),
         ui.page_sidebar(
-            ui.sidebar(*sidebar_children, width=280, class_="sespy-sidebar"),
+            ui.sidebar(*sidebar_children, width=280, class_="sespy-sidebar sespy-nav-shell"),
             *main_children,
             title=title,
             fillable=True,
