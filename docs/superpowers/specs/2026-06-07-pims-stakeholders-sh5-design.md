@@ -1,7 +1,7 @@
 # PIMS Stakeholders SH5 — Analysis Summary — Design
 
-Date: 2026-06-07 (rev. 2 — after deep-review)
-Status: **Draft** — design phase, not yet implemented.
+Date: 2026-06-07 (rev. 3 — status update after implementation)
+Status: **Implemented** ✓ (shipped on `main`; analysis summary sub-tab live).
 
 **rev. 2 changes (from the review):** (a) **name-collision fix** — the pure helpers
 `stakeholder_stats`/`engagement_coverage` share names with their Shiny output

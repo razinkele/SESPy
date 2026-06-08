@@ -1,7 +1,7 @@
 # PIMS Stakeholders SH6 — Export Downloads — Design
 
-Date: 2026-06-07 (rev. 2 — after deep-review + library-idiom verification)
-Status: **Draft** — design phase, not yet implemented.
+Date: 2026-06-07 (rev. 3 — status update after implementation)
+Status: **Implemented** ✓ (shipped on `main`; Excel/PNG/PDF stakeholder exports live).
 
 **rev. 2 notes (verified idioms, detailed in the plan):** (a) Excel headers come from
 `dataclasses.fields(cls)` (NOT `items[0]`) so empty exports yield header-only sheets;

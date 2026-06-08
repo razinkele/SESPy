@@ -1,7 +1,7 @@
 # PIMS Stakeholders SH1 — Stakeholder Register (data + CRUD + persistence) — Design
 
-Date: 2026-06-04 (rev. 2 — after multi-agent + codebase review)
-Status: **Draft** — design phase, not yet implemented.
+Date: 2026-06-04 (rev. 3 — status update after implementation)
+Status: **Implemented** ✓ (shipped on `main`; stakeholder register + persistence wiring live).
 
 **Sub-project context:** SH1 of 2 in the PIMS Stakeholders port (R source:
 `modules/pims_stakeholder_module.R`, 908 LOC). SH1 = the stakeholder **register**

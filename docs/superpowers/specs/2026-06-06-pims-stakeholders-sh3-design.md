@@ -1,7 +1,7 @@
 # PIMS Stakeholders SH3 — Engagement Activity Log — Design
 
-Date: 2026-06-06 (rev. 2 — after multi-agent deep-review + codebase verification)
-Status: **Draft** — design phase, not yet implemented.
+Date: 2026-06-06 (rev. 3 — status update after implementation)
+Status: **Implemented** ✓ (shipped on `main`; engagement activity log sub-tab live).
 
 **rev. 2 changes (from the review):** (a) i18n keys moved to a fresh
 `stakeholders.activity.*` namespace + `stakeholders.tab_activity` — the obvious

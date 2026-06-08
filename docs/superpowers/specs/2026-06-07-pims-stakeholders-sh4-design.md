@@ -1,7 +1,7 @@
 # PIMS Stakeholders SH4 — Communication Plan — Design
 
-Date: 2026-06-07 (rev. 2 — after deep-review)
-Status: **Draft** — design phase, not yet implemented.
+Date: 2026-06-07 (rev. 3 — status update after implementation)
+Status: **Implemented** ✓ (shipped on `main`; communication plan sub-tab + schema v5 live).
 
 **rev. 2 changes (from the review):** (a) the 4→5 schema bump touches **four** existing
 assertions, not one — besides `test_data_structure.py::test_schema_version_is_4`, the

@@ -1,7 +1,7 @@
 # PIMS Stakeholders SH2 — Power-Interest Grid — Design
 
-Date: 2026-06-05
-Status: **Draft** — design phase, not yet implemented.
+Date: 2026-06-05 (rev. 2 — status update after implementation)
+Status: **Implemented** ✓ (shipped on `main`; Power-Interest grid sub-tab live).
 
 **Sub-project context:** SH2 of the PIMS Stakeholders port. SH1 (shipped: the
 stakeholder **register** — data + CRUD + persistence) is on `main`. SH2 adds the
