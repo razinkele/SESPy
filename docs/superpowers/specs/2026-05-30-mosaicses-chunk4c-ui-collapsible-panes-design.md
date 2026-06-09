@@ -3,7 +3,7 @@
 **Repository:** `razinkele/MosaicSES` (code location: per-page modules in `multises_app/modules/`)
 
 **Date:** 2026-05-30 (rev. 2, 2026-06-08 review fixes applied)
-**Status:** Design — revised after in-loop multi-angle review
+**Status:** **Implemented** ✓ — shipped in MosaicSES `main`; rev.2 a11y fix (`dirty_hint` outside the collapsible filters sidebar) landed 2026-06-09 (`e1625f4`).
 **Scope class:** Focused single-chunk UI change
 **Depends on:** chunk-4b shipped to `origin/main` (historical sequencing gate from 2026-05-30; if already satisfied, proceed directly with this chunk).
 
