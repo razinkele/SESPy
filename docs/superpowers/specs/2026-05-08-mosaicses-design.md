@@ -2,7 +2,7 @@
 
 **Repository:** `razinkele/MosaicSES` (separate from `razinkele/SESPy`; consumes SESPy as `sespy` library dependency via editable install)
 
-**Status:** Draft — design phase, not yet implemented.
+**Status:** **Implemented** ✓ (v1) — shipped in MosaicSES `main` across chunks 1–4d (library, persistence, Shiny shell, topology, compartments, comparative, cross-view, project setup, recent projects, file flows + a11y). Phase-2 items (§11) remain deferred by design.
 **Working name:** `MosaicSES` (alternatives: `SESPy-LOAC`, `SES-Continuum`).
 **Pilot system:** Curonian Lagoon (Nemunas → Delta → Lagoon → Klaipėda Strait → SE Baltic).
 **Scope:** v1 priorities A + B from brainstorming Q4 (per-compartment comparative dashboard + cross-compartment structural analyses). C–F deferred to phase 2.
