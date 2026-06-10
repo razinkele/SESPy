@@ -32,7 +32,7 @@ Each is scored **1–5** (1 = tenet not met / high risk; 5 = fully met). A Respo
 - `Channel.tenet_scores: dict[str, int] | None` — native field on the MosaicSES `Channel` (governance type), following the existing phase-2-reserved-field pattern (`units`/`timestep`/`lifestage`).
 - `Compartment.response_tenet_scores: dict[str, dict[str, int]] | None` — a MosaicSES **overlay** keyed by Response element id, so SESPy's `Element` is **NOT modified** (see §2).
 - Validation (hard invariants) for both: keys ∈ `TENETS`, values int 1–5.
-- `MULTISES_SCHEMA_VERSION` bump 1 → 2 with upgrade-on-load (reuses the existing `W400_SCHEMA_VERSION_MIGRATED` mechanism); lossless `to_dict`/`from_dict` round-trip.
+- `MULTISES_SCHEMA_VERSION` stays **1** — no schema bump; both fields are additive optional fields that load via `.get()` defaults (see §3.4). Lossless `to_dict`/`from_dict` round-trip.
 - `tenet_gap_analysis(ms) -> pd.DataFrame` in the `multises` library (sibling to `response_pressure_gap`).
 - A read-only **Tenet readiness** card in `multises_app/modules/comparative.py`.
 - Example tenet scores seeded onto a small number of Curonian governance Channels + Responses so the panel is non-empty on the demo seed.
@@ -110,12 +110,13 @@ Add to `Compartment`:
 
 Validation: the **value-range/key** checks (each inner dict obeys the same key/value rules as §3.2) run in `Compartment.__post_init__` and raise on bad data — these are intrinsic and need no cross-object context. **Referential integrity** (the element id resolves to an actual Response element in this compartment's project) is a **soft** invariant emitted by the dedicated `validate(ms)` pass — new code `ErrorCode.W304_TENET_SCORE_UNKNOWN_RESPONSE` (W303 is already taken by `W303_TRANSBOUNDARY_CCI_MISSING`). It is **not** emitted on the load path: `persistence.load()` / `MultiSES.from_json()` do not run `validate()`, so callers wanting referential warnings call `validate(ms)` explicitly (same as every other `Wxxx` referential check). This keeps the overlay surviving a Response deletion without hard-failing the load.
 
-### 3.4 Schema version + round-trip
+### 3.4 No schema bump — round-trip via additive optional fields
 
-- `MULTISES_SCHEMA_VERSION` 1 → 2 as a **feature-version marker**, mirroring the SH-series convention of bumping per feature. **Note:** the bump is *not* required for backward compatibility — `from_dict` reads both new fields via `.get(...)` defaults (exactly as it already does for `units`/`timestep`/`lifestage`/`delay_units`), so v1 files load with `None` defaults regardless. The bump's only runtime effect is that v1 files now trip the existing `W400_SCHEMA_VERSION_MIGRATED` soft warning on load (tests must expect this).
-- `Channel.from_dict`/`Compartment.from_dict`: parse `tenet_scores` / `response_tenet_scores` via `.get(...)`.
-- `to_dict`: `MultiSES.to_dict` serializes channels/compartments via `dataclasses.asdict`, so the new fields **emit as `null` when unscored** (same as the existing optional fields — there is no per-field omission today, and this spec does **not** add bespoke None-filtering). v1 seeds therefore gain explicit `"tenet_scores": null` / `"response_tenet_scores": null` keys after a load→save cycle; this is consistent with how `units`/`timestep` already round-trip and is acceptable.
-- A `schema_version > 2` file still refuses per the existing policy (§2.1 rule 8).
+**Decision: keep `MULTISES_SCHEMA_VERSION = 1` (no bump).** Both new fields are optional and load via `.get(...)` defaults, exactly as the existing optional fields (`units`/`timestep`/`lifestage`/`delay_units`) already do — so old files load unchanged with `None` defaults and need no migration. Bumping 1→2 would buy nothing for compatibility (verified: `from_dict` reads each field with `.get`) while emitting a spurious `W400_SCHEMA_VERSION_MIGRATED` warning on *every* existing file/seed and breaking ~15 existing tests that assert `MULTISES_SCHEMA_VERSION == 1`, `schema_version: 1`, and `report.warnings == ()`. This mirrors the SH2/SH5 precedent (additive read-layer → no `PROJECT_SCHEMA_VERSION` bump).
+
+- `Channel.from_dict`/`Compartment.from_dict`: parse `tenet_scores` / `response_tenet_scores` via `.get(...)` (add to the existing kwarg lists in `MultiSES.from_dict`).
+- `to_dict`: `MultiSES.to_dict` serializes channels/compartments via `dataclasses.asdict`, so the new fields **emit as `null` when unscored** (same as `units`/`timestep` today — no bespoke None-filtering). v1 seeds gain explicit `"tenet_scores": null` / `"response_tenet_scores": null` keys after a load→save cycle; acceptable and consistent.
+- Trade-off accepted: an *older* MosaicSES build reading a file that contains `tenet_scores` (with `schema_version` still 1) would silently drop the field on load rather than refuse. Since there is no separately-deployed older MosaicSES, this theoretical loss is preferable to the concrete test/warning breakage a bump causes. If a hard cross-version guard is later needed, the bump can be introduced then with the migration-test updates batched.
 
 ## 4. Analysis — `tenet_gap_analysis(ms)`
 
@@ -184,7 +185,7 @@ Scores are illustrative-but-defensible (grounded in the transboundary-friction n
 - `Channel` with an unknown tenet slug / out-of-range / bool / non-int value raises `_ChannelValidationError` with `M206_INVALID_TENET_SCORES`.
 - Partial `tenet_scores` (subset of tenets) is accepted.
 - `Compartment.response_tenet_scores` valid case round-trips; invalid score raises in `__post_init__`; an id that doesn't resolve to a Response yields the `W304_TENET_SCORE_UNKNOWN_RESPONSE` soft warning when `validate(ms)` is run (NOT on load — assert via an explicit `validate()` call, since `from_json` does not validate).
-- `MULTISES_SCHEMA_VERSION == 2`; a v1 fixture (no tenet fields) loads with `W400_SCHEMA_VERSION_MIGRATED` and `None` defaults.
+- `MULTISES_SCHEMA_VERSION == 1` (unchanged — no bump); a v1 fixture with the two new fields absent loads with `None` defaults and **no** new `W400` warning (the additive fields don't trigger migration). A fixture that *includes* the fields round-trips them losslessly.
 - `tenet_gap_analysis`: empty MultiSES → empty DataFrame with full columns; a hand-built MultiSES with one scored channel + one scored response → 2 rows, correct `gap_count`/`min_score`/`weakest_tenet`/`mean_score`; tie-break picks the canonical-order tenet.
 
 ### Seed test (`tests/test_curonian_seed.py`, extend)
@@ -200,7 +201,7 @@ Scores are illustrative-but-defensible (grounded in the transboundary-friction n
 
 | File | Change |
 |---|---|
-| `multises/data_structure.py` | `TENETS`/`TENET_SLUGS`/score bounds; `Channel.tenet_scores` + validation + `M206`; `Compartment.response_tenet_scores` + value/key validation; `MULTISES_SCHEMA_VERSION` 1→2; `from_dict` `.get(...)` for both fields; `W304` code constant |
+| `multises/data_structure.py` | `TENETS`/`TENET_SLUGS`/score bounds; `Channel.tenet_scores` + validation + `M206`; `Compartment.response_tenet_scores` + value/key validation; `from_dict` `.get(...)` for both fields; `W304` code constant. **No `MULTISES_SCHEMA_VERSION` bump.** |
 | `multises/validate.py` | `W304_TENET_SCORE_UNKNOWN_RESPONSE` referential-integrity soft check (in the `validate()` pass, not load) |
 | `multises/comparative.py` | `tenet_gap_analysis(ms)` |
 | `multises/__init__.py` | re-export `TENETS`, `TENET_SLUGS`, `tenet_gap_analysis`, bounds |
@@ -217,14 +218,14 @@ Scores are illustrative-but-defensible (grounded in the transboundary-friction n
 |---|---|---|
 | Mean-score misread as a readiness score | Medium | Panel always shows `gap_count` + `min_score` beside the mean; disclaimer line; docstring states mean is over scored tenets only |
 | Overlay element-id drift (Response deleted, score orphaned) | Medium | `W303` soft warning, not a hard fail; orphan rows simply don't render |
-| Schema bump breaks existing v1 seeds/saves | Low | Upgrade-on-load via existing `W400`; fields default `None`; round-trip test on a v1 fixture |
+| Schema-version churn breaks existing v1 seeds/tests | N/A (avoided) | Decision §3.4: no `MULTISES_SCHEMA_VERSION` bump — additive optional fields only; existing schema tests untouched |
 | Card-count assertions in module/e2e tests go stale | High (certain) | Spec calls out the 5→6 update explicitly in §7 |
 | Scope creep into a tenet editor / weighting | Low | Read-only display fixed in §1.2; editor + weighting deferred |
 
 ## 10. Definition of done
 
 - `TENETS` vocab + bounds in the library, re-exported.
-- `Channel.tenet_scores` and `Compartment.response_tenet_scores` validated, round-tripped, `MULTISES_SCHEMA_VERSION == 2`, v1 files upgrade-on-load.
+- `Channel.tenet_scores` and `Compartment.response_tenet_scores` validated, round-tripped, `MULTISES_SCHEMA_VERSION` unchanged at 1 (additive optional fields; no migration), existing v1 files load unaffected.
 - `tenet_gap_analysis(ms)` returns the documented tidy frame (gap-first; mean never presented alone).
 - Comparative "Tenet readiness" card renders the table + disclaimer; read-only.
 - Curonian seed carries demonstrative, gap-bearing scores; seed loads at v2.

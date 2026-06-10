@@ -23,16 +23,30 @@
 - Modify: `multises/__init__.py` (re-exports)
 - Test: `tests/test_tenets.py` (new)
 
-- [ ] **Step 1: Write the failing data-model tests** — create `tests/test_tenets.py`:
+- [ ] **Step 1: Write the failing data-model tests** — create `tests/test_tenets.py`. Use the real construction idiom (`seed_compartment(archetype, label=, id=)` builds a `Compartment` *with a project*; `MultiSESMetadata()` takes `name=`, not id/label; channels via `multises.channels.make_channel`):
 
 ```python
+import math
 import pytest
 from multises import data_structure as ds
+from multises.archetypes import seed_compartment
+from multises.channels import make_channel
 from multises.data_structure import (
     Channel, Compartment, MultiSES, MultiSESMetadata,
     TENETS, TENET_SLUGS, TENET_SCORE_MIN, TENET_SCORE_MAX,
     MULTISES_SCHEMA_VERSION, ErrorCode,
 )
+
+
+def _two_compartment_ms(channels):
+    a = seed_compartment("lagoon", label="A", id="a")
+    b = seed_compartment("coastal_sea", label="B", id="b")
+    return MultiSES(metadata=MultiSESMetadata(), compartments=[a, b], channels=channels)
+
+
+def _gov_channel(**kw):
+    return make_channel(id="a_to_b_gov", source="a", target="b",
+                        channel_type="governance", governance_regime="WFD", **kw)
 
 
 def test_tenets_vocab_shape():
@@ -44,24 +58,14 @@ def test_tenets_vocab_shape():
     assert (TENET_SCORE_MIN, TENET_SCORE_MAX) == (1, 5)
 
 
-def _gov_channel(**kw):
-    base = dict(id="a_to_b_governance_WFD", source="a", target="b",
-                channel_type="governance", governance_regime="WFD")
-    base.update(kw)
-    return Channel(**base)
-
-
 def test_channel_tenet_scores_valid_and_partial():
     ch = _gov_channel(tenet_scores={"ecological": 5, "legal": 4})  # partial allowed
     assert ch.tenet_scores == {"ecological": 5, "legal": 4}
 
 
 @pytest.mark.parametrize("bad", [
-    {"not_a_tenet": 3},
-    {"ecological": 0},
-    {"ecological": 6},
-    {"ecological": True},     # bool rejected
-    {"ecological": 3.0},      # non-int rejected
+    {"not_a_tenet": 3}, {"ecological": 0}, {"ecological": 6},
+    {"ecological": True}, {"ecological": 3.0},
 ])
 def test_channel_tenet_scores_invalid_raise_m206(bad):
     with pytest.raises(ds._ChannelValidationError) as e:
@@ -70,31 +74,27 @@ def test_channel_tenet_scores_invalid_raise_m206(bad):
 
 
 def test_channel_tenet_scores_round_trip():
-    ch = _gov_channel(tenet_scores={"ecological": 5, "political": 2})
-    d = ch.to_dict() if hasattr(ch, "to_dict") else None
-    # round-trip through MultiSES JSON (channels have no standalone to_dict)
-    ms = MultiSES(metadata=MultiSESMetadata(id="m", label="M"),
-                  compartments=[Compartment(id="a", label="A", archetype="lagoon"),
-                                Compartment(id="b", label="B", archetype="coastal_sea")],
-                  channels=[ch])
+    ms = _two_compartment_ms([_gov_channel(tenet_scores={"ecological": 5, "political": 2})])
     res = MultiSES.from_json(ms.to_json())
     assert res.multises.channels[0].tenet_scores == {"ecological": 5, "political": 2}
 
 
 def test_compartment_response_tenet_scores_round_trip_and_validation():
-    ok = Compartment(id="a", label="A", archetype="lagoon",
-                     response_tenet_scores={"resp1": {"ecological": 4}})
-    assert ok.response_tenet_scores["resp1"]["ecological"] == 4
+    a = seed_compartment("lagoon", label="A", id="a")
+    a.response_tenet_scores = {"resp1": {"ecological": 4}}   # set post-build for the round-trip
+    ms = MultiSES(metadata=MultiSESMetadata(), compartments=[a], channels=[])
+    res = MultiSES.from_json(ms.to_json())
+    assert res.multises.compartments[0].response_tenet_scores == {"resp1": {"ecological": 4}}
     with pytest.raises(ds._ChannelValidationError):
-        Compartment(id="a", label="A", archetype="lagoon",
-                    response_tenet_scores={"resp1": {"ecological": 9}})
+        seed_compartment("lagoon", label="A", id="a",
+                         response_tenet_scores={"resp1": {"ecological": 9}})
 
 
-def test_schema_version_is_2():
-    assert MULTISES_SCHEMA_VERSION == 2
+def test_schema_version_unchanged():
+    assert MULTISES_SCHEMA_VERSION == 1     # additive fields; no bump (design §3.4)
 ```
 
-(If `MultiSESMetadata` / `Compartment` construction needs more required args, adjust to the real signatures — verify against `data_structure.py` before running.)
+(`seed_compartment` must accept/forward `response_tenet_scores`; if it doesn't take arbitrary kwargs, set the attribute on the returned Compartment instead, as `test_compartment_response_tenet_scores_round_trip_and_validation` does for the round-trip case, and test the validation path by constructing `Compartment(...)` directly with a real project from `conftest.empty_project`.)
 
 - [ ] **Step 2: Run → red.** `micromamba run -n shiny pytest tests/test_tenets.py -q` — expect ImportError/AttributeError (`TENETS` etc. absent), then assertion failures.
 
@@ -173,17 +173,17 @@ and at the end of `Channel.__post_init__`:
 
 (Place after the existing Compartment validation; if `Compartment` has no `__post_init__` yet, add one. Referential integrity is NOT here — it's the W304 soft check in Task 2.)
 
-- [ ] **Step 8: Bump schema + round-trip parse.** Set `MULTISES_SCHEMA_VERSION = 2`. In `MultiSES.from_dict`, where channels are built (`channels.py`/`data_structure.py` channel-raw block), add `tenet_scores=ch_raw.get("tenet_scores")`; where compartments are built, add `response_tenet_scores=c_raw.get("response_tenet_scores")`. `to_dict` needs no change (asdict emits the new fields as null — design §3.4).
+- [ ] **Step 8: Round-trip parse (NO schema bump).** Leave `MULTISES_SCHEMA_VERSION = 1` (design §3.4 — additive optional fields, no migration). In `MultiSES.from_dict`, the known-channel-type `Channel(...)` call (`data_structure.py:640-656`) gains `tenet_scores=ch_raw.get("tenet_scores")`; the unknown-channel-type *preserved* branch (`:618-629`) also gains `tenet_scores=ch_raw.get("tenet_scores")` for lossless round-trip. The `Compartment(...)` call (`:571-580`) gains `response_tenet_scores=c_raw.get("response_tenet_scores")`. `to_dict` needs no change (asdict emits the new fields as null — design §3.4).
 
 - [ ] **Step 9: Re-export** in `multises/__init__.py`: add `TENETS`, `TENET_SLUGS`, `TENET_SCORE_MIN`, `TENET_SCORE_MAX` to imports + `__all__`.
 
-- [ ] **Step 10: Run → green.** `micromamba run -n shiny pytest tests/test_tenets.py -q`. Then check the existing schema test: `tests/test_data_structure.py` likely asserts `MULTISES_SCHEMA_VERSION == 1` — update it to `2` (1-for-1). Also any v1 round-trip/seed test that now expects `W400_SCHEMA_VERSION_MIGRATED` (design §3.4) — update to expect it.
+- [ ] **Step 10: Run → green.** `micromamba run -n shiny pytest tests/test_tenets.py -q`. No existing schema test changes are needed (version stays 1).
 
 - [ ] **Step 11: Commit**
 
 ```bash
 git add multises/data_structure.py multises/__init__.py tests/test_tenets.py tests/test_data_structure.py
-git commit -m "feat(mosaicses): tenets data model — Channel.tenet_scores + Compartment overlay, schema v2 (phase-2 #19)"
+git commit -m "feat(mosaicses): tenets data model — Channel.tenet_scores + Compartment overlay (phase-2 #19)"
 ```
 
 ---
@@ -287,7 +287,7 @@ def test_seed_has_tenet_scores():
 
 - [ ] **Step 2: Run → red.**
 
-- [ ] **Step 3: Add demonstrative scores** to `curonian_loac.json` (design §6): on 2–3 governance channels add `"tenet_scores": {...}` with high `ecological`/`legal`, lower `political`/`administrative`, omitting `cultural`/`communicable` (the gap); on 1–2 lagoon Responses add a `response_tenet_scores` entry on the owning compartment. Add a short `"_comment"` noting the scores are demonstrative (if the schema tolerates an extra key; otherwise note in the seed's README/loader). **Bump the seed's `schema_version` to 2** if it carries one.
+- [ ] **Step 3: Add demonstrative scores** to `curonian_loac.json` (design §6): on 2–3 governance channels add `"tenet_scores": {...}` with high `ecological`/`legal`, lower `political`/`administrative`, omitting `cultural`/`communicable` (the gap); on 1–2 lagoon Responses add a `response_tenet_scores` entry on the owning compartment. Add a short `"_comment"` noting the scores are demonstrative (if the JSON loader tolerates an extra key; the metadata-key filter drops unknown top-level keys, but per-channel/compartment extra keys are ignored by the explicit-kwarg construction — verify it doesn't trip a stricter check). **No `schema_version` change** (the seed JSON carries none; loader defaults it).
 
 - [ ] **Step 4: Run → green** (seed test + `tests/test_curonian_seed.py` whole file; fix any now-expected `W400` warning assertions). **Commit:**
 
@@ -383,7 +383,7 @@ git push origin main
 ## Definition of done
 
 - [ ] `TENETS` vocab + bounds in the library, re-exported; `M206`/`W304` codes added.
-- [ ] `Channel.tenet_scores` + `Compartment.response_tenet_scores` validated, round-tripped; `MULTISES_SCHEMA_VERSION == 2`; v1 files upgrade-on-load (`W400`).
+- [ ] `Channel.tenet_scores` + `Compartment.response_tenet_scores` validated, round-tripped; `MULTISES_SCHEMA_VERSION` stays 1 (additive fields, no bump); existing schema tests untouched.
 - [ ] `validate(ms)` emits `W304` for orphaned response scores.
 - [ ] `tenet_gap_analysis(ms)` returns the design §4 tidy frame (gap-first; full columns when empty; source/target compartment columns).
 - [ ] Comparative "Tenet readiness" card renders table + disclaimer; read-only; 6 cards total.
