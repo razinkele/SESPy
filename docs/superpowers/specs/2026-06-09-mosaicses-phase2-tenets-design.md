@@ -3,7 +3,7 @@
 **Repository:** `razinkele/MosaicSES` (code location: `multises/` library + `multises_app/modules/comparative.py`; this spec + its plan live in `razinkele/SESPy` `docs/superpowers/`).
 
 **Date:** 2026-06-09
-**Status:** Design — awaiting plan + implementation
+**Status:** **Implemented** ✓ — shipped in MosaicSES `main` (`fced2f6`..`23086da`, 2026-06-09); unit suite green (16 tenet tests + seed/module updates) + comparative e2e green.
 **Parent spec:** [`2026-05-08-mosaicses-design.md`](2026-05-08-mosaicses-design.md) §11 item #19; alignment matrix §8a (`tenet_scores` deferred row); scientific basis [`2026-05-09-mosaicses-scientific-basis.md`](2026-05-09-mosaicses-scientific-basis.md) §8a.
 **Phase-2 item:** #19 (first Phase-2 increment).
 
