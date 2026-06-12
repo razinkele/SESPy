@@ -41,6 +41,7 @@ from multises.data_structure import (
     MultiSESMetadata,
     EQUITY_DIMENSIONS,
     EQUITY_SLUGS,
+    OUTCOME_ELEMENT_TYPES,
     MULTISES_SCHEMA_VERSION,
     ErrorCode,
 )
@@ -55,13 +56,17 @@ def test_equity_vocab_shape():
     # every entry is (slug, label)
     assert all(isinstance(s, str) and isinstance(lbl, str)
                for s, lbl in EQUITY_DIMENSIONS)
+    # single source of truth for the outcome-element predicate (design §2.2)
+    assert OUTCOME_ELEMENT_TYPES == ("Ecosystem Services", "Goods & Benefits")
 
 
 def test_equity_vocab_reexported_from_package():
     import multises
     assert multises.EQUITY_SLUGS == EQUITY_SLUGS
+    assert multises.OUTCOME_ELEMENT_TYPES == OUTCOME_ELEMENT_TYPES
     assert "EQUITY_DIMENSIONS" in multises.__all__
     assert "EQUITY_SLUGS" in multises.__all__
+    assert "OUTCOME_ELEMENT_TYPES" in multises.__all__
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -89,15 +94,22 @@ EQUITY_DIMENSIONS: tuple[tuple[str, str], ...] = (
     ("cultural_heritage",       "Cultural heritage loss"),
 )
 EQUITY_SLUGS: tuple[str, ...] = tuple(slug for slug, _ in EQUITY_DIMENSIONS)
+
+# Outcome element types an equity dimension may attach to (design §2.2):
+# Impact ("Ecosystem Services") and Welfare ("Goods & Benefits"). This is the
+# SINGLE source of truth for the outcome predicate — imported by validate()
+# and comparative.py so the fragile string pair is written exactly once.
+OUTCOME_ELEMENT_TYPES: tuple[str, ...] = ("Ecosystem Services", "Goods & Benefits")
 ```
 
 - [ ] **Step 4: Re-export from `multises/__init__.py`**
 
-In the `from .data_structure import (` block, add these two lines in alphabetical position (before `ErrorCode,`):
+In the `from .data_structure import (` block, add these three lines in alphabetical position (before `ErrorCode,`):
 
 ```python
     EQUITY_DIMENSIONS,
     EQUITY_SLUGS,
+    OUTCOME_ELEMENT_TYPES,
 ```
 
 In the `__all__` list, add (before `"ErrorCode",`):
@@ -105,6 +117,7 @@ In the `__all__` list, add (before `"ErrorCode",`):
 ```python
     "EQUITY_DIMENSIONS",
     "EQUITY_SLUGS",
+    "OUTCOME_ELEMENT_TYPES",
 ```
 
 - [ ] **Step 5: Run test to verify it passes**
@@ -348,13 +361,11 @@ In `multises/data_structure.py`, in the `ErrorCode` class, directly after `W304_
 
 - [ ] **Step 4: Add the referential check in `multises/validate.py`**
 
-Directly after the `_check_tenet_response_refs` function (ends at its final `path=...` line + closing `))`), add:
+First, import the centralized outcome-type constant: in `multises/validate.py`, in the existing `from .data_structure import (` block, add `OUTCOME_ELEMENT_TYPES,` (alphabetical position, before `ValidationIssue,`).
+
+Then, directly after the `_check_tenet_response_refs` function (ends at its final `path=...` line + closing `))`), add:
 
 ```python
-# Outcome element types equity dimensions may attach to (design §2.2).
-_OUTCOME_TYPES = ("Ecosystem Services", "Goods & Benefits")
-
-
 def _check_equity_element_refs(ms: MultiSES) -> Iterable[ValidationIssue]:
     """Soft W305: every key in a compartment's outcome_equity_dimensions must
     resolve to an outcome element id (type "Ecosystem Services" = Impact, or
@@ -366,7 +377,7 @@ def _check_equity_element_refs(ms: MultiSES) -> Iterable[ValidationIssue]:
             continue
         outcome_ids = {
             el.id for el in c.project.isa_data.elements
-            if el.type in _OUTCOME_TYPES
+            if el.type in OUTCOME_ELEMENT_TYPES
         }
         for eid in c.outcome_equity_dimensions:
             if eid not in outcome_ids:
@@ -476,7 +487,7 @@ git commit -m "fix(mosaicses): replace_compartment preserves evaluative overlays
 ### Task 5: `_downstream_outcome_ids` helper + augment `response_pressure_gap`
 
 **Files:**
-- Modify: `multises/comparative.py` (`OUTCOME_TYPES` const; `to_digraph`/`networkx` imports; `_downstream_outcome_ids`; augment `response_pressure_gap`)
+- Modify: `multises/comparative.py` (import `OUTCOME_ELEMENT_TYPES` + `to_digraph` + `networkx`; `_downstream_outcome_ids`; augment `response_pressure_gap`)
 - Test: `tests/test_comparative.py` (extend — the file holding `response_pressure_gap` coverage)
 
 - [ ] **Step 1: Write the failing tests**
@@ -615,7 +626,7 @@ def test_equity_columns_present_appended():
 Run: `micromamba run -n shiny python -m pytest tests/test_comparative.py -k equity -q`
 Expected: FAIL — `AttributeError: 'Series' object has no attribute 'downstream_equity_outcome_count'` (columns not present yet).
 
-- [ ] **Step 3: Add imports + `OUTCOME_TYPES` + helper to `multises/comparative.py`**
+- [ ] **Step 3: Add imports + `_downstream_outcome_ids` helper to `multises/comparative.py`**
 
 At the top of `multises/comparative.py`, change the `sespy.network` import to also bring in `to_digraph`, and add `networkx`:
 
@@ -630,26 +641,23 @@ from sespy.network import (
 )
 ```
 
+Also import the centralized outcome-type constant: in the existing `from .data_structure import (...)` block in `multises/comparative.py` (which currently imports `MultiSES`, `TENETS`, `TENET_SLUGS`), add `OUTCOME_ELEMENT_TYPES,`.
+
 Then, directly above the `response_pressure_gap` function, add:
 
 ```python
-# Outcome element types an equity dimension may attach to (design §2.2):
-# Impact ("Ecosystem Services") and Welfare ("Goods & Benefits").
-OUTCOME_TYPES: tuple[str, ...] = ("Ecosystem Services", "Goods & Benefits")
-
-
 def _downstream_outcome_ids(isa_data, start_id: str) -> set[str]:
-    """Element ids reachable downstream from `start_id` whose type is an
-    OUTCOME_TYPE. Cycle-safe (nx.descendants terminates on the DAPSI feedback
-    cycles); the start node is never included. Reachability is confined to this
-    one project's connection graph — cross-compartment Channels are not part of
-    isa_data, so the walk never leaves the compartment (design §4.2)."""
+    """Element ids reachable downstream from `start_id` whose type is an outcome
+    type (OUTCOME_ELEMENT_TYPES). Cycle-safe (nx.descendants terminates on the
+    DAPSI feedback cycles); the start node is never included. Reachability is
+    confined to this one project's connection graph — cross-compartment Channels
+    are not part of isa_data, so the walk never leaves the compartment (§4.2)."""
     g = to_digraph(isa_data)
     if start_id not in g:
         return set()
     reachable = nx.descendants(g, start_id)
     types = {e.id: e.type for e in isa_data.elements}
-    return {eid for eid in reachable if types.get(eid) in OUTCOME_TYPES}
+    return {eid for eid in reachable if types.get(eid) in OUTCOME_ELEMENT_TYPES}
 ```
 
 - [ ] **Step 4: Augment `response_pressure_gap`**
@@ -718,13 +726,16 @@ Add to `tests/test_comparative_module.py` (mirror the existing tenet-card test i
 
 ```python
 def test_comparative_ui_has_equity_card():
-    html = str(comparative_ui())   # mirror however the existing tests render comparative_ui
+    # comparative_ui is a @module.ui function — it REQUIRES a module-id argument
+    # (existing tests call it as comparative_ui("test_id") and assert namespaced
+    # ids). Calling comparative_ui() raises TypeError — do not do that.
+    html = str(comparative_ui("test_id"))
     assert "Emerald Justice exposure" in html
-    assert "equity_disclaimer" in html
-    assert "equity_table" in html
+    assert 'id="test_id-equity_disclaimer"' in html
+    assert 'id="test_id-equity_table"' in html
 ```
 
-Then update the two existing `comparative-card` count assertions in this file (the test reviewer located them at lines 19 and 142) from `== 6` to `== 7`. Find each assertion that counts `comparative-card` occurrences and change the expected count to 7. (Leave any `>= 5` smoke assertion unchanged.)
+Then update the two existing `comparative-card` count assertions in this file (the test reviewer located them at lines 19 and 142) from `== 6` to `== 7`. Find each assertion that counts `comparative-card` occurrences and change the expected count to 7. (Leave the `>= 5` smoke assertion at line 11 unchanged — it stays valid at 7. Also update the stale "six cards total now" comment in `test_comparative_graph_cards_are_full_screen` near line 142 to "seven"; the `bslib-full-screen-enter == 2` assertions stay valid because the new card is not full-screen.)
 
 > Use the same rendering/counting idiom already present in `tests/test_comparative_module.py` for the existing cards — do not invent a new one.
 
@@ -752,7 +763,11 @@ In `comparative_server`, directly after the `tenet_table` render function, add t
     @output
     @render.ui
     def equity_disclaimer():
-        return ui.help_text(
+        df = response_pressure_gap(state.active_multises.get())
+        has_rows = (not df.empty
+                    and "downstream_equity_outcome_count" in df.columns
+                    and bool((df["downstream_equity_outcome_count"] > 0).any()))
+        caveat = ui.help_text(
             "Screening signal only: a row means a Pressure has a directed "
             "graph-path to an equity-flagged outcome (an Impact or "
             "Goods-&-Benefits element); it does not establish that the Pressure "
@@ -760,6 +775,11 @@ In `comparative_server`, directly after the `tenet_table` render function, add t
             "'Equity-relevant orphan' = a Pressure with no within-compartment "
             "Response that nonetheless reaches an equity-flagged outcome."
         )
+        if not has_rows:   # spec §5 empty-state hint
+            return ui.div(
+                ui.em("No equity-flagged outcomes reached in this MultiSES yet."),
+                caveat)
+        return caveat
 
     @output
     @render.data_frame
@@ -870,25 +890,7 @@ In `multises/curonian/__init__.py`, in the per-compartment loop, directly after 
 
 - [ ] **Step 4: Edit the Curonian lagoon seed JSON**
 
-In `multises/curonian/curonian_loac.json`, in the `curonian_lagoon` compartment object (the one with `"archetype": "lagoon"`), make two edits.
-
-(a) Add one connection to its `connections` array — insert this entry after the `{"source": "MPF003", "target": "GB001", ...}` line:
-
-```json
-        {"source": "MPF003", "target": "ES003", "polarity": "-", "strength": "medium", "confidence": 2},
-```
-
-(b) Add a new key to the `curonian_lagoon` object (e.g. after its `"connections": [ ... ]` array, before the closing `}` of that compartment):
-
-```json
-      ,
-      "outcome_equity_dimensions": {
-        "GB001": ["livelihood_displacement", "decision_exclusion"],
-        "ES003": ["cultural_heritage"]
-      }
-```
-
-The `curonian_lagoon` object should now read (for orientation — the demonstrative equity tags are illustrative, grounded in the LT/RU small-scale-fishery + Curonian heritage narrative; `cultural_heritage` is provisional pending Nyka's ratification):
+In `multises/curonian/curonian_loac.json`, **replace the entire `curonian_lagoon` compartment object** (the one with `"archetype": "lagoon"`) with the block below. Two things change versus the current file: one new connection `MPF003→ES003` is appended to `connections`, and a new `outcome_equity_dimensions` key is added. (Replacing the whole object avoids fiddly in-array insertions.) The demonstrative equity tags are illustrative, grounded in the LT/RU small-scale-fishery + Curonian heritage narrative; `cultural_heritage` is provisional pending Nyka's ratification.
 
 ```json
     {
@@ -913,6 +915,24 @@ The `curonian_lagoon` object should now read (for orientation — the demonstrat
     },
 ```
 
+- [ ] **Step 4b: Bump the pinned lagoon connection-count assertion**
+
+The new `MPF003→ES003` edge takes the lagoon from 5 to 6 within-compartment connections. An existing test hard-pins this. In `tests/test_curonian_seed.py` (around line 228), change:
+
+```python
+    assert len(lg2.project.isa_data.connections) == 5, (
+        f"Lagoon must have 5 within-compartment connections after "
+```
+
+to:
+
+```python
+    assert len(lg2.project.isa_data.connections) == 6, (
+        f"Lagoon must have 6 within-compartment connections after "
+```
+
+(Update the `5`→`6` in the assertion and the f-string message; the rest of that test — the `R001→P001` polarity check — is unaffected.)
+
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_curonian_seed.py::test_seed_curonian_equity_exposure -q`
@@ -921,7 +941,7 @@ Expected: PASS.
 - [ ] **Step 6: Run the full seed suite (no regressions)**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_curonian_seed.py -q`
-Expected: PASS (the new `MPF003→ES003` edge adds no `Response→Pressure` edge, so existing response/governance gap assertions are unaffected).
+Expected: PASS. The connection-count assertion was bumped 5→6 in Step 4b; the new `MPF003→ES003` edge adds no `Response→Pressure` edge, so the response/governance gap assertions and the `R001→P001` balancing-loop checks are unaffected.
 
 - [ ] **Step 7: Commit**
 
@@ -972,6 +992,8 @@ git commit -m "test(mosaicses): comparative e2e — Emerald Justice card visible
 
 **Files:**
 - Modify (in SESPy repo): `docs/superpowers/specs/2026-06-13-mosaicses-phase2-emerald-justice-design.md` (flip `Status:` to Implemented)
+- Modify (in SESPy repo): `docs/superpowers/specs/2026-05-08-mosaicses-design.md` (§11 #20 back-pointer)
+- Modify (in SESPy repo): `docs/superpowers/specs/2026-05-09-mosaicses-scientific-basis.md` (§8a alignment-matrix row)
 
 - [ ] **Step 1: Run the full MosaicSES unit suite**
 
@@ -984,16 +1006,26 @@ Boot the app and open the Comparative dashboard; confirm the "Emerald Justice ex
 
 - [ ] **Step 3: Mark the spec implemented (SESPy repo)**
 
-In the SESPy repo, edit `docs/superpowers/specs/2026-06-13-mosaicses-phase2-emerald-justice-design.md`: change the `**Status:**` line to:
+In the SESPy repo, make three doc updates (mirroring the #19 precedent — commit `a875a97` marked tenets implemented across the parent + this-spec):
+
+(a) `docs/superpowers/specs/2026-06-13-mosaicses-phase2-emerald-justice-design.md` — change the `**Status:**` line to:
 
 ```markdown
 **Status:** **Implemented** ✓ — shipped in MosaicSES `main` (Phase-2 #20); unit suite green + comparative e2e green.
 ```
 
+(b) `docs/superpowers/specs/2026-05-08-mosaicses-design.md` — in the §11 backlog item **#20**, append a back-pointer sentence (mirroring how #19 points to its design):
+
+```markdown
+    **→ Designed + implemented in [`2026-06-13-mosaicses-phase2-emerald-justice-design.md`](2026-06-13-mosaicses-phase2-emerald-justice-design.md) (Phase-2 #20); that spec refines "field on Element (Impact type)" to a MosaicSES overlay (`Compartment.outcome_equity_dimensions`) attached to BOTH outcome nodes (Impact + Welfare), keeping SESPy's `Element` unchanged, and adds a provisional 6th dimension `cultural_heritage`.**
+```
+
+(c) `docs/superpowers/specs/2026-05-09-mosaicses-scientific-basis.md` — in the §8a alignment matrix, change the **Emerald Justice equity dimensions** row's v1-status cell from `✗ deferred` to `✓ implemented (Phase-2 #20)` and update the coverage-summary tally line accordingly.
+
 - [ ] **Step 4: Commit the spec status (SESPy repo)**
 
 ```bash
-git add docs/superpowers/specs/2026-06-13-mosaicses-phase2-emerald-justice-design.md
+git add docs/superpowers/specs/2026-06-13-mosaicses-phase2-emerald-justice-design.md docs/superpowers/specs/2026-05-08-mosaicses-design.md docs/superpowers/specs/2026-05-09-mosaicses-scientific-basis.md
 git commit -m "docs(spec): mark Phase-2 #20 Emerald Justice as implemented (shipped to MosaicSES)"
 ```
 
@@ -1002,16 +1034,21 @@ git commit -m "docs(spec): mark Phase-2 #20 Emerald Justice as implemented (ship
 ## Self-Review
 
 **Spec coverage check (every spec section → task):**
+- §2.2 outcome predicate (Impact + Welfare) → centralized as `OUTCOME_ELEMENT_TYPES` in Task 1, imported by Tasks 3 & 5 (single source of truth) ✓
 - §3.1 vocab → Task 1 ✓
 - §3.2 field + M207 + empty-list + from_dict/to_dict round-trip + no-bump → Task 2 ✓
 - §3.3 W305 soft check (validate-only, both ES+GB resolve, non-outcome warns) → Task 3 ✓
 - §3.5 replace_compartment preservation → Task 4 ✓
 - §4 augmented `response_pressure_gap` + cycle-safe `_downstream_outcome_ids` + all reachability branches (orphan/governed/unflagged/empty-list/dedupe/both-node/cycle/cross-compartment/append) → Task 5 ✓
-- §5 UI card + slug→label mapping + slice/filter/sort + 6→7 → Task 6 ✓
-- §6 seed (tags + connecting edge + seed_curonian reader) producing ≥1 equity + ≥1 orphan row → Task 7 ✓
+- §5 UI card + slug→label mapping + slice/filter/sort + **empty-state hint** + 6→7 → Task 6 ✓
+- §6 seed (tags + connecting edge + seed_curonian reader + connection-count bump) producing ≥1 equity + ≥1 orphan row → Task 7 ✓
 - §7 e2e card visible + count → Task 8 ✓
-- §10 DoD full-suite green + status flip → Task 9 ✓
+- §10 DoD full-suite green + status flip + parent §11 #20 back-pointer + §8a matrix flip → Task 9 ✓
 
-**Placeholder scan:** No TBD/TODO; every code step shows complete code. The only "match the existing idiom" notes are for test-harness rendering/selectors that are house-specific (module HTML rendering, e2e Playwright selectors) — these point at concrete existing tests to copy, not vague instructions.
+**Placeholder scan:** No TBD/TODO; every code step shows complete code. The only "match the existing idiom" notes are for test-harness rendering/selectors that are house-specific (module HTML rendering, e2e Playwright selectors) — these point at concrete existing tests to copy, not vague instructions. (Post-review: the one literal mistake — `comparative_ui()` missing its module id — is corrected to `comparative_ui("test_id")` in Task 6.)
 
-**Type/name consistency:** `outcome_equity_dimensions` (field), `EQUITY_DIMENSIONS`/`EQUITY_SLUGS` (vocab), `M207_INVALID_EQUITY_DIMENSION`, `W305_EQUITY_DIM_UNKNOWN_ELEMENT`, `_validate_equity_dimensions`, `_downstream_outcome_ids`, `OUTCOME_TYPES`, and columns `downstream_equity_outcome_count`/`affected_equity_dimensions`/`is_equity_relevant_orphan` are used identically across every task and match the spec.
+**DRY:** the fragile outcome-type pair `("Ecosystem Services", "Goods & Benefits")` — which the spec §2.2 calls "the single fact most likely to be mis-coded" — is defined exactly **once** as `data_structure.OUTCOME_ELEMENT_TYPES` and imported by `validate.py` (Task 3) and `comparative.py` (Task 5).
+
+**Type/name consistency:** `outcome_equity_dimensions` (field), `EQUITY_DIMENSIONS`/`EQUITY_SLUGS`/`OUTCOME_ELEMENT_TYPES` (vocab/predicate), `M207_INVALID_EQUITY_DIMENSION`, `W305_EQUITY_DIM_UNKNOWN_ELEMENT`, `_validate_equity_dimensions`, `_downstream_outcome_ids`, and columns `downstream_equity_outcome_count`/`affected_equity_dimensions`/`is_equity_relevant_orphan` are used identically across every task and match the spec.
+
+**Post-review corrections applied (2nd loop):** comparative_ui arity BLOCKER fixed (Task 6); pinned lagoon connection-count test bumped 5→6 (Task 7 Step 4b); JSON edit reframed as whole-object replacement (Task 7); spec'd empty-state disclaimer added (Task 6); parent + scientific-basis doc updates added (Task 9); outcome-type predicate centralized (Tasks 1/3/5).
