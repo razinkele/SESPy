@@ -1,5 +1,7 @@
 # MosaicSES UI Hardening Implementation Plan
 
+> **Status: ✅ Implemented** — shipped to MosaicSES `main` on 2026-06-13 (merge tip `e816437`, 19 commits, fast-forward). All 26 findings fixed; 397 non-e2e tests + the full Playwright e2e suite green. Two refinements vs. this plan, both recorded in the commits: the meta-graph navigate handler omits `emit_isa_change` to avoid a false-dirty backwrite (T7), and the dirty flag uses a one-shot skip guard so a fresh load never reads as dirty (T8). The e2e app-start timeout was bumped to 180s in `tests/conftest.py` so the heavy app's e2e run locally. The "select-one-then-save friction" MEDIUM remains deliberately deferred (Non-Goal).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fix all 26 verified findings from the 3-loop UI review (1 CRITICAL, 7 HIGH, 18 MEDIUM): empty/error-state crashes, a missing skin, destructive-action data loss, meta-graph accessibility + rebind defects, and a cluster of feedback/visual/i18n issues.
