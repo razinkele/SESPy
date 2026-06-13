@@ -18,6 +18,22 @@
 
 ---
 
+### Task 0: Create the feature branch
+
+**Files:** none (git only). In the **MosaicSES** repo (the established convention here is a feature branch that is fast-forward-merged + deleted at the end, as #20 did).
+
+- [ ] **Step 1: Branch off main**
+
+```bash
+git checkout main
+git checkout -b phase2-overlay-editors
+git branch --show-current   # -> phase2-overlay-editors
+```
+
+All Tasks 1–9 commit on this branch. After Task 10, integrate via `superpowers:finishing-a-development-branch` (FF-merge to `main` + delete the branch). The SESPy doc commit (Task 10) is independent and lands on SESPy `main`.
+
+---
+
 ### Task 1: `replace_channel` library helper
 
 **Files:**
@@ -218,6 +234,17 @@ def test_rco_interleaves_with_replace_channel():
     ms = replace_channel(ms, "ch1", dataclasses.replace(ms.channels[0], tenet_scores={"legal": 5}))
     assert ms.compartment("a").outcome_equity_dimensions == {"GB001": ["ocean_grabbing"]}
     assert ms.channels[0].tenet_scores == {"legal": 5}
+
+
+def test_rco_omit_both_is_identity():
+    # Passing neither overlay kwarg leaves both fields exactly as they were —
+    # guards against a bug that clears overlays when no override is given.
+    ms, _ = _ms_one_compartment(
+        response_tenet_scores={"R1": {"ecological": 4}},
+        outcome_equity_dimensions={"GB001": ["ocean_grabbing"]})
+    c = replace_compartment_overlays(ms, "a").compartment("a")
+    assert c.response_tenet_scores == {"R1": {"ecological": 4}}
+    assert c.outcome_equity_dimensions == {"GB001": ["ocean_grabbing"]}
 ```
 
 - [ ] **Step 2: Run to verify they fail**
@@ -493,6 +520,28 @@ def test_tenet_editor_ui_readonly_note_for_scored_non_governance():
     html = str(out.tagify())
     assert "governance channels only" in html
     assert "save_channel_tenets" not in html
+
+
+def test_tenet_editor_ui_renders_for_UNSCORED_governance():
+    # The gate is channel TYPE, not score presence: an unscored governance
+    # channel must still get the editor (all fields blank). Guards against a
+    # bug that only renders when tenet_scores is truthy.
+    html = str(topology._tenet_editor_ui(_gov_channel()).tagify())
+    assert "save_channel_tenets" in html
+    assert "tenet_ecological" in html
+
+
+def test_tenet_editor_ui_stamps_the_channel_id():
+    # The hidden stamp must carry the channel's OWN id (load-bearing for the
+    # save-time consistency guard) — not a hardcoded/empty value.
+    html = str(topology._tenet_editor_ui(_gov_channel(id="g")).tagify())
+    assert 'value="g"' in html
+
+
+def test_is_governance_editable_predicate():
+    assert topology._is_governance_editable(_gov_channel()) is True
+    assert topology._is_governance_editable(_nutrient_channel()) is False
+    assert topology._is_governance_editable(None) is False
 ```
 
 - [ ] **Step 2: Run to verify they fail**
@@ -505,15 +554,20 @@ Expected: FAIL — `AttributeError: module ... has no attribute '_tenet_editor_u
 In `multises_app/modules/topology.py`, add to the imports near the top: `from multises.data_structure import TENETS` and `from multises_app.overlay_edit import TENET_SCORE_CHOICES`. Then add this module-level function (next to the other `_`-helpers like `_inspector_node_info`):
 
 ```python
+def _is_governance_editable(ch) -> bool:
+    """Pure predicate: may this channel's tenet scores be EDITED? True only for
+    a non-None governance channel. Used by BOTH the render gate (below) and the
+    save-time re-gate (Task 6), so the gate is written — and unit-tested — once."""
+    return ch is not None and ch.channel_type == "governance"
+
+
 def _tenet_editor_ui(ch):
     """Pure: the tenet-score editor Tag for a governance channel; a read-only
     note for a non-governance channel that already carries scores; None
     otherwise. Inputs read `selected=` from the channel data (not from prior
     input), which is what makes select-then-edit reset correctly on re-render."""
-    if ch is None:
-        return None
-    if ch.channel_type != "governance":
-        if ch.tenet_scores:
+    if not _is_governance_editable(ch):
+        if ch is not None and ch.tenet_scores:
             return ui.tags.p(
                 "Tenet editing is available for governance channels only.",
                 class_="placeholder",
@@ -532,7 +586,6 @@ def _tenet_editor_ui(ch):
         ui.div(ui.input_text("channel_tenet_editing_id", "", value=ch.id),
                style="display:none"),
         ui.input_action_button("save_channel_tenets", "Save scores"),
-        class_="tenet-editor",
     )
 ```
 
@@ -607,7 +660,7 @@ import dataclasses
             ms = state.active_multises.get()
             cid_ch = input.channel_tenet_editing_id()
             ch = next((c for c in ms.channels if c.id == cid_ch), None)
-            if ch is None or ch.channel_type != "governance":
+            if not _is_governance_editable(ch):   # save-time re-gate (selection may be stale)
                 ui.notification_show("Channel no longer available.",
                                      type="error", duration=6)
                 return
@@ -624,8 +677,9 @@ import dataclasses
 
 - [ ] **Step 4: Run to verify the UI-mount test passes + no regressions**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_topology_module.py -q`
-Expected: PASS. Also import-smoke the app: `micromamba run -n shiny python -c "import app"` from the repo root → no error.
+Run: `micromamba run -n shiny python -m pytest tests/test_topology_module.py -q` → PASS.
+Import-smoke the app: `micromamba run -n shiny python -c "import app"` from the repo root → no error.
+Run the **full unit suite** to catch cross-module regressions (topology.py is consumed app-wide): `micromamba run -n shiny python -m pytest tests/ -q --ignore=tests/test_comparative_e2e.py` → PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -682,6 +736,24 @@ def test_overlay_editor_ui_outcome_shows_equity_checkboxes():
     html = str(compartments._overlay_editor_ui(el, None, ["livelihood_displacement"]).tagify())
     assert "equity_dims" in html
     assert "save_overlay" in html
+
+
+def test_overlay_editor_ui_stamps_the_element_id():
+    from multises_app.modules import compartments
+    from sespy.data_structure import Element
+    el = Element(id="R1", label="Resp", type="Responses")
+    html = str(compartments._overlay_editor_ui(el, None, None).tagify())
+    assert 'value="R1"' in html
+
+
+def test_is_eligible_element_predicate():
+    from multises_app.modules import compartments
+    from sespy.data_structure import Element
+    assert compartments._is_eligible_element(Element(id="R1", label="r", type="Responses")) is True
+    assert compartments._is_eligible_element(Element(id="GB1", label="g", type="Goods & Benefits")) is True
+    assert compartments._is_eligible_element(Element(id="ES1", label="e", type="Ecosystem Services")) is True
+    assert compartments._is_eligible_element(Element(id="P1", label="p", type="Pressures")) is False
+    assert compartments._is_eligible_element(None) is False
 ```
 
 - [ ] **Step 2: Run to verify they fail**
@@ -694,12 +766,21 @@ Expected: FAIL — `_eligible_overlay_elements` / `_overlay_editor_ui` not defin
 In `multises_app/modules/compartments.py`, add to the imports: `from multises.data_structure import TENETS, EQUITY_DIMENSIONS, OUTCOME_ELEMENT_TYPES` and `from multises_app.overlay_edit import TENET_SCORE_CHOICES`. Then add the two module-level helpers (near `_picker_choices`):
 
 ```python
+def _is_eligible_element(element) -> bool:
+    """Pure predicate: may this element carry an editable overlay? True for a
+    non-None Response or outcome (Ecosystem Services / Goods & Benefits) element.
+    Used by the picker (below) AND the save-time existence guard (Task 8) — one
+    rule, unit-tested once."""
+    return element is not None and (
+        element.type == "Responses" or element.type in OUTCOME_ELEMENT_TYPES)
+
+
 def _eligible_overlay_elements(cmp) -> dict[str, str]:
     """Pure: {element_id: 'label (type)'} for the compartment's Response and
-    outcome (Ecosystem Services / Goods & Benefits) elements only."""
+    outcome elements only."""
     out: dict[str, str] = {}
     for e in cmp.project.isa_data.elements:
-        if e.type == "Responses" or e.type in OUTCOME_ELEMENT_TYPES:
+        if _is_eligible_element(e):
             out[e.id] = f"{e.label} ({e.type})"
     return out
 
@@ -729,7 +810,6 @@ def _overlay_editor_ui(element, response_scores, equity_dims):
         ui.div(ui.input_text("overlay_editing_id", "", value=element.id),
                style="display:none"),
         ui.input_action_button("save_overlay", "Save"),
-        class_="overlay-editor",
     )
 ```
 
@@ -828,9 +908,7 @@ from multises_app.overlay_edit import assemble_tenet_scores, set_overlay_entry
                 return
             cmp = ms.compartment(cid)
             element = next((e for e in cmp.project.isa_data.elements if e.id == eid), None)
-            if element is None or not (
-                element.type == "Responses" or element.type in OUTCOME_ELEMENT_TYPES
-            ):
+            if not _is_eligible_element(element):   # save-time existence guard (stamped id may be stale/deleted)
                 ui.notification_show("Element no longer available.", type="error", duration=6)
                 return
             if element.type == "Responses":
@@ -848,10 +926,11 @@ from multises_app.overlay_edit import assemble_tenet_scores, set_overlay_entry
             ui.notification_show(f"Could not save: {e}", type="error", duration=6)
 ```
 
-- [ ] **Step 4: Run to verify the UI test passes + import smoke**
+- [ ] **Step 4: Run to verify the UI test passes + import smoke + full suite**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_compartments_module.py -q`
-Expected: PASS. Then `micromamba run -n shiny python -c "import app"` → no error.
+Run: `micromamba run -n shiny python -m pytest tests/test_compartments_module.py -q` → PASS.
+Then `micromamba run -n shiny python -c "import app"` → no error.
+Then the **full unit suite** (compartments.py is consumed app-wide): `micromamba run -n shiny python -m pytest tests/ -q --ignore=tests/test_comparative_e2e.py` → PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -880,50 +959,59 @@ from playwright.sync_api import sync_playwright
 
 
 def test_topology_tenet_editor_persists(mosaicses_app_url):
+    # NON-TAUTOLOGICAL: the seed already scores nd_to_nl_wfd, bs_to_ks_helcom_gov,
+    # nl_to_nu_wfd (3 tenet-readiness rows). We edit ks_to_cl_msfd, which is a
+    # governance channel with NO seed tenet_scores, so a working save adds a NEW
+    # row — a no-op save leaves the count unchanged and the test fails.
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
         page.goto(mosaicses_app_url, wait_until="networkidle")
-        # nav via the dashboard's sespy_nav_<value> buttons (the repo idiom)
+        # baseline tenet-readiness row count from the seed
+        page.click("#sespy_nav_comparative")
+        page.wait_for_selector("#comparative-tenet_table tbody tr", timeout=30_000)
+        before = page.locator("#comparative-tenet_table tbody tr").count()
+        # edit the seed-UNSCORED governance channel
         page.click("#sespy_nav_topology")
-        # select a governance channel by VALUE on the raw <select> (Playwright
-        # select_option works through selectize); nd_to_nl_wfd is a Curonian
-        # governance channel id.
-        page.locator("#topology-inspector_target").select_option("nd_to_nl_wfd")
-        # the conditional tenet editor appears
+        page.locator("[aria-controls='topology-topology_inspector_sb']").click()  # open inspector sidebar (open='closed')
+        page.locator("#topology-inspector_target").select_option("ks_to_cl_msfd")
         page.wait_for_selector("#topology-save_channel_tenets", timeout=30_000)
         page.locator("#topology-tenet_ecological").select_option("5")
         page.click("#topology-save_channel_tenets")
-        # Comparative reflects a tenet-readiness row (row-level assertion)
+        # a NEW tenet-readiness row appears (proves the save actually wrote)
         page.click("#sespy_nav_comparative")
-        page.wait_for_selector("#comparative-tenet_table tbody tr", timeout=30_000)
+        page.wait_for_function(
+            "n => document.querySelectorAll('#comparative-tenet_table tbody tr').length > n",
+            arg=before, timeout=30_000)
         browser.close()
 
 
 def test_compartments_equity_editor_persists(mosaicses_app_url):
+    # NON-TAUTOLOGICAL: GB001's seed dims are livelihood_displacement +
+    # decision_exclusion. We add gender_inequity, which appears NOWHERE in the
+    # Curonian seed — so "Gender inequity" in the equity table can only come from
+    # this edit. (P003 reaches GB001 downstream, so GB001's dims surface there.)
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
         page.goto(mosaicses_app_url, wait_until="networkidle")
         page.click("#sespy_nav_compartments")
-        # drill into the lagoon, which has GB001 = "Lagoon fishery" (Goods &
-        # Benefits = an outcome element)
+        # drill into the lagoon (GB001 = "Lagoon fishery", a Goods & Benefits outcome)
         page.locator("#compartments-compartment_picker").select_option("curonian_lagoon")
-        # open the nested "Evaluative scores" tab (nested navset — text click is fine)
-        page.click("text=Evaluative scores")
-        # pick the outcome element by VALUE (element id)
+        page.click("text=Evaluative scores")  # nested navset tab — text click is fine
         page.locator("#compartments-overlay_element").select_option("GB001")
         page.wait_for_selector("#compartments-equity_dims", timeout=30_000)
-        page.check("#compartments-equity_dims input[value='livelihood_displacement']")
+        page.check("#compartments-equity_dims input[value='gender_inequity']")
         page.click("#compartments-save_overlay")
         page.click("#sespy_nav_comparative")
-        page.wait_for_selector("#comparative-equity_table", timeout=30_000)
-        # the display label appears after the equity_table renderer maps the slug
-        assert "Livelihood displacement" in page.content()
+        page.wait_for_function(
+            "() => document.querySelector('#comparative-equity_table')"
+            " && document.querySelector('#comparative-equity_table').textContent.includes('Gender inequity')",
+            timeout=30_000)
         browser.close()
 ```
 
-> Selectors use the repo's proven idiom: dashboard nav via `#sespy_nav_<value>` (verify the exact ids by inspecting `test_comparative_e2e.py` / `test_cross_view_e2e.py`), and `select_option(<value>)` on the raw `<select>` (Playwright drives the underlying element even when selectize wraps it — this is how `test_comparative_e2e.py` drives the metric select). If a selector still can't be made stable against the live DOM, fall back to a row-level / `page.content()` text assertion (the spec permits row-level), but do NOT weaken to a tautology, and do NOT fake a pass — fix against the real DOM.
+> Selectors use the repo's proven idiom: dashboard nav via `#sespy_nav_<value>`, `select_option(<value>)` on the raw `<select>` (Playwright drives it even when selectize wraps it — as `test_comparative_e2e.py` does for its metric select), and the inspector sidebar is opened via its `aria-controls` toggle because it renders `open="closed"`. Verify the exact nav/toggle ids against `test_comparative_e2e.py` / the live DOM. Both assertions are **before/after-sensitive** (new row count; a seed-absent dimension label), so a no-op save fails them — do NOT weaken to a seed-satisfiable assertion, and do NOT fake a pass.
 
 - [ ] **Step 2: Run the e2e**
 
@@ -961,12 +1049,17 @@ In the SESPy repo, edit `docs/superpowers/specs/2026-06-13-mosaicses-phase2-over
 **Status:** **Implemented** ✓ — shipped in MosaicSES `main`; full unit suite green + overlay-editor e2e green.
 ```
 
-- [ ] **Step 4: Commit (SESPy repo)**
+- [ ] **Step 4: Commit (SESPy repo — NOTE the directory switch)**
+
+This commit is in the **SESPy** repo, not MosaicSES. `cd` there first (running `git add docs/superpowers/...` from the MosaicSES root fails with `fatal: pathspec ... did not match any files`):
 
 ```bash
+cd "C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESPy"
 git add docs/superpowers/specs/2026-06-13-mosaicses-phase2-overlay-editors-design.md
 git commit -m "docs(spec): mark overlay-editors as implemented (shipped to MosaicSES)"
 ```
+
+(The MosaicSES feature branch is then integrated separately via `superpowers:finishing-a-development-branch`.)
 
 ---
 
@@ -988,4 +1081,6 @@ git commit -m "docs(spec): mark overlay-editors as implemented (shipped to Mosai
 
 **Type/name consistency:** `replace_channel`, `replace_compartment_overlays`, `_UNSET`, `assemble_tenet_scores`, `set_overlay_entry`, `TENET_SCORE_CHOICES`, `_tenet_editor_ui`, `_eligible_overlay_elements`, `_overlay_editor_ui`, and the input ids `tenet_<slug>` / `channel_tenet_editing_id` / `save_channel_tenets` / `overlay_element` / `overlay_editor` / `overlay_editing_id` / `equity_dims` / `save_overlay` are used identically across tasks and match the spec. The pure-builder-plus-thin-wrapper split (Tasks 5/6 and 7/8) is the established topology.py pattern (`_inspector_node_info`, `_network_table_ui`).
 
-**Post-review corrections (3rd review loop):** (1) test imports split across Tasks 1/2 so the append-style `test_overlay_editors.py` always COLLECTs at each verify-fail step; (2) the duplicated tenet-select choices extracted to a single `TENET_SCORE_CHOICES` constant in `overlay_edit.py`; (3) dynamic input reads use `getattr(input, f"tenet_{slug}")()` (local idiom); (4) e2e selectors corrected to the repo idiom (`#sespy_nav_<value>` nav + `select_option(<value>)` on the raw `<select>` + deterministic lagoon/GB001 drill-in); (5) `OUTCOME_ELEMENT_TYPES` import dependency on Task 7 noted in Task 8; (6) decisive `import dataclasses`. **On `reactive.isolate()` (spec §5):** not added — the save effects are `@reactive.event(input.save_*)`-gated, which already isolates the body from its reactive reads, so explicit `isolate()` is redundant here.
+**Post-review corrections (3rd review loop):** (1) test imports split across Tasks 1/2 so the append-style `test_overlay_editors.py` always COLLECTs at each verify-fail step; (2) the duplicated tenet-select choices extracted to a single `TENET_SCORE_CHOICES` constant in `overlay_edit.py`; (3) dynamic input reads use `getattr(input, f"tenet_{slug}")()` (local idiom); (4) e2e selectors corrected to the repo idiom (`#sespy_nav_<value>` nav + `select_option(<value>)` on the raw `<select>`); (5) `OUTCOME_ELEMENT_TYPES` import dependency on Task 7 noted in Task 8; (6) decisive `import dataclasses`. **On `reactive.isolate()` (spec §5):** not added — the save effects are `@reactive.event(input.save_*)`-gated, which already isolates the body from its reactive reads, so explicit `isolate()` is redundant here.
+
+**Post-review corrections (4th review loop — execution-sim, test-quality adversary, ops):** (1) **e2e de-tautologized** — both assertions were satisfied by the Curonian seed *before any edit* (seed already scores `nd_to_nl_wfd` and tags `GB001` with `livelihood_displacement`); now the topology e2e edits the seed-**unscored** `ks_to_cl_msfd` and asserts the tenet-row count **rises**, and the equity e2e adds `gender_inequity` (absent everywhere in the seed) and asserts its label appears — a no-op save now fails. (2) e2e opens the collapsed inspector sidebar (`open="closed"`) via its `aria-controls` toggle before interacting. (3) **Task 0** added — feature branch `phase2-overlay-editors` (FF-merge + delete via finishing-a-development-branch, per #20). (4) **Task 10 cross-repo `cd`** to SESPy made explicit (the spec commit can't be `git add`-ed from the MosaicSES root). (5) **Gate predicates extracted + unit-tested** — `_is_governance_editable` (topology) and `_is_eligible_element` (compartments) now back BOTH the render gate/picker AND the save-time re-gate/guard, moving the previously-untestable gate logic into pure-helper coverage (guards against an inverted-gate bug). (6) added an **unscored-governance** positive gate test + **stamped-id value** tests (`value="g"`/`value="R1"`) + the dropped `replace_compartment_overlays` **omit-both identity** test. (7) Tasks 6 & 8 now run the **full unit suite** (not just the module file) to catch cross-module regressions. (8) dropped the unused `tenet-editor`/`overlay-editor` CSS classes.
