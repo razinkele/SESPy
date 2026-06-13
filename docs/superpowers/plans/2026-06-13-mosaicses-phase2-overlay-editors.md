@@ -44,8 +44,10 @@ from multises.data_structure import (
     MultiSES,
     MultiSESMetadata,
     replace_channel,
-    replace_compartment_overlays,
 )
+# NOTE: replace_compartment_overlays is added to this import in Task 2 — do NOT
+# import it here, or this file fails to COLLECT (ImportError) at Task 1's
+# verify-fail step instead of failing the intended test.
 
 
 def _ms_with_channel(**ch_kw):
@@ -145,7 +147,18 @@ git commit -m "feat(mosaicses): replace_channel pure library helper (overlay edi
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `tests/test_overlay_editors.py`:
+First, add `replace_compartment_overlays` to the existing top-of-file import block (and remove the Task-1 NOTE comment about it):
+
+```python
+from multises.data_structure import (
+    MultiSES,
+    MultiSESMetadata,
+    replace_channel,
+    replace_compartment_overlays,
+)
+```
+
+Then append to `tests/test_overlay_editors.py`:
 
 ```python
 def _ms_one_compartment(**overlay):
@@ -214,7 +227,7 @@ Expected: FAIL — `cannot import name 'replace_compartment_overlays'`.
 
 - [ ] **Step 3: Implement the helper**
 
-In `multises/data_structure.py`, ensure `import dataclasses` is present near the top imports (the file already does `from dataclasses import dataclass, field` / `from dataclasses import asdict as _asdict`; add a plain `import dataclasses` if not already imported). Then directly after `replace_channel`, add:
+In `multises/data_structure.py`, add a bare `import dataclasses` to the top-of-file imports if it isn't already there — `replace_compartment_overlays` calls `dataclasses.replace`, which needs the **module name** bound (the file's existing `from dataclasses import dataclass, field` / `from dataclasses import asdict as _asdict` lines do NOT bind `dataclasses`). Then, directly after `replace_channel`, add:
 
 ```python
 _UNSET = object()  # sentinel: "leave unchanged" vs an explicit value (incl. None)
@@ -395,6 +408,13 @@ unit-testable without a Shiny session (the @reactive.effects are thin wrappers).
 """
 from __future__ import annotations
 
+# Single source of truth for the tenet-score select choices, shared by BOTH
+# editors (Topology channel editor + Compartments Response editor). "" is the
+# unset/gap option.
+TENET_SCORE_CHOICES: dict[str, str] = {
+    "": "— not scored (gap)", "1": "1", "2": "2", "3": "3", "4": "4", "5": "5",
+}
+
 
 def assemble_tenet_scores(values: dict[str, str]) -> dict[str, int] | None:
     """Map {tenet_slug: "" | "1".."5"} -> {slug: int}. The `if v` guard drops
@@ -482,7 +502,7 @@ Expected: FAIL — `AttributeError: module ... has no attribute '_tenet_editor_u
 
 - [ ] **Step 3: Implement the pure builder**
 
-In `multises_app/modules/topology.py`, add to the imports near the top: `from multises.data_structure import TENETS`. Then add this module-level function (next to the other `_`-helpers like `_inspector_node_info`):
+In `multises_app/modules/topology.py`, add to the imports near the top: `from multises.data_structure import TENETS` and `from multises_app.overlay_edit import TENET_SCORE_CHOICES`. Then add this module-level function (next to the other `_`-helpers like `_inspector_node_info`):
 
 ```python
 def _tenet_editor_ui(ch):
@@ -501,12 +521,9 @@ def _tenet_editor_ui(ch):
         return None
     scores = ch.tenet_scores or {}
     selects = [
-        ui.input_select(
-            f"tenet_{slug}", label,
-            choices={"": "— not scored (gap)", "1": "1", "2": "2",
-                     "3": "3", "4": "4", "5": "5"},
-            selected=str(scores.get(slug, "")),
-        )
+        ui.input_select(f"tenet_{slug}", label,
+                        choices=TENET_SCORE_CHOICES,
+                        selected=str(scores.get(slug, "")))
         for slug, label in TENETS
     ]
     return ui.tags.div(
@@ -595,7 +612,7 @@ import dataclasses
                                      type="error", duration=6)
                 return
             scores = assemble_tenet_scores(
-                {slug: input[f"tenet_{slug}"]() for slug in TENET_SLUGS})
+                {slug: getattr(input, f"tenet_{slug}")() for slug in TENET_SLUGS})
             new_ch = dataclasses.replace(ch, tenet_scores=scores)
             state.active_multises.set(replace_channel(ms, ch.id, new_ch))
             ui.notification_show(
@@ -674,7 +691,7 @@ Expected: FAIL — `_eligible_overlay_elements` / `_overlay_editor_ui` not defin
 
 - [ ] **Step 3: Implement the builders**
 
-In `multises_app/modules/compartments.py`, add to the imports: `from multises.data_structure import TENETS, EQUITY_DIMENSIONS, OUTCOME_ELEMENT_TYPES`. Then add the two module-level helpers (near `_picker_choices`):
+In `multises_app/modules/compartments.py`, add to the imports: `from multises.data_structure import TENETS, EQUITY_DIMENSIONS, OUTCOME_ELEMENT_TYPES` and `from multises_app.overlay_edit import TENET_SCORE_CHOICES`. Then add the two module-level helpers (near `_picker_choices`):
 
 ```python
 def _eligible_overlay_elements(cmp) -> dict[str, str]:
@@ -696,12 +713,9 @@ def _overlay_editor_ui(element, response_scores, equity_dims):
     if element.type == "Responses":
         scores = response_scores or {}
         body = [
-            ui.input_select(
-                f"tenet_{slug}", label,
-                choices={"": "— not scored (gap)", "1": "1", "2": "2",
-                         "3": "3", "4": "4", "5": "5"},
-                selected=str(scores.get(slug, "")),
-            )
+            ui.input_select(f"tenet_{slug}", label,
+                            choices=TENET_SCORE_CHOICES,
+                            selected=str(scores.get(slug, "")))
             for slug, label in TENETS
         ]
     else:  # outcome element
@@ -775,6 +789,8 @@ from multises.data_structure import replace_compartment_overlays, TENET_SLUGS, _
 from multises_app.overlay_edit import assemble_tenet_scores, set_overlay_entry
 ```
 
+(`OUTCOME_ELEMENT_TYPES`, `TENETS`, `EQUITY_DIMENSIONS` and `TENET_SCORE_CHOICES` were already imported into `compartments.py` by Task 7 — the `_save_overlay` effect below reuses `OUTCOME_ELEMENT_TYPES`. Task 7 is a prerequisite of Task 8.)
+
 (c) In `compartments_server`, add (e.g. after `_populate_picker`):
 
 ```python
@@ -819,7 +835,7 @@ from multises_app.overlay_edit import assemble_tenet_scores, set_overlay_entry
                 return
             if element.type == "Responses":
                 scores = assemble_tenet_scores(
-                    {slug: input[f"tenet_{slug}"]() for slug in TENET_SLUGS})
+                    {slug: getattr(input, f"tenet_{slug}")() for slug in TENET_SLUGS})
                 new_field = set_overlay_entry(cmp.response_tenet_scores, eid, scores)
                 new_ms = replace_compartment_overlays(ms, cid, response_tenet_scores=new_field)
             else:
@@ -857,7 +873,7 @@ First open `tests/test_comparative_e2e.py` and `tests/conftest.py` to copy the e
 
 ```python
 """e2e: the overlay editors write to active_multises and the Comparative cards
-reflect it. Mirrors the launch idiom in test_comparative_e2e.py."""
+reflect it. Mirrors the launch + nav idiom in test_comparative_e2e.py."""
 from __future__ import annotations
 
 from playwright.sync_api import sync_playwright
@@ -868,19 +884,18 @@ def test_topology_tenet_editor_persists(mosaicses_app_url):
         browser = p.chromium.launch()
         page = browser.new_page()
         page.goto(mosaicses_app_url, wait_until="networkidle")
-        # open Topology
-        page.click("text=Topology")
-        # select a governance channel in the inspector (a Curonian governance
-        # channel id, e.g. nd_to_nl_wfd) — selectize: open + pick by id
-        page.locator("#topology-inspector_target ~ .selectize-control").click()
-        page.click("text=[channel] nd_to_nl_wfd")
+        # nav via the dashboard's sespy_nav_<value> buttons (the repo idiom)
+        page.click("#sespy_nav_topology")
+        # select a governance channel by VALUE on the raw <select> (Playwright
+        # select_option works through selectize); nd_to_nl_wfd is a Curonian
+        # governance channel id.
+        page.locator("#topology-inspector_target").select_option("nd_to_nl_wfd")
         # the conditional tenet editor appears
         page.wait_for_selector("#topology-save_channel_tenets", timeout=30_000)
-        # set a tenet score and save
-        page.select_option("#topology-tenet_ecological", "5")
+        page.locator("#topology-tenet_ecological").select_option("5")
         page.click("#topology-save_channel_tenets")
         # Comparative reflects a tenet-readiness row (row-level assertion)
-        page.click("text=Comparative")
+        page.click("#sespy_nav_comparative")
         page.wait_for_selector("#comparative-tenet_table tbody tr", timeout=30_000)
         browser.close()
 
@@ -890,23 +905,25 @@ def test_compartments_equity_editor_persists(mosaicses_app_url):
         browser = p.chromium.launch()
         page = browser.new_page()
         page.goto(mosaicses_app_url, wait_until="networkidle")
-        page.click("text=Compartments")
-        # open the Evaluative scores tab
+        page.click("#sespy_nav_compartments")
+        # drill into the lagoon, which has GB001 = "Lagoon fishery" (Goods &
+        # Benefits = an outcome element)
+        page.locator("#compartments-compartment_picker").select_option("curonian_lagoon")
+        # open the nested "Evaluative scores" tab (nested navset — text click is fine)
         page.click("text=Evaluative scores")
-        # pick an outcome element (selectize)
-        page.locator("#compartments-overlay_element ~ .selectize-control").click()
-        page.click("text=(Goods & Benefits)")
+        # pick the outcome element by VALUE (element id)
+        page.locator("#compartments-overlay_element").select_option("GB001")
         page.wait_for_selector("#compartments-equity_dims", timeout=30_000)
         page.check("#compartments-equity_dims input[value='livelihood_displacement']")
         page.click("#compartments-save_overlay")
-        page.click("text=Comparative")
+        page.click("#sespy_nav_comparative")
         page.wait_for_selector("#comparative-equity_table", timeout=30_000)
         # the display label appears after the equity_table renderer maps the slug
         assert "Livelihood displacement" in page.content()
         browser.close()
 ```
 
-> Selectors here use module-namespaced ids (`#topology-...`, `#compartments-...`). Shiny renders selects as selectize widgets; if the `.selectize-control` interaction differs in this repo's Shiny version, mirror exactly how an existing e2e drives a select (inspect `test_comparative_e2e.py` / `test_cross_view_e2e.py`). If a step's selector can't be made stable, fall back to a row-level / `page.content()` text assertion (the spec permits row-level), but do NOT weaken to a tautology.
+> Selectors use the repo's proven idiom: dashboard nav via `#sespy_nav_<value>` (verify the exact ids by inspecting `test_comparative_e2e.py` / `test_cross_view_e2e.py`), and `select_option(<value>)` on the raw `<select>` (Playwright drives the underlying element even when selectize wraps it — this is how `test_comparative_e2e.py` drives the metric select). If a selector still can't be made stable against the live DOM, fall back to a row-level / `page.content()` text assertion (the spec permits row-level), but do NOT weaken to a tautology, and do NOT fake a pass — fix against the real DOM.
 
 - [ ] **Step 2: Run the e2e**
 
@@ -969,4 +986,6 @@ git commit -m "docs(spec): mark overlay-editors as implemented (shipped to Mosai
 
 **Placeholder scan:** No TBD/TODO; every code step has complete code. The only "match the existing idiom" notes are for e2e selectors/fixture (house-specific Playwright wiring) — they point at concrete existing e2e files to copy, with a stated row-level fallback the spec already permits.
 
-**Type/name consistency:** `replace_channel`, `replace_compartment_overlays`, `_UNSET`, `assemble_tenet_scores`, `set_overlay_entry`, `_tenet_editor_ui`, `_eligible_overlay_elements`, `_overlay_editor_ui`, and the input ids `tenet_<slug>` / `channel_tenet_editing_id` / `save_channel_tenets` / `overlay_element` / `overlay_editor` / `overlay_editing_id` / `equity_dims` / `save_overlay` are used identically across tasks and match the spec. The pure-builder-plus-thin-wrapper split (Tasks 5/6 and 7/8) is the established topology.py pattern (`_inspector_node_info`, `_network_table_ui`).
+**Type/name consistency:** `replace_channel`, `replace_compartment_overlays`, `_UNSET`, `assemble_tenet_scores`, `set_overlay_entry`, `TENET_SCORE_CHOICES`, `_tenet_editor_ui`, `_eligible_overlay_elements`, `_overlay_editor_ui`, and the input ids `tenet_<slug>` / `channel_tenet_editing_id` / `save_channel_tenets` / `overlay_element` / `overlay_editor` / `overlay_editing_id` / `equity_dims` / `save_overlay` are used identically across tasks and match the spec. The pure-builder-plus-thin-wrapper split (Tasks 5/6 and 7/8) is the established topology.py pattern (`_inspector_node_info`, `_network_table_ui`).
+
+**Post-review corrections (3rd review loop):** (1) test imports split across Tasks 1/2 so the append-style `test_overlay_editors.py` always COLLECTs at each verify-fail step; (2) the duplicated tenet-select choices extracted to a single `TENET_SCORE_CHOICES` constant in `overlay_edit.py`; (3) dynamic input reads use `getattr(input, f"tenet_{slug}")()` (local idiom); (4) e2e selectors corrected to the repo idiom (`#sespy_nav_<value>` nav + `select_option(<value>)` on the raw `<select>` + deterministic lagoon/GB001 drill-in); (5) `OUTCOME_ELEMENT_TYPES` import dependency on Task 7 noted in Task 8; (6) decisive `import dataclasses`. **On `reactive.isolate()` (spec §5):** not added — the save effects are `@reactive.event(input.save_*)`-gated, which already isolates the body from its reactive reads, so explicit `isolate()` is redundant here.
