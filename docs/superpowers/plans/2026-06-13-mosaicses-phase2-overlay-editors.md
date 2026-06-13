@@ -534,7 +534,8 @@ def test_tenet_editor_ui_renders_for_UNSCORED_governance():
 def test_tenet_editor_ui_stamps_the_channel_id():
     # The hidden stamp must carry the channel's OWN id (load-bearing for the
     # save-time consistency guard) — not a hardcoded/empty value.
-    html = str(topology._tenet_editor_ui(_gov_channel(id="g")).tagify())
+    # (_gov_channel already sets id="g"; don't pass id= again — duplicate kwarg.)
+    html = str(topology._tenet_editor_ui(_gov_channel()).tagify())
     assert 'value="g"' in html
 
 

@@ -435,13 +435,15 @@ def test_replace_compartment_preserves_overlays():
     a.response_tenet_scores = {"R1": {"ecological": 4}}
     ms = MultiSES(metadata=MultiSESMetadata(), compartments=[a], channels=[])
     new_project = seed_compartment("lagoon", label="A", id="a").project
-    replace_compartment(ms, "a", new_project)
-    c = ms.compartments[0]
+    # replace_compartment is PURE — it returns a NEW MultiSES; assert on the
+    # returned object (asserting on the original `ms` would pass trivially).
+    ms2 = replace_compartment(ms, "a", new_project)
+    c = ms2.compartments[0]
     assert c.outcome_equity_dimensions == {"GB001": ["livelihood_displacement"]}
     assert c.response_tenet_scores == {"R1": {"ecological": 4}}   # pre-existing gap, now fixed
 ```
 
-> Confirm the `replace_compartment(ms, compartment_id, new_project)` signature against `multises/data_structure.py` before running; adjust the call if the parameter order differs.
+> `replace_compartment` is a pure function returning a new `MultiSES` (signature `replace_compartment(ms, compartment_id, new_project)`); capture the return value — asserting on the original `ms` is a false-negative trap.
 
 - [ ] **Step 2: Run test to verify it fails**
 
