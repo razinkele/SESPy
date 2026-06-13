@@ -284,14 +284,14 @@ This matrix records exactly which EG framework dimensions are implemented in v1 
 | Three-management-regime intersection (WFD/EPSS/MSFD-MSPD) | Tagliapietra et al. 2020 §3; Lonsdale et al. 2018 | ✓ implemented | §3 GovernanceRegime Literal; §5.5 |
 | Cooperation/Confrontation Integrity Index for TTW (0-10 normalized in v1) | Povilanskas & Razinkovas-Baziukas 2023 | ✓ implemented | §3 `cci_index`; §5.5 |
 | CICES v5.1 ES coding | Haines-Young & Potschin 2018 (CICES) | ✓ implemented (optional) | §3 `cices_code`; §4.3 archetype defaults |
-| 10-tenets evaluation framework | Elliott et al. 2017, 2025 revisited | ✗ deferred | Phase-2 `tenet_scores` (§11 #19) |
-| Emerald Justice equity dimensions | Nyka, EG monograph; emerald_justice working draft | ✗ deferred | Phase-2 `equity_dimensions` (§11 #20) |
+| 10-tenets evaluation framework | Elliott et al. 2017, 2025 revisited | ✓ implemented (Phase-2 #19) | `tenet_scores` overlay + `tenet_gap_analysis()` (§11 #19) |
+| Emerald Justice equity dimensions | Nyka, EG monograph; emerald_justice working draft | ✓ implemented (Phase-2 #20) | `outcome_equity_dimensions` overlay + equity columns on `response_pressure_gap()` (§11 #20) |
 | Coastal Circles of Sustainability indicators | Povilanskas et al. 2024 | ✗ deferred | Phase-2 `circles_indicators` (§11 #24) |
 | Per-archetype monograph deliverables (Ch.1-Ch.5) | EG monograph chapters | ⚠ partial | §11 #22 (some functions in v1 via comparative dashboard) |
 | Designing-new-ecosystems / depolderisation | Tagliapietra notes | ✗ deferred | Phase-2 scenario module (priority D from Q4) |
 | TW squeeze (climate-pressured TW) | Tagliapietra notes (Adriatic thermal squeeze analogue) | ✗ deferred | Phase-2 `climate_forcing` channel applied to TW (§11 #13) |
 
-**Coverage summary:** 9 implemented (3 fully, 1 partially); 8 deferred to phase 2 with concrete backlog entries.
+**Coverage summary:** 11 implemented (incl. Phase-2 #19 10-tenets and #20 Emerald Justice, both now shipped to MosaicSES `main`); 6 deferred to phase 2 with concrete backlog entries.
 
 The implementation prioritises the EG framework's **structural** dimensions — the connectivity-flow channels, the pressure origin, the regime intersection, the transboundary index — over its **evaluative** dimensions (tenets, equity, CCS indicators). This is defensible: structural dimensions need to be in the data model from v1 to avoid breaking schema changes; evaluative dimensions are layers on top of an already-correct structural model.
 

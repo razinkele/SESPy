@@ -3,7 +3,7 @@
 **Repository:** `razinkele/MosaicSES` (code location: `multises/` library + `multises_app/modules/comparative.py`; this spec + its plan live in `razinkele/SESPy` `docs/superpowers/`).
 
 **Date:** 2026-06-13
-**Status:** **Planned** — not yet implemented. (Revised after a 4-angle review: code-integration, scientific/domain, test-readiness, design-consistency.)
+**Status:** **Implemented** ✓ — shipped in MosaicSES `main` (`dfb2d47`..`90f64ed`, 2026-06-13); full unit suite green (338) + comparative e2e green. (Design revised after a 4-angle review; built via subagent-driven TDD with two-stage review per task + a final whole-branch review.)
 **Parent spec:** [`2026-05-08-mosaicses-design.md`](2026-05-08-mosaicses-design.md) §11 item #20; alignment matrix [`2026-05-09-mosaicses-scientific-basis.md`](2026-05-09-mosaicses-scientific-basis.md) §8a (`equity_dimensions` deferred row) and §2.0 (Emerald Justice as parallel EG concept).
 **Sibling increment / template:** [`2026-06-09-mosaicses-phase2-tenets-design.md`](2026-06-09-mosaicses-phase2-tenets-design.md) (#19, first Phase-2 increment) — this increment mirrors its shape (overlay field + analysis + read-only comparative card + Curonian seed).
 **Phase-2 item:** #20 (second Phase-2 increment).
