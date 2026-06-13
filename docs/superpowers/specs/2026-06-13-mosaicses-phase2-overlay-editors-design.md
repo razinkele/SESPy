@@ -3,7 +3,7 @@
 **Repository:** `razinkele/MosaicSES` (code: `multises/data_structure.py`, new `multises_app/overlay_edit.py`, `multises_app/modules/{topology,compartments}.py`; this spec + plan live in `razinkele/SESPy` `docs/superpowers/`).
 
 **Date:** 2026-06-13
-**Status:** **Planned** — not yet implemented. (Revised after two review loops: code-integration, Shiny/UX, test-readiness, design-consistency, adversarial edge-case.)
+**Status:** **Implemented** ✓ — shipped in MosaicSES `main` (`c0f49bd`..`a6153f3`, 2026-06-13); full unit suite green (372) + both overlay-editor e2e green. Built via subagent-driven TDD (implementer + spec-review + code-quality-review per task) + a final whole-branch review. (Design hardened across multiple review loops: code-integration, Shiny/UX, test-readiness, design-consistency, adversarial, fresh-eyes-build, domain, deep-Shiny-internals.)
 **Parent:** the read→edit follow-up deferred by both shipped overlay increments — [`2026-06-09-mosaicses-phase2-tenets-design.md`](2026-06-09-mosaicses-phase2-tenets-design.md) §11 and [`2026-06-13-mosaicses-phase2-emerald-justice-design.md`](2026-06-13-mosaicses-phase2-emerald-justice-design.md) §11. Backlog: [`2026-05-08-mosaicses-design.md`](2026-05-08-mosaicses-design.md) §11.
 
 ## 1. Goal & scope
