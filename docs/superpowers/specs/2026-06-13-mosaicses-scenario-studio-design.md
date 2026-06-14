@@ -120,8 +120,8 @@ Each diff is an **outer join** on its key; added rows render `before=NaN`, remov
 `multises_app/modules/scenario_view.py`, mirroring `cross_view.py`:
 - **Intervention-editor sidebar** — plain inputs: `input_select(kind)`, `input_text(compartment_id)`, `input_select(element_type)` (the canonical DAPSI types), `input_text(target)`, `input_text(rationale)`, an Add button + the current intervention list. (`overlay_edit.py` is Shiny-free helpers — `set_overlay_entry`, `friendly_error` — not UI grammar.)
 - **Before/after comparison** — the five metric-diff `render.DataGrid`s, each with a "changed rows only" filter.
-- The `sticky-disclaimer` stating the structural-analysis-not-prediction contract, and a **baseline-drift banner**: on load, count resolved vs dangling interventions and surface a staleness summary if the sidecar was authored against a different baseline *(review T22)*.
-- **Deferred to a follow-on refinement:** the side-by-side baseline/materialised composite-graph view and its `digraph_table_ui` a11y fallback. The accessible `render.DataGrid`s are the v1 output.
+- The `sticky-disclaimer` stating the structural-analysis-not-prediction contract.
+- **Deferred to a follow-on refinement:** the **sidecar load/save UI + its baseline-drift banner** (count resolved vs dangling interventions on load — *review T22*), and the side-by-side baseline/materialised composite-graph view + `digraph_table_ui` a11y fallback. v1 authors a scenario in-session; the accessible `render.DataGrid` diffs are the v1 output, and the `drift_banner` output exists as an inert placeholder.
 - **State:** extend `MultiSESState` with `active_scenario: reactive.Value[Scenario|None]` + `scenario_set: reactive.Value[ScenarioSet]` (baseline untouched); reuse `event_bus` + the `dirty` wiring. New nav panel in `app.py`.
 
 ## 9. Decisions
@@ -146,7 +146,7 @@ Each diff is an **outer join** on its key; added rows render `before=NaN`, remov
 
 - **A (`tests/test_scenario.py`, `test_materialise.py`, `test_scenario_compare.py`):** `Scenario` `to_dict`/`from_dict` round-trip + soft-warning on dangling refs + duplicate-target rejection; the extracted `_atomic_write_bytes` + SHA-256 verify; `materialise_scenario` for each kind (add/remove node, add/remove/retune channel) incl. the per-compartment `IsaData` translation and overlay preservation; the **metric-diff join contracts** — added/removed rows render NaN, `inter_compartment_metrics` dict→frame normalisation + list-column set-diff, the tenet compound key — on the real seed.
 - **B:** `build_depolderisation_scenario(ms)` end-to-end — materialises without error (no dangling warnings), the wetland nodes are added (isolated — edge surgery deferred), the tidal channel lands on `klaipeda_strait`, and the **metric deltas match the pinned expected values** for the concrete created ids (no aspirational claims).
-- **C:** pure-helper UI assertions via `str(...tagify())` (sidebar grammar, diff tables, highlight classes, disclaimer, a11y table, drift banner); Playwright e2e (author an `add_node` + a channel op → materialise → diff tables populate, changed-rows filter works), using the `mosaicses_app_url` fixture (180 s startup) from UI-hardening.
+- **C:** pure-helper UI assertions via `str(...tagify())` (sidebar grammar, the five namespaced diff outputs, disclaimer); Playwright e2e (author an `add_node` → materialise → diff tables populate), using the `mosaicses_app_url` fixture (180 s startup) from UI-hardening.
 
 ## 12. Risks & mitigations
 
@@ -163,8 +163,8 @@ Each diff is an **outer join** on its key; added rows render `before=NaN`, remov
 ## 14. Build order (for the plan)
 
 1. **A** — extract `_atomic_write_bytes` from `persistence.py`; `scenario.py` (data model + sidecar persistence + validation) → `materialise.py` (per-compartment structural ops + soft integrity) → `scenario_compare.py` (5 metric diffs with the §6 join contracts). Acceptance: the §11-A suite green on the real seed.
-2. **B** — `scenarios/depolderisation.py` (self-grounding factory, wired wetland, `klaipeda_strait` channel) + the pinned metric-delta end-to-end test.
-3. **C** — `scenario_view.py` (editor sidebar + diff DataGrids + baseline/materialised graph view + drift banner + a11y) → `MultiSESState` extension → `app.py` nav wiring → e2e.
+2. **B** — `scenarios/depolderisation.py` (self-grounding factory: additive isolated wetland nodes + `klaipeda_strait` tidal channel) + the pinned metric-delta end-to-end test.
+3. **C** — `scenario_view.py` (editor sidebar + the five diff DataGrids + disclaimer) → `MultiSESState` extension → `app.py` nav wiring → e2e. (Sidecar load/save UI + drift banner + composite-graph view are a follow-on.)
 
 ## 15. Appendix — the deferred sign-propagation engine (validated, for the follow-on)
 

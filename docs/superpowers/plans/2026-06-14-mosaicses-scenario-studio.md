@@ -1071,8 +1071,9 @@ from __future__ import annotations
 
 from shiny import module, ui, render, reactive
 
-from multises.scenario import (Intervention, Scenario, add_intervention,
-                              remove_intervention, ScenarioError)
+from multises.scenario import (Intervention, Scenario, add_intervention, ScenarioError)
+# (remove_intervention exists in the library for a follow-on per-row delete affordance;
+#  v1's intervention list is read-only, so it is intentionally NOT imported here.)
 from multises.scenario_compare import compare_scenario, METRIC_KEYS
 from multises_app.overlay_edit import friendly_error
 from multises_app.state import MultiSESState
@@ -1155,16 +1156,25 @@ def scenario_view_server(input, output, session, *, state: MultiSESState) -> Non
     @output
     @render.ui
     def drift_banner():
-        return ui.tags.span("")   # populated when a sidecar is loaded against a drifted baseline
+        return ui.tags.span("")   # inert placeholder — populated once the sidecar load/save UI lands (follow-on; review R1)
+
+    @reactive.calc
+    def _diffs():
+        # Compute once per flush (memoised) and share across all five diff
+        # renderers — each renderer calling compare_scenario independently would
+        # re-materialise + re-run all five analyses 5x per flush (review F2/LOW).
+        sc = state.active_scenario.get()
+        if not sc or not sc.interventions:
+            return None
+        return compare_scenario(state.active_multises.get(), sc)
 
     def _diff_renderer(metric_key: str):
         @render.data_frame
         def _():
-            sc = state.active_scenario.get()
-            if not sc or not sc.interventions:
+            diffs = _diffs()
+            if diffs is None:
                 import pandas as pd
                 return render.DataGrid(pd.DataFrame({"info": ["Add an intervention to see the diff."]}))
-            diffs = compare_scenario(state.active_multises.get(), sc)
             return render.DataGrid(diffs[metric_key], height="260px")
         return _
 
@@ -1282,7 +1292,8 @@ git commit -m "feat(mosaicses): mount Scenario Studio nav panel + author/diff e2
 
 ## Self-review notes (author)
 
-- **Spec coverage:** §3 data model → A2/A3; §3 persistence helper → A1; §4 materialisation → A4; §6 metric diff + join contracts → A5; §7 depolderisation (grounded, wired wetland, klaipeda_strait, channel-type set-diff acceptance) → B1; §8 app module (editor + diff tables + disclaimer + drift banner) → C2/C3; §3 state → C1; §9 decisions / §10 errors / §11 tests / §12 risks → covered across tasks. The sign-propagation overlay (§13/§15) is explicitly out of scope.
-- **Type consistency:** `materialise_scenario -> (MultiSES, ScenarioReport)` is consumed by A5 and B1; `METRIC_KEYS` defined in A5, reused in C2; `ScenarioErrorCode.W501_DANGLING_TARGET` set in A4, asserted in A4 tests; `add_intervention`/`remove_intervention` defined in A3, used in C2.
+- **Spec coverage:** §3 data model → A2/A3; §3 persistence helper → A1; §4 materialisation → A4; §6 metric diff + join contracts → A5; §7 depolderisation (grounded, additive isolated wetland nodes, klaipeda_strait, channel-type set-diff acceptance) → B1; §8 app module (editor + diff tables + disclaimer) → C2/C3; §3 state → C1; §9 decisions / §10 errors / §11 tests / §12 risks → covered across tasks. The sign-propagation overlay (§13/§15) is out of scope; the **sidecar load/save UI + functional baseline-drift banner are deferred** (the `drift_banner` ships as an inert placeholder — review R1).
+- **Type consistency:** `materialise_scenario -> (MultiSES, ScenarioReport)` is consumed by A5 and B1; `METRIC_KEYS` defined in A5, reused in C2; `ScenarioErrorCode.W501_DANGLING_TARGET` set in A4, asserted in A4 tests; `add_intervention` defined in A3, used in C2 (`remove_intervention` is library-only this phase).
 - **Verified by the plan review** (workflow `wf_a0797912-a09`; agents ran the code on the real seed): every A5 metric column name + join key matches the real frames; all seam signatures (`replace_compartment`, `IsaData`, `Element`, `make_channel`, `remove_nodes`) check out; the dynamic `output(_diff_renderer(_k), id=…)` idiom IS valid in Shiny 1.6.1 and the namespaced ids/selectors are correct — **no fallback needed**. The two CRITICALs the review reproduced (the `pd.notna`-on-a-list crash and the depolderisation add-then-breach ordering) are fixed above (`_as_set` guard; additive factory), plus the HIGH `Project` sub-collection preservation (`dataclasses.replace`), the C1 field-order footgun, the C2 element-type picker, and the ICM `to_numeric` coercion.
-- **Spec §8 descope:** the side-by-side baseline/materialised composite-graph view (and its a11y graph table) is deferred to a follow-on refinement; C2 delivers the five diff tables + disclaimer + the "changed rows only" filter + the baseline-drift-on-load banner. (Spec §8 trimmed to match.)
+- **Spec §8 descope:** the side-by-side baseline/materialised composite-graph view (+ a11y graph table) AND the **sidecar load/save UI + functional baseline-drift banner** are deferred to a follow-on; the C2 `drift_banner` output ships as an inert placeholder (nothing loads a sidecar to populate it this phase — review R1). C2 delivers the five diff tables + disclaimer + the "changed rows only" filter. (Spec §8/§14 trimmed to match.)
+- **Verified by plan-review passes 2 & 3** (agents ran the code on the seed): pass 3 transcribed the entire plan verbatim into a scratch package and ran **24/24 plan tests green**; no CRITICAL/HIGH/MEDIUM code defects remain. The pass-2 `import dataclasses` shadow fix, `_as_set` guard, additive factory, C1 field order, element-type picker, and ICM `to_numeric` are all re-confirmed by execution.
