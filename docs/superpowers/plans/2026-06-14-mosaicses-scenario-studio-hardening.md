@@ -1,5 +1,7 @@
 # MosaicSES Scenario Studio Hardening (Chunk 1) Implementation Plan
 
+**Status:** **Implemented** ✓ — shipped to MosaicSES `main` (`eb2853c`..`f7a2237`, 2026-06-15) via subagent-driven TDD (4 tasks, spec + quality review each) + a final full-e2e gate. Full suite **455 passed** (439 non-e2e + all 16 e2e), `import app` OK. Plan-review caught a missed third `compare_scenario` caller before execution; the e2e gate caught + fixed the core `.comparative-card` regression.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close the deferred MEDIUM/LOW final-review findings on the shipped Scenario Studio — validate channel values at the `Intervention` boundary, surface the discarded `ScenarioReport` warnings in a live drift banner, extract a pure unit-tested authoring parser, and make the `scenario_name` label honest.

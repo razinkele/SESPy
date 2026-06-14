@@ -1,6 +1,6 @@
 # MosaicSES Scenario Studio — Hardening (Chunk 1) Design
 
-**Status:** Draft — Chunk 1 of the Scenario Studio deferred follow-ups (Studio hardening → sidecar load/save → sign engine). Pending user review.
+**Status:** **Implemented** ✓ — shipped to MosaicSES `main` (`eb2853c`..`f7a2237`, 2026-06-15); full suite green (**455 incl. all 16 e2e**; 439 non-e2e = 429 + 10 new). Built via plan-review (caught a missed third `compare_scenario` caller) → subagent-driven TDD (spec + quality review per task) → a full-e2e gate. The full-e2e gate also surfaced and **fixed a pre-existing core regression**: the shipped Scenario Studio reused `class_="comparative-card"`, making `test_comparative_panel_e2e` see 12 cards ≠ 7 (uncaught because no e2e gate had run it); the Studio cards now use `scenario-diff-card`. Chunk 1 of the deferred follow-ups (Studio hardening → sidecar load/save → sign engine).
 
 **Parent:** `2026-06-13-mosaicses-scenario-studio-design.md` (structural core, shipped to MosaicSES `main` `adff418`..`47e7ae2`).
 
