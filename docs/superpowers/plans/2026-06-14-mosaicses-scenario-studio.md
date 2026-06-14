@@ -1,5 +1,7 @@
 # MosaicSES Scenario Studio (structural core) Implementation Plan
 
+**Status:** **Implemented** ✓ — shipped to MosaicSES `main` (`adff418`..`47e7ae2`, 2026-06-14) via subagent-driven TDD (9 tasks A1→C3, implementer + spec-review + code-quality-review each) + a final whole-branch review (2 HIGH fixed). Full non-e2e suite **429 passed**, author e2e green, `import app` OK.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship a non-destructive structural scenario module — author add/remove-element and channel interventions, materialise a derived `MultiSES`, and diff the five existing comparative analyses before vs after — with a depolderisation worked example and an in-app Scenario Studio.

@@ -1,6 +1,6 @@
 # MosaicSES Scenario Studio — Design (Phase-2 priority D)
 
-**Status:** Draft (rev 3 — **re-scoped to the structural core** after two adversarial review loops showed the qualitative sign-propagation engine was where all the risk concentrated). Pending user review.
+**Status:** **Implemented** ✓ — shipped in MosaicSES `main` (`adff418`..`47e7ae2`, 2026-06-14); full non-e2e suite green (**429**, +32 over baseline) + Scenario Studio author e2e green. Built via subagent-driven TDD (implementer + spec-review + code-quality-review per task) + a final 3-angle whole-branch review that caught & fixed two HIGH defects (an `add_node` duplicate/empty-id corruption reachable from the live UI, and zero coverage on `retune_channel`/`remove_channel`). Plan hardened across 4 review passes incl. a full integration dry-run. The qualitative sign-propagation engine + sidecar load/save UI + functional drift banner remain deferred follow-ons by design (§8/§13/§15).
 **Scope (this phase):** Structural scenario authoring + materialisation + **metric diff** of the existing comparative analyses, in-app. Sub-projects A + B + C below.
 **Deferred to a follow-on phase:** the qualitative **sign-propagation "predicted direction" overlay** (`seed_node` interventions + the seed-pinned propagation engine). The engine semantics are now validated in prototype (see §15) but need their own spec; they are out of scope here.
 **Two-repo convention:** code lands in **MosaicSES**; this spec lives in **SESPy** `docs/superpowers/specs/`.
