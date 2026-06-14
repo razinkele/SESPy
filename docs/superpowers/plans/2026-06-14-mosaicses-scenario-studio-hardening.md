@@ -24,6 +24,7 @@
 **Tests (MosaicSES):**
 - `tests/test_scenario.py` — `S004` value-validation cases.
 - `tests/test_scenario_compare.py` — unpack `(diffs, report)`; assert report surfaces W501.
+- `tests/test_depolderisation.py` — unpack the tuple at the third `compare_scenario` call site (Task 2).
 - `tests/test_scenario_view_logic.py` — **new**, pure `build_intervention` cases.
 - `tests/test_scenario_e2e.py` — add a dangling-target → drift-banner e2e.
 
@@ -179,6 +180,7 @@ End the commit message with a blank line then:
 **Files:**
 - Modify: `multises/scenario_compare.py`
 - Test: `tests/test_scenario_compare.py`
+- Test: `tests/test_depolderisation.py` — a **third** caller of `compare_scenario`; its line 30 must unpack the tuple or it `TypeError`s at line 31 (caught by plan-review).
 
 - [ ] **Step 1: Update the tests to expect the new signature**
 
@@ -216,10 +218,24 @@ def test_compare_surfaces_dangling_warning_in_report():
     assert set(diffs) == set(METRIC_KEYS)   # diffs still well-formed
 ```
 
+Then update the **third** caller, `tests/test_depolderisation.py` line 30, to unpack the tuple. Change:
+
+```python
+    diffs = compare_scenario(ms, build_depolderisation_scenario(ms))
+```
+
+to:
+
+```python
+    diffs, _ = compare_scenario(ms, build_depolderisation_scenario(ms))
+```
+
+(Line 31 dict-indexes `diffs["inter_compartment_metrics"]`; without this change it indexes a tuple → `TypeError`.)
+
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_scenario_compare.py -q`
-Expected: FAIL — `compare_scenario` returns a dict, so tuple-unpacking yields only metric-key strings and `report` is undefined / the assertions error.
+Run: `micromamba run -n shiny python -m pytest tests/test_scenario_compare.py tests/test_depolderisation.py -q`
+Expected: FAIL — `compare_scenario` still returns a dict, so the new tuple-unpacking raises (e.g. `ValueError: too many values to unpack` in `test_depolderisation.py`, and the compare assertions error).
 
 - [ ] **Step 3: Change the return type**
 
@@ -257,13 +273,13 @@ and replace the final `return out` with:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_scenario_compare.py -q`
-Expected: all 4 PASS.
+Run: `micromamba run -n shiny python -m pytest tests/test_scenario_compare.py tests/test_depolderisation.py -q`
+Expected: all PASS (4 compare + 3 depolderisation).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add multises/scenario_compare.py tests/test_scenario_compare.py
+git add multises/scenario_compare.py tests/test_scenario_compare.py tests/test_depolderisation.py
 git commit -m "refactor(mosaicses): compare_scenario returns (diffs, report)"
 ```
 
@@ -613,7 +629,7 @@ End with the `Co-Authored-By:` trailer.
 ## Final verification
 
 - [ ] **Full non-e2e suite** — Run: `micromamba run -n shiny python -m pytest tests/ -q -k "not e2e" -p no:cacheprovider`
-  Expected: **439 passed** = 429 baseline + 4 new S004 cases (Task 1) + 1 new compare-report case (Task 2; the other 3 compare tests are modified, not added) + 5 new `build_intervention` cases (Task 4). Record the exact count; it must equal 429 + the new tests with zero failures.
+  Expected: **439 passed, 16 deselected** = 429 baseline + 4 new S004 cases (Task 1) + 1 new compare-report case (Task 2; the other 3 compare tests + the `test_depolderisation.py` line are modified, not added) + 5 new `build_intervention` cases (Task 4); deselected rises 15 → 16 because Task 3 adds a second e2e. Zero failures.
 - [ ] **E2e** — Run: `micromamba run -n shiny python -m pytest tests/test_scenario_e2e.py -q`
   Expected: 2 passed.
 - [ ] **Import smoke** — Run: `micromamba run -n shiny python -c "import app; print('IMPORT OK')"`
@@ -627,4 +643,5 @@ End with the `Co-Authored-By:` trailer.
 - **Spec coverage:** §3 value validation → Task 1; §4 compare return + drift banner → Tasks 2–3; §5 parse extraction → Task 4; §6 honest label → Task 4 (d). §7 data flow, §8 error handling realised across Tasks 1/3. Out-of-scope items (sidecar load/save, baseline-drift, live name edit, sign engine) correctly excluded.
 - **Type consistency:** `compare_scenario` returns `(dict, ScenarioReport)` in Task 2 and is consumed as such by `_comparison()` in Task 3 and the tests; `build_intervention(iv_id, kind, tgt_raw, element_type, compartment, rationale)` in Task 4 matches its call site and tests; `S004_INVALID_TARGET_VALUE` defined in Task 1, asserted in Tasks 1 & 4. `_comparison()` returns the three-key dict (`diffs`/`report`/`error`) consumed by both `drift_banner` and `_diff_renderer`.
 - **Verified seams:** no circular import (`data_structure` imports no higher-level multises module); `CHANNEL_TYPES` (8), `get_args(Polarity)` `('+','-')`, `get_args(Strength)` `('weak','medium','strong')` all importable; `organisms_marine_estuarine` is a real channel_type; `remove_node` of an absent id produces a `W501` (asserted by the shipped `test_materialise.py`).
-- **Count gate:** 429 baseline + 10 new non-e2e tests = **439 passed**, zero failures; the e2e file goes from 1 → 2.
+- **Count gate:** 429 baseline + 10 new non-e2e tests = **439 passed, 16 deselected**, zero failures; the e2e file goes from 1 → 2.
+- **Verified by plan-review** (workflow `wf_0c22180d-b2e`; integration dry-run + fresh-eyes + triage on the real seed): caught one HIGH defect — Task 2 changed `compare_scenario`'s signature but the original plan missed `tests/test_depolderisation.py`, the **third** of exactly three callers (`grep`-confirmed), whose line 31 dict-indexes the result → `TypeError`; without the fix the suite ends 438 passed / 1 failed. **Fixed above** (Task 2 now updates that line + commits it). All else verified sound: the S004 validator rejects 0 of 7 existing channel-value constructions and the correct field on the bad cases; `get_channel_types` has exactly two references, both removed by Task 4; every Task 3/4 edit anchor matches `main` verbatim; baseline is 429 (not stale); no circular import.
