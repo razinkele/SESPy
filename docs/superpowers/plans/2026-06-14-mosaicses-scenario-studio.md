@@ -642,7 +642,11 @@ def materialise_scenario(baseline: MultiSES, scenario: Scenario) -> tuple[MultiS
         if old is None:
             warn(f"retune_channel target {ch_id!r} absent; skipped")
             continue
-        import dataclasses
+        # NOTE: dataclasses is imported at MODULE level (top of file). Do NOT add a
+        # function-local `import dataclasses` here — a name imported anywhere in a
+        # function body becomes function-local for the WHOLE function, which would
+        # make the earlier dataclasses.replace(comp.project, ...) call raise
+        # UnboundLocalError (plan-review pass-2 CRITICAL).
         changes = {k: iv.target[k] for k in ("polarity", "strength", "channel_type")
                    if k in iv.target}
         ms = replace_channel(ms, ch_id, dataclasses.replace(old, **changes))
@@ -1213,6 +1217,12 @@ In `multises_app/dashboard.py`, add to the `NAV` list:
 
 ```python
     NavItem(id="scenario", icon="wand-magic-sparkles", label="Scenarios"),
+```
+
+and add a `NAV_TO_STEP` entry so the workflow stepper highlights on the Scenarios panel (without it `.get()` returns `None` — safe but unhighlighted; review pass-2 LOW):
+
+```python
+    "scenario": "drill",
 ```
 
 In `app.py`:
