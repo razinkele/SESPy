@@ -563,9 +563,10 @@ MultiSES (non-destructive). Order: removes -> adds -> retunes; nodes before
 channels. Dangling targets are soft ScenarioReport warnings, never crashes."""
 from __future__ import annotations
 
+import dataclasses
 from collections import defaultdict
 
-from sespy.data_structure import Element, IsaData, Project
+from sespy.data_structure import Element, IsaData
 from sespy.network import remove_nodes
 
 from .channels import make_channel
@@ -610,7 +611,10 @@ def materialise_scenario(baseline: MultiSES, scenario: Scenario) -> tuple[MultiS
                 id=el["id"], label=el["label"], type=el["type"],
                 description=el.get("description", ""), confidence=el.get("confidence", 3)))
         isa = IsaData(elements=new_elements, connections=list(isa.connections))
-        ms = replace_compartment(ms, cid, Project(metadata=comp.project.metadata, isa_data=isa))
+        # dataclasses.replace preserves Project's other sub-collections
+        # (stakeholders/engagements/communications); a fresh Project(metadata, isa_data)
+        # would silently drop them (review F3).
+        ms = replace_compartment(ms, cid, dataclasses.replace(comp.project, isa_data=isa))
 
     # --- channel ops: remove -> add -> retune ---
     chan_by_id = {ch.id: ch for ch in ms.channels}
@@ -765,8 +769,18 @@ _CONTRACT: dict[str, tuple[list[str], list[str], list[str]]] = {
 def _icm_frame(ms: MultiSES) -> pd.DataFrame:
     d = inter_compartment_metrics(ms)             # dict[compartment_id, dict]
     df = pd.DataFrame(d).T
+    for col in ("channel_in_degree", "channel_out_degree", "betweenness"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")   # .T leaves object dtype (review F6)
     df.index.name = "compartment_id"
     return df.reset_index()
+
+
+def _as_set(v) -> set:
+    """List/NaN-safe: an outer-join missing cell is float NaN; a present cell is a list.
+    Do NOT use pd.notna() on a list cell — it returns an ARRAY and `if array` raises
+    ValueError: ambiguous truth value (review F1, reproduced on the seed)."""
+    return set(v) if isinstance(v, (list, tuple, set)) else set()
 
 
 def _diff(before: pd.DataFrame, after: pd.DataFrame, key, numeric, listcols) -> pd.DataFrame:
@@ -776,11 +790,9 @@ def _diff(before: pd.DataFrame, after: pd.DataFrame, key, numeric, listcols) -> 
     for col in listcols:
         b, a = f"{col}_before", f"{col}_after"
         merged[f"{col}_added"] = merged.apply(
-            lambda r: sorted(set(r[a] or []) - set(r[b] or [])) if pd.notna(r.get(a)) else [],
-            axis=1)
+            lambda r: sorted(_as_set(r.get(a)) - _as_set(r.get(b))), axis=1)
         merged[f"{col}_removed"] = merged.apply(
-            lambda r: sorted(set(r[b] or []) - set(r[a] or [])) if pd.notna(r.get(b)) else [],
-            axis=1)
+            lambda r: sorted(_as_set(r.get(b)) - _as_set(r.get(a))), axis=1)
     return merged
 
 
@@ -876,10 +888,11 @@ Create `multises/scenarios/__init__.py` (empty), then `multises/scenarios/depold
 ```python
 """Self-grounding depolderisation scenario for the Curonian seed.
 
-The generic seed encodes NO polder, so the factory (1) adds a polder/dyke Pressure
-to curonian_lagoon (the pre-depolderisation barrier), then (2) breaches it,
-(3) adds a restored intertidal wetland habitat + a regulating buffering service +
-its Goods&Benefits outcome (canonical SESPy element types), and (4) re-opens a tidal
+The generic seed encodes NO polder, so an add-then-remove of a barrier would net to
+ZERO structural change vs the un-poldered baseline (review F2). Depolderisation here
+is therefore the ADDITIVE 'designing a new ecosystem' restoration: (1) a restored
+intertidal wetland habitat, (2) a regulating nutrient-buffering service, (3) its
+Goods & Benefits outcome (canonical SESPy element types), and (4) a re-opened tidal
 organisms_marine_estuarine channel to klaipeda_strait (the lagoon's true marine
 neighbour — it does NOT border baltic_se). Output is a structural Scenario; its
 effect is read via compare_scenario as metric deltas (see tests)."""
@@ -903,32 +916,23 @@ CAVEATS = (
 
 def build_depolderisation_scenario(ms: MultiSES) -> Scenario:
     interventions = (
-        # 1. add the polder/dyke barrier (the 'before' state the seed lacks)
+        # restored ecosystem (canonical element types) — the additive restoration;
+        # the un-poldered seed has no barrier to breach (review F2).
         Intervention(id="dp1", kind="add_node", compartment_id=LAGOON,
-                     label="Polder dyke",
-                     target={"element": {"id": "POLDER_DYKE", "label": "Polder dyke barrier",
-                                         "type": "Pressures"}},
-                     rationale="Pre-depolderisation reclaimed-land barrier."),
-        # 2. breach it
-        Intervention(id="dp2", kind="remove_node", compartment_id=LAGOON,
-                     label="Breach the dyke",
-                     target={"element_id": "POLDER_DYKE"},
-                     rationale="Managed realignment: remove the barrier."),
-        # 3. restored ecosystem (canonical element types)
-        Intervention(id="dp3", kind="add_node", compartment_id=LAGOON,
                      label="Restored wetland habitat",
                      target={"element": {"id": "WET_HABITAT", "label": "Restored intertidal wetland",
-                                         "type": "Marine Processes & Functioning"}}),
-        Intervention(id="dp4", kind="add_node", compartment_id=LAGOON,
+                                         "type": "Marine Processes & Functioning"}},
+                     rationale="Designing a new ecosystem: restored intertidal wetland."),
+        Intervention(id="dp2", kind="add_node", compartment_id=LAGOON,
                      label="Nutrient buffering service",
                      target={"element": {"id": "WET_BUFFER", "label": "Wetland nutrient buffering",
                                          "type": "Ecosystem Services"}}),
-        Intervention(id="dp5", kind="add_node", compartment_id=LAGOON,
+        Intervention(id="dp3", kind="add_node", compartment_id=LAGOON,
                      label="Wetland benefit",
                      target={"element": {"id": "WET_BENEFIT", "label": "Birdwatching/recreation",
                                          "type": "Goods & Benefits"}}),
-        # 4. restored tidal exchange to the true marine neighbour (the strait)
-        Intervention(id="dp6", kind="add_channel",
+        # re-opened tidal exchange to the true marine neighbour (the strait)
+        Intervention(id="dp4", kind="add_channel",
                      label="Restored tidal exchange",
                      target={"source": LAGOON, "target": STRAIT,
                              "channel_type": "organisms_marine_estuarine"},
@@ -986,7 +990,7 @@ Expected: FAIL — `AttributeError: 'MultiSESState' object has no attribute 'act
 
 - [ ] **Step 3: Extend the state**
 
-In `multises_app/state.py`: add imports `from multises.scenario import Scenario, ScenarioSet, ScenarioSetMetadata`. Add two fields to the `MultiSESState` dataclass (after `dirty`):
+In `multises_app/state.py`: add imports `from multises.scenario import Scenario, ScenarioSet, ScenarioSetMetadata`. Insert two fields into the `MultiSESState` dataclass **immediately after `dirty` and BEFORE `skip_next_backwrite_dirty`** — they have no defaults, so they MUST precede the trailing defaulted `skip_next_backwrite_dirty: bool = False`, or Python raises `TypeError: non-default argument follows default argument` at import, crashing the whole app (review F4). Final field order: `active_multises, active_compartment_id, active_compartment_project, event_bus, dirty, active_scenario, scenario_set, skip_next_backwrite_dirty`.
 
 ```python
     active_scenario: reactive.Value  # reactive.Value[Scenario | None]
@@ -1083,6 +1087,10 @@ def scenario_view_ui() -> ui.Tag:
             ui.input_text("scenario_name", "Scenario name", value="New scenario"),
             ui.input_select("iv_kind", "Intervention", choices=_KIND_CHOICES),
             ui.input_text("iv_compartment", "Compartment id (node ops)"),
+            ui.input_select("iv_element_type", "Element type (Add element)",
+                            choices=["Drivers", "Activities", "Pressures",
+                                     "Marine Processes & Functioning", "Ecosystem Services",
+                                     "Goods & Benefits", "Responses"]),
             ui.input_text("iv_target", "Target (element id / channel id / source>type>target)"),
             ui.input_text("iv_rationale", "Rationale"),
             ui.input_action_button("add_intervention", "Add intervention", class_="btn-primary"),
@@ -1113,7 +1121,7 @@ def scenario_view_server(input, output, session, *, state: MultiSESState) -> Non
             tgt_raw = (input.iv_target() or "").strip()
             if kind == "add_node":
                 target = {"element": {"id": tgt_raw, "label": tgt_raw,
-                                      "type": "Marine Processes & Functioning"}}
+                                      "type": input.iv_element_type()}}
                 comp = input.iv_compartment() or None
             elif kind == "remove_node":
                 target, comp = {"element_id": tgt_raw}, (input.iv_compartment() or None)
@@ -1266,4 +1274,5 @@ git commit -m "feat(mosaicses): mount Scenario Studio nav panel + author/diff e2
 
 - **Spec coverage:** §3 data model → A2/A3; §3 persistence helper → A1; §4 materialisation → A4; §6 metric diff + join contracts → A5; §7 depolderisation (grounded, wired wetland, klaipeda_strait, channel-type set-diff acceptance) → B1; §8 app module (editor + diff tables + disclaimer + drift banner) → C2/C3; §3 state → C1; §9 decisions / §10 errors / §11 tests / §12 risks → covered across tasks. The sign-propagation overlay (§13/§15) is explicitly out of scope.
 - **Type consistency:** `materialise_scenario -> (MultiSES, ScenarioReport)` is consumed by A5 and B1; `METRIC_KEYS` defined in A5, reused in C2; `ScenarioErrorCode.W501_DANGLING_TARGET` set in A4, asserted in A4 tests; `add_intervention`/`remove_intervention` defined in A3, used in C2.
-- **Risk:** the C2 `_diff_renderer`/dynamic `output(...)` registration and the e2e DataGrid selector are the least-certain spots; the reviewer/implementer should confirm the dynamic-output idiom against the installed Shiny version (fallback: define the five `@render.data_frame` outputs explicitly).
+- **Verified by the plan review** (workflow `wf_a0797912-a09`; agents ran the code on the real seed): every A5 metric column name + join key matches the real frames; all seam signatures (`replace_compartment`, `IsaData`, `Element`, `make_channel`, `remove_nodes`) check out; the dynamic `output(_diff_renderer(_k), id=…)` idiom IS valid in Shiny 1.6.1 and the namespaced ids/selectors are correct — **no fallback needed**. The two CRITICALs the review reproduced (the `pd.notna`-on-a-list crash and the depolderisation add-then-breach ordering) are fixed above (`_as_set` guard; additive factory), plus the HIGH `Project` sub-collection preservation (`dataclasses.replace`), the C1 field-order footgun, the C2 element-type picker, and the ICM `to_numeric` coercion.
+- **Spec §8 descope:** the side-by-side baseline/materialised composite-graph view (and its a11y graph table) is deferred to a follow-on refinement; C2 delivers the five diff tables + disclaimer + the "changed rows only" filter + the baseline-drift-on-load banner. (Spec §8 trimmed to match.)
