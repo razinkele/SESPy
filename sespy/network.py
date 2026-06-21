@@ -400,6 +400,17 @@ def intervention_impact(
     return out
 
 
+def delay_edge_kwargs(c) -> dict:
+    """vis.js edge kwargs encoding a connection's delay as a dashed line + a
+    delay tooltip. Spread into add_edge(...) at every full-graph edge builder
+    (CLD, Leverage, Metrics, Simplify, Intervention) so the delay cue is one
+    definition, identical across views. `dashes` is an orthogonal channel — it
+    composes with the width/opacity cues some of those views overload."""
+    from .constants import normalize_delay
+    delay = normalize_delay(c.delay)
+    return {"title": f"{c.polarity} · {delay}", "dashes": delay != "immediate"}
+
+
 def classify_loops(cycles: list[list[str]], isa: IsaData) -> list[dict]:
     """Annotate each cycle with id, length, type, delayed, behavior, and a
     human-readable path."""
