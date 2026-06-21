@@ -173,6 +173,77 @@ def leverage_scores(isa: IsaData) -> dict[str, float]:
             for nid in m["betweenness"]}
 
 
+def influence_dependence(isa: IsaData) -> dict[str, dict]:
+    """Vester influence × dependence per node — weighted, sign-agnostic.
+
+    influence  = Σ _edge_weight over a node's outgoing edges (to OTHERS)
+    dependence = Σ _edge_weight over a node's incoming edges (from OTHERS)
+    quadrant   = active | critical | reactive | buffering, split at the mean
+                 of each axis (>= mean = high side); or 'undetermined' when the
+                 system has no structural differentiation.
+
+    Parallel (source, target) edges are deduplicated (last-wins), matching
+    to_digraph; self-loops are skipped. Returns {} for an empty graph; never
+    raises. Mirrors the zeros-never-raise posture of the other metrics here.
+    """
+    elements = isa.elements
+    if not elements:
+        return {}
+
+    influence = {el.id: 0.0 for el in elements}
+    dependence = {el.id: 0.0 for el in elements}
+    ids = set(influence)
+
+    # Deduplicate parallel edges (last-wins) and drop self-loops / dangling refs.
+    weight_by_pair: dict[tuple[str, str], float] = {}
+    for c in isa.connections:
+        if c.source == c.target:
+            continue
+        if c.source not in ids or c.target not in ids:
+            continue
+        weight_by_pair[(c.source, c.target)] = _edge_weight(c)
+
+    for (src, tgt), w in weight_by_pair.items():
+        influence[src] += w
+        dependence[tgt] += w
+
+    n = len(elements)
+    mean_inf = sum(influence.values()) / n
+    mean_dep = sum(dependence.values()) / n
+
+    def _variance(values: dict[str, float], mean: float) -> float:
+        return sum((v - mean) ** 2 for v in values.values()) / n
+
+    # Degeneracy guard: no edges, or zero variance on both axes (uniform graph).
+    if not weight_by_pair or (
+        _variance(influence, mean_inf) < 1e-12
+        and _variance(dependence, mean_dep) < 1e-12
+    ):
+        return {
+            el.id: {
+                "influence": influence[el.id],
+                "dependence": dependence[el.id],
+                "quadrant": "undetermined",
+            }
+            for el in elements
+        }
+
+    out: dict[str, dict] = {}
+    for el in elements:
+        i, d = influence[el.id], dependence[el.id]
+        hi_i, hi_d = i >= mean_inf, d >= mean_dep
+        if hi_i and not hi_d:
+            quadrant = "active"
+        elif hi_i and hi_d:
+            quadrant = "critical"
+        elif hi_d:  # not hi_i and hi_d
+            quadrant = "reactive"
+        else:
+            quadrant = "buffering"
+        out[el.id] = {"influence": i, "dependence": d, "quadrant": quadrant}
+    return out
+
+
 def top_n_by_metric(
     isa: IsaData,
     metric: str,

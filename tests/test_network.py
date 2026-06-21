@@ -12,7 +12,14 @@ from pathlib import Path
 import pytest
 
 from sespy import network
-from sespy.data_structure import filter_elements, load_sample, to_visnetwork
+from sespy.data_structure import (
+    Connection,
+    Element,
+    IsaData,
+    filter_elements,
+    load_sample,
+    to_visnetwork,
+)
 
 SAMPLE = Path(__file__).resolve().parents[1] / "data" / "sample_ses.json"
 
@@ -323,3 +330,106 @@ def test_pyvis_loop_payload_shape():
         assert edge["to"] in {n["id"] for n in payload["nodes"]}
         assert edge["color"] in valid_edge_colors
         assert edge["label"] in {"+", "-"}
+
+
+# ---------------------------------------------------------------------------
+# Vester influence × dependence — Task 1
+# ---------------------------------------------------------------------------
+
+def _quadrant_fixture():
+    # Four nodes hitting all four quadrants; confidence=1 so weight == strength rank.
+    els = [
+        Element(id="D", label="Driver", type="Driver"),
+        Element(id="H", label="Hub", type="Pressure"),
+        Element(id="S", label="Sink", type="State"),
+        Element(id="I", label="Inert", type="Welfare"),
+    ]
+    conns = [
+        Connection(source="D", target="H", strength="strong", confidence=1),  # w=3
+        Connection(source="D", target="S", strength="strong", confidence=1),  # w=3
+        Connection(source="H", target="S", strength="strong", confidence=1),  # w=3
+        Connection(source="H", target="I", strength="weak",   confidence=1),  # w=1
+        Connection(source="S", target="H", strength="weak",   confidence=1),  # w=1
+    ]
+    return IsaData(elements=els, connections=conns)
+
+
+def test_influence_dependence_sums_and_quadrants():
+    res = network.influence_dependence(_quadrant_fixture())
+    # influence (out): D=6, H=4, S=1, I=0 ; dependence (in): D=0, H=4, S=6, I=1
+    assert res["D"]["influence"] == 6.0 and res["D"]["dependence"] == 0.0
+    assert res["H"]["influence"] == 4.0 and res["H"]["dependence"] == 4.0
+    assert res["S"]["influence"] == 1.0 and res["S"]["dependence"] == 6.0
+    assert res["I"]["influence"] == 0.0 and res["I"]["dependence"] == 1.0
+    # means are 2.75 / 2.75
+    assert res["D"]["quadrant"] == "active"
+    assert res["H"]["quadrant"] == "critical"
+    assert res["S"]["quadrant"] == "reactive"
+    assert res["I"]["quadrant"] == "buffering"
+
+
+def test_influence_dependence_empty_graph():
+    assert network.influence_dependence(IsaData()) == {}
+
+
+def test_influence_dependence_all_isolated_is_undetermined():
+    els = [Element(id="A", label="A", type="Driver"),
+           Element(id="B", label="B", type="State")]
+    res = network.influence_dependence(IsaData(elements=els, connections=[]))
+    assert {r["quadrant"] for r in res.values()} == {"undetermined"}
+    assert res["A"]["influence"] == 0.0 and res["A"]["dependence"] == 0.0
+
+
+def test_influence_dependence_uniform_ring_is_undetermined():
+    els = [Element(id=n, label=n, type="Driver") for n in ("A", "B", "C")]
+    conns = [Connection(source="A", target="B", strength="medium", confidence=3),
+             Connection(source="B", target="C", strength="medium", confidence=3),
+             Connection(source="C", target="A", strength="medium", confidence=3)]
+    res = network.influence_dependence(IsaData(elements=els, connections=conns))
+    assert {r["quadrant"] for r in res.values()} == {"undetermined"}
+
+
+def test_influence_dependence_skips_self_loops():
+    els = [Element(id="A", label="A", type="Driver"),
+           Element(id="B", label="B", type="State")]
+    conns = [Connection(source="A", target="A", strength="strong", confidence=1),  # ignored
+             Connection(source="A", target="B", strength="medium", confidence=1)]  # w=2
+    res = network.influence_dependence(IsaData(elements=els, connections=conns))
+    assert res["A"]["influence"] == 2.0      # self-loop not added
+    assert res["A"]["dependence"] == 0.0     # self-loop not added to dependence either
+
+
+def test_influence_dependence_dedups_parallel_edges():
+    els = [Element(id="A", label="A", type="Driver"),
+           Element(id="B", label="B", type="State")]
+    conns = [Connection(source="A", target="B", strength="medium", confidence=1),  # w=2
+             Connection(source="A", target="B", strength="strong", confidence=1)]  # w=3 (last wins)
+    res = network.influence_dependence(IsaData(elements=els, connections=conns))
+    assert res["A"]["influence"] == 3.0      # counted once, last-wins weight, not 5.0
+
+
+def test_influence_dependence_is_sign_agnostic():
+    els = [Element(id="A", label="A", type="Driver"),
+           Element(id="B", label="B", type="State")]
+    conns = [Connection(source="A", target="B", polarity="-", strength="strong", confidence=1)]
+    res = network.influence_dependence(IsaData(elements=els, connections=conns))
+    assert res["A"]["influence"] == 3.0      # negative polarity still positive magnitude
+
+
+def test_influence_dependence_tie_boundary_and_nonuniform_cycle():
+    # Non-uniform cycle: influence {A:1, B:2, C:3} mean 2 ; dependence {A:3, B:1, C:2} mean 2.
+    # Both axes VARY (var=0.667) so the AND-both-axes degeneracy guard must NOT fire —
+    # this pins AND-not-OR semantics. B sits EXACTLY at mean influence (2.0), so the
+    # `>= mean` tie rule must place it on the HIGH influence side: a `>` implementation
+    # would misclassify B as buffering and fail this test.
+    els = [Element(id=n, label=n, type="Driver") for n in ("A", "B", "C")]
+    conns = [Connection(source="A", target="B", strength="weak",   confidence=1),  # w=1
+             Connection(source="B", target="C", strength="medium", confidence=1),  # w=2
+             Connection(source="C", target="A", strength="strong", confidence=1)]  # w=3
+    res = network.influence_dependence(IsaData(elements=els, connections=conns))
+    assert res["B"]["influence"] == 2.0          # exactly mean_inf
+    assert res["B"]["quadrant"] == "active"      # tie -> high side (fails under '>')
+    assert res["A"]["quadrant"] == "reactive"
+    assert res["C"]["quadrant"] == "critical"
+    # Differentiated graph -> distinct quadrants, NOT all 'undetermined'.
+    assert len({r["quadrant"] for r in res.values()}) == 3
