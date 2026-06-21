@@ -4938,6 +4938,149 @@
       "lt": "Download summary (PDF)",
       "no": "Download summary (PDF)",
       "pt": "Download summary (PDF)"
+    },
+    "card.quadrant": {
+      "en": "Factor Quadrant",
+      "es": "Cuadrante de Factores",
+      "fr": "Quadrant des Facteurs",
+      "de": "Faktor-Quadrant",
+      "lt": "Veiksnių Kvadrantas",
+      "pt": "Quadrante de Fatores",
+      "it": "Quadrante dei Fattori",
+      "no": "Faktorkvadrant",
+      "el": "Τεταρτημόριο Παραγόντων"
+    },
+    "nav.quadrant": {
+      "en": "Factor Quadrant",
+      "es": "Cuadrante de Factores",
+      "fr": "Quadrant des Facteurs",
+      "de": "Faktor-Quadrant",
+      "lt": "Veiksnių Kvadrantas",
+      "pt": "Quadrante de Fatores",
+      "it": "Quadrante dei Fattori",
+      "no": "Faktorkvadrant",
+      "el": "Τεταρτημόριο Παραγόντων"
+    },
+    "quadrant.about": {
+      "en": "About",
+      "es": "Acerca de",
+      "fr": "À propos",
+      "de": "Über",
+      "lt": "Apie",
+      "pt": "Sobre",
+      "it": "Informazioni",
+      "no": "Om",
+      "el": "Σχετικά"
+    },
+    "quadrant.about_text": {
+      "en": "Factors are placed by influence (how much they drive others) against dependence (how much they are driven). Magnitude only — reinforcing and opposing links both count; read net direction from the diagram. Active = best leverage; Critical = powerful but feeds back; Reactive = outcomes/indicators; Buffering = low priority.",
+      "es": "Los factores se ubican por influencia (cuánto impulsan a otros) frente a dependencia (cuánto son impulsionados). Solo magnitud — los vínculos reforzadores y opuestos cuentan igual; lea la dirección neta en el diagrama. Activo = mejor palanca; Crítico = potente pero retroalimenta; Reactivo = resultados/indicadores; Amortiguador = baja prioridad.",
+      "fr": "Les facteurs sont placés selon l'influence (combien ils agissent sur les autres) face à la dépendance (combien ils subissent). Magnitude seule — les liens renforçants et opposés comptent ; lisez la direction nette sur le diagramme. Actif = meilleur levier ; Critique = puissant mais en rétroaction ; Réactif = résultats/indicateurs ; Tampon = faible priorité.",
+      "de": "Faktoren werden nach Einfluss (wie stark sie andere antreiben) gegen Abhängigkeit (wie stark sie angetrieben werden) eingeordnet. Nur Betrag — verstärkende und gegenläufige Verbindungen zählen gleich; die Nettorichtung aus dem Diagramm ablesen. Aktiv = bester Hebel; Kritisch = stark, aber rückgekoppelt; Reaktiv = Ergebnisse/Indikatoren; Puffernd = geringe Priorität.",
+      "lt": "Veiksniai išdėstomi pagal įtaką (kiek jie veikia kitus) ir priklausomybę (kiek jie yra veikiami). Tik dydis — stiprinančios ir priešingos jungtys skaičiuojamos vienodai; grynąją kryptį žiūrėkite diagramoje. Aktyvus = geriausia svertis; Kritinis = galingas, bet su grįžtamuoju ryšiu; Reaktyvus = rezultatai/rodikliai; Buferinis = žemas prioritetas.",
+      "pt": "Os fatores são posicionados pela influência (quanto impulsionam outros) face à dependência (quanto são impulsionados). Apenas magnitude — ligações reforçadoras e opostas contam igual; leia a direção líquida no diagrama. Ativo = melhor alavanca; Crítico = potente mas realimenta; Reativo = resultados/indicadores; Amortecedor = baixa prioridade.",
+      "it": "I fattori sono collocati per influenza (quanto guidano gli altri) rispetto alla dipendenza (quanto sono guidati). Solo magnitudine — i legami rinforzanti e opposti contano allo stesso modo; leggere la direzione netta dal diagramma. Attivo = leva migliore; Critico = potente ma con retroazione; Reattivo = esiti/indicatori; Cuscinetto = bassa priorità.",
+      "no": "Faktorer plasseres etter innflytelse (hvor mye de driver andre) mot avhengighet (hvor mye de drives). Kun størrelse — forsterkende og motvirkende koblinger teller likt; les netto retning fra diagrammet. Aktiv = best innflytelse; Kritisk = kraftig men gir tilbakekobling; Reaktiv = utfall/indikatorer; Bufrende = lav prioritet.",
+      "el": "Οι παράγοντες τοποθετούνται κατά επιρροή (πόσο επηρεάζουν άλλους) έναντι εξάρτησης (πόσο επηρεάζονται). Μόνο μέγεθος — ενισχυτικοί και αντίθετοι δεσμοί μετρούν εξίσου· διαβάστε την καθαρή κατεύθυνση από το διάγραμμα. Ενεργός = καλύτερος μοχλός· Κρίσιμος = ισχυρός αλλά ανατροφοδοτεί· Αντιδραστικός = αποτελέσματα/δείκτες· Ρυθμιστικός = χαμηλή προτεραιότητα."
+    },
+    "quadrant.map": {
+      "en": "Influence × Dependence map",
+      "es": "Mapa de Influencia × Dependencia",
+      "fr": "Carte Influence × Dépendance",
+      "de": "Einfluss-×-Abhängigkeits-Karte",
+      "lt": "Įtakos × Priklausomybės žemėlapis",
+      "pt": "Mapa de Influência × Dependência",
+      "it": "Mappa Influenza × Dipendenza",
+      "no": "Innflytelse × Avhengighet-kart",
+      "el": "Χάρτης Επιρροής × Εξάρτησης"
+    },
+    "quadrant.classification": {
+      "en": "Factor classification",
+      "es": "Clasificación de factores",
+      "fr": "Classification des facteurs",
+      "de": "Faktorklassifizierung",
+      "lt": "Veiksnių klasifikacija",
+      "pt": "Classificação de fatores",
+      "it": "Classificazione dei fattori",
+      "no": "Faktorklassifisering",
+      "el": "Ταξινόμηση παραγόντων"
+    },
+    "quadrant.axis_influence": {
+      "en": "Influence (drives others)",
+      "es": "Influencia (impulsa a otros)",
+      "fr": "Influence (agit sur les autres)",
+      "de": "Einfluss (treibt andere)",
+      "lt": "Įtaka (veikia kitus)",
+      "pt": "Influência (impulsiona outros)",
+      "it": "Influenza (guida gli altri)",
+      "no": "Innflytelse (driver andre)",
+      "el": "Επιρροή (επηρεάζει άλλους)"
+    },
+    "quadrant.axis_dependence": {
+      "en": "Dependence (driven by others)",
+      "es": "Dependencia (impulsado por otros)",
+      "fr": "Dépendance (subit les autres)",
+      "de": "Abhängigkeit (von anderen getrieben)",
+      "lt": "Priklausomybė (veikiama kitų)",
+      "pt": "Dependência (impulsionado por outros)",
+      "it": "Dipendenza (guidato dagli altri)",
+      "no": "Avhengighet (drevet av andre)",
+      "el": "Εξάρτηση (επηρεάζεται από άλλους)"
+    },
+    "quadrant.active": {
+      "en": "Active / Driving",
+      "es": "Activo / Impulsor",
+      "fr": "Actif / Moteur",
+      "de": "Aktiv / Treibend",
+      "lt": "Aktyvus / Varomasis",
+      "pt": "Ativo / Impulsionador",
+      "it": "Attivo / Trainante",
+      "no": "Aktiv / Drivende",
+      "el": "Ενεργός / Κινητήριος"
+    },
+    "quadrant.critical": {
+      "en": "Critical / Ambivalent",
+      "es": "Crítico / Ambivalente",
+      "fr": "Critique / Ambivalent",
+      "de": "Kritisch / Ambivalent",
+      "lt": "Kritinis / Ambivalentiškas",
+      "pt": "Crítico / Ambivalente",
+      "it": "Critico / Ambivalente",
+      "no": "Kritisk / Ambivalent",
+      "el": "Κρίσιμος / Αμφίσημος"
+    },
+    "quadrant.reactive": {
+      "en": "Reactive / Dependent",
+      "es": "Reactivo / Dependiente",
+      "fr": "Réactif / Dépendant",
+      "de": "Reaktiv / Abhängig",
+      "lt": "Reaktyvus / Priklausomas",
+      "pt": "Reativo / Dependente",
+      "it": "Reattivo / Dipendente",
+      "no": "Reaktiv / Avhengig",
+      "el": "Αντιδραστικός / Εξαρτημένος"
+    },
+    "quadrant.buffering": {
+      "en": "Buffering / Inert",
+      "es": "Amortiguador / Inerte",
+      "fr": "Tampon / Inerte",
+      "de": "Puffernd / Inert",
+      "lt": "Buferinis / Inertiškas",
+      "pt": "Amortecedor / Inerte",
+      "it": "Cuscinetto / Inerte",
+      "no": "Bufrende / Inert",
+      "el": "Ρυθμιστικός / Αδρανής"
+    },
+    "quadrant.undetermined": {
+      "en": "Undetermined (no differentiation)",
+      "es": "Indeterminado (sin diferenciación)",
+      "fr": "Indéterminé (sans différenciation)",
+      "de": "Unbestimmt (keine Differenzierung)",
+      "lt": "Neapibrėžta (nėra diferenciacijos)",
+      "pt": "Indeterminado (sem diferenciação)",
+      "it": "Indeterminato (nessuna differenziazione)",
+      "no": "Ubestemt (ingen differensiering)",
+      "el": "Απροσδιόριστο (χωρίς διαφοροποίηση)"
     }
   }
 }
