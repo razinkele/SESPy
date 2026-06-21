@@ -39,6 +39,7 @@ from sespy.modules.analysis_intervention import (
     analysis_intervention_ui,
 )
 from sespy.modules.analysis_leverage import analysis_leverage_server, analysis_leverage_ui
+from sespy.modules.analysis_quadrant import analysis_quadrant_server, analysis_quadrant_ui
 from sespy.modules.analysis_loops import analysis_loops_server, analysis_loops_ui
 from sespy.modules.analysis_metrics import analysis_metrics_server, analysis_metrics_ui
 from sespy.modules.analysis_simplify import (
@@ -85,6 +86,7 @@ NAV: list[NavItem] = [
     NavItem(id="loops",    icon="rotate-right",    label="Loop Analysis",     label_key="nav.loops"),
     NavItem(id="metrics",  icon="chart-line",      label="Network Metrics",   label_key="nav.metrics"),
     NavItem(id="leverage", icon="bullseye",        label="Leverage Points",   label_key="nav.leverage"),
+    NavItem(id="quadrant", icon="table-cells-large", label="Factor Quadrant", label_key="nav.quadrant"),
     NavItem(id="boolean",     icon="square-root-variable", label="Boolean & Laplacian", label_key="nav.boolean"),
     NavItem(id="simulation",  icon="wave-square",         label="Dynamic Simulation",  label_key="nav.simulation"),
     NavItem(id="bot",         icon="chart-area",           label="Behaviour Over Time", label_key="nav.bot"),
@@ -115,7 +117,7 @@ NAV_TO_STEP = {
     "wizard": "create",
     "entry": "create",
     "cld": "visualize", "loops": "analyze", "metrics": "analyze",
-    "leverage": "analyze", "boolean": "analyze", "simulation": "analyze",
+    "leverage": "analyze", "quadrant": "analyze", "boolean": "analyze", "simulation": "analyze",
     "bot": "analyze",
     "intervention": "analyze", "simplify": "analyze",
     "import": "create",
@@ -132,6 +134,7 @@ PANELS = (
     ui.nav_panel("Loop Analysis",     analysis_loops_ui("loops"),                  value="loops"),
     ui.nav_panel("Network Metrics",   analysis_metrics_ui("metrics"),              value="metrics"),
     ui.nav_panel("Leverage Points",   analysis_leverage_ui("leverage"),            value="leverage"),
+    ui.nav_panel("Factor Quadrant",   analysis_quadrant_ui("quadrant"),            value="quadrant"),
     ui.nav_panel("Boolean & Laplacian", analysis_boolean_ui("boolean"),            value="boolean"),
     ui.nav_panel("Dynamic Simulation",  analysis_simulation_ui("simulation"),      value="simulation"),
     ui.nav_panel("Behaviour Over Time", analysis_bot_ui("bot"),                    value="bot"),
@@ -217,6 +220,12 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
     )
     analysis_leverage_server(
         "leverage",
+        project_data=project_data,
+        event_bus=event_bus,
+        translator=T,
+    )
+    analysis_quadrant_server(
+        "quadrant",
         project_data=project_data,
         event_bus=event_bus,
         translator=T,
