@@ -512,3 +512,13 @@ def test_loop_has_delay_parallel_edges_last_wins():
         Connection(source="B", target="A", delay="immediate"),
     ])
     assert network.loop_has_delay(["A", "B"], isa_immediate) is False
+
+
+# ---------------------------------------------------------------------------
+# Task 3: done-criterion — sample seed must yield ≥1 oscillating loop
+# ---------------------------------------------------------------------------
+
+def test_sample_has_oscillating_loop(isa):
+    rows = network.classify_loops(network.feedback_loops(isa), isa)
+    osc = [r for r in rows if r["behavior"] == "oscillating"]
+    assert len(osc) >= 1, "sample seed missing — expected >=1 oscillating loop"

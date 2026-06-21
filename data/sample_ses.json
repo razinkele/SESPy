@@ -31,7 +31,7 @@
     {"source": "P003", "target": "MPF1", "polarity": "-", "strength": "medium",  "confidence": 4},
     {"source": "MPF1", "target": "ES01", "polarity": "+", "strength": "strong",  "confidence": 4},
     {"source": "MPF1", "target": "ES03", "polarity": "+", "strength": "medium",  "confidence": 3},
-    {"source": "MPF2", "target": "ES02", "polarity": "+", "strength": "strong",  "confidence": 5},
+    {"source": "MPF2", "target": "ES02", "polarity": "+", "strength": "strong",  "confidence": 5, "delay": "short"},
     {"source": "ES01", "target": "GB01", "polarity": "+", "strength": "medium",  "confidence": 3},
     {"source": "ES02", "target": "GB02", "polarity": "+", "strength": "strong",  "confidence": 5},
     {"source": "ES03", "target": "GB01", "polarity": "+", "strength": "strong",  "confidence": 4},
