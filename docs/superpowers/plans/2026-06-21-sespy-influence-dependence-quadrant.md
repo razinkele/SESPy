@@ -125,6 +125,25 @@ def test_influence_dependence_is_sign_agnostic():
     conns = [Connection(source="A", target="B", polarity="-", strength="strong", confidence=1)]
     res = network.influence_dependence(IsaData(elements=els, connections=conns))
     assert res["A"]["influence"] == 3.0      # negative polarity still positive magnitude
+
+
+def test_influence_dependence_tie_boundary_and_nonuniform_cycle():
+    # Non-uniform cycle: influence {A:1, B:2, C:3} mean 2 ; dependence {A:3, B:1, C:2} mean 2.
+    # Both axes VARY (var=0.667) so the AND-both-axes degeneracy guard must NOT fire —
+    # this pins AND-not-OR semantics. B sits EXACTLY at mean influence (2.0), so the
+    # `>= mean` tie rule must place it on the HIGH influence side: a `>` implementation
+    # would misclassify B as buffering and fail this test.
+    els = [Element(id=n, label=n, type="Driver") for n in ("A", "B", "C")]
+    conns = [Connection(source="A", target="B", strength="weak",   confidence=1),  # w=1
+             Connection(source="B", target="C", strength="medium", confidence=1),  # w=2
+             Connection(source="C", target="A", strength="strong", confidence=1)]  # w=3
+    res = network.influence_dependence(IsaData(elements=els, connections=conns))
+    assert res["B"]["influence"] == 2.0          # exactly mean_inf
+    assert res["B"]["quadrant"] == "active"      # tie -> high side (fails under '>')
+    assert res["A"]["quadrant"] == "reactive"
+    assert res["C"]["quadrant"] == "critical"
+    # Differentiated graph -> distinct quadrants, NOT all 'undetermined'.
+    assert len({r["quadrant"] for r in res.values()}) == 3
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -211,7 +230,7 @@ def influence_dependence(isa: IsaData) -> dict[str, dict]:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_network.py -k influence_dependence -v`
-Expected: PASS (7 passed).
+Expected: PASS (8 passed).
 
 - [ ] **Step 5: Commit**
 
@@ -228,7 +247,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `sespy/translations/core.json` (the single catalog; shape `{"languages":[...], "translation": {key: {lang: text}}}`, 9 languages: en es fr de lt pt it no el)
-- Test: none (covered by the e2e in Task 5 and the app-import smoke in Task 4)
+- Test: none (covered by the e2e in Task 5; Task 4 adds a one-off `import app` sanity check, not a test layer)
 
 **Interfaces:**
 - Produces: i18n keys `card.quadrant`, `nav.quadrant`, `quadrant.about`, `quadrant.about_text`, `quadrant.map`, `quadrant.classification`, `quadrant.axis_influence`, `quadrant.axis_dependence`, `quadrant.active`, `quadrant.critical`, `quadrant.reactive`, `quadrant.buffering`, `quadrant.undetermined` — each consumed by Tasks 3 and 4.
@@ -292,7 +311,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Files:**
 - Create: `sespy/modules/analysis_quadrant.py`
-- Test: none directly (app-import smoke in Task 4; e2e in Task 5)
+- Test: none directly (Task 4 `import app` sanity check; e2e in Task 5)
 
 **Interfaces:**
 - Consumes: `influence_dependence` (Task 1); `Project` (`data_structure`); `EventBus`; `ELEMENT_COLORS`, `DEFAULT_GROUP_COLOR` (`constants`); `t`, `Translator` (`i18n`); i18n keys (Task 2).
@@ -577,12 +596,18 @@ async def main():
 
         # Click "Factor Quadrant"
         await page.click("#sespy_nav_quadrant")
-        await page.wait_for_timeout(2500)
+        await page.wait_for_timeout(2500)  # settle pad
 
         nav_active = await page.eval_on_selector_all(
             ".sespy-nav-btn.active", "els => els.map(e => e.id)"
         )
         assert nav_active == ["sespy_nav_quadrant"], f"unexpected: {nav_active}"
+
+        # Wait for the late-mounting data_frame <tbody> and the matplotlib <img>
+        # rather than racing a fixed sleep (cold first render can exceed 2500ms;
+        # mirrors test_simulation_e2e.py / test_boolean_e2e.py).
+        await page.wait_for_selector("#quadrant-quadrant_table table tbody tr", timeout=30000)
+        await page.wait_for_selector("#quadrant-quadrant_plot img", timeout=30000)
 
         # Classification table rendered rows
         row_count = await page.evaluate(
@@ -591,6 +616,21 @@ async def main():
         )
         print(f"quadrant table rows: {row_count}")
         assert row_count > 0, "classification table is empty"
+
+        # The 17-node sample must differentiate into >= 2 distinct quadrants —
+        # guards against a degeneracy-guard misfire (all 'undetermined') or an
+        # all-same-quadrant classifier bug rendering a caption-only plot yet
+        # still passing row_count>0 / img>0. Mirrors test_leverage_e2e.py:34's
+        # `assert min(sizes) < max(sizes)`.
+        quadrants = await page.evaluate(
+            "() => Array.from(document.querySelectorAll("
+            "'#quadrant-quadrant_table table tbody tr'))"
+            ".map(tr => tr.querySelector('td:last-child')?.textContent?.trim())"
+            ".filter(Boolean)"
+        )
+        distinct = set(quadrants)
+        print(f"distinct quadrants: {distinct}")
+        assert len(distinct) >= 2, f"factors not differentiated: {distinct}"
 
         # Scatter plot image rendered
         img = await page.evaluate(
@@ -631,7 +671,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ---
 
 ## Done criteria
-- `influence_dependence` unit tests green (7 new).
+- `influence_dependence` unit tests green (8 new).
 - 13 i18n keys present in all 9 languages.
 - "Factor Quadrant" panel reachable from the sidebar, plots + table render on the default sample.
 - Full e2e suite green via `python tests/run_e2e.py` (new + all pre-existing).
