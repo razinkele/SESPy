@@ -25,12 +25,25 @@ from ..data_structure import IsaData, Project
 from ..event_bus import EventBus
 from ..i18n import t
 
+_BEHAVIOR_KEY = {
+    "reinforcing": "loops.behavior.reinforcing",
+    "balancing": "loops.behavior.balancing",
+    "oscillating": "loops.behavior.oscillating",
+}
+_BEHAVIOR_COLOR = {
+    "reinforcing": EDGE_COLORS["reinforcing"],
+    "balancing": EDGE_COLORS["opposing"],
+    "oscillating": "#e8a33d",   # amber — distinct from R/B
+}
+
 
 def _build_loop_network(loop_nodes: list[str], isa: IsaData) -> Network:
     """Build a pyvis.Network showing one feedback loop."""
+    from ..constants import normalize_delay
     label_by_id = {el.id: el.label for el in isa.elements}
     type_by_id = {el.id: el.type for el in isa.elements}
     polarity_by_edge = {(c.source, c.target): c.polarity for c in isa.connections}
+    delay_by_edge = {(c.source, c.target): normalize_delay(c.delay) for c in isa.connections}
 
     # See cld_visualization.py: Network height must be a fixed pixel value or
     # bslib's html-fill-container/display:contents chain leaves vis-network
@@ -65,13 +78,17 @@ def _build_loop_network(loop_nodes: list[str], isa: IsaData) -> Network:
     for i in range(n):
         src, tgt = loop_nodes[i], loop_nodes[(i + 1) % n]
         polarity = polarity_by_edge.get((src, tgt), "+")
+        delay = delay_by_edge.get((src, tgt), "immediate")
+        is_delayed = delay != "immediate"
         net.add_edge(
             src,
             tgt,
             label=polarity,
+            title=f"{polarity} · {delay}",
             color=EDGE_COLORS["reinforcing" if polarity == "+" else "opposing"],
             arrows="to",
             width=3,
+            dashes=is_delayed,
         )
 
     return net
@@ -167,17 +184,18 @@ def analysis_loops_server(
         rows = classified()
         if not rows:
             return ui.tags.p("No loops detected yet — click the button.", class_="text-muted")
-        reinforcing = sum(1 for r in rows if r["type"] == "Reinforcing")
-        balancing = sum(1 for r in rows if r["type"] == "Balancing")
+        counts = {b: sum(1 for r in rows if r["behavior"] == b)
+                  for b in ("reinforcing", "balancing", "oscillating")}
+
+        def line(b):
+            return ui.tags.div(
+                ui.tags.strong(str(counts[b])), " ", t(_BEHAVIOR_KEY[b]),
+                style=f"color: {_BEHAVIOR_COLOR[b]}; margin-bottom: 4px;",
+            )
         return ui.div(
-            ui.tags.div(
-                ui.tags.strong(str(reinforcing)), " Reinforcing",
-                style=f"color: {EDGE_COLORS['reinforcing']}; margin-bottom: 4px;",
-            ),
-            ui.tags.div(
-                ui.tags.strong(str(balancing)), " Balancing",
-                style=f"color: {EDGE_COLORS['opposing']};",
-            ),
+            line("reinforcing"), line("balancing"), line("oscillating"),
+            ui.tags.div(t("loops.oscillating_disclaimer"),
+                        class_="text-muted", style="font-size: 0.72rem; margin-top: 6px;"),
         )
 
     @output
@@ -186,21 +204,26 @@ def analysis_loops_server(
         rows = classified()
         if not rows:
             return ui.tags.p("Detect loops first.", class_="text-muted")
-        choices = {r["id"]: f"{r['id']} · {r['type']} · len {r['length']}" for r in rows}
+        choices = {r["id"]: f"{r['id']} · {t(_BEHAVIOR_KEY[r['behavior']])} · len {r['length']}"
+                   for r in rows}
         return ui.input_select("selected_loop", None, choices=choices)
 
     @output
     @render.data_frame
     def loops_table():
         import pandas as pd
-
         rows = classified()
+        cols = ["id", "behavior", "delayed", "type", "length", "path"]
         if not rows:
-            return pd.DataFrame(columns=["id", "type", "length", "path"])
-        return pd.DataFrame(
-            [{"id": r["id"], "type": r["type"], "length": r["length"], "path": r["path"]}
-             for r in rows]
-        )
+            return pd.DataFrame(columns=cols)
+        return pd.DataFrame([{
+            "id": r["id"],
+            "behavior": t(_BEHAVIOR_KEY[r["behavior"]]),
+            "delayed": "✓" if r["delayed"] else "—",
+            "type": r["type"],
+            "length": r["length"],
+            "path": r["path"],
+        } for r in rows], columns=cols)
 
     @reactive.calc
     def selected_row() -> dict | None:
@@ -222,19 +245,23 @@ def analysis_loops_server(
         row = selected_row()
         if row is None:
             return ui.tags.p("Detect loops first.", class_="text-muted")
-        color = EDGE_COLORS["reinforcing"] if row["type"] == "Reinforcing" else EDGE_COLORS["opposing"]
-        return ui.div(
+        color = _BEHAVIOR_COLOR[row["behavior"]]
+        parts = [
             ui.tags.span(
-                row["type"],
-                style=(
-                    f"display:inline-block; padding:2px 10px; background:{color}; "
-                    "color:#fff; border-radius:12px; font-size:12px; margin-right:8px;"
-                ),
+                t(_BEHAVIOR_KEY[row["behavior"]]),
+                style=(f"display:inline-block; padding:2px 10px; background:{color}; "
+                       "color:#fff; border-radius:12px; font-size:12px; margin-right:8px;"),
             ),
-            ui.tags.span(f"length {row['length']}", style="color:#777; margin-right:8px;"),
-            ui.tags.span(row["path"]),
-            style="margin: 8px 0 12px 0;",
-        )
+        ]
+        if row["delayed"] and row["behavior"] != "oscillating":
+            parts.append(ui.tags.span(
+                t("loops.delay_chip"),
+                style=("display:inline-block; padding:2px 8px; background:#e8a33d; "
+                       "color:#fff; border-radius:12px; font-size:11px; margin-right:8px;"),
+            ))
+        parts.append(ui.tags.span(f"length {row['length']}", style="color:#777; margin-right:8px;"))
+        parts.append(ui.tags.span(row["path"]))
+        return ui.div(*parts, style="margin: 8px 0 12px 0;")
 
     @output(id="loop_network")
     @render_pyvis_network(height="500px", show_toolbar=False, show_search=False,
