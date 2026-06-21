@@ -5103,6 +5103,105 @@
       "it": "Nessuna differenziazione — tutti i fattori hanno lo stesso punteggio",
       "no": "Ingen differensiering — alle faktorer scorer likt",
       "el": "Καμία διαφοροποίηση — όλοι οι παράγοντες βαθμολογούνται το ίδιο"
+    },
+    "entry.delay": {
+      "en": "Delay",
+      "es": "Retardo",
+      "fr": "Délai",
+      "de": "Verzögerung",
+      "lt": "Vėlavimas",
+      "pt": "Atraso",
+      "it": "Ritardo",
+      "no": "Forsinkelse",
+      "el": "Καθυστέρηση"
+    },
+    "delay.immediate": {
+      "en": "Immediate",
+      "es": "Inmediato",
+      "fr": "Immédiat",
+      "de": "Sofort",
+      "lt": "Betarpiškas",
+      "pt": "Imediato",
+      "it": "Immediato",
+      "no": "Umiddelbar",
+      "el": "Άμεσο"
+    },
+    "delay.short": {
+      "en": "Short",
+      "es": "Corto",
+      "fr": "Court",
+      "de": "Kurz",
+      "lt": "Trumpas",
+      "pt": "Curto",
+      "it": "Breve",
+      "no": "Kort",
+      "el": "Σύντομο"
+    },
+    "delay.long": {
+      "en": "Long",
+      "es": "Largo",
+      "fr": "Long",
+      "de": "Lang",
+      "lt": "Ilgas",
+      "pt": "Longo",
+      "it": "Lungo",
+      "no": "Lang",
+      "el": "Μακρύ"
+    },
+    "loops.behavior.reinforcing": {
+      "en": "Reinforcing",
+      "es": "Reforzador",
+      "fr": "Renforçant",
+      "de": "Verstärkend",
+      "lt": "Stiprinantis",
+      "pt": "Reforçador",
+      "it": "Rinforzante",
+      "no": "Forsterkende",
+      "el": "Ενισχυτικός"
+    },
+    "loops.behavior.balancing": {
+      "en": "Balancing",
+      "es": "Equilibrador",
+      "fr": "Équilibrant",
+      "de": "Ausgleichend",
+      "lt": "Balansuojantis",
+      "pt": "Equilibrador",
+      "it": "Bilanciante",
+      "no": "Balanserende",
+      "el": "Εξισορροπητικός"
+    },
+    "loops.behavior.oscillating": {
+      "en": "Oscillation-prone",
+      "es": "Propenso a oscilar",
+      "fr": "Sujet aux oscillations",
+      "de": "Schwingungsanfällig",
+      "lt": "Linkęs svyruoti",
+      "pt": "Propenso a oscilar",
+      "it": "Soggetto a oscillazioni",
+      "no": "Svingningsutsatt",
+      "el": "Επιρρεπής σε ταλαντώσεις"
+    },
+    "loops.oscillating_disclaimer": {
+      "en": "Structural signature only — delayed balancing loops are prone to overshoot/oscillation; actual behaviour depends on gains and delay magnitude, not simulated here.",
+      "es": "Solo firma estructural — los bucles equilibradores con retardo son propensos a sobrepasos/oscilaciones; el comportamiento real depende de las ganancias y la magnitud del retardo, no simulado aquí.",
+      "fr": "Signature structurelle uniquement — les boucles d'équilibrage retardées sont sujettes au dépassement/oscillation ; le comportement réel dépend des gains et de l'ampleur du délai, non simulé ici.",
+      "de": "Nur strukturelle Signatur — verzögerte ausgleichende Schleifen neigen zu Überschwingen/Schwingung; das tatsächliche Verhalten hängt von Verstärkungen und Verzögerungsgröße ab, hier nicht simuliert.",
+      "lt": "Tik struktūrinis požymis — vėluojančios balansuojančios kilpos linkusios peršokti/svyruoti; tikrasis elgesys priklauso nuo stiprinimų ir vėlavimo dydžio, čia nemodeliuojama.",
+      "pt": "Apenas assinatura estrutural — ciclos equilibradores com atraso são propensos a sobre-elevação/oscilação; o comportamento real depende dos ganhos e da magnitude do atraso, não simulado aqui.",
+      "it": "Solo firma strutturale — i cicli bilancianti ritardati sono soggetti a sovraelongazione/oscillazione; il comportamento reale dipende dai guadagni e dall'entità del ritardo, non simulato qui.",
+      "no": "Kun strukturell signatur — forsinkede balanserende sløyfer er utsatt for oversving/svingning; faktisk atferd avhenger av forsterkninger og forsinkelsens størrelse, ikke simulert her.",
+      "el": "Μόνο δομική υπογραφή — οι καθυστερημένοι εξισορροπητικοί βρόχοι είναι επιρρεπείς σε υπερύψωση/ταλάντωση· η πραγματική συμπεριφορά εξαρτάται από τα κέρδη και το μέγεθος της καθυστέρησης, δεν προσομοιώνεται εδώ."
+    },
+    "loops.delay_chip": {
+      "en": "delay",
+      "es": "retardo",
+      "fr": "délai",
+      "de": "Verzög.",
+      "lt": "vėlavimas",
+      "pt": "atraso",
+      "it": "ritardo",
+      "no": "forsink.",
+      "el": "καθυστ."
     }
   }
 }
