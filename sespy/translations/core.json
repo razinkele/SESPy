@@ -5224,6 +5224,17 @@
       "it": "Rileva prima i cicli.",
       "no": "Oppdag sløyfer først.",
       "el": "Πρώτα εντοπίστε τους βρόχους."
+    },
+    "cld.delay_legend": {
+      "en": "Dashed edges = delayed links",
+      "es": "Aristas discontinuas = enlaces con retardo",
+      "fr": "Arêtes en pointillés = liens retardés",
+      "de": "Gestrichelte Kanten = verzögerte Verbindungen",
+      "lt": "Brūkšninės briaunos = vėluojantys ryšiai",
+      "pt": "Arestas tracejadas = ligações com atraso",
+      "it": "Archi tratteggiati = collegamenti ritardati",
+      "no": "Stiplede kanter = forsinkede koblinger",
+      "el": "Διακεκομμένες ακμές = καθυστερημένες συνδέσεις"
     }
   }
 }
