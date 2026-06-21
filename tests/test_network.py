@@ -447,3 +447,68 @@ def test_normalize_delay_table():
     for raw, exp in cases.items():
         assert normalize_delay(raw) == exp, (raw, normalize_delay(raw))
     assert normalize_delay(None) == "immediate"
+
+
+# ---------------------------------------------------------------------------
+# Task 2: loop_has_delay + classify_loops behavior/delayed
+# ---------------------------------------------------------------------------
+
+def _delay_fixture(ab_polarity, ab_delay, ba_polarity="+", ba_delay="immediate"):
+    from sespy.data_structure import Element, Connection, IsaData
+    els = [Element(id="A", label="A", type="Drivers"),
+           Element(id="B", label="B", type="State")]
+    conns = [Connection(source="A", target="B", polarity=ab_polarity, delay=ab_delay),
+             Connection(source="B", target="A", polarity=ba_polarity, delay=ba_delay)]
+    return IsaData(elements=els, connections=conns)
+
+
+def test_classify_loops_oscillating_when_balancing_and_delayed():
+    isa = _delay_fixture(ab_polarity="-", ab_delay="short")  # 1 negative -> Balancing
+    rows = network.classify_loops(network.feedback_loops(isa), isa)
+    assert rows, "expected >=1 loop"
+    r = rows[0]
+    assert r["type"] == "Balancing"
+    assert r["delayed"] is True
+    assert r["behavior"] == "oscillating"
+
+
+def test_classify_loops_delayed_reinforcing_stays_reinforcing():
+    isa = _delay_fixture(ab_polarity="+", ab_delay="short")  # 0 negatives -> Reinforcing
+    r = network.classify_loops(network.feedback_loops(isa), isa)[0]
+    assert r["type"] == "Reinforcing"
+    assert r["delayed"] is True
+    assert r["behavior"] == "reinforcing"
+
+
+def test_classify_loops_immediate_balancing_not_oscillating():
+    isa = _delay_fixture(ab_polarity="-", ab_delay="immediate")
+    r = network.classify_loops(network.feedback_loops(isa), isa)[0]
+    assert r["type"] == "Balancing"
+    assert r["delayed"] is False
+    assert r["behavior"] == "balancing"
+
+
+def test_classify_loops_behavior_buckets_sum_to_total(isa):
+    rows = network.classify_loops(network.feedback_loops(isa), isa)
+    counts = {b: sum(1 for r in rows if r["behavior"] == b)
+              for b in ("reinforcing", "balancing", "oscillating")}
+    assert sum(counts.values()) == len(rows)
+
+
+def test_loop_has_delay_parallel_edges_last_wins():
+    from sespy.data_structure import Element, Connection, IsaData
+    els = [Element(id="A", label="A", type="Drivers"),
+           Element(id="B", label="B", type="State")]
+    # Two A->B edges; last one wins the (source,target) lookup.
+    isa_delayed = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", delay="immediate"),
+        Connection(source="A", target="B", delay="short"),     # last -> delayed
+        Connection(source="B", target="A", delay="immediate"),
+    ])
+    assert network.loop_has_delay(["A", "B"], isa_delayed) is True
+    isa_immediate = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", delay="short"),
+        Connection(source="A", target="B", delay="immediate"),  # last -> immediate
+        Connection(source="B", target="A", delay="immediate"),
+    ])
+    assert network.loop_has_delay(["A", "B"], isa_immediate) is False

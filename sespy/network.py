@@ -57,6 +57,24 @@ def _edge_polarity_lookup(isa: IsaData) -> dict[tuple[str, str], str]:
     return {(c.source, c.target): c.polarity for c in isa.connections}
 
 
+def _edge_delay_lookup(isa: IsaData) -> dict[tuple[str, str], str]:
+    from .constants import normalize_delay
+    return {(c.source, c.target): normalize_delay(c.delay) for c in isa.connections}
+
+
+def loop_has_delay(cycle: list[str], isa: IsaData) -> bool:
+    """True if any edge traversed by `cycle` is delayed
+    (normalize_delay(delay) != 'immediate'). Walks (cycle[i], cycle[(i+1)%n])
+    like loop_polarity; last-wins on parallel (source,target) edges (the UI
+    blocks duplicate edges; only Excel / hand-edited JSON can create them)."""
+    lookup = _edge_delay_lookup(isa)
+    n = len(cycle)
+    return any(
+        lookup.get((cycle[i], cycle[(i + 1) % n]), "immediate") != "immediate"
+        for i in range(n)
+    )
+
+
 def loop_polarity(cycle: list[str], isa: IsaData) -> str:
     """Classify a cycle as 'Reinforcing' or 'Balancing'.
 
@@ -383,18 +401,27 @@ def intervention_impact(
 
 
 def classify_loops(cycles: list[list[str]], isa: IsaData) -> list[dict]:
-    """Annotate each cycle with id, length, type, and a human-readable path."""
+    """Annotate each cycle with id, length, type, delayed, behavior, and a
+    human-readable path."""
     label_by_id = {el.id: el.label for el in isa.elements}
     out: list[dict] = []
     for idx, cycle in enumerate(cycles, start=1):
-        out.append(
-            {
-                "id": f"L{idx:03d}",
-                "length": len(cycle),
-                "type": loop_polarity(cycle, isa),
-                "nodes": cycle,
-                "path": " → ".join(label_by_id.get(n, n) for n in cycle)
-                + f" → {label_by_id.get(cycle[0], cycle[0])}",
-            }
-        )
+        loop_type = loop_polarity(cycle, isa)
+        delayed = loop_has_delay(cycle, isa)
+        if loop_type == "Balancing" and delayed:
+            behavior = "oscillating"
+        elif loop_type == "Balancing":
+            behavior = "balancing"
+        else:                       # Reinforcing (and any unexpected value)
+            behavior = "reinforcing"
+        out.append({
+            "id": f"L{idx:03d}",
+            "length": len(cycle),
+            "type": loop_type,
+            "delayed": delayed,
+            "behavior": behavior,
+            "nodes": cycle,
+            "path": " → ".join(label_by_id.get(n, n) for n in cycle)
+            + f" → {label_by_id.get(cycle[0], cycle[0])}",
+        })
     return out
