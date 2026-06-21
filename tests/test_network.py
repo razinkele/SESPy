@@ -433,3 +433,17 @@ def test_influence_dependence_tie_boundary_and_nonuniform_cycle():
     assert res["C"]["quadrant"] == "critical"
     # Differentiated graph -> distinct quadrants, NOT all 'undetermined'.
     assert len({r["quadrant"] for r in res.values()}) == 3
+
+
+def test_normalize_delay_table():
+    from sespy.constants import normalize_delay
+    cases = {
+        "immediate": "immediate", "short": "short", "long": "long",
+        "SHORT": "short", "Long": "long", "  short  ": "short",
+        "": "immediate", "no": "immediate", "none": "immediate",
+        "false": "immediate", "0": "immediate", "0.0": "immediate", "-": "immediate",
+        "3": "short", "5y": "short", "lag": "short", "delayed": "short",
+    }
+    for raw, exp in cases.items():
+        assert normalize_delay(raw) == exp, (raw, normalize_delay(raw))
+    assert normalize_delay(None) == "immediate"
