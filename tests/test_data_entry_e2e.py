@@ -70,8 +70,6 @@ async def main():
         await page.wait_for_timeout(1500)
 
         # --- delay select on the connection form (delay-aware Loop Analysis) ---
-        await page.click("#sespy_nav_entry")
-        await page.wait_for_timeout(1200)
         delay_opts = await page.evaluate(
             "() => { const el=document.getElementById('entry-new_delay');"
             " return el ? Array.from(el.options).map(o => o.value) : null; }"

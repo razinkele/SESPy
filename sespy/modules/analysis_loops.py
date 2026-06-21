@@ -184,7 +184,7 @@ def analysis_loops_server(
     def classification_summary():
         rows = classified()
         if not rows:
-            return ui.tags.p("No loops detected yet — click the button.", class_="text-muted")
+            return ui.tags.p(t("loops.no_loops_yet"), class_="text-muted")
         counts = {b: sum(1 for r in rows if r["behavior"] == b)
                   for b in ("reinforcing", "balancing", "oscillating")}
 
@@ -204,7 +204,7 @@ def analysis_loops_server(
     def loop_picker():
         rows = classified()
         if not rows:
-            return ui.tags.p("Detect loops first.", class_="text-muted")
+            return ui.tags.p(t("loops.detect_first"), class_="text-muted")
         choices = {r["id"]: f"{r['id']} · {t(_BEHAVIOR_KEY[r['behavior']])} · len {r['length']}"
                    for r in rows}
         return ui.input_select("selected_loop", None, choices=choices)
@@ -245,7 +245,7 @@ def analysis_loops_server(
     def loop_narrative():
         row = selected_row()
         if row is None:
-            return ui.tags.p("Detect loops first.", class_="text-muted")
+            return ui.tags.p(t("loops.detect_first"), class_="text-muted")
         color = _BEHAVIOR_COLOR[row["behavior"]]
         parts = [
             ui.tags.span(

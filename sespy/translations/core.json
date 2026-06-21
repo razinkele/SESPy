@@ -5202,6 +5202,28 @@
       "it": "ritardo",
       "no": "forsink.",
       "el": "καθυστ."
+    },
+    "loops.no_loops_yet": {
+      "en": "No loops detected yet — click the button.",
+      "es": "Aún no se detectaron bucles — haga clic en el botón.",
+      "fr": "Aucune boucle détectée — cliquez sur le bouton.",
+      "de": "Noch keine Schleifen erkannt — klicken Sie auf die Schaltfläche.",
+      "lt": "Kilpų dar neaptikta — spustelėkite mygtuką.",
+      "pt": "Nenhum ciclo detetado ainda — clique no botão.",
+      "it": "Nessun ciclo ancora rilevato — clicca il pulsante.",
+      "no": "Ingen sløyfer oppdaget ennå — klikk på knappen.",
+      "el": "Δεν εντοπίστηκαν βρόχοι ακόμη — κάντε κλικ στο κουμπί."
+    },
+    "loops.detect_first": {
+      "en": "Detect loops first.",
+      "es": "Primero detecte los bucles.",
+      "fr": "Détectez d'abord les boucles.",
+      "de": "Erkennen Sie zuerst die Schleifen.",
+      "lt": "Pirma aptikite kilpas.",
+      "pt": "Detete os ciclos primeiro.",
+      "it": "Rileva prima i cicli.",
+      "no": "Oppdag sløyfer først.",
+      "el": "Πρώτα εντοπίστε τους βρόχους."
     }
   }
 }
