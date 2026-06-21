@@ -5081,6 +5081,28 @@
       "it": "Indeterminato (nessuna differenziazione)",
       "no": "Ubestemt (ingen differensiering)",
       "el": "Απροσδιόριστο (χωρίς διαφοροποίηση)"
+    },
+    "quadrant.empty_no_data": {
+      "en": "No data — build a diagram first",
+      "es": "Sin datos — primero construya un diagrama",
+      "fr": "Aucune donnée — construisez d’abord un diagramme",
+      "de": "Keine Daten — erst ein Diagramm erstellen",
+      "lt": "Nėra duomenų — pirma sukurkite diagramą",
+      "pt": "Sem dados — construa primeiro um diagrama",
+      "it": "Nessun dato — crea prima un diagramma",
+      "no": "Ingen data — bygg et diagram først",
+      "el": "Δεν υπάρχουν δεδομένα — δημιουργήστε πρώτα ένα διάγραμμα"
+    },
+    "quadrant.empty_no_differentiation": {
+      "en": "No differentiation — every factor scores alike",
+      "es": "Sin diferenciación — todos los factores puntúan igual",
+      "fr": "Aucune différenciation — tous les facteurs obtiennent le même score",
+      "de": "Keine Differenzierung — alle Faktoren bewerten gleich",
+      "lt": "Nėra diferenciacijos — visi veiksniai vertinami vienodai",
+      "pt": "Sem diferenciação — todos os fatores pontuam igual",
+      "it": "Nessuna differenziazione — tutti i fattori hanno lo stesso punteggio",
+      "no": "Ingen differensiering — alle faktorer scorer likt",
+      "el": "Καμία διαφοροποίηση — όλοι οι παράγοντες βαθμολογούνται το ίδιο"
     }
   }
 }

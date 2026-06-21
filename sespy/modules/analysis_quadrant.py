@@ -86,8 +86,8 @@ def analysis_quadrant_server(
             r["quadrant"] == "undetermined" for r in data.values()
         )
         if not data or undetermined:
-            msg = "No data — build a diagram first" if not data else \
-                  "No differentiation — every factor scores alike"
+            msg = t("quadrant.empty_no_data") if not data else \
+                  t("quadrant.empty_no_differentiation")
             ax.text(0.5, 0.5, msg, ha="center", va="center",
                     transform=ax.transAxes, color="#777")
             ax.set_xticks([])
