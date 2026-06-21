@@ -17,6 +17,7 @@ from typing import Any, Sequence
 
 import pandas as pd
 
+from .constants import normalize_delay
 from .data_structure import Connection, Element, IsaData, Project, ProjectMetadata
 from .persistent_storage import ValidationResult, validate_project_payload
 
@@ -119,7 +120,7 @@ def parse_excel(path: Path | str) -> ValidationResult:
             polarity=str(_pick(row, CONN_POLARITY_COLS, default="+")) or "+",
             strength=str(_pick(row, CONN_STRENGTH_COLS, default="medium")) or "medium",
             confidence=int(_pick(row, CONN_CONF_COLS, default=3) or 3),
-            delay=str(_pick(row, CONN_DELAY_COLS, default="immediate")) or "immediate",
+            delay=normalize_delay(_pick(row, CONN_DELAY_COLS, default="immediate")),
         ))
 
     if errors:
