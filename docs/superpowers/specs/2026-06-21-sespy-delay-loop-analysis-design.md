@@ -58,10 +58,11 @@ the data-entry form + the sample so the analysis has something to chew on.
 
 | Decision | Choice | Reason |
 |---|---|---|
-| Vocabulary | `immediate` / `short` / `long` (ordered) | Mirrors `strength`'s 3-level categorical; same `input_select` idiom; satisfies both the loop flag (delayed = short\|long) and graded edge styling. |
+| Vocabulary | `immediate` / `short` / `long` (ordered) | Mirrors the existing 3-level `strength` categorical in the data model; the data-entry select follows the existing `new_type`/polarity input idiom (`isa_data_entry.py`). Satisfies both the loop flag (delayed = short\|long) and graded edge styling. |
 | "Delayed" predicate | `normalize_delay(c.delay) != "immediate"` | Single definition; short and long both count as delayed for the loop flag. |
-| `normalize_delay(raw)` | empty/None/`"immediate"`→`immediate`; `"short"`→`short`; `"long"`→`long`; any other non-empty→`short` | Case-insensitive; legacy/Excel free-text ("lag","delayed","5y") lands safely as "delayed, magnitude unknown". |
-| Behavior model | mutually exclusive `reinforcing` / `balancing` / `oscillating`; **oscillating = balancing AND delayed** (replaces balancing for those loops) | Three non-overlapping counts summing to total — no double-counting. Oscillating is the headline new state (overshoot signature). |
+| `normalize_delay(raw)` | exact `short`/`long`; explicit immediate/negation sentinels → `immediate`; numeric 0 → `immediate`, positive → `short`; only genuine non-empty free-text → `short` (see §3.1) | **Conservative/asymmetric** so a negated value (`"no"`, `"none"`, `"0"`, `"false"`) is NOT mislabelled delayed; unknown free-text in a delay/lag column lands as "delayed, magnitude unknown". |
+| Behavior model | mutually exclusive `reinforcing` / `balancing` / `oscillating`; **oscillating = balancing AND delayed** (replaces balancing for those loops) | Three non-overlapping counts summing to total — no double-counting. Oscillating is the headline new state. **Display hedged** (see below): it's a *structural* signature, not a simulated result. |
+| Oscillating wording | internal key `oscillating`; **display "Oscillation-prone"** + a disclaimer tooltip (i18n) | A delayed balancing loop is *prone to* overshoot/oscillation, but actual behaviour depends on gains/delay magnitude (not simulated here). Avoids over-claiming a structural mark as dynamics. |
 | `delayed` flag | separate boolean, orthogonal to `behavior` | Lets the UI count by `behavior` while independently driving dashed styling + the secondary "delay" badge (e.g. a delayed reinforcing loop). Two fields, two jobs. |
 | Delayed reinforcing | `behavior=reinforcing`, `delayed=True` | No fourth category (see §1.2). |
 | Placement | extend the existing **Loop Analysis** module | It already enumerates cycles + classifies R/B; delay surfacing is purely additive, no new graph traversal in the UI. |
@@ -81,15 +82,30 @@ dataclass default and read as `immediate`.
 ```python
 DELAY_LEVELS: tuple[str, ...] = ("immediate", "short", "long")
 
+_DELAY_IMMEDIATE_SENTINELS = frozenset({
+    "", "none", "immediate", "instant", "now", "no", "n/a", "na",
+    "false", "f", "-",
+})
+
 def normalize_delay(raw: object) -> str:
-    """Map any stored/imported delay value to DELAY_LEVELS.
-    empty/None/'immediate' -> 'immediate'; 'short'/'long' -> themselves
-    (case-insensitive); any other non-empty value -> 'short' (delayed,
-    magnitude unknown)."""
+    """Map any stored/imported delay value to DELAY_LEVELS — conservatively,
+    so a negated/zero value is NOT mislabelled as delayed.
+
+    Order (case-insensitive, stripped):
+      1. exact 'short' / 'long' / 'immediate' -> itself
+      2. an immediate/negation sentinel (none, no, n/a, false, 0-meaning, '-')
+         -> 'immediate'
+      3. parses as a number: 0 -> 'immediate', > 0 -> 'short'
+      4. any remaining non-empty free-text (e.g. 'lag', 'delayed') -> 'short'
+         ('delayed, magnitude unknown')
+    """
 ```
-Algorithm: `s = str(raw).strip().lower()` (guard `None`/empty → `"immediate"`);
-exact match to `short`/`long`/`immediate` returns that; anything else non-empty
-→ `"short"`.
+Algorithm: `s = str(raw).strip().lower()`; if `s in {"short","long","immediate"}`
+return it; if `s in _DELAY_IMMEDIATE_SENTINELS` return `"immediate"`; try
+`float(s)` → `"immediate"` if `== 0` else `"short"`; on `ValueError`, return
+`"short"`. (`long` is only ever produced by an exact `"long"` match or by the
+data-entry select — numeric/free-text never auto-promotes to `long`; that's a
+deliberate floor, not a bug.)
 
 ### 3.2 `sespy/network.py` (append + extend)
 ```python
@@ -99,23 +115,41 @@ def loop_has_delay(cycle: list[str], isa: IsaData) -> bool:
     edge-walk over (cycle[i], cycle[(i+1)%n])."""
 ```
 Build a `{(source,target): delay}` lookup (parallel to `_edge_polarity_lookup`),
-walk the cycle edges, return `True` on the first delayed edge.
+walk the cycle edges, return `True` on the first delayed edge. **Note:** like
+`_edge_polarity_lookup`, this is last-wins on parallel `(source,target)` edges
+(the in-app UI blocks duplicate edges at `isa_data_entry.py:240`; only Excel /
+hand-edited JSON can produce them). Documented in the docstring; a parallel-edge
+unit test pins the behaviour (§8).
 
 **`classify_loops` gains two fields** per loop dict (keeping `id`, `length`,
 `type`, `nodes`, `path` unchanged):
 - `delayed: bool` = `loop_has_delay(cycle, isa)`
-- `behavior: str` = `"oscillating"` if (`type == "Balancing"` and `delayed`)
-  else `type.lower()` (`"reinforcing"` / `"balancing"`)
+- `behavior: str` — derived **explicitly** (total, no silent fallthrough):
+  `"oscillating"` if (`type == "Balancing"` and `delayed`); else `"balancing"`
+  if `type == "Balancing"`; else `"reinforcing"` (covers `type == "Reinforcing"`
+  and any unexpected value — `loop_polarity` is binary today, so the else is a
+  documented safety floor).
 
-(`behavior` is lower-case to key i18n; the UI maps it to a display label.)
+(`behavior` is lower-case to key i18n; the UI maps it to a display label. The
+three buckets are mutually exclusive and sum to `len(loops)` — pinned by a unit
+test in §8.)
 
 ## 4. Loop Analysis surfacing (`sespy/modules/analysis_loops.py`)
 
 All read the new fields from `classify_loops`; no new graph work in the module.
 
+**Display wording (applies to summary, table, narrative, picker):** the
+`oscillating` behavior is shown as **"Oscillation-prone"** (i18n
+`loops.behavior.oscillating`), with a disclaimer tooltip/footnote (i18n
+`loops.oscillating_disclaimer`): *"Structural signature only — delayed balancing
+loops are prone to overshoot/oscillation; actual behaviour depends on gains and
+delay magnitude, which are not simulated here."* This keeps the data-layer key
+crisp (`oscillating`) while the UI does not over-claim simulated behaviour.
+
 1. **Classification summary (sidebar).** Count by `behavior` into three
-   mutually-exclusive buckets — **Reinforcing**, **Balancing**, **Oscillating** —
-   each in its own colour (oscillating distinct, e.g. amber). Replaces today's
+   mutually-exclusive buckets — **Reinforcing**, **Balancing**, **Oscillation-prone**
+   — each in its own colour (oscillation-prone distinct, e.g. amber), with the
+   disclaimer footnote beneath the oscillation-prone count. Replaces today's
    2-count (Reinforcing/Balancing) summary.
 2. **Loops table.** Add a `behavior` column (display label) and a `delayed`
    column (`✓`/`—`). Keep existing `type`, `length`, `path`.
@@ -130,27 +164,49 @@ All read the new fields from `classify_loops`; no new graph work in the module.
 
 ## 5. Capture side
 
-1. **Data-entry form (`isa_data_entry.py`).** Add `ui.input_select("new_delay",
-   t("entry.delay"), DELAY_LEVEL_LABELS, selected="immediate")` into the
-   connection-add `layout_columns` (refit `col_widths`, e.g. source/target/
-   polarity/delay = 3/3/2/2 with the add button wrapping or `(3,3,2,2,2)`), and
-   set `delay=input.new_delay() or "immediate"` in the `Connection(...)` at the
-   add handler. Add a `delay` column to the `connections_table` rows.
+1. **Data-entry form (`isa_data_entry.py`).** Add
+   `ui.input_select("new_delay", t("entry.delay"),
+   {lvl: t(f"delay.{lvl}") for lvl in DELAY_LEVELS}, selected="immediate")` into
+   the connection-add `layout_columns` — choices built **inline at render time**
+   from `DELAY_LEVELS` + the i18n level keys (matching the existing `new_type`
+   `{x: x}` idiom; there is no static `DELAY_LEVEL_LABELS` constant — a
+   module-level constant could not be localized). Refit `col_widths` to the
+   committed **`(3, 3, 2, 2, 2)`** (source/target/polarity/delay/add-button, all
+   five inline); if the "Add connection" label truncates at width 2, shorten it
+   or move the button to its own full-width row below. Set
+   `delay=input.new_delay() or "immediate"` in the `Connection(...)` at the add
+   handler. Add a `delay` column to the `connections_table` rows **and to the
+   empty/placeholder frame** (`{"source":"","target":"","polarity":"",
+   "strength":"","delay":""}`) so the header is consistent when empty; display the
+   raw stored value (normalization happens at import/predicate time, not display).
 2. **Excel import (`excel_import.py`).** Wrap the existing delay read:
    `delay=normalize_delay(_pick(row, CONN_DELAY_COLS, default="immediate"))`.
    Column fallbacks (`delay`/`Delay`/`lag`/`Lag`) already exist.
 3. **Sample seed (`data/sample_ses.json`).** Set `"delay": "short"` on one edge
-   that lies on an existing balancing loop. The implementer identifies it by
-   running `feedback_loops` + `classify_loops` on the sample and choosing an edge
-   inside a balancing cycle. **Done-criterion:** `classify_loops` on the seeded
-   sample yields ≥1 `behavior == "oscillating"`.
+   that lies on an existing balancing loop. **Confirmed feasible:** the sample
+   already has 3 balancing loops — e.g. the cycle
+   `MPF2→ES02→GB02→D002→A002→P002`; seed an edge on it (e.g. `MPF2→ES02`).
+   **Done-criterion:** with `cycles = feedback_loops(sample.isa_data)`,
+   `classify_loops(cycles, sample.isa_data)` yields ≥1 `behavior == "oscillating"`
+   (note `classify_loops` takes `(cycles, isa)` — `feedback_loops` runs first).
 
-## 6. i18n (`sespy/translations/core.json`, 9 languages)
-New keys: `entry.delay`; delay level labels `delay.immediate`/`delay.short`/
-`delay.long`; behavior labels `loops.behavior.reinforcing`/`.balancing`/
-`.oscillating`; `loops.delayed`, `loops.behavior` (column headers), and a
-`loops.oscillating_count` label. Mirror `loops.*` coverage; English authoritative
-(loader falls back to English at `i18n.py:100`).
+## 6. i18n (`sespy/translations/core.json`)
+Every new key MUST be authored in **all 9 catalog languages** (en, es, fr, de,
+lt, pt, it, no, el). The runtime English fallback (`i18n.py:100`) does **not**
+satisfy the drift test `tests/test_i18n.py::test_loader_handles_all_supported_languages`,
+which fails on any English-only key — so all 9 are required, not optional.
+
+Full key inventory:
+- `entry.delay` (data-entry input label)
+- delay level labels: `delay.immediate`, `delay.short`, `delay.long`
+- behavior display labels: `loops.behavior.reinforcing`, `loops.behavior.balancing`,
+  `loops.behavior.oscillating` (= "Oscillation-prone")
+- `loops.oscillating_disclaimer` (the structural-signature footnote, §4)
+- column headers: `loops.behavior`, `loops.delayed`
+- summary count label: `loops.oscillating_count`
+- narrative delay chip: `loops.delay_chip`
+
+(The existing Reinforcing/Balancing summary labels are reused, not retro-keyed.)
 
 ## 7. Edge cases & error handling
 - **Legacy data (no `delay` key)** → dataclass default `immediate`;
@@ -165,26 +221,52 @@ New keys: `entry.delay`; delay level labels `delay.immediate`/`delay.short`/
   delay is read via the same `(source,target)` lookup and simply absent → treated
   immediate.
 - **Empty / no loops** → summary shows zeros; unchanged from today.
+- **Backward compatibility (verified against existing tests):** `classify_loops`
+  **retains** `type` and only *adds* `delayed`/`behavior` — so
+  `test_network.py::test_loop_polarity_rule` (asserts `type ∈
+  {Reinforcing,Balancing}`) and `test_report.py::test_render_html_includes_loop_classifications`
+  (asserts "Reinforcing" in HTML) still pass. The sample seed **edits an existing
+  edge's `delay`** (does not add/remove an edge), so
+  `test_network.py::test_sample_loads` (`connection_count() == 20`,
+  `element_count() == 17`) still passes. No existing assertion depends on the
+  2-bucket summary.
 
 ## 8. Testing
-1. **Unit (`tests/test_network.py`, extend; pure):** `normalize_delay` table
-   (`immediate`/`short`/`long`/`""`/`None`/`"Lag"`/`"SHORT"`/`"5y"`);
-   `loop_has_delay` on a fixture (delayed vs all-immediate cycle); `classify_loops`
-   emits `delayed` + `behavior` — a **delayed balancing** loop → `oscillating`;
-   a **delayed reinforcing** loop → `behavior=reinforcing, delayed=True`; immediate
-   loops → `reinforcing`/`balancing`, `delayed=False`.
-2. **Sample done-criterion (`tests/test_network.py` or a data test):** assert
-   `classify_loops` on `data/sample_ses.json` yields ≥1 `oscillating` (locks the
-   seed; fails loudly if the seeded edge isn't on a balancing loop).
-3. **e2e:**
+1. **Unit (`tests/test_network.py`, extend; pure):**
+   - `normalize_delay` table — exact `immediate`/`short`/`long`; case
+     (`"SHORT"`,`"Long"`); sentinels that must be **immediate** (`""`, `None`,
+     `"no"`, `"none"`, `"false"`, `"0"`, `"0.0"`, `"-"`); numeric (`"3"`→`short`,
+     `"0"`→`immediate`); free-text (`"lag"`,`"delayed"`,`"5y"`→`short`).
+   - `loop_has_delay` on a fixture (delayed vs all-immediate cycle); a
+     **parallel-edge** fixture pinning the last-wins lookup behaviour.
+   - `classify_loops` emits `delayed` + `behavior` — a **delayed balancing** loop
+     → `oscillating`; a **delayed reinforcing** loop → `behavior=reinforcing,
+     delayed=True`; immediate loops → `reinforcing`/`balancing`, `delayed=False`.
+   - **Behavior totality:** on any fixture, the three behavior-bucket counts sum
+     to `len(loops)` (pins mutual exclusivity / no silent fallthrough).
+2. **Sample done-criterion (`tests/test_network.py`):** with `cycles =
+   feedback_loops(isa)`, assert `classify_loops(cycles, isa)` on
+   `data/sample_ses.json` yields ≥1 `oscillating` (locks the seed; fails loudly if
+   the seeded edge isn't on a balancing loop).
+3. **i18n:** `pytest tests/test_i18n.py` passes (all new keys present in all 9
+   languages — part of the i18n task's done-criteria).
+4. **e2e:**
    - **New `tests/test_loops_e2e.py`** (standalone asyncio Playwright, modelled on
      `tests/test_leverage_e2e.py`): nav to Loop Analysis (`#sespy_nav_loops`),
-     click **Detect**, assert the summary/table shows ≥1 **Oscillating** and that a
-     delayed edge in the rendered loop network is dashed (read vis.js edge
-     `dashes`).
-   - **Extend `tests/test_data_entry_e2e.py`:** assert the `new_delay` select
-     exists with the three options and a connection can be added with a
-     non-immediate delay.
+     click **Detect**, **poll** until the loops table populates (the data_frame
+     `<tbody>` late-mounts; use `wait_for_selector` on the table rows, not a fixed
+     sleep), assert the summary/table shows ≥1 **Oscillation-prone**, then select
+     that loop and read the rendered network's edges via
+     `window.pyvisNetworks['loops-loop_network'].edges.get().map(e => e.dashes)`,
+     asserting `dashes.some(d => d === true)` **and** at least one solid edge
+     (`dashes.some(d => !d)`) — guards against an all-dashed or field-undefined
+     read. (This edge-attribute read is novel in this repo — no prior e2e reads
+     `.edges.get()`; the loop network is empty until a loop is selected, so select
+     first.)
+   - **Extend `tests/test_data_entry_e2e.py`:** assert the `#entry-new_delay`
+     select exists with the three options and a connection can be added with a
+     non-immediate delay (budget for the reactive `output_ui` source/target picker
+     late-mount; pick two distinct existing sample element ids).
    - Full gate: `python tests/run_e2e.py` — never `-k "not e2e"`, never `pytest`
      on the e2e scripts.
 
