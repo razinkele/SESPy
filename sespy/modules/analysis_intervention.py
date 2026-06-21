@@ -110,6 +110,7 @@ def _build_intervention_network(
             },
             arrows="to",
             width=1.5,
+            **net_analysis.delay_edge_kwargs(c),
         )
     return net
 

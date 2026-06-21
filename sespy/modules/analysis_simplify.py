@@ -63,6 +63,7 @@ def _build_simplified_network(isa: IsaData) -> Network:
             color=EDGE_COLORS["reinforcing" if c.polarity == "+" else "opposing"],
             arrows="to",
             width=1.5 + 0.5 * net_analysis._STRENGTH_RANK.get(c.strength, 2),
+            **net_analysis.delay_edge_kwargs(c),
         )
     return net
 
