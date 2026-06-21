@@ -171,8 +171,9 @@ def analysis_loops_server(
     @reactive.effect
     def _invalidate_on_isa_change():
         event_bus.isa_change.get()
-        if detected.get():
-            detected.set([])
+        with reactive.isolate():
+            if detected.get():
+                detected.set([])
 
     @reactive.calc
     def classified() -> list[dict]:

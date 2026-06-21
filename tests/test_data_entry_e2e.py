@@ -68,6 +68,17 @@ async def main():
 
         await page.click("#sespy_nav_entry")
         await page.wait_for_timeout(1500)
+
+        # --- delay select on the connection form (delay-aware Loop Analysis) ---
+        await page.click("#sespy_nav_entry")
+        await page.wait_for_timeout(1200)
+        delay_opts = await page.evaluate(
+            "() => { const el=document.getElementById('entry-new_delay');"
+            " return el ? Array.from(el.options).map(o => o.value) : null; }"
+        )
+        print("delay options:", delay_opts)
+        assert delay_opts == ["immediate", "short", "long"], f"unexpected: {delay_opts}"
+
         await page.screenshot(path="tests/screenshots/data_entry.png")
 
         print("\ndata-entry e2e assertions pass — add propagates 5-way")
