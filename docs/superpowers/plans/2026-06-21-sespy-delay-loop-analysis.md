@@ -315,7 +315,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Modify: `sespy/translations/core.json`
 
-**Interfaces:** Produces i18n keys consumed by Tasks 5 & 6: `entry.delay`; `delay.immediate`/`.short`/`.long`; `loops.behavior.reinforcing`/`.balancing`/`.oscillating`; `loops.oscillating_disclaimer`; `loops.delay_chip`. (Table column *headers* stay untranslated English, matching the existing `loops_table` headers `id`/`type`/`length`/`path` — so no `loops.col_*` keys; only the cell *values* are translated.)
+**Interfaces:** Produces i18n keys consumed by Tasks 5 & 6: `entry.delay`; `delay.immediate`/`.short`/`.long`; `loops.behavior.reinforcing`/`.balancing`/`.oscillating`; `loops.oscillating_disclaimer`; `loops.delay_chip`. (Table column *headers* stay untranslated English, matching the existing `loops_table` headers `id`/`type`/`length`/`path` — so no `loops.col_*` keys; only the cell *values* are translated. The spec §6 also listed `loops.oscillating_count` — **intentionally dropped**: the summary count line (Task 5 Step 1) reuses `loops.behavior.oscillating` as its label rather than a separate count key.)
 
 - [ ] **Step 1: Add the keys.** Create a temp `add_delay_i18n.py` at the repo root, run it once, then delete it (avoids the Windows multi-line `-c` trap):
 
@@ -440,7 +440,7 @@ _BEHAVIOR_COLOR = {
                    for r in rows}
 ```
 
-- [ ] **Step 4: Loop narrative — behavior badge + delay chip.** Update `loop_narrative` to colour the badge by behavior and append a delay chip when delayed-but-not-oscillating:
+- [ ] **Step 4: Loop narrative — behavior badge + delay chip.** Update `loop_narrative` to colour the badge by behavior and append a delay chip when delayed-but-not-oscillating. (Note: the seeded sample produces an oscillating loop, not a delayed-*reinforcing* one, so the chip branch is covered by reading the code/logic only — not exercised by the e2e. That's acceptable; a second seed to exercise it is out of scope.)
 
 ```python
     @output
@@ -468,7 +468,7 @@ _BEHAVIOR_COLOR = {
         return ui.div(*parts, style="margin: 8px 0 12px 0;")
 ```
 
-- [ ] **Step 5: Dashed delayed edges in the loop network.** In `_build_loop_network`, compute a delay lookup and set `dashes` + tooltip per edge. Add near the top of the function (beside `polarity_by_edge`):
+- [ ] **Step 5: Dashed delayed edges in the loop network.** In `_build_loop_network`, compute a delay lookup and set `dashes` + tooltip per edge via the **`net.add_edge(..., dashes=...)` keyword path** (do NOT route edges through a typed `EdgeOptions`/`options=` object — pyvis passes legacy kwargs through verbatim to the vis.js edge so `e.dashes` is exposed to the e2e; a typed options object would drop the unmodeled field). Add near the top of the function (beside `polarity_by_edge`):
 
 ```python
     from ..constants import normalize_delay
@@ -623,6 +623,9 @@ async def main():
         await page.click("#loops-detect")
         # Poll until the loops table populates (data_frame <tbody> late-mounts)
         await page.wait_for_selector("#loops-loops_table table tbody tr", timeout=30000)
+        # The picker is a separate output_ui-rendered <select> that flushes as its
+        # own Shiny message — wait for it too before reading/setting selectedIndex.
+        await page.wait_for_selector("#loops-selected_loop", timeout=30000)
 
         # Behaviour is column 2; find the index of the oscillation-prone row.
         # The picker (#loops-selected_loop) options are in the SAME order as the
@@ -637,11 +640,13 @@ async def main():
         assert osc_idx >= 0, f"no oscillation-prone loop reported: {behaviors}"
 
         # Deterministically select the oscillation-prone loop in the picker.
-        await page.evaluate(
+        ok = await page.evaluate(
             "(i) => { const el=document.getElementById('loops-selected_loop');"
-            " el.selectedIndex=i; el.dispatchEvent(new Event('change',{bubbles:true})); }",
+            " if(!el) return false;"
+            " el.selectedIndex=i; el.dispatchEvent(new Event('change',{bubbles:true})); return true; }",
             osc_idx,
         )
+        assert ok, "#loops-selected_loop not mounted"
 
         # Read the rendered loop network's edge `dashes` flags: the delayed edge
         # must be dashed AND at least one edge must be solid. Poll for the re-render.

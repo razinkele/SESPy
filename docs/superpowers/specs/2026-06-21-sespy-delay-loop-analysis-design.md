@@ -202,9 +202,13 @@ Full key inventory:
 - behavior display labels: `loops.behavior.reinforcing`, `loops.behavior.balancing`,
   `loops.behavior.oscillating` (= "Oscillation-prone")
 - `loops.oscillating_disclaimer` (the structural-signature footnote, §4)
-- column headers: `loops.behavior`, `loops.delayed`
-- summary count label: `loops.oscillating_count`
 - narrative delay chip: `loops.delay_chip`
+
+(Table column *headers* stay untranslated English — matching the existing
+`loops_table` headers `id`/`type`/`length`/`path` — so no `loops.col_*` keys; only
+the cell *values* are translated. The summary count line reuses
+`loops.behavior.oscillating` as its label, so no separate `loops.oscillating_count`
+key. Net: 9 new keys.)
 
 (The existing Reinforcing/Balancing summary labels are reused, not retro-keyed.)
 
