@@ -161,3 +161,31 @@ TEMPORAL_SCALES: tuple[str, ...] = (
     "Yearly",
     "Decadal",
 )
+
+# --- Connection delay vocabulary (QSEM time-delay surfacing) -----------------
+DELAY_LEVELS: tuple[str, ...] = ("immediate", "short", "long")
+
+# Values that mean "no delay" — guarded so a negated/zero cell is not
+# mislabelled as delayed.
+_DELAY_IMMEDIATE_SENTINELS = frozenset({
+    "", "none", "immediate", "instant", "now", "no", "n/a", "na", "false", "f", "-",
+})
+
+
+def normalize_delay(raw: object) -> str:
+    """Map any stored/imported delay value to DELAY_LEVELS, conservatively.
+
+    Order (case-insensitive, stripped): exact short/long/immediate; an
+    immediate/negation sentinel -> 'immediate'; numeric 0 -> 'immediate',
+    > 0 -> 'short'; any remaining non-empty free-text -> 'short'. 'long' is
+    only produced by an exact match (never auto-promoted).
+    """
+    s = ("" if raw is None else str(raw)).strip().lower()
+    if s in ("short", "long", "immediate"):
+        return s
+    if s in _DELAY_IMMEDIATE_SENTINELS:
+        return "immediate"
+    try:
+        return "immediate" if float(s) == 0 else "short"
+    except ValueError:
+        return "short" if s else "immediate"

@@ -21,6 +21,7 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from ..constants import (
     CONNECTION_POLARITY_LABELS,
+    DELAY_LEVELS,
     DAPSIWRM_ELEMENTS,
 )
 from ..data_structure import Connection, Element, IsaData, Project
@@ -82,10 +83,15 @@ def isa_data_entry_ui() -> ui.Tag:
                     selected="+",
                     inline=True,
                 ),
+                ui.input_select(
+                    "new_delay", t("entry.delay"),
+                    {lvl: t(f"delay.{lvl}") for lvl in DELAY_LEVELS},
+                    selected="immediate",
+                ),
                 ui.input_action_button("add_connection", t("entry.add_connection"),
                                        class_="btn btn-primary",
                                        style="align-self: end;"),
-                col_widths=(3, 3, 3, 3),
+                col_widths=(3, 3, 2, 2, 2),
             ),
             ui.tags.div(
                 ui.output_data_frame("connections_table"),
@@ -162,11 +168,12 @@ def isa_data_entry_server(
                 "target": f"{c.target} · {by_id.get(c.target, '?')}",
                 "polarity": c.polarity,
                 "strength": c.strength,
+                "delay": c.delay,
             }
             for c in project_data.get().isa_data.connections
         ]
         return render.DataGrid(
-            pd.DataFrame(rows or [{"source": "", "target": "", "polarity": "", "strength": ""}]),
+            pd.DataFrame(rows or [{"source": "", "target": "", "polarity": "", "strength": "", "delay": ""}]),
             selection_mode="row",
             height="240px",
         )
@@ -242,7 +249,8 @@ def isa_data_entry_server(
                                  type="warning", duration=3)
             return
         new = Connection(source=src, target=tgt,
-                         polarity=input.new_polarity() or "+")
+                         polarity=input.new_polarity() or "+",
+                         delay=input.new_delay() or "immediate")
         _replace(IsaData(
             elements=isa.elements,
             connections=[*isa.connections, new],
