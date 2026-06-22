@@ -62,7 +62,10 @@ def test_influence_dependence_default_is_mean(isa):
 def test_influence_dependence_median_reclassifies_sample(isa):
     mean_q = network.influence_dependence(isa, split="mean")
     med_q = network.influence_dependence(isa, split="median")
-    # Empirically verified on data/sample_ses.json (mean_inf 12.18, median_inf 12.0):
+    # Empirically verified on data/sample_ses.json (mean_inf 12.18, median_inf 12.0).
+    # D001 influence == 12.0 == median_inf — the >= tie-rule boundary node; if the
+    # sample changes so this no longer holds, re-derive a new pinned node (do NOT
+    # delete this assertion).
     assert mean_q["D001"]["quadrant"] == "buffering"
     assert med_q["D001"]["quadrant"] == "active"
     assert any(mean_q[k]["quadrant"] != med_q[k]["quadrant"] for k in mean_q)
@@ -109,6 +112,13 @@ def test_influence_skew_false_boundary():
 def test_influence_skew_false_empty():
     from sespy.data_structure import IsaData
     assert network.influence_skew(IsaData()) is False
+
+
+def test_influence_skew_false_on_default_sample(isa):
+    # The shipped sample is NOT skew-flagged: max influence 23 ≯ 3·median 12.
+    # This pins the e2e's premise that the skew caption does NOT show on the
+    # default view (so the e2e correctly does not assert the caption).
+    assert network.influence_skew(isa) is False
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -342,7 +352,7 @@ and:
         isa = project_data.get().isa_data
         if input.split() == "mean" and net_analysis.influence_skew(isa):
             return ui.tags.small(t("quadrant.skew_warning"), class_="text-muted")
-        return ui.TagList()
+        return ui.tags.div()   # empty — matches the repo's empty-@render.ui convention
 ```
 
 - [ ] **Step 6: Verify the module imports + app boots**
@@ -389,7 +399,17 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             " r.dispatchEvent(new Event('change', {bubbles: true})); return true; }"
         )
         assert ok, "#quadrant-split median radio not found"
-        await page.wait_for_timeout(2000)  # table re-renders
+        # Poll until D001's quadrant cell actually changes (avoids a fixed-sleep
+        # race / vacuous pass); `before["D001"]` is passed in as the JS arg.
+        await page.wait_for_function(
+            "(prev) => { const rows = document.querySelectorAll("
+            "'#quadrant-quadrant_table table tbody tr');"
+            " for (const tr of rows) {"
+            "   if (tr.querySelector('td:nth-child(2)')?.textContent?.trim() === 'D001')"
+            "     return tr.querySelector('td:last-child')?.textContent?.trim() !== prev;"
+            " } return false; }",
+            arg=before["D001"], timeout=30000,
+        )
         after = await quadrant_by_id()
         print(f"D001 mean={before.get('D001')} median={after.get('D001')}")
         assert before.get("D001") and after.get("D001"), "D001 row not found"

@@ -119,7 +119,7 @@ return `False` if `len(nz) < 2`; else **strict** `max(nz) > k * statistics.media
       isa = project_data.get().isa_data
       if input.split() == "mean" and net_analysis.influence_skew(isa):
           return ui.tags.small(t("quadrant.skew_warning"), class_="text-muted")
-      return ui.TagList()                             # empty otherwise
+      return ui.tags.div()                            # empty (repo convention)
   ```
   It reacts to both the split radio (`input.split()`) and data edits
   (`event_bus.isa_change`). Shown only on mean + skewed; empty otherwise.
