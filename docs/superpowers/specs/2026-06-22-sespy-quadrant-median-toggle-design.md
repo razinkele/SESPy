@@ -1,0 +1,152 @@
+# SESPy Quadrant Median-Split Toggle (QSEM follow-up) — Design
+
+Date: 2026-06-22
+Status: **Draft** (spec review gate)
+
+**Context.** Follow-up to improvement **A** (Factor Quadrant, `9be151b`). The
+quadrant splits each axis at its **mean** (`influence_dependence`,
+`network.py:194`). A's review noted that on hub-skewed graphs the mean is pulled
+up by one high-degree node, pushing the long tail below it into
+`reactive`/`buffering` and hiding secondary leverage points — and deferred a
+**median split** (more robust on skewed data) and a **data-triggered skew
+warning**. This chunk adds both. Mean stays the default; median is the opt-in.
+
+## 1. Goal & scope
+
+### 1.1 In scope
+- `influence_dependence(isa, *, split="mean")` — a `"mean"|"median"` keyword
+  selecting the per-axis cross-hair statistic. Default `"mean"` keeps every
+  existing caller/test unchanged.
+- A shared `axis_threshold(values, split)` helper used by BOTH the classifier and
+  the plot's cross-hairs, so they can never disagree.
+- `influence_skew(isa) -> bool` — true when the influence distribution is
+  hub-skewed (`max > k·median` on non-zero nodes, k=3).
+- Quadrant module: a sidebar mean/median control; the plot's cross-hairs follow
+  the chosen split; a skew-warning caption when skewed and on mean.
+- 4 i18n keys × 9 languages; unit + e2e tests.
+
+### 1.2 Out of scope
+- No data-model / schema change. No `PROJECT_SCHEMA_VERSION` bump.
+- No change to the classification *rule* (`>= threshold` = high side), the
+  degeneracy guard, the quadrant labels, or the return shape of
+  `influence_dependence`.
+- No third split option (no configurable numeric threshold) — mean/median only.
+- No change to any other analysis module.
+
+### 1.3 Decisions baked in
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Default split | `"mean"` | Backward-compatible; mean preserves "above-average influence" and a sparse Active quadrant when drivers are genuinely few. |
+| Median for even N | `statistics.median` (averages the two middle values) | Standard; no new convention. |
+| Tie at threshold | `>= threshold` = high side (unchanged) | Identical rule for mean and median; a node exactly at the median lands high, deterministic. |
+| Threshold sharing | one `axis_threshold(values, split)` helper used by classifier AND plot | The plot currently recomputes the mean itself (`analysis_quadrant.py:99-100,116-117`); without sharing, a median classification would draw mean cross-hairs. One definition → always consistent. |
+| Skew predicate | `max(v) > 3 · median(v)` over **non-zero** influence values; false if none | A single hub ≥3× the typical non-zero node is the case where mean misleads. Non-zero-only avoids a zero-inflated median. |
+| Skew warning visibility | shown only when `influence_skew` is true **and** `split == "mean"` | The warning ("consider median") is only actionable on mean; once you've switched to median it's addressed — no nagging. |
+
+## 2. No data-model change
+`data_structure.py` untouched. The toggle is a UI input + a pure-function
+keyword; nothing is persisted. No schema bump.
+
+## 3. Pure layer (`sespy/network.py`)
+
+### 3.1 `axis_threshold` (new)
+```python
+def axis_threshold(values: list[float], split: str) -> float:
+    """Cross-hair statistic for one quadrant axis. 'mean' -> arithmetic mean;
+    'median' -> median (statistics.median; averages the two middle values for
+    even N). Used by BOTH influence_dependence (classification) and the quadrant
+    plot (cross-hair lines) so they always agree. Assumes a non-empty list (the
+    callers guard the empty-graph case first)."""
+    import statistics
+    return statistics.median(values) if split == "median" else statistics.mean(values)
+```
+
+### 3.2 Shared axis-sums helper (refactor, no behaviour change)
+The Σ-edge logic in `influence_dependence` (build `weight_by_pair` with dedup +
+self-loop skip; accumulate `influence`/`dependence`) is factored into a private
+`_axis_sums(isa) -> tuple[dict[str, float], dict[str, float]]` returning
+`(influence, dependence)`. Both `influence_dependence` and `influence_skew` call
+it — one definition of the per-node sums, no duplication. Pure refactor: the
+existing `influence_dependence` behaviour is identical (verified by its existing
+tests).
+
+### 3.3 `influence_dependence` (extend signature)
+Add `*, split: str = "mean"`. Build the sums via `_axis_sums(isa)`, then replace
+the inline `mean_inf = sum(influence.values()) / n` / `mean_dep = ...` with
+`thr_inf = axis_threshold(list(influence.values()), split)` /
+`thr_dep = axis_threshold(list(dependence.values()), split)`. Everything else —
+the degeneracy guard (zero-variance), the `>=` classification, the
+`undetermined` state, the `{node: {influence, dependence, quadrant}}` return
+shape — is unchanged. (The degeneracy guard already returns `undetermined` for
+zero-variance axes, so median vs mean is irrelevant there.)
+
+### 3.4 `influence_skew` (new)
+```python
+def influence_skew(isa: IsaData, *, k: float = 3.0) -> bool:
+    """True when influence is hub-skewed: max(v) > k * median(v) over the
+    non-zero influence values. False when there are <2 non-zero values (no
+    skew to speak of). Pure; never raises."""
+```
+`influence, _ = _axis_sums(isa)`; `nz = [v for v in influence.values() if v > 0]`;
+return `False` if `len(nz) < 2`; else `max(nz) > k * statistics.median(nz)`.
+
+## 4. Quadrant module (`sespy/modules/analysis_quadrant.py`)
+- **Sidebar:** add `ui.input_radio_buttons("split", t("quadrant.split"),
+  {"mean": t("quadrant.split_mean"), "median": t("quadrant.split_median")},
+  selected="mean", inline=True)` (the sidebar currently has only the About blurb).
+- **`rows()` calc:** `influence_dependence(project_data.get().isa_data,
+  split=input.split())`.
+- **Plot cross-hairs:** replace the inline `mean_inf`/`mean_dep` (lines 99-100)
+  with `thr_inf = net_analysis.axis_threshold(infl, input.split())` /
+  `thr_dep = net_analysis.axis_threshold(dep, input.split())`; the `axvline`/
+  `axhline` use `thr_dep`/`thr_inf`. (Rename the locals to `thr_*` for accuracy.)
+- **Skew caption:** below the plot (or under the About blurb), when
+  `net_analysis.influence_skew(isa)` and `input.split() == "mean"`, render
+  `ui.tags.small(t("quadrant.skew_warning"), class_="text-muted")` (via a small
+  `@render.ui` output so it reacts to the toggle and the data).
+
+## 5. i18n (`sespy/translations/core.json`, 9 languages)
+New keys: `quadrant.split` ("Cross-hair split"), `quadrant.split_mean` ("Mean"),
+`quadrant.split_median` ("Median"), `quadrant.skew_warning` ("Distribution is
+hub-skewed — consider the median split"). All 9 languages
+(`tests/test_i18n.py` fails on English-only).
+
+## 6. Edge cases
+- **Empty graph** → `influence_dependence` returns `{}` before any threshold
+  call; the plot's existing `if not data` guard fires; `influence_skew` returns
+  `False` (no non-zero values). No `statistics.mean([])` crash.
+- **Degenerate / uniform** → the existing zero-variance guard returns
+  `undetermined` regardless of split (median == mean == the uniform value).
+- **Even N median** → `statistics.median` averages the two middle values;
+  classification still `>= threshold`.
+- **All-equal influence** → not skewed (`max == median`, `max > 3·median` false).
+- **Backward compat** → default `split="mean"`; existing quadrant unit/e2e tests
+  and any other behaviour are unchanged.
+
+## 7. Testing
+1. **Unit (`tests/test_network.py`, extend; pure):**
+   - `axis_threshold([1,2,3,4], "mean") == 2.5`; `("median") == 2.5`;
+     `axis_threshold([1,2,3,100], "median") == 2.5` while `"mean" == 26.5`
+     (median robust to the outlier).
+   - `influence_dependence` on a **hub-skewed fixture** (one node with a heavy
+     out-degree, several light tail nodes): assert at least one tail node lands in
+     a **different** quadrant under `split="median"` than under `split="mean"`
+     (proves the switch reclassifies). Assert `split="mean"` matches the current
+     default output (no regression).
+   - `influence_skew`: true on the hub-skewed fixture; false on a balanced
+     fixture and on an empty graph.
+2. **e2e (extend the quadrant e2e, or a focused new one):** on the default
+   sample, switch the `#quadrant-split` control to "median" and assert at least
+   one row's quadrant label in the table changes vs. the mean view (read the
+   data_frame quadrant column before/after). Full gate via
+   `python tests/run_e2e.py`.
+3. **i18n:** `pytest tests/test_i18n.py` green (4 new keys × 9 langs).
+
+## 8. Build order (for the plan)
+1. `axis_threshold` + `influence_dependence` split param + `influence_skew` in
+   `network.py` + unit tests (TDD).
+2. 4 i18n keys (9 languages); `test_i18n.py` green.
+3. Quadrant module: split radio + `rows()` split + plot `thr_*` cross-hairs +
+   skew caption.
+4. e2e (toggle changes a quadrant label) + full gate → merge → push.
