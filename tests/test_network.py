@@ -546,3 +546,80 @@ def test_sample_has_a_delayed_connection(isa):
     from sespy.constants import normalize_delay
     delayed = sum(1 for c in isa.connections if normalize_delay(c.delay) != "immediate")
     assert delayed >= 1, "sample lost its seeded delayed edge"
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (quadrant): axis_threshold, influence_dependence(split=), influence_skew
+# ---------------------------------------------------------------------------
+
+def test_axis_threshold():
+    assert network.axis_threshold([1, 2, 3, 4], "mean") == 2.5
+    assert network.axis_threshold([1, 2, 3, 4], "median") == 2.5
+    assert network.axis_threshold([1, 2, 3, 100], "mean") == 26.5
+    assert network.axis_threshold([1, 2, 3, 100], "median") == 2.5  # robust to outlier
+
+
+def test_influence_dependence_default_is_mean(isa):
+    assert network.influence_dependence(isa) == network.influence_dependence(isa, split="mean")
+
+
+def test_influence_dependence_median_reclassifies_sample(isa):
+    mean_q = network.influence_dependence(isa, split="mean")
+    med_q = network.influence_dependence(isa, split="median")
+    # Empirically verified on data/sample_ses.json (mean_inf 12.18, median_inf 12.0).
+    # D001 influence == 12.0 == median_inf — the >= tie-rule boundary node; if the
+    # sample changes so this no longer holds, re-derive a new pinned node (do NOT
+    # delete this assertion).
+    assert mean_q["D001"]["quadrant"] == "buffering"
+    assert med_q["D001"]["quadrant"] == "active"
+    assert any(mean_q[k]["quadrant"] != med_q[k]["quadrant"] for k in mean_q)
+
+
+def _skew_fixture():
+    """isa where node 'A' has 4 strong out-edges (influence 12) and each of
+    B,C,D,E has 1 weak out-edge (influence 1) → nz=[12,1,1,1,1], max 12 > 3·1."""
+    from sespy.data_structure import Element, Connection, IsaData
+    els = [Element(id=i, label=i, type="Drivers") for i in ("A", "B", "C", "D", "E")]
+    conns = [Connection(source="A", target=t, strength="strong", confidence=1)
+             for t in ("B", "C", "D", "E")]
+    conns += [Connection(source=s, target="A", strength="weak", confidence=1)
+              for s in ("B", "C", "D", "E")]
+    return IsaData(elements=els, connections=conns)
+
+
+def test_influence_skew_true_on_hub():
+    assert network.influence_skew(_skew_fixture()) is True
+
+
+def test_influence_skew_false_balanced():
+    from sespy.data_structure import Element, Connection, IsaData
+    els = [Element(id=i, label=i, type="Drivers") for i in ("A", "B", "C")]
+    conns = [Connection(source="A", target="B", strength="medium", confidence=1),
+             Connection(source="B", target="C", strength="medium", confidence=1),
+             Connection(source="C", target="A", strength="medium", confidence=1)]
+    assert network.influence_skew(IsaData(elements=els, connections=conns)) is False
+
+
+def test_influence_skew_false_boundary():
+    # nz = [6, 2, 2, 2]: max 6 == 3*median 2 -> strict '>' is False.
+    from sespy.data_structure import Element, Connection, IsaData
+    els = [Element(id=i, label=i, type="Drivers") for i in ("H", "B", "C", "D", "S")]
+    conns = [
+        Connection(source="H", target="S", strength="strong", confidence=2),  # H influence 6
+        Connection(source="B", target="S", strength="medium", confidence=1),  # B influence 2
+        Connection(source="C", target="S", strength="medium", confidence=1),  # C influence 2
+        Connection(source="D", target="S", strength="medium", confidence=1),  # D influence 2
+    ]
+    assert network.influence_skew(IsaData(elements=els, connections=conns)) is False
+
+
+def test_influence_skew_false_empty():
+    from sespy.data_structure import IsaData
+    assert network.influence_skew(IsaData()) is False
+
+
+def test_influence_skew_false_on_default_sample(isa):
+    # The shipped sample is NOT skew-flagged: max influence 23 ≯ 3·median 12.
+    # This pins the e2e's premise that the skew caption does NOT show on the
+    # default view (so the e2e correctly does not assert the caption).
+    assert network.influence_skew(isa) is False
