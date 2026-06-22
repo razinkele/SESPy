@@ -39,11 +39,18 @@ def analysis_quadrant_ui() -> ui.Tag:
                     class_="text-muted",
                     style="font-size: 0.85rem;",
                 ),
+                ui.tags.hr(),
+                ui.input_radio_buttons(
+                    "split", t("quadrant.split"),
+                    {"mean": t("quadrant.split_mean"), "median": t("quadrant.split_median")},
+                    selected="mean", inline=True,
+                ),
                 width=260,
             ),
             ui.div(
                 ui.h4(t("quadrant.map")),
                 ui.output_plot("quadrant_plot", height="460px"),
+                ui.output_ui("skew_caption"),
                 ui.tags.hr(),
                 ui.h4(t("quadrant.classification")),
                 ui.output_data_frame("quadrant_table"),
@@ -68,7 +75,8 @@ def analysis_quadrant_server(
     @reactive.calc
     def rows() -> dict[str, dict]:
         event_bus.isa_change.get()
-        return net_analysis.influence_dependence(project_data.get().isa_data)
+        return net_analysis.influence_dependence(project_data.get().isa_data,
+                                                 split=input.split())
 
     @output
     @render.plot
@@ -96,8 +104,8 @@ def analysis_quadrant_server(
 
         infl = [r["influence"] for r in data.values()]
         dep = [r["dependence"] for r in data.values()]
-        mean_inf = sum(infl) / len(infl)
-        mean_dep = sum(dep) / len(dep)
+        thr_inf = net_analysis.axis_threshold(infl, input.split())
+        thr_dep = net_analysis.axis_threshold(dep, input.split())
 
         for nid, r in data.items():
             ax.scatter(
@@ -113,8 +121,8 @@ def analysis_quadrant_server(
                 fontsize=8, color="#2c3e50",
             )
 
-        ax.axvline(mean_dep, color="#aaa", linestyle="--", linewidth=1, zorder=1)
-        ax.axhline(mean_inf, color="#aaa", linestyle="--", linewidth=1, zorder=1)
+        ax.axvline(thr_dep, color="#aaa", linestyle="--", linewidth=1, zorder=1)
+        ax.axhline(thr_inf, color="#aaa", linestyle="--", linewidth=1, zorder=1)
 
         xhi = max(dep) * 1.05 + 0.5
         yhi = max(infl) * 1.05 + 0.5
@@ -132,6 +140,15 @@ def analysis_quadrant_server(
         ax.spines["right"].set_visible(False)
         fig.tight_layout()
         return fig
+
+    @output
+    @render.ui
+    def skew_caption():
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        if input.split() == "mean" and net_analysis.influence_skew(isa):
+            return ui.tags.small(t("quadrant.skew_warning"), class_="text-muted")
+        return ui.tags.div()   # empty — matches the repo's empty-@render.ui convention
 
     @output
     @render.data_frame
