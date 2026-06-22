@@ -5235,6 +5235,50 @@
       "it": "Archi tratteggiati = collegamenti ritardati",
       "no": "Stiplede kanter = forsinkede koblinger",
       "el": "Διακεκομμένες ακμές = καθυστερημένες συνδέσεις"
+    },
+    "quadrant.split": {
+      "en": "Cross-hair split",
+      "es": "División de ejes",
+      "fr": "Séparation des axes",
+      "de": "Achsen-Trennung",
+      "lt": "Ašių skirstymas",
+      "pt": "Divisão dos eixos",
+      "it": "Divisione assi",
+      "no": "Aksedeling",
+      "el": "Διαχωρισμός αξόνων"
+    },
+    "quadrant.split_mean": {
+      "en": "Mean",
+      "es": "Media",
+      "fr": "Moyenne",
+      "de": "Mittelwert",
+      "lt": "Vidurkis",
+      "pt": "Média",
+      "it": "Media",
+      "no": "Gjennomsnitt",
+      "el": "Μέσος όρος"
+    },
+    "quadrant.split_median": {
+      "en": "Median",
+      "es": "Mediana",
+      "fr": "Médiane",
+      "de": "Median",
+      "lt": "Mediana",
+      "pt": "Mediana",
+      "it": "Mediana",
+      "no": "Median",
+      "el": "Διάμεσος"
+    },
+    "quadrant.skew_warning": {
+      "en": "Distribution is hub-skewed — consider the median split",
+      "es": "La distribución está sesgada por un nodo dominante — considere la división por mediana",
+      "fr": "La distribution est asymétrique (nœud dominant) — envisagez la séparation par médiane",
+      "de": "Verteilung ist durch einen Hub verzerrt — erwägen Sie die Median-Trennung",
+      "lt": "Pasiskirstymas iškreiptas dominuojančio mazgo — apsvarstykite medianos skirstymą",
+      "pt": "A distribuição está enviesada por um nó dominante — considere a divisão por mediana",
+      "it": "La distribuzione è sbilanciata da un nodo dominante — valuta la divisione per mediana",
+      "no": "Fordelingen er nav-skjev — vurder median-deling",
+      "el": "Η κατανομή είναι στρεβλωμένη από έναν κόμβο — εξετάστε τη διάμεσο διαίρεση"
     }
   }
 }

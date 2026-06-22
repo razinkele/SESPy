@@ -191,75 +191,100 @@ def leverage_scores(isa: IsaData) -> dict[str, float]:
             for nid in m["betweenness"]}
 
 
-def influence_dependence(isa: IsaData) -> dict[str, dict]:
+def _axis_sums(isa: IsaData) -> tuple[dict[str, float], dict[str, float], dict[tuple[str, str], float]]:
+    """Per-node Σ edge weights: (influence, dependence, weight_by_pair).
+    Parallel (source,target) edges deduplicated (last-wins); self-loops and
+    dangling refs skipped. Shared by influence_dependence and influence_skew."""
+    influence = {el.id: 0.0 for el in isa.elements}
+    dependence = {el.id: 0.0 for el in isa.elements}
+    ids = set(influence)
+    weight_by_pair: dict[tuple[str, str], float] = {}
+    for c in isa.connections:
+        if c.source == c.target or c.source not in ids or c.target not in ids:
+            continue
+        weight_by_pair[(c.source, c.target)] = _edge_weight(c)
+    for (src, tgt), w in weight_by_pair.items():
+        influence[src] += w
+        dependence[tgt] += w
+    return influence, dependence, weight_by_pair
+
+
+def axis_threshold(values: list[float], split: str) -> float:
+    """Cross-hair statistic for one quadrant axis. 'median' -> median (robust to
+    a hub); anything else -> arithmetic mean. Used by BOTH influence_dependence
+    (classification) and the quadrant plot (cross-hair lines) so they agree.
+    Assumes a non-empty list (callers guard the empty-graph case first)."""
+    import statistics
+    return statistics.median(values) if split == "median" else statistics.mean(values)
+
+
+def influence_dependence(isa: IsaData, *, split: str = "mean") -> dict[str, dict]:
     """Vester influence × dependence per node — weighted, sign-agnostic.
 
     influence  = Σ _edge_weight over a node's outgoing edges (to OTHERS)
     dependence = Σ _edge_weight over a node's incoming edges (from OTHERS)
     quadrant   = active | critical | reactive | buffering, split at the mean
-                 of each axis (>= mean = high side); or 'undetermined' when the
-                 system has no structural differentiation.
+                 (default) or median of each axis (>= threshold = high side);
+                 or 'undetermined' when the system has no structural
+                 differentiation. `split` ('mean'|'median') only changes the
+                 classification cross-hair, never the degeneracy guard.
 
-    Parallel (source, target) edges are deduplicated (last-wins), matching
-    to_digraph; self-loops are skipped. Returns {} for an empty graph; never
-    raises. Mirrors the zeros-never-raise posture of the other metrics here.
+    Parallel (source, target) edges are deduplicated (last-wins); self-loops are
+    skipped. Returns {} for an empty graph; never raises.
     """
     elements = isa.elements
     if not elements:
         return {}
 
-    influence = {el.id: 0.0 for el in elements}
-    dependence = {el.id: 0.0 for el in elements}
-    ids = set(influence)
-
-    # Deduplicate parallel edges (last-wins) and drop self-loops / dangling refs.
-    weight_by_pair: dict[tuple[str, str], float] = {}
-    for c in isa.connections:
-        if c.source == c.target:
-            continue
-        if c.source not in ids or c.target not in ids:
-            continue
-        weight_by_pair[(c.source, c.target)] = _edge_weight(c)
-
-    for (src, tgt), w in weight_by_pair.items():
-        influence[src] += w
-        dependence[tgt] += w
-
+    influence, dependence, weight_by_pair = _axis_sums(isa)
     n = len(elements)
+
+    # Degeneracy guard: ALWAYS about the mean (split-independent by design).
     mean_inf = sum(influence.values()) / n
     mean_dep = sum(dependence.values()) / n
 
     def _variance(values: dict[str, float], mean: float) -> float:
         return sum((v - mean) ** 2 for v in values.values()) / n
 
-    # Degeneracy guard: no edges, or zero variance on both axes (uniform graph).
     if not weight_by_pair or (
         _variance(influence, mean_inf) < 1e-12
         and _variance(dependence, mean_dep) < 1e-12
     ):
         return {
-            el.id: {
-                "influence": influence[el.id],
-                "dependence": dependence[el.id],
-                "quadrant": "undetermined",
-            }
+            el.id: {"influence": influence[el.id], "dependence": dependence[el.id],
+                    "quadrant": "undetermined"}
             for el in elements
         }
+
+    # Classification cross-hair follows the chosen split.
+    thr_inf = axis_threshold(list(influence.values()), split)
+    thr_dep = axis_threshold(list(dependence.values()), split)
 
     out: dict[str, dict] = {}
     for el in elements:
         i, d = influence[el.id], dependence[el.id]
-        hi_i, hi_d = i >= mean_inf, d >= mean_dep
+        hi_i, hi_d = i >= thr_inf, d >= thr_dep
         if hi_i and not hi_d:
             quadrant = "active"
         elif hi_i and hi_d:
             quadrant = "critical"
-        elif hi_d:  # not hi_i and hi_d
+        elif hi_d:
             quadrant = "reactive"
         else:
             quadrant = "buffering"
         out[el.id] = {"influence": i, "dependence": d, "quadrant": quadrant}
     return out
+
+
+def influence_skew(isa: IsaData, *, k: float = 3.0) -> bool:
+    """True when the influence distribution is hub-skewed: max(v) > k * median(v)
+    over the non-zero influence values. False when <2 non-zero values. Pure."""
+    import statistics
+    influence, _, _ = _axis_sums(isa)
+    nz = [v for v in influence.values() if v > 0]
+    if len(nz) < 2:
+        return False
+    return max(nz) > k * statistics.median(nz)
 
 
 def top_n_by_metric(
