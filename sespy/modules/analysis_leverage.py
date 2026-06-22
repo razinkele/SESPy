@@ -71,6 +71,7 @@ def _build_leverage_network(isa: IsaData, scores: dict[str, float]) -> Network:
             color=EDGE_COLORS["reinforcing" if c.polarity == "+" else "opposing"],
             arrows="to",
             width=1.5,
+            **net_analysis.delay_edge_kwargs(c),
         )
     return net
 

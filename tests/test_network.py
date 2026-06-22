@@ -522,3 +522,27 @@ def test_sample_has_oscillating_loop(isa):
     rows = network.classify_loops(network.feedback_loops(isa), isa)
     osc = [r for r in rows if r["behavior"] == "oscillating"]
     assert len(osc) >= 1, "sample seed missing — expected >=1 oscillating loop"
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (B2): delay_edge_kwargs shared helper + sample guard
+# ---------------------------------------------------------------------------
+
+def test_delay_edge_kwargs():
+    from sespy.data_structure import Connection
+    from sespy.network import delay_edge_kwargs
+    short = delay_edge_kwargs(Connection(source="A", target="B", polarity="+", delay="short"))
+    assert short["dashes"] is True
+    assert short["title"] == "+ · short"
+    imm = delay_edge_kwargs(Connection(source="A", target="B", polarity="+", delay="immediate"))
+    assert imm["dashes"] is False
+    assert imm["title"] == "+ · immediate"
+    neg = delay_edge_kwargs(Connection(source="A", target="B", polarity="-", delay="long"))
+    assert neg["dashes"] is True
+    assert neg["title"] == "- · long"
+
+
+def test_sample_has_a_delayed_connection(isa):
+    from sespy.constants import normalize_delay
+    delayed = sum(1 for c in isa.connections if normalize_delay(c.delay) != "immediate")
+    assert delayed >= 1, "sample lost its seeded delayed edge"

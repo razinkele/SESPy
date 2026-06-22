@@ -101,6 +101,7 @@ def _build_metrics_network(
             color=EDGE_COLORS["reinforcing" if c.polarity == "+" else "opposing"],
             arrows="to",
             width=1.5,
+            **net_analysis.delay_edge_kwargs(c),
         )
     return net
 
