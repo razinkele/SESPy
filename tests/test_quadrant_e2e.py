@@ -56,6 +56,41 @@ async def main():
         )
         assert img > 0, "quadrant plot image did not render"
 
+        # --- mean/median split toggle: D001 reclassifies (verified on the sample) ---
+        async def quadrant_by_id():
+            return await page.evaluate(
+                "() => Object.fromEntries(Array.from(document.querySelectorAll("
+                "'#quadrant-quadrant_table table tbody tr')).map(tr => ["
+                "tr.querySelector('td:nth-child(2)')?.textContent?.trim(),"
+                "tr.querySelector('td:last-child')?.textContent?.trim()]))"
+            )
+
+        before = await quadrant_by_id()
+        # Toggle the split radio to "median"
+        ok = await page.evaluate(
+            "() => { const r = document.querySelector("
+            "'#quadrant-split input[value=\"median\"]');"
+            " if (!r) return false; r.click();"
+            " r.dispatchEvent(new Event('change', {bubbles: true})); return true; }"
+        )
+        assert ok, "#quadrant-split median radio not found"
+        # Poll until D001's quadrant cell actually changes (avoids a fixed-sleep
+        # race / vacuous pass); `before["D001"]` is passed in as the JS arg.
+        await page.wait_for_function(
+            "(prev) => { const rows = document.querySelectorAll("
+            "'#quadrant-quadrant_table table tbody tr');"
+            " for (const tr of rows) {"
+            "   if (tr.querySelector('td:nth-child(2)')?.textContent?.trim() === 'D001')"
+            "     return tr.querySelector('td:last-child')?.textContent?.trim() !== prev;"
+            " } return false; }",
+            arg=before["D001"], timeout=30000,
+        )
+        after = await quadrant_by_id()
+        print(f"D001 mean={before.get('D001')} median={after.get('D001')}")
+        assert before.get("D001") and after.get("D001"), "D001 row not found"
+        assert before["D001"] != after["D001"], \
+            f"D001 quadrant did not change on median split: {before.get('D001')}"
+
         await page.screenshot(path="tests/screenshots/quadrant.png")
         print("\nquadrant e2e assertions pass")
         await browser.close()
