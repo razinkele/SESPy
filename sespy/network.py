@@ -366,6 +366,25 @@ def recompute_consensus(connection):
                    polarity=polarity, delay=delay)
 
 
+def connection_disagreement(connection) -> dict:
+    """Per-connection rater divergence (pure; computed on demand, not stored).
+
+    polarity_contested: ratings not unanimous in sign (False for <2 ratings).
+    strength_spread / confidence_spread: max-min over rating ranks / confidences
+    (0.0 for <2 ratings)."""
+    ratings = connection.ratings
+    if len(ratings) < 2:
+        return {"polarity_contested": False, "strength_spread": 0.0,
+                "confidence_spread": 0.0}
+    ranks = [_STRENGTH_RANK.get(r.strength, 2) for r in ratings]
+    confs = [max(1, min(5, int(r.confidence))) for r in ratings]
+    return {
+        "polarity_contested": len({r.polarity for r in ratings}) > 1,
+        "strength_spread": float(max(ranks) - min(ranks)),
+        "confidence_spread": float(max(confs) - min(confs)),
+    }
+
+
 def _perturb_prob(confidence: int, base: float) -> float:
     """Per-draw drop/flip probability for one edge: base*(5-conf)/4.
 
