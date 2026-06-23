@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from sespy import network
@@ -623,3 +624,49 @@ def test_influence_skew_false_on_default_sample(isa):
     # This pins the e2e's premise that the skew caption does NOT show on the
     # default view (so the e2e correctly does not assert the caption).
     assert network.influence_skew(isa) is False
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (D2D MC): perturbation primitives
+# ---------------------------------------------------------------------------
+
+def _isa(conns):
+    """Build an IsaData whose elements are exactly the ids referenced by conns."""
+    ids = sorted({c.source for c in conns} | {c.target for c in conns})
+    els = [Element(id=i, label=i, type="pressure") for i in ids]
+    return IsaData(elements=els, connections=conns)
+
+
+def test_perturb_prob_endpoints():
+    assert network._perturb_prob(5, 0.5) == 0.0
+    assert network._perturb_prob(1, 0.5) == 0.5
+    assert network._perturb_prob(3, 0.5) == 0.25
+    # confidence clamps to [1, 5]
+    assert network._perturb_prob(9, 0.5) == 0.0
+    assert network._perturb_prob(0, 0.5) == 0.5
+
+
+def test_perturbed_connections_certain_graph_never_changes():
+    conns = [Connection("A", "B", polarity="+", confidence=5),
+             Connection("B", "A", polarity="-", confidence=5)]
+    isa = _isa(conns)
+    rng = np.random.default_rng(0)
+    for _ in range(200):
+        out = network._perturbed_connections(isa, 0.5, rng)
+        assert {(c.source, c.target, c.polarity) for c in out} == {
+            ("A", "B", "+"), ("B", "A", "-")}
+
+
+def test_perturbed_connections_low_confidence_drops_and_flips():
+    conns = [Connection("A", "B", polarity="+", confidence=1),
+             Connection("B", "A", polarity="+", confidence=1)]
+    isa = _isa(conns)
+    rng = np.random.default_rng(0)
+    saw_drop = saw_flip = False
+    for _ in range(500):
+        out = network._perturbed_connections(isa, 0.5, rng)
+        if len(out) < 2:
+            saw_drop = True
+        if any(c.polarity == "-" for c in out):
+            saw_flip = True
+    assert saw_drop and saw_flip

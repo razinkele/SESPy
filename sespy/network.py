@@ -7,9 +7,11 @@ parity with R (both bind the same C `libigraph`).
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import networkx as nx
 
-from .data_structure import IsaData
+from .data_structure import Connection, IsaData
 
 
 def to_digraph(isa: IsaData) -> nx.DiGraph:
@@ -325,6 +327,34 @@ def top_n_by_metric(
 # ---------------------------------------------------------------------------
 
 _STRENGTH_RANK: dict[str, int] = {"weak": 1, "medium": 2, "strong": 3}
+
+
+def _perturb_prob(confidence: int, base: float) -> float:
+    """Per-draw drop/flip probability for one edge: base*(5-conf)/4.
+
+    confidence 5 -> 0 (certain edge never perturbed); confidence 1 -> base.
+    Confidence is clamped to [1, 5]."""
+    c = max(1, min(5, int(confidence)))
+    return base * (5 - c) / 4.0
+
+
+def _perturbed_connections(isa: IsaData, base: float, rng) -> list[Connection]:
+    """One Monte Carlo draw of structural uncertainty.
+
+    Each connection independently: drops out with _perturb_prob (omitted from
+    the result), or — if kept — flips polarity with the same probability.
+    Pure: `isa` is never mutated; returns a fresh connection list."""
+    out: list[Connection] = []
+    for c in isa.connections:
+        p = _perturb_prob(c.confidence, base)
+        if rng.random() < p:
+            continue  # dropped
+        if rng.random() < p:
+            flipped = "-" if c.polarity == "+" else "+"
+            out.append(replace(c, polarity=flipped))
+        else:
+            out.append(c)
+    return out
 
 
 def _edge_weight(c) -> float:
