@@ -167,14 +167,17 @@ def centrality_metrics(isa: IsaData) -> dict[str, dict[str, float]]:
 
 
 def _zscore(values: dict[str, float]) -> dict[str, float]:
-    """Standardise to mean 0, std 1. Returns zeros if std is 0."""
+    """Standardise to mean 0, std 1. Returns zeros if std is 0 or negligibly
+    small relative to the mean (guards against floating-point noise in
+    near-uniform centrality vectors amplifying to spuriously large z-scores)."""
     if not values:
         return {}
     vs = list(values.values())
     mean = sum(vs) / len(vs)
     var = sum((v - mean) ** 2 for v in vs) / len(vs)
     std = var ** 0.5
-    if std == 0:
+    scale = abs(mean) if mean != 0 else 1.0
+    if std == 0 or std / scale < 1e-10:
         return {k: 0.0 for k in values}
     return {k: (v - mean) / std for k, v in values.items()}
 
@@ -464,6 +467,94 @@ def delay_edge_kwargs(c) -> dict:
     from .constants import normalize_delay
     delay = normalize_delay(c.delay)
     return {"title": f"{c.polarity} · {delay}", "dashes": delay != "immediate"}
+
+
+def uncertainty_scores(
+    isa: IsaData,
+    *,
+    cycles: list[list[str]] | None = None,
+    n_samples: int = 500,
+    seed: int | None = None,
+    base: float = 0.5,
+    max_length: int = 6,
+    max_loops: int = 50,
+    contested_band: tuple[float, float] = (0.2, 0.8),
+) -> dict:
+    """Monte-Carlo leverage & loop uncertainty under edge drop + sign-flip.
+
+    Each of `n_samples` draws perturbs the graph via `_perturbed_connections`
+    (drop and/or flip per edge, probability decreasing in confidence), then
+    recomputes leverage and checks each baseline loop's survival + polarity.
+
+    Returns per-node leverage {mean, ci_low, ci_high, std} (95% percentile CI)
+    and per-baseline-loop existence/polarity probabilities with a `contested`
+    flag (polarity probability inside `contested_band`). With every edge at
+    confidence 5 (or base=0) the result collapses to the point estimate.
+    """
+    import numpy as np
+
+    node_ids = [el.id for el in isa.elements]
+    if not node_ids:
+        return {"n_samples": n_samples, "leverage": {}, "loops": []}
+
+    if cycles is None:
+        cycles = feedback_loops(isa, max_length=max_length, max_loops=max_loops)
+
+    rng = np.random.default_rng(seed)
+    lev_samples: dict[str, list[float]] = {nid: [] for nid in node_ids}
+    survived = [0] * len(cycles)
+    reinforcing = [0] * len(cycles)
+
+    for _ in range(n_samples):
+        pert = IsaData(
+            elements=isa.elements,
+            connections=_perturbed_connections(isa, base, rng),
+        )
+        lev = leverage_scores(pert)
+        for nid in node_ids:
+            lev_samples[nid].append(lev.get(nid, 0.0))
+        present = {(c.source, c.target) for c in pert.connections}
+        for i, cyc in enumerate(cycles):
+            n = len(cyc)
+            if all((cyc[k], cyc[(k + 1) % n]) in present for k in range(n)):
+                survived[i] += 1
+                if loop_polarity(cyc, pert) == "Reinforcing":
+                    reinforcing[i] += 1
+
+    leverage_out: dict[str, dict] = {}
+    for nid in node_ids:
+        arr = np.asarray(lev_samples[nid], dtype=float)
+        leverage_out[nid] = {
+            "mean": float(arr.mean()),
+            "ci_low": float(np.percentile(arr, 2.5)),
+            "ci_high": float(np.percentile(arr, 97.5)),
+            "std": float(arr.std()),
+        }
+
+    label_by_id = {el.id: el.label for el in isa.elements}
+    lo, hi = contested_band
+    loops_out: list[dict] = []
+    for i, cyc in enumerate(cycles):
+        exist_p = survived[i] / n_samples
+        if survived[i] > 0:
+            rein_p = reinforcing[i] / survived[i]
+            bal_p = 1.0 - rein_p
+            contested = lo <= rein_p <= hi
+        else:
+            rein_p = bal_p = 0.0
+            contested = False
+        loops_out.append({
+            "id": f"L{i + 1:03d}",
+            "nodes": cyc,
+            "path": " → ".join(label_by_id.get(x, x) for x in cyc)
+            + f" → {label_by_id.get(cyc[0], cyc[0])}",
+            "existence_prob": exist_p,
+            "reinforcing_prob": rein_p,
+            "balancing_prob": bal_p,
+            "contested": contested,
+        })
+
+    return {"n_samples": n_samples, "leverage": leverage_out, "loops": loops_out}
 
 
 def classify_loops(cycles: list[list[str]], isa: IsaData) -> list[dict]:
