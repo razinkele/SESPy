@@ -5,14 +5,17 @@ import json
 
 from sespy.data_structure import (
     PROJECT_SCHEMA_VERSION,
+    Connection,
+    IsaData,
     Project,
     ProjectMetadata,
+    Rating,
     empty,
 )
 
 
-def test_schema_version_is_5():
-    assert PROJECT_SCHEMA_VERSION == 5
+def test_schema_version_is_6():
+    assert PROJECT_SCHEMA_VERSION == 6
 
 
 def test_metadata_has_pims_fields_with_empty_defaults():
@@ -181,3 +184,49 @@ def test_valid_type_pairs_derives_from_conn_types():
     assert _VALID_TYPE_PAIRS == expected
     assert isinstance(_VALID_TYPE_PAIRS, frozenset)
     assert len(_VALID_TYPE_PAIRS) == 10
+
+
+def test_connection_ratings_round_trip():
+    conn = Connection(
+        source="A", target="B", polarity="+", strength="strong", confidence=4,
+        ratings=[
+            Rating(rater_id="s1", strength="strong", confidence=5, polarity="+"),
+            Rating(rater_id="s2", strength="weak", confidence=2, polarity="-"),
+        ],
+    )
+    project = Project(metadata=ProjectMetadata(name="R"), isa_data=IsaData(connections=[conn]))
+    restored = Project.from_dict(json.loads(project.to_json()))
+    rc = restored.isa_data.connections[0]
+    assert len(rc.ratings) == 2
+    assert all(isinstance(r, Rating) for r in rc.ratings)
+    assert rc.ratings[0].rater_id == "s1"
+    assert rc.ratings[1].polarity == "-"
+
+
+def test_v5_project_loads_without_ratings():
+    payload = {
+        "metadata": {"name": "Legacy", "schema_version": 5},
+        "isa_data": {
+            "elements": [],
+            "connections": [{"source": "A", "target": "B", "polarity": "-",
+                             "strength": "weak", "confidence": 2, "delay": "short"}],
+        },
+    }
+    restored = Project.from_dict(payload)
+    c = restored.isa_data.connections[0]
+    assert c.ratings == []
+    assert (c.polarity, c.strength, c.confidence, c.delay) == ("-", "weak", 2, "short")
+    assert restored.metadata.schema_version == 6
+
+
+def test_connection_unknown_keys_filtered():
+    payload = {
+        "isa_data": {"elements": [], "connections": [
+            {"source": "A", "target": "B", "future_field": 99,
+             "ratings": [{"rater_id": "s1", "confidence": 3, "junk": 1}]}
+        ]},
+    }
+    restored = Project.from_dict(payload)
+    c = restored.isa_data.connections[0]
+    assert c.source == "A" and c.target == "B"
+    assert len(c.ratings) == 1 and c.ratings[0].rater_id == "s1"

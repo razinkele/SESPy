@@ -16,7 +16,7 @@ from typing import Any, Iterable, Literal
 
 _log = logging.getLogger(__name__)
 
-PROJECT_SCHEMA_VERSION = 5
+PROJECT_SCHEMA_VERSION = 6
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +92,17 @@ class Element:
 
 
 @dataclass
+class Rating:
+    """One stakeholder's rating of a connection. `rater_id` keys to a
+    Stakeholder.id (free-form for now)."""
+    rater_id: str
+    strength: str = "medium"     # weak | medium | strong
+    confidence: int = 3
+    polarity: str = "+"          # "+" | "-"
+    delay: str = "immediate"     # immediate | short | long
+
+
+@dataclass
 class Connection:
     source: str  # element id
     target: str  # element id
@@ -99,6 +110,7 @@ class Connection:
     strength: str = "medium"  # weak | medium | strong
     confidence: int = 3
     delay: str = "immediate"
+    ratings: list["Rating"] = field(default_factory=list)
 
 
 @dataclass
@@ -127,7 +139,16 @@ def load_sample(path: Path | str) -> IsaData:
 
 def _isa_from_dict(raw: dict[str, Any]) -> IsaData:
     elements = [Element(**e) for e in raw.get("elements", [])]
-    connections = [Connection(**c) for c in raw.get("connections", [])]
+    conn_keys = {f.name for f in fields(Connection)} - {"ratings"}
+    rating_keys = {f.name for f in fields(Rating)}
+    connections = []
+    for c in raw.get("connections", []):
+        ratings = [
+            Rating(**{k: v for k, v in r.items() if k in rating_keys})
+            for r in (c.get("ratings") or [])
+        ]
+        conn_fields = {k: v for k, v in c.items() if k in conn_keys}
+        connections.append(Connection(ratings=ratings, **conn_fields))
     return IsaData(elements=elements, connections=connections)
 
 
