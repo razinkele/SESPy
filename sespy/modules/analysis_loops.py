@@ -193,7 +193,7 @@ def analysis_loops_server(
         res = net_analysis.uncertainty_scores(
             project_data.get().isa_data,
             cycles=cycles,
-            n_samples=int(input.n_samples() or 500),
+            n_samples=int(input.n_samples() or 100),
             seed=0,
         )
         return {lp["id"]: lp for lp in res["loops"]}
@@ -262,7 +262,7 @@ def analysis_loops_server(
                 row[t("loops.existence_pct")] = f"{u['existence_prob'] * 100:.0f}%"
                 row[t("loops.reinforcing_pct")] = f"{u['reinforcing_prob'] * 100:.0f}%"
                 row[t("loops.balancing_pct")] = f"{u['balancing_prob'] * 100:.0f}%"
-                row[t("loops.contested")] = t("loops.contested") if u["contested"] else ""
+                row[t("loops.contested")] = "✓" if u["contested"] else ""
             else:
                 row[t("loops.existence_pct")] = ""
                 row[t("loops.reinforcing_pct")] = ""

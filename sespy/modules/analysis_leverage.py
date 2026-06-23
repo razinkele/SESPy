@@ -160,7 +160,7 @@ def analysis_leverage_server(
         event_bus.isa_change.get()
         return net_analysis.uncertainty_scores(
             project_data.get().isa_data,
-            n_samples=int(input.n_samples() or 500),
+            n_samples=int(input.n_samples() or 100),
             seed=0,
         )
 
