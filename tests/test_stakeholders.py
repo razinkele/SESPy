@@ -224,7 +224,7 @@ def test_from_dict_upgrades_schema_version_on_load():
     raw = {"metadata": {"name": "old", "schema_version": 3},
            "isa_data": {"elements": [], "connections": []},
            "engagements": [{"id": "ENG001", "stakeholder_id": "SH001"}]}
-    assert Project.from_dict(raw).metadata.schema_version == 5
+    assert Project.from_dict(raw).metadata.schema_version == 6
 
 
 def test_with_modified_now_preserves_engagements():
@@ -240,10 +240,10 @@ def test_save_path_roundtrip_preserves_engagements(tmp_path):
     save_project_atomic(proj, p)
     back = load_project(p)
     assert back.engagements == [e]
-    assert back.metadata.schema_version == 5
+    assert back.metadata.schema_version == 6
 
 
-def test_migrated_v3_saves_as_schema_5_on_disk(tmp_path):
+def test_migrated_v3_saves_as_schema_6_on_disk(tmp_path):
     # Start from a RAW v3 payload (not a fresh project): load -> save ->
     # inspect the RAW JSON so the on-disk version isn't masked by from_dict's
     # upgrade-on-load.
@@ -256,7 +256,7 @@ def test_migrated_v3_saves_as_schema_5_on_disk(tmp_path):
     p = tmp_path / "old.json"
     save_project_atomic(old, p)
     raw = json.loads(p.read_text(encoding="utf-8"))
-    assert raw["metadata"]["schema_version"] == 5
+    assert raw["metadata"]["schema_version"] == 6
     assert raw["engagements"][0]["id"] == "ENG001"
 
 
@@ -361,10 +361,10 @@ def test_save_path_roundtrip_preserves_communications(tmp_path):
     save_project_atomic(proj, p)
     back = load_project(p)
     assert back.communications == [c]
-    assert back.metadata.schema_version == 5
+    assert back.metadata.schema_version == 6
 
 
-def test_migrated_v4_saves_as_schema_5_on_disk(tmp_path):
+def test_migrated_v4_saves_as_schema_6_on_disk(tmp_path):
     import json
     old = Project.from_dict({
         "metadata": {"name": "old", "schema_version": 4},
@@ -374,7 +374,7 @@ def test_migrated_v4_saves_as_schema_5_on_disk(tmp_path):
     p = tmp_path / "old.json"
     save_project_atomic(old, p)
     raw = json.loads(p.read_text(encoding="utf-8"))
-    assert raw["metadata"]["schema_version"] == 5
+    assert raw["metadata"]["schema_version"] == 6
     assert raw["communications"][0]["id"] == "COMM001"
 
 
