@@ -7,6 +7,7 @@ parity with R (both bind the same C `libigraph`).
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import replace
 
 import networkx as nx
@@ -330,6 +331,39 @@ def top_n_by_metric(
 # ---------------------------------------------------------------------------
 
 _STRENGTH_RANK: dict[str, int] = {"weak": 1, "medium": 2, "strong": 3}
+_RANK_TO_STRENGTH: dict[int, str] = {1: "weak", 2: "medium", 3: "strong"}
+
+
+def recompute_consensus(connection):
+    """Return a copy of `connection` with scalar strength/confidence/polarity/
+    delay rewritten as the consensus of its `ratings`. No-op (equivalent copy)
+    when there are no ratings. The SOLE writer of the consensus scalars.
+
+    confidence = mean rounded, clamped [1,5]; strength = confidence-weighted
+    mean of ranks (plain mean if total weight 0); polarity = majority, tie -> '+';
+    delay = mode (ties by first occurrence)."""
+    ratings = connection.ratings
+    if not ratings:
+        return replace(connection)
+
+    confs = [max(1, min(5, int(r.confidence))) for r in ratings]
+    confidence = max(1, min(5, round(sum(confs) / len(confs))))
+
+    ranks = [_STRENGTH_RANK.get(r.strength, 2) for r in ratings]
+    wsum = sum(confs)
+    avg = (sum(rk * c for rk, c in zip(ranks, confs)) / wsum) if wsum > 0 \
+        else (sum(ranks) / len(ranks))
+    strength = _RANK_TO_STRENGTH[max(1, min(3, round(avg)))]
+
+    n_plus = sum(1 for r in ratings if r.polarity == "+")
+    polarity = "+" if n_plus >= (len(ratings) - n_plus) else "-"
+
+    counts = Counter(r.delay for r in ratings)
+    top = max(counts.values())
+    delay = next(r.delay for r in ratings if counts[r.delay] == top)
+
+    return replace(connection, strength=strength, confidence=confidence,
+                   polarity=polarity, delay=delay)
 
 
 def _perturb_prob(confidence: int, base: float) -> float:
