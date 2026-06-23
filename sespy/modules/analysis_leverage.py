@@ -97,7 +97,7 @@ def analysis_leverage_ui() -> ui.Tag:
                 ui.tags.hr(),
                 ui.input_checkbox("show_uncertainty", t("uncertainty.toggle"), value=False),
                 ui.input_numeric("n_samples", t("uncertainty.n_samples"),
-                                 value=500, min=50, max=5000, step=50),
+                                 value=100, min=50, max=5000, step=50),
                 width=240,
             ),
             ui.div(
@@ -178,7 +178,7 @@ def analysis_leverage_server(
         if unc is None:
             return pd.DataFrame(rows, columns=base_cols)
 
-        lev = unc["leverage"]
+        lev = unc.get("leverage", {})
         enriched = []
         for r in rows:
             u = lev.get(r["id"])
