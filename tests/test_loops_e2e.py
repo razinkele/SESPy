@@ -61,6 +61,25 @@ async def main():
 
         await page.screenshot(path="tests/screenshots/loops.png")
         print("\nloops e2e assertions pass")
+
+        # --- Uncertainty toggle adds loop probability columns ---
+        await page.fill("#loops-n_samples", "50")
+        await page.dispatch_event("#loops-n_samples", "change")
+        await page.check("#loops-show_uncertainty")
+        found_exist = False
+        headers = []
+        for _ in range(30):
+            await page.wait_for_timeout(1000)
+            headers = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'#loops-loops_table table thead th')).map(th => th.textContent.trim())"
+            )
+            if any("%" in h for h in headers):
+                found_exist = True
+                break
+        assert found_exist, f"loop probability columns not added: {headers}"
+        print("loops uncertainty probability columns: OK")
+
         await browser.close()
 
 
