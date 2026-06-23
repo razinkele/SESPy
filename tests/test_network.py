@@ -748,3 +748,80 @@ def test_uncertainty_respects_supplied_cycles():
     res = network.uncertainty_scores(isa, cycles=[["A", "B"]], n_samples=10, seed=0)
     assert [lp["nodes"] for lp in res["loops"]] == [["A", "B"]]
     assert res["loops"][0]["id"] == "L001"
+
+
+# ---------------------------------------------------------------------------
+# recompute_consensus
+# ---------------------------------------------------------------------------
+
+def test_recompute_consensus_empty_is_noop():
+    from sespy.data_structure import Connection
+    c = Connection(source="A", target="B", polarity="-", strength="strong", confidence=5, delay="long")
+    out = network.recompute_consensus(c)
+    assert (out.polarity, out.strength, out.confidence, out.delay) == ("-", "strong", 5, "long")
+    assert out is not c  # returns a copy
+
+
+def test_recompute_consensus_confidence_weighted_strength():
+    from sespy.data_structure import Connection, Rating
+    c = Connection(source="A", target="B", ratings=[
+        Rating(rater_id="s1", strength="weak", confidence=5, polarity="+"),
+        Rating(rater_id="s2", strength="strong", confidence=1, polarity="+"),
+    ])
+    out = network.recompute_consensus(c)
+    # weighted rank = (1*5 + 3*1)/6 = 1.33 -> rank 1 -> "weak"; conf = round((5+1)/2)=3
+    assert out.strength == "weak"
+    assert out.confidence == 3
+    assert out.polarity == "+"
+
+
+def test_recompute_consensus_majority_and_tie_polarity():
+    from sespy.data_structure import Connection, Rating
+    maj = network.recompute_consensus(Connection(source="A", target="B", ratings=[
+        Rating(rater_id="a", polarity="+"), Rating(rater_id="b", polarity="+"),
+        Rating(rater_id="c", polarity="-"),
+    ]))
+    assert maj.polarity == "+"
+    tie = network.recompute_consensus(Connection(source="A", target="B", ratings=[
+        Rating(rater_id="a", polarity="+"), Rating(rater_id="b", polarity="-"),
+    ]))
+    assert tie.polarity == "+"  # exact tie -> "+"
+
+
+def test_recompute_consensus_delay_mode():
+    from sespy.data_structure import Connection, Rating
+    out = network.recompute_consensus(Connection(source="A", target="B", ratings=[
+        Rating(rater_id="a", delay="short"), Rating(rater_id="b", delay="short"),
+        Rating(rater_id="c", delay="immediate"),
+    ]))
+    assert out.delay == "short"
+
+
+# connection_disagreement
+
+def test_disagreement_polarity_split_is_contested():
+    from sespy.data_structure import Connection, Rating
+    d = network.connection_disagreement(Connection(source="A", target="B", ratings=[
+        Rating(rater_id="a", strength="weak", confidence=2, polarity="+"),
+        Rating(rater_id="b", strength="strong", confidence=5, polarity="-"),
+    ]))
+    assert d["polarity_contested"] is True
+    assert d["strength_spread"] == 2.0   # rank 3 - rank 1
+    assert d["confidence_spread"] == 3.0  # 5 - 2
+
+
+def test_disagreement_unanimous_not_contested():
+    from sespy.data_structure import Connection, Rating
+    d = network.connection_disagreement(Connection(source="A", target="B", ratings=[
+        Rating(rater_id="a", polarity="+"), Rating(rater_id="b", polarity="+"),
+    ]))
+    assert d["polarity_contested"] is False
+
+
+def test_disagreement_under_two_ratings_is_zero():
+    from sespy.data_structure import Connection, Rating
+    one = network.connection_disagreement(Connection(source="A", target="B",
+        ratings=[Rating(rater_id="a", polarity="-")]))
+    assert one == {"polarity_contested": False, "strength_spread": 0.0, "confidence_spread": 0.0}
+    none = network.connection_disagreement(Connection(source="A", target="B"))
+    assert none == {"polarity_contested": False, "strength_spread": 0.0, "confidence_spread": 0.0}
