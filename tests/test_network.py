@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from sespy import network
@@ -623,3 +624,127 @@ def test_influence_skew_false_on_default_sample(isa):
     # This pins the e2e's premise that the skew caption does NOT show on the
     # default view (so the e2e correctly does not assert the caption).
     assert network.influence_skew(isa) is False
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (D2D MC): perturbation primitives
+# ---------------------------------------------------------------------------
+
+def _isa(conns):
+    """Build an IsaData whose elements are exactly the ids referenced by conns."""
+    ids = sorted({c.source for c in conns} | {c.target for c in conns})
+    els = [Element(id=i, label=i, type="pressure") for i in ids]
+    return IsaData(elements=els, connections=conns)
+
+
+def test_perturb_prob_endpoints():
+    assert network._perturb_prob(5, 0.5) == 0.0
+    assert network._perturb_prob(1, 0.5) == 0.5
+    assert network._perturb_prob(3, 0.5) == 0.25
+    # confidence clamps to [1, 5]
+    assert network._perturb_prob(9, 0.5) == 0.0
+    assert network._perturb_prob(0, 0.5) == 0.5
+
+
+def test_perturbed_connections_certain_graph_never_changes():
+    conns = [Connection("A", "B", polarity="+", confidence=5),
+             Connection("B", "A", polarity="-", confidence=5)]
+    isa = _isa(conns)
+    rng = np.random.default_rng(0)
+    for _ in range(200):
+        out = network._perturbed_connections(isa, 0.5, rng)
+        assert {(c.source, c.target, c.polarity) for c in out} == {
+            ("A", "B", "+"), ("B", "A", "-")}
+
+
+def test_perturbed_connections_low_confidence_drops_and_flips():
+    conns = [Connection("A", "B", polarity="+", confidence=1),
+             Connection("B", "A", polarity="+", confidence=1)]
+    isa = _isa(conns)
+    rng = np.random.default_rng(0)
+    saw_drop = saw_flip = False
+    for _ in range(500):
+        out = network._perturbed_connections(isa, 0.5, rng)
+        if len(out) < 2:
+            saw_drop = True
+        if any(c.polarity == "-" for c in out):
+            saw_flip = True
+    assert saw_drop and saw_flip
+
+
+# ---------------------------------------------------------------------------
+# Task 2 (D2D MC): uncertainty_scores aggregation
+# ---------------------------------------------------------------------------
+
+def test_uncertainty_regression_anchor_certain_graph():
+    # All confidence-5 -> p=0 -> every draw equals the point estimate.
+    conns = [Connection("A", "B", polarity="+", confidence=5),
+             Connection("B", "C", polarity="-", confidence=5),
+             Connection("C", "A", polarity="+", confidence=5)]
+    isa = _isa(conns)
+    point = network.leverage_scores(isa)
+    res = network.uncertainty_scores(isa, n_samples=50, seed=1)
+    for nid, lev in res["leverage"].items():
+        assert lev["std"] == 0.0
+        assert lev["mean"] == point[nid]
+        assert lev["ci_low"] == lev["ci_high"] == point[nid]
+    assert len(res["loops"]) == 1
+    loop = res["loops"][0]
+    assert loop["existence_prob"] == 1.0
+    # A->B(+), B->C(-), C->A(+): one negative edge -> Balancing.
+    assert loop["balancing_prob"] == 1.0
+    assert loop["reinforcing_prob"] == 0.0
+    assert loop["contested"] is False
+
+
+def test_uncertainty_empty_graph():
+    res = network.uncertainty_scores(IsaData(), n_samples=10, seed=0)
+    assert res == {"n_samples": 10, "leverage": {}, "loops": []}
+
+
+def test_uncertainty_no_cycles():
+    conns = [Connection("A", "B", polarity="+", confidence=3)]
+    res = network.uncertainty_scores(_isa(conns), n_samples=20, seed=0)
+    assert res["loops"] == []
+    assert set(res["leverage"]) == {"A", "B"}
+
+
+def test_uncertainty_deterministic_seed():
+    conns = [Connection("A", "B", polarity="+", confidence=1),
+             Connection("B", "A", polarity="+", confidence=1)]
+    isa = _isa(conns)
+    a = network.uncertainty_scores(isa, n_samples=100, seed=7)
+    b = network.uncertainty_scores(isa, n_samples=100, seed=7)
+    c = network.uncertainty_scores(isa, n_samples=100, seed=8)
+    assert a == b
+    assert a != c
+
+
+def test_uncertainty_low_confidence_widens_and_lowers_existence():
+    conns = [Connection("A", "B", polarity="+", confidence=1),
+             Connection("B", "C", polarity="+", confidence=1),
+             Connection("C", "A", polarity="+", confidence=1)]
+    res = network.uncertainty_scores(_isa(conns), n_samples=500, seed=0)
+    assert any(lev["std"] > 0 for lev in res["leverage"].values())
+    assert res["loops"][0]["existence_prob"] < 1.0
+
+
+def test_uncertainty_contested_loop():
+    # A->B certain (+); B->A uncertain (+, conf 1). When the uncertain edge
+    # survives it flips ~50% -> loop polarity ~50/50 -> contested.
+    conns = [Connection("A", "B", polarity="+", confidence=5),
+             Connection("B", "A", polarity="+", confidence=1)]
+    res = network.uncertainty_scores(_isa(conns), n_samples=3000, seed=1)
+    assert len(res["loops"]) == 1
+    lp = res["loops"][0]
+    assert lp["contested"] is True
+    assert 0.2 <= lp["reinforcing_prob"] <= 0.8
+
+
+def test_uncertainty_respects_supplied_cycles():
+    conns = [Connection("A", "B", polarity="+", confidence=5),
+             Connection("B", "A", polarity="+", confidence=5)]
+    isa = _isa(conns)
+    res = network.uncertainty_scores(isa, cycles=[["A", "B"]], n_samples=10, seed=0)
+    assert [lp["nodes"] for lp in res["loops"]] == [["A", "B"]]
+    assert res["loops"][0]["id"] == "L001"

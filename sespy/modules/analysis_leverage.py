@@ -94,6 +94,10 @@ def analysis_leverage_ui() -> ui.Tag:
                     t("metrics.show_top_n"),
                     min=3, max=20, value=8, step=1,
                 ),
+                ui.tags.hr(),
+                ui.input_checkbox("show_uncertainty", t("uncertainty.toggle"), value=False),
+                ui.input_numeric("n_samples", t("uncertainty.n_samples"),
+                                 value=100, min=50, max=5000, step=50),
                 width=240,
             ),
             ui.div(
@@ -149,15 +153,42 @@ def analysis_leverage_server(
             })
         return out[: int(input.top_n() or 8)]
 
+    @reactive.calc
+    def uncertainty() -> dict | None:
+        if not input.show_uncertainty():
+            return None
+        event_bus.isa_change.get()
+        return net_analysis.uncertainty_scores(
+            project_data.get().isa_data,
+            n_samples=int(input.n_samples() or 100),
+            seed=0,
+        )
+
     @output
     @render.data_frame
     def leverage_table():
         import pandas as pd
 
         rows = ranked()
+        base_cols = ["rank", "id", "label", "type", "leverage"]
         if not rows:
-            return pd.DataFrame(columns=["rank", "id", "label", "type", "leverage"])
-        return pd.DataFrame(rows)
+            return pd.DataFrame(columns=base_cols)
+
+        unc = uncertainty()
+        if unc is None:
+            return pd.DataFrame(rows, columns=base_cols)
+
+        lev = unc.get("leverage", {})
+        enriched = []
+        for r in rows:
+            u = lev.get(r["id"])
+            ci = f"[{u['ci_low']:.2f}, {u['ci_high']:.2f}]" if u else ""
+            unstable = (t("uncertainty.unstable")
+                        if u and u["ci_low"] < 0 < u["ci_high"] else "")
+            enriched.append({**r, t("uncertainty.ci"): ci,
+                             t("uncertainty.unstable"): unstable})
+        cols = base_cols + [t("uncertainty.ci"), t("uncertainty.unstable")]
+        return pd.DataFrame(enriched, columns=cols)
 
     @output(id="leverage_network")
     @render_pyvis_network(

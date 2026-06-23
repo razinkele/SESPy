@@ -120,6 +120,10 @@ def _loops_body() -> ui.Tag:
             ui.input_numeric("max_loops", t("loops.max_loops"), value=200, min=10, max=2000),
             ui.input_action_button("detect", t("loops.detect"), class_="btn btn-primary"),
             ui.tags.hr(),
+            ui.input_checkbox("show_uncertainty", t("uncertainty.toggle"), value=False),
+            ui.input_numeric("n_samples", t("uncertainty.n_samples"),
+                             value=100, min=50, max=5000, step=50),
+            ui.tags.hr(),
             ui.h5(t("loops.classification")),
             ui.output_ui("classification_summary"),
             ui.tags.hr(),
@@ -179,6 +183,21 @@ def analysis_loops_server(
     def classified() -> list[dict]:
         return net_analysis.classify_loops(detected.get(), project_data.get().isa_data)
 
+    @reactive.calc
+    def uncertainty_loops() -> dict[str, dict]:
+        if not input.show_uncertainty():
+            return {}
+        cycles = detected.get()
+        if not cycles:
+            return {}
+        res = net_analysis.uncertainty_scores(
+            project_data.get().isa_data,
+            cycles=cycles,
+            n_samples=int(input.n_samples() or 100),
+            seed=0,
+        )
+        return {lp["id"]: lp for lp in res["loops"]}
+
     @output
     @render.ui
     def classification_summary():
@@ -217,14 +236,40 @@ def analysis_loops_server(
         cols = ["id", "behavior", "delayed", "type", "length", "path"]
         if not rows:
             return pd.DataFrame(columns=cols)
-        return pd.DataFrame([{
-            "id": r["id"],
-            "behavior": t(_BEHAVIOR_KEY[r["behavior"]]),
-            "delayed": "✓" if r["delayed"] else "—",
-            "type": r["type"],
-            "length": r["length"],
-            "path": r["path"],
-        } for r in rows], columns=cols)
+
+        unc = uncertainty_loops()
+
+        def base_row(r):
+            return {
+                "id": r["id"],
+                "behavior": t(_BEHAVIOR_KEY[r["behavior"]]),
+                "delayed": "✓" if r["delayed"] else "—",
+                "type": r["type"],
+                "length": r["length"],
+                "path": r["path"],
+            }
+
+        if not unc:
+            return pd.DataFrame([base_row(r) for r in rows], columns=cols)
+
+        ext_cols = cols + [t("loops.existence_pct"), t("loops.reinforcing_pct"),
+                           t("loops.balancing_pct"), t("loops.contested")]
+        out = []
+        for r in rows:
+            row = base_row(r)
+            u = unc.get(r["id"])
+            if u:
+                row[t("loops.existence_pct")] = f"{u['existence_prob'] * 100:.0f}%"
+                row[t("loops.reinforcing_pct")] = f"{u['reinforcing_prob'] * 100:.0f}%"
+                row[t("loops.balancing_pct")] = f"{u['balancing_prob'] * 100:.0f}%"
+                row[t("loops.contested")] = "✓" if u["contested"] else ""
+            else:
+                row[t("loops.existence_pct")] = ""
+                row[t("loops.reinforcing_pct")] = ""
+                row[t("loops.balancing_pct")] = ""
+                row[t("loops.contested")] = ""
+            out.append(row)
+        return pd.DataFrame(out, columns=ext_cols)
 
     @reactive.calc
     def selected_row() -> dict | None:
