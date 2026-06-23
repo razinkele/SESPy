@@ -36,6 +36,29 @@ async def main():
 
         await page.screenshot(path="tests/screenshots/leverage.png")
         print("\nleverage e2e assertions pass")
+
+        # --- Uncertainty toggle adds the 95% CI column ---
+        await page.click("#sespy_nav_leverage")
+        await page.wait_for_selector("#leverage-leverage_table table tbody tr", timeout=30000)
+        # Use 50 samples to keep the MC run under ~5s on this machine.
+        await page.fill("#leverage-n_samples", "50")
+        await page.dispatch_event("#leverage-n_samples", "change")
+        await page.check("#leverage-show_uncertainty")
+        # Table re-renders; poll for the new header (allow up to 30s for MC).
+        found_ci = False
+        headers = []
+        for _ in range(30):
+            await page.wait_for_timeout(1000)
+            headers = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'#leverage-leverage_table table thead th')).map(th => th.textContent.trim())"
+            )
+            if any("CI" in h for h in headers):
+                found_ci = True
+                break
+        assert found_ci, f"95% CI column not added after toggling uncertainty: {headers}"
+        print("leverage uncertainty CI column: OK")
+
         await browser.close()
 
 
