@@ -39,8 +39,11 @@ async def main():
         # (100) and accept the longer wait. ~10-15s on a small sample dataset.
         await page.click("#simulation-run_mc")
 
-        # Switch to Monte Carlo tab so its outputs are unsuspended.
-        await page.click("text=Monte Carlo")
+        # Switch to Monte Carlo tab so its outputs are unsuspended. Scope the
+        # selector to the simulation tabset: a bare text=Monte Carlo now also
+        # matches the "Show uncertainty (Monte Carlo)" toggles in the leverage
+        # and loops modules (7 matches), and Playwright would pick a hidden one.
+        await page.click("#simulation-simulation_tabs a[data-value='Monte Carlo']")
 
         # Poll for the summary table to populate (MC compute blocks the event
         # loop ~10-15s on the 17-node sample; render arrives shortly after).
