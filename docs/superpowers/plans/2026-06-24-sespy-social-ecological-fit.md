@@ -305,6 +305,8 @@ Expected: all pass (sanity that Task 1/2 symbols/keys resolve).
             if fit_text:
                 break
         # Sample (data/sample_ses.json) has 8 cross of 20 edges → fit 0.40 (golden).
+        # Assert BOTH the heading (catches a broken metrics.fit translation) AND the value.
+        assert "Social-ecological fit" in fit_text, f"expected heading in summary, got: {fit_text!r}"
         assert "0.40" in fit_text, f"expected fit 0.40 in summary, got: {fit_text!r}"
         print(f"metrics fit summary: OK ({fit_text!r})")
 ```
