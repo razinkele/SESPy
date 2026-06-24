@@ -60,6 +60,18 @@ def leverage_realm(element_type: str) -> str:
     return _DAPSIWRM_REALM.get(element_type, "")
 ```
 
+**Accepted gap — `"Measures"`:** `"Measures"` is painted in `ELEMENT_COLORS`,
+`ELEMENT_SHAPES`, `DAPSIWRM_LEVEL`, `DAPSIWRM_NODE_SIZE`, `DAPSIWRM_FONT_SIZE`
+(and has the `RM` id prefix), so a `"Measures"` node *can* exist in hand-edited /
+imported ISA data and be ranked — yet it is intentionally absent from
+`DAPSIWRM_ELEMENTS` (it is not selectable in the data-entry type dropdown, and no
+template or `data/sample_ses.json` uses it). It is therefore absent from
+`_DAPSIWRM_REALM` and renders `"—"` via the unknown-type path. This is an
+**accepted gap**: the mapping is total relative to `DAPSIWRM_ELEMENTS`, not to every
+string the codebase can paint. If a realm tag is ever wanted for Measures, add
+`"Measures": "design"` (Response Measures, adjacent to `Responses`) to
+`_DAPSIWRM_REALM` — no other change.
+
 ### `sespy/modules/analysis_leverage.py` — surface it
 - `ranked()` adds a `realm` field to each row: compute
   `token = net_analysis.leverage_realm(el.type if el else "")` and store the
@@ -100,11 +112,23 @@ persistence, or analysis — pure display enrichment.
   `Marine Processes & Functioning`→`feedbacks`, `Pressures`/`Ecosystem Services`/
   `Goods & Benefits`→`parameters`); unknown/empty type → `""`.
 
+`tests/test_i18n.py` (key PRESENCE — `test_loader_handles_all_supported_languages`
+only checks per-key language *completeness*, NOT that a key exists; a forgotten
+`leverage.realm.*` key would pass silently and `t()` would return the raw key
+string at runtime). Add an explicit presence assertion:
+```python
+def test_leverage_realm_keys_present(translations):
+    for token in ("parameters", "feedbacks", "design", "intent"):
+        assert f"leverage.realm.{token}" in translations
+```
+
 `tests/test_leverage_e2e.py` (extend):
-- Assert the leverage table has a `realm` column header, and that its cells are
-  drawn from the expected label set (the 4 translated realms or `—`). The
-  type→realm correctness is the unit test's job; the e2e proves the wiring +
-  i18n render. (i18n key coverage is auto-enforced by `test_i18n.py`.)
+- Read the header list via `#leverage-leverage_table table thead th`; assert
+  `"realm"` is among them. Assert every `realm` cell value is in
+  `{the 4 translated realm labels} ∪ {"—"}`. (Against `data/sample_ses.json` all 4
+  realms appear and no `"—"` is expected, since all 17 nodes are DAPSIWRM types.)
+  The type→realm correctness is the unit test's job; the e2e proves wiring + i18n
+  render, and is the runtime catch if a key was never added.
 
 ## Out of scope (YAGNI)
 
