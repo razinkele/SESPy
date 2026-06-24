@@ -5312,7 +5312,7 @@
     "rate.contested_count": {"en": "{n} contested edges", "es": "{n} conexiones disputadas", "fr": "{n} liens contestés", "de": "{n} umstrittene Verbindungen", "lt": "{n} ginčytini ryšiai", "pt": "{n} conexões contestadas", "it": "{n} connessioni contese", "no": "{n} omstridte koblinger", "el": "{n} αμφισβητούμενες συνδέσεις"},
     "leverage.realm.parameters": {"en": "Parameters", "es": "Parámetros", "fr": "Paramètres", "de": "Parameter", "lt": "Parametrai", "pt": "Parâmetros", "it": "Parametri", "no": "Parametre", "el": "Παράμετροι"},
     "leverage.realm.feedbacks": {"en": "Feedbacks", "es": "Retroalimentaciones", "fr": "Rétroactions", "de": "Rückkopplungen", "lt": "Grįžtamieji ryšiai", "pt": "Retroalimentações", "it": "Retroazioni", "no": "Tilbakekoblinger", "el": "Ανατροφοδοτήσεις"},
-    "leverage.realm.design": {"en": "Design", "es": "Diseño", "fr": "Conception", "de": "Gestaltung", "lt": "Sandara", "pt": "Conceção", "it": "Progettazione", "no": "Utforming", "el": "Σχεδιασμός"},
+    "leverage.realm.design": {"en": "Design", "es": "Diseño", "fr": "Conception", "de": "Gestaltung", "lt": "Struktūra", "pt": "Conceção", "it": "Progettazione", "no": "Utforming", "el": "Σχεδιασμός"},
     "leverage.realm.intent": {"en": "Intent", "es": "Intención", "fr": "Intention", "de": "Absicht", "lt": "Ketinimas", "pt": "Intenção", "it": "Intento", "no": "Hensikt", "el": "Πρόθεση"}
   }
 }
