@@ -25,9 +25,17 @@ def rate_connections_ui() -> ui.Tag:
     return ui.card(
         ui.card_header(t("rate.title")),
         ui.layout_sidebar(
-            ui.sidebar(ui.output_ui("rater_picker"), width=260),
+            ui.sidebar(
+                ui.output_ui("rater_picker"),
+                ui.tags.hr(),
+                ui.input_checkbox("contested_only", t("rate.contested_only"), value=False),
+                width=260,
+            ),
             ui.div(
+                ui.output_ui("contested_count"),
                 ui.output_data_frame("connections_table"),
+                ui.tags.small("⚠ contested sign · ~ strength/confidence spread (0–2 / 0–4)",
+                              class_="text-muted"),
                 ui.tags.hr(),
                 ui.output_ui("rating_editor"),
                 ui.tags.hr(),
@@ -52,6 +60,19 @@ def rate_connections_server(
 ) -> None:
     sel_idx: reactive.Value = reactive.value(None)
 
+    @reactive.calc
+    def displayed_connections():
+        """(true_idx, connection) pairs for the table — full list, or only
+        polarity-contested rows when the filter is on. Delegates to the pure
+        network.displayed_pairs (unit-tested). `input.contested_only()` is read
+        directly (NO try/except — it is a static sidebar checkbox, always
+        present; a guard would silently drop the reactive dependency)."""
+        event_bus.isa_change.get()
+        return network.displayed_pairs(
+            project_data.get().isa_data.connections,
+            contested_only=input.contested_only(),
+        )
+
     @output
     @render.ui
     def rater_picker():
@@ -64,24 +85,29 @@ def rate_connections_server(
     @render.data_frame
     def connections_table():
         import pandas as pd
-        event_bus.isa_change.get()
-        isa = project_data.get().isa_data
         try:
             rater = input.rater()
         except Exception:
             rater = None
+        isa = project_data.get().isa_data
         by_id = {el.id: el.label for el in isa.elements}
-        cols = ["source", "target", "polarity", "strength", "confidence", "delay", "#ratings", "mine"]
-        rows = [{
-            "source": f"{c.source} · {by_id.get(c.source, '?')}",
-            "target": f"{c.target} · {by_id.get(c.target, '?')}",
-            "polarity": c.polarity,
-            "strength": c.strength,
-            "confidence": c.confidence,
-            "delay": c.delay,
-            "#ratings": len(c.ratings),
-            "mine": "✓" if rater and any(r.rater_id == rater for r in c.ratings) else "—",
-        } for c in isa.connections]
+        contested_label = t("rate.contested")
+        cols = ["source", "target", "polarity", "strength", "confidence", "delay",
+                "#ratings", "mine", "disagreement"]
+        rows = []
+        for _true_idx, c in displayed_connections():
+            d = network.connection_disagreement(c)
+            rows.append({
+                "source": f"{c.source} · {by_id.get(c.source, '?')}",
+                "target": f"{c.target} · {by_id.get(c.target, '?')}",
+                "polarity": c.polarity,
+                "strength": c.strength,
+                "confidence": c.confidence,
+                "delay": c.delay,
+                "#ratings": len(c.ratings),
+                "mine": "✓" if rater and any(r.rater_id == rater for r in c.ratings) else "—",
+                "disagreement": network.disagreement_cell(d, contested_label=contested_label),
+            })
         return render.DataGrid(
             pd.DataFrame(rows or [{k: "" for k in cols}]),
             selection_mode="row", height="260px",
@@ -98,16 +124,23 @@ def rate_connections_server(
     def _reset_selection_on_rater():
         sel_idx.set(None)
 
+    @reactive.effect
+    @reactive.event(input.contested_only)
+    def _reset_selection_on_filter():
+        sel_idx.set(None)
+
     def _selected():
-        """(index, connection) for the cached selection, or (None, None).
-        Bounds-guards the empty-project stub row."""
+        """(true_idx, connection) for the cached displayed-row selection, or
+        (None, None). SOLE lookup path: resolves sel_idx (a DISPLAYED-row index)
+        through displayed_connections() to the TRUE full-list index. Never index
+        isa_data.connections by the raw sel_idx (would corrupt under the filter)."""
         idx = sel_idx.get()
         if idx is None:
             return None, None
-        conns = project_data.get().isa_data.connections
-        if idx >= len(conns):
+        pairs = displayed_connections()
+        if idx >= len(pairs):
             return None, None
-        return idx, conns[idx]
+        return pairs[idx]   # (true_idx, conn)
 
     @output
     @render.ui
@@ -152,6 +185,16 @@ def rate_connections_server(
                        f"{r.polarity}/{r.strength}/{r.confidence}/{r.delay}")
             for r in conn.ratings
         ])
+
+    @output
+    @render.ui
+    def contested_count():
+        event_bus.isa_change.get()
+        conns = project_data.get().isa_data.connections
+        n = sum(1 for c in conns
+                if network.connection_disagreement(c)["polarity_contested"])
+        return ui.tags.p(t("rate.contested_count", n=n),
+                         class_="text-muted", style="margin-bottom:4px;")
 
     def _persist(new_conns):
         current = project_data.get()
