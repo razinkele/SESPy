@@ -871,3 +871,62 @@ def test_disagreement_under_two_ratings_is_zero():
     assert one == {"polarity_contested": False, "strength_spread": 0.0, "confidence_spread": 0.0}
     none = network.connection_disagreement(Connection(source="A", target="B"))
     assert none == {"polarity_contested": False, "strength_spread": 0.0, "confidence_spread": 0.0}
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (C3): disagreement_cell + displayed_pairs
+# ---------------------------------------------------------------------------
+
+
+def test_disagreement_cell_contested():
+    d = {"polarity_contested": True, "strength_spread": 2.0, "confidence_spread": 3.0}
+    assert network.disagreement_cell(d, contested_label="Contested") == "⚠ Contested"
+
+
+def test_disagreement_cell_spread():
+    d = {"polarity_contested": False, "strength_spread": 2.0, "confidence_spread": 3.0}
+    assert network.disagreement_cell(d, contested_label="Contested") == "~ 2/3"
+
+
+def test_disagreement_cell_spread_confidence_only():
+    d = {"polarity_contested": False, "strength_spread": 0.0, "confidence_spread": 4.0}
+    assert network.disagreement_cell(d, contested_label="X") == "~ 0/4"
+
+
+def test_disagreement_cell_none():
+    d = {"polarity_contested": False, "strength_spread": 0.0, "confidence_spread": 0.0}
+    assert network.disagreement_cell(d, contested_label="Contested") == "—"
+
+
+def test_disagreement_cell_from_real_connection_disagreement():
+    from sespy.data_structure import Connection, Rating
+    # +/- split → contested
+    c = Connection(source="A", target="B", ratings=[
+        Rating(rater_id="s1", polarity="+"), Rating(rater_id="s2", polarity="-")])
+    assert network.disagreement_cell(network.connection_disagreement(c),
+                                     contested_label="Contested") == "⚠ Contested"
+    # same sign, weak vs strong → spread (strength rank 1 vs 3 → 2; confidence 3/3 → 0)
+    c2 = Connection(source="A", target="B", ratings=[
+        Rating(rater_id="s1", polarity="+", strength="weak", confidence=3),
+        Rating(rater_id="s2", polarity="+", strength="strong", confidence=3)])
+    assert network.disagreement_cell(network.connection_disagreement(c2),
+                                     contested_label="X") == "~ 2/0"
+    # single rating → none
+    c3 = Connection(source="A", target="B", ratings=[Rating(rater_id="s1")])
+    assert network.disagreement_cell(network.connection_disagreement(c3),
+                                     contested_label="X") == "—"
+
+
+def test_displayed_pairs_full_and_filtered_preserve_true_index():
+    from sespy.data_structure import Connection, Rating
+    # connections[0] is NOT contested; connections[1] IS (+/- split).
+    c0 = Connection(source="A", target="B")  # no ratings → not contested
+    c1 = Connection(source="B", target="C", ratings=[
+        Rating(rater_id="s1", polarity="+"), Rating(rater_id="s2", polarity="-")])
+    conns = [c0, c1]
+    # Filter off: full list, indices intact.
+    assert network.displayed_pairs(conns, contested_only=False) == [(0, c0), (1, c1)]
+    # Filter on: only the contested row, and it KEEPS true index 1 (NOT 0).
+    pairs = network.displayed_pairs(conns, contested_only=True)
+    assert pairs == [(1, c1)]
+    assert pairs[0][0] == 1  # the index-contract guarantee: displayed-row-0 → true idx 1

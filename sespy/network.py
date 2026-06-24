@@ -385,6 +385,30 @@ def connection_disagreement(connection) -> dict:
     }
 
 
+def disagreement_cell(d: dict, *, contested_label: str) -> str:
+    """Column cell text for a connection's disagreement, from a
+    connection_disagreement() result + a pre-translated contested label. Pure
+    (no t() inside) so every branch — including the spread numbers — is
+    unit-testable directly."""
+    if d["polarity_contested"]:
+        return f"⚠ {contested_label}"
+    if d["strength_spread"] > 0 or d["confidence_spread"] > 0:
+        return f"~ {d['strength_spread']:.0f}/{d['confidence_spread']:.0f}"
+    return "—"
+
+
+def displayed_pairs(connections, *, contested_only: bool):
+    """Pure core of the C3 index contract: (true_idx, connection) pairs — all
+    connections when not contested_only, else only polarity-contested ones.
+    true_idx is always the position in `connections`, so a contested row keeps
+    its true full-list index after filtering (the lookup the UI persists by)."""
+    pairs = list(enumerate(connections))
+    if not contested_only:
+        return pairs
+    return [(i, c) for i, c in pairs
+            if connection_disagreement(c)["polarity_contested"]]
+
+
 def upsert_rating(connection, rating):
     """Return a copy of `connection` with `rating` replacing any existing entry
     by the same rater_id (else appended), consensus recomputed. Pure."""
