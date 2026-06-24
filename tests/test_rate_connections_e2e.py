@@ -63,6 +63,90 @@ async def main():
                 break
         assert ok, f"connection row did not reflect the saved rating: {cells}"
         print("rate connections save: OK")
+
+        # --- C3: make the first connection CONTESTED with a 2nd rater ---
+        # 1. Add a second stakeholder.
+        await page.click("#sespy_nav_stakeholders")
+        await page.wait_for_selector("#stakeholders-sh_name", timeout=30000)
+        await page.fill("#stakeholders-sh_name", "Coastal NGO")
+        await _set_select(page, "stakeholders-sh_type", "government")  # any valid code; reuse C2's proven one
+        await page.click("#stakeholders-save_stakeholder")
+        await page.wait_for_timeout(1000)
+
+        # 2. Back to Rate Connections; switch the rater to the 2nd stakeholder.
+        #    rater_picker is an @render.ui — wait until it has a 2nd option, then
+        #    drive by the runtime-generated id via the proven _set_select idiom
+        #    (selectedIndex is racy against the async select re-render).
+        await page.click("#sespy_nav_rate")
+        await page.wait_for_selector("#rate-connections_table table tbody tr", timeout=30000)
+        await page.wait_for_function(
+            "() => { const s = document.getElementById('rate-rater');"
+            " return s && s.options.length >= 2; }",
+            timeout=30000,
+        )
+        ngo_id = await page.evaluate(
+            "() => document.getElementById('rate-rater').options[1].value"
+        )
+        await _set_select(page, "rate-rater", ngo_id)
+        await page.wait_for_timeout(500)
+
+        # 3. Switching rater reset sel_idx — RE-CLICK the first row (TD), required.
+        await page.click(RATE_ROW)
+        await page.wait_for_selector("#rate-save_rating", timeout=30000)
+
+        # 4. Rate it with OPPOSITE polarity ("-") via a native click (the repo's
+        #    proven radio idiom — a synthetic .checked may not register), then save.
+        await page.click("#rate-ed_polarity input[value='-']")
+        await page.click("#rate-save_rating")
+
+        # 4b. Assert the 2nd-rater save landed (#ratings -> 2) BEFORE polling for
+        #     the contested marker, so a silent no-op is self-diagnosing.
+        saved2 = False
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            cells2 = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'#rate-connections_table table tbody tr:first-child td')).map(td => td.textContent.trim())"
+            )
+            if cells2 and "2" in cells2:
+                saved2 = True
+                break
+        assert saved2, f"2nd-rater save did not land (#ratings != 2): {cells2}"
+
+        # 5. Poll until the first row's disagreement cell shows the contested marker.
+        contested = False
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            cells = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'#rate-connections_table table tbody tr:first-child td')).map(td => td.textContent.trim())"
+            )
+            if any("⚠" in c for c in cells):
+                contested = True
+                break
+        assert contested, f"first connection not marked contested: {cells}"
+
+        # 6. Count caption reads 1.
+        count_txt = await page.evaluate(
+            "() => { const e=document.getElementById('rate-contested_count');"
+            " return e ? e.textContent : ''; }"
+        )
+        assert "1" in count_txt, f"contested count caption wrong: {count_txt!r}"
+
+        # 7. Filter narrows the table to exactly one row.
+        await page.check("#rate-contested_only")
+        narrowed = False
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            n = await page.evaluate(
+                "() => document.querySelectorAll('#rate-connections_table table tbody tr').length"
+            )
+            if n == 1:
+                narrowed = True
+                break
+        assert narrowed, f"contested-only filter did not narrow to 1 row (got {n})"
+        print("rate connections contested view: OK")
+
         await browser.close()
 
 
