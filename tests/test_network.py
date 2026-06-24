@@ -930,3 +930,28 @@ def test_displayed_pairs_full_and_filtered_preserve_true_index():
     pairs = network.displayed_pairs(conns, contested_only=True)
     assert pairs == [(1, c1)]
     assert pairs[0][0] == 1  # the index-contract guarantee: displayed-row-0 → true idx 1
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (leverage-typology): leverage_realm
+# ---------------------------------------------------------------------------
+
+
+def test_leverage_realm_all_dapsiwrm_types():
+    expected = {
+        "Drivers": "intent",
+        "Activities": "design",
+        "Responses": "design",
+        "Marine Processes & Functioning": "feedbacks",
+        "Pressures": "parameters",
+        "Ecosystem Services": "parameters",
+        "Goods & Benefits": "parameters",
+    }
+    for etype, token in expected.items():
+        assert network.leverage_realm(etype) == token
+
+
+def test_leverage_realm_unknown_returns_empty():
+    assert network.leverage_realm("Measures") == ""
+    assert network.leverage_realm("") == ""
+    assert network.leverage_realm("Bogus") == ""

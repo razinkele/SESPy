@@ -37,6 +37,28 @@ async def main():
         await page.screenshot(path="tests/screenshots/leverage.png")
         print("\nleverage e2e assertions pass")
 
+        # --- realm column (leverage typology) renders with valid labels ---
+        await page.wait_for_selector("#leverage-leverage_table table tbody tr", timeout=30000)
+        realm_cells = await page.evaluate(
+            "() => { const ths = Array.from(document.querySelectorAll("
+            "'#leverage-leverage_table table thead th')).map(th => th.textContent.trim());"
+            " const i = ths.indexOf('realm');"
+            " if (i < 0) return null;"
+            " return Array.from(document.querySelectorAll("
+            "'#leverage-leverage_table table tbody tr')).map("
+            "tr => (tr.querySelectorAll('td')[i]?.textContent || '').trim()); }"
+        )
+        assert realm_cells is not None, "no 'realm' column header in leverage table"
+        # No "—" expected: every sample_ses.json node has a known DAPSIWRM type,
+        # so a "—" here means the realm wiring is broken (leverage_realm never
+        # called / token always ""). Keeping "—" out of `allowed` makes that fail.
+        allowed = {"Parameters", "Feedbacks", "Design", "Intent"}
+        assert realm_cells and all(c in allowed for c in realm_cells), \
+            f"unexpected realm cell values: {realm_cells}"
+        assert "—" not in realm_cells, \
+            f"dash in realm cells — wiring broken or unknown type in sample data: {realm_cells}"
+        print(f"leverage realm column: OK ({realm_cells})")
+
         # --- Uncertainty toggle adds the 95% CI column ---
         await page.click("#sespy_nav_leverage")
         await page.wait_for_selector("#leverage-leverage_table table tbody tr", timeout=30000)

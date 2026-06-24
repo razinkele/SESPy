@@ -144,11 +144,13 @@ def analysis_leverage_server(
         out: list[dict] = []
         for rank, (nid, value) in enumerate(rows, start=1):
             el = by_id.get(nid)
+            token = net_analysis.leverage_realm(el.type if el else "")
             out.append({
                 "rank": rank,
                 "id": nid,
                 "label": el.label if el else nid,
                 "type":  el.type if el else "",
+                "realm": t(f"leverage.realm.{token}") if token else "—",
                 "leverage": round(value, 3),
             })
         return out[: int(input.top_n() or 8)]
@@ -170,7 +172,7 @@ def analysis_leverage_server(
         import pandas as pd
 
         rows = ranked()
-        base_cols = ["rank", "id", "label", "type", "leverage"]
+        base_cols = ["rank", "id", "label", "type", "realm", "leverage"]
         if not rows:
             return pd.DataFrame(columns=base_cols)
 

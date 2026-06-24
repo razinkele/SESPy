@@ -197,6 +197,24 @@ def leverage_scores(isa: IsaData) -> dict[str, float]:
             for nid in m["betweenness"]}
 
 
+_DAPSIWRM_REALM: dict[str, str] = {
+    "Pressures": "parameters",
+    "Ecosystem Services": "parameters",
+    "Goods & Benefits": "parameters",
+    "Marine Processes & Functioning": "feedbacks",
+    "Activities": "design",
+    "Responses": "design",
+    "Drivers": "intent",
+}
+
+
+def leverage_realm(element_type: str) -> str:
+    """Meadows-realm token for a DAPSIWRM element type — one of
+    'parameters' | 'feedbacks' | 'design' | 'intent', or '' for an unknown type
+    (incl. 'Measures', an accepted gap). Pure; translation-free."""
+    return _DAPSIWRM_REALM.get(element_type, "")
+
+
 def _axis_sums(isa: IsaData) -> tuple[dict[str, float], dict[str, float], dict[tuple[str, str], float]]:
     """Per-node Σ edge weights: (influence, dependence, weight_by_pair).
     Parallel (source,target) edges deduplicated (last-wins); self-loops and

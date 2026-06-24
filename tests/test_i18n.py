@@ -82,3 +82,8 @@ def test_detect_initial_language_from_query():
     assert detect_initial_language("?lang=zz") == "en"  # unsupported → fallback
     assert detect_initial_language("") == "en"
     assert detect_initial_language(None) == "en"
+
+
+def test_leverage_realm_keys_present(translations):
+    for token in ("parameters", "feedbacks", "design", "intent"):
+        assert f"leverage.realm.{token}" in translations
