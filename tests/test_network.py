@@ -797,6 +797,52 @@ def test_recompute_consensus_delay_mode():
     assert out.delay == "short"
 
 
+# ---------------------------------------------------------------------------
+# Task 1 (D2D C2): upsert_rating + remove_rating (rating mutation helpers)
+# ---------------------------------------------------------------------------
+
+def test_upsert_rating_adds_and_recomputes():
+    from sespy.data_structure import Connection, Rating
+    c = Connection(source="A", target="B")  # ratings=[]
+    out = network.upsert_rating(c, Rating(rater_id="s1", strength="strong", confidence=5, polarity="+", delay="short"))
+    assert len(out.ratings) == 1
+    assert out.strength == "strong" and out.confidence == 5 and out.delay == "short"
+    assert c.ratings == []  # input unmutated (pure)
+
+
+def test_upsert_rating_replaces_same_rater():
+    from sespy.data_structure import Connection, Rating
+    c = network.upsert_rating(Connection(source="A", target="B"),
+                              Rating(rater_id="s1", strength="weak", confidence=2, polarity="+"))
+    out = network.upsert_rating(c, Rating(rater_id="s1", strength="strong", confidence=5, polarity="+"))
+    assert len(out.ratings) == 1            # replaced, not duplicated
+    assert out.ratings[0].strength == "strong"
+    assert out.strength == "strong" and out.confidence == 5
+
+
+def test_remove_rating_drops_and_recomputes():
+    from sespy.data_structure import Connection, Rating
+    c = Connection(source="A", target="B", ratings=[
+        Rating(rater_id="s1", strength="weak", confidence=1, polarity="-"),
+        Rating(rater_id="s2", strength="strong", confidence=5, polarity="+"),
+    ])
+    c = network.recompute_consensus(c)
+    out = network.remove_rating(c, "s1")
+    assert [r.rater_id for r in out.ratings] == ["s2"]
+    assert out.strength == "strong" and out.polarity == "+"
+    assert len(c.ratings) == 2  # input unmutated
+
+
+def test_remove_last_rating_freezes_consensus():
+    from sespy.data_structure import Connection, Rating
+    c = network.upsert_rating(Connection(source="A", target="B"),
+                              Rating(rater_id="s1", strength="strong", confidence=5, polarity="-", delay="long"))
+    out = network.remove_rating(c, "s1")
+    assert out.ratings == []
+    # no-op recompute on empty ratings: scalars stay at last consensus
+    assert (out.strength, out.confidence, out.polarity, out.delay) == ("strong", 5, "-", "long")
+
+
 # connection_disagreement
 
 def test_disagreement_polarity_split_is_contested():

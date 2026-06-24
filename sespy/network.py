@@ -385,6 +385,20 @@ def connection_disagreement(connection) -> dict:
     }
 
 
+def upsert_rating(connection, rating):
+    """Return a copy of `connection` with `rating` replacing any existing entry
+    by the same rater_id (else appended), consensus recomputed. Pure."""
+    kept = [r for r in connection.ratings if r.rater_id != rating.rater_id]
+    return recompute_consensus(replace(connection, ratings=[*kept, rating]))
+
+
+def remove_rating(connection, rater_id: str):
+    """Return a copy of `connection` with `rater_id`'s rating dropped, consensus
+    recomputed (no-op when no ratings remain). Pure."""
+    kept = [r for r in connection.ratings if r.rater_id != rater_id]
+    return recompute_consensus(replace(connection, ratings=kept))
+
+
 def _perturb_prob(confidence: int, base: float) -> float:
     """Per-draw drop/flip probability for one edge: base*(5-conf)/4.
 
