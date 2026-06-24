@@ -208,9 +208,14 @@ In `tests/test_leverage_e2e.py`, insert this block after `print("\nleverage e2e 
             "tr => (tr.querySelectorAll('td')[i]?.textContent || '').trim()); }"
         )
         assert realm_cells is not None, "no 'realm' column header in leverage table"
-        allowed = {"Parameters", "Feedbacks", "Design", "Intent", "—"}
+        # No "—" expected: every sample_ses.json node has a known DAPSIWRM type,
+        # so a "—" here means the realm wiring is broken (leverage_realm never
+        # called / token always ""). Keeping "—" out of `allowed` makes that fail.
+        allowed = {"Parameters", "Feedbacks", "Design", "Intent"}
         assert realm_cells and all(c in allowed for c in realm_cells), \
             f"unexpected realm cell values: {realm_cells}"
+        assert "—" not in realm_cells, \
+            f"dash in realm cells — wiring broken or unknown type in sample data: {realm_cells}"
         print(f"leverage realm column: OK ({realm_cells})")
 ```
 
