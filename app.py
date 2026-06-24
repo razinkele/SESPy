@@ -58,6 +58,7 @@ from sespy.modules.pims_stakeholders import (
 from sespy.modules.cld_visualization import cld_viz_server, cld_viz_ui
 from sespy.modules.import_data import import_data_server, import_data_ui
 from sespy.modules.isa_data_entry import isa_data_entry_server, isa_data_entry_ui
+from sespy.modules.rate_connections import rate_connections_server, rate_connections_ui
 from sespy.modules.project_io import quick_actions_server, quick_actions_ui
 from sespy.modules.recent_projects import recent_projects_server, recent_projects_ui
 from sespy.modules.report_export import report_export_server, report_export_ui
@@ -82,6 +83,7 @@ NAV: list[NavItem] = [
     NavItem(id="templates", icon="layer-group",    label="Templates",         label_key="nav.templates"),
     NavItem(id="wizard",   icon="wand-magic-sparkles", label="SES Wizard",  label_key="nav.wizard"),
     NavItem(id="entry",    icon="pen-to-square",   label="Edit Data",         label_key="nav.entry"),
+    NavItem(id="rate",     icon="user-pen",        label="Rate Connections",  label_key="nav.rate"),
     NavItem(id="cld",      icon="diagram-project", label="CLD Visualization", label_key="nav.cld"),
     NavItem(id="loops",    icon="rotate-right",    label="Loop Analysis",     label_key="nav.loops"),
     NavItem(id="metrics",  icon="chart-line",      label="Network Metrics",   label_key="nav.metrics"),
@@ -116,6 +118,7 @@ NAV_TO_STEP = {
     "templates": "create",
     "wizard": "create",
     "entry": "create",
+    "rate": "create",
     "cld": "visualize", "loops": "analyze", "metrics": "analyze",
     "leverage": "analyze", "quadrant": "analyze", "boolean": "analyze", "simulation": "analyze",
     "bot": "analyze",
@@ -130,6 +133,7 @@ PANELS = (
     ui.nav_panel("Templates",         templates_ui("templates"),                   value="templates"),
     ui.nav_panel("SES Wizard",        ai_isa_wizard_ui("wizard"),                 value="wizard"),
     ui.nav_panel("Edit Data",         isa_data_entry_ui("entry"),                  value="entry"),
+    ui.nav_panel("Rate Connections", rate_connections_ui("rate"), value="rate"),
     ui.nav_panel("CLD Visualization", cld_viz_ui("cld"),                          value="cld"),
     ui.nav_panel("Loop Analysis",     analysis_loops_ui("loops"),                  value="loops"),
     ui.nav_panel("Network Metrics",   analysis_metrics_ui("metrics"),              value="metrics"),
@@ -206,6 +210,12 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
     )
     isa_data_entry_server(
         "entry",
+        project_data=project_data,
+        event_bus=event_bus,
+        translator=T,
+    )
+    rate_connections_server(
+        "rate",
         project_data=project_data,
         event_bus=event_bus,
         translator=T,
