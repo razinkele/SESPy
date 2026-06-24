@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from sespy.excel_import import parse_excel
+from sespy.excel_import import parse_excel, _try_float, fcm_weight_to_fields
 
 
 def _write_workbook(
@@ -130,3 +130,39 @@ def test_parse_excel_file_not_found(tmp_path):
     result = parse_excel(tmp_path / "nope.xlsx")
     assert not result.valid
     assert "not found" in result.errors[0].lower()
+
+
+def test_fcm_weight_to_fields_magnitude_bins():
+    assert fcm_weight_to_fields(0.2) == ("+", "weak")
+    assert fcm_weight_to_fields(0.5) == ("+", "medium")
+    assert fcm_weight_to_fields(0.7) == ("+", "strong")
+    assert fcm_weight_to_fields(0.0) == ("+", "weak")
+
+
+def test_fcm_weight_to_fields_sign():
+    assert fcm_weight_to_fields(-0.2) == ("-", "weak")
+    assert fcm_weight_to_fields(-0.5) == ("-", "medium")
+    assert fcm_weight_to_fields(-0.7) == ("-", "strong")
+
+
+def test_fcm_weight_to_fields_clamps_out_of_range():
+    assert fcm_weight_to_fields(1.5) == ("+", "strong")
+    assert fcm_weight_to_fields(-1.5) == ("-", "strong")
+
+
+def test_fcm_weight_to_fields_boundaries():
+    assert fcm_weight_to_fields(1/3) == ("+", "weak")     # inclusive upper
+    assert fcm_weight_to_fields(0.34) == ("+", "medium")
+    assert fcm_weight_to_fields(2/3) == ("+", "medium")   # inclusive upper
+    assert fcm_weight_to_fields(0.7) == ("+", "strong")
+
+
+def test_try_float_detects_numbers_only():
+    assert _try_float(0.5) == 0.5
+    assert _try_float(-0.7) == -0.7
+    assert _try_float("0.5") == 0.5
+    assert _try_float("") is None
+    assert _try_float("strong") is None
+    assert _try_float(None) is None
+    assert _try_float(float("nan")) is None
+    assert _try_float(float("inf")) is None

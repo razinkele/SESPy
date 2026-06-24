@@ -12,6 +12,7 @@ schema errors from upload look identical to schema errors from JSON load.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -58,6 +59,27 @@ def _resolve_sheet(workbook: pd.ExcelFile, candidates: Sequence[str]) -> str | N
         if c.lower() in sheet_lower:
             return sheet_lower[c.lower()]
     return None
+
+
+def fcm_weight_to_fields(weight: float) -> tuple[str, str]:
+    """Map a signed FCM weight to (polarity, strength). Sign → polarity;
+    |weight| (clamped to [0, 1]) → weak/medium/strong by the 1/3, 2/3
+    thresholds. weight 0 → ('+', 'weak'); |weight| > 1 → clamped to 'strong'.
+    Pure."""
+    polarity = "+" if weight >= 0 else "-"
+    mag = min(abs(weight), 1.0)
+    strength = "weak" if mag <= 1 / 3 else ("medium" if mag <= 2 / 3 else "strong")
+    return polarity, strength
+
+
+def _try_float(value) -> float | None:
+    """Return `value` as a finite float, or None if it is not numeric
+    (empty/text/None/NaN/inf). Used to detect an FCM weight cell."""
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
 
 
 def parse_excel(path: Path | str) -> ValidationResult:
