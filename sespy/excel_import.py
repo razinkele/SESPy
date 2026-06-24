@@ -136,11 +136,18 @@ def parse_excel(path: Path | str) -> ValidationResult:
         if src == "" or tgt == "":
             errors.append(f"Connections row {i + 2}: missing source/target")
             continue
+        raw_strength = _pick(row, CONN_STRENGTH_COLS, default="")
+        fcm = _try_float(raw_strength)
+        if fcm is not None:                       # numeric → FCM weight
+            polarity, strength = fcm_weight_to_fields(fcm)
+        else:                                     # text/empty → categorical (unchanged)
+            polarity = str(_pick(row, CONN_POLARITY_COLS, default="+")) or "+"
+            strength = str(raw_strength) or "medium"
         connections.append(Connection(
             source=str(src),
             target=str(tgt),
-            polarity=str(_pick(row, CONN_POLARITY_COLS, default="+")) or "+",
-            strength=str(_pick(row, CONN_STRENGTH_COLS, default="medium")) or "medium",
+            polarity=polarity,
+            strength=strength,
             confidence=int(_pick(row, CONN_CONF_COLS, default=3) or 3),
             delay=normalize_delay(_pick(row, CONN_DELAY_COLS, default="immediate")),
         ))

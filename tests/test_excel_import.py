@@ -166,3 +166,53 @@ def test_try_float_detects_numbers_only():
     assert _try_float(None) is None
     assert _try_float(float("nan")) is None
     assert _try_float(float("inf")) is None
+
+
+def test_parse_excel_fcm_numeric_weights(tmp_path):
+    # All source/target ids must exist in Elements or validation fails on a
+    # dangling ref BEFORE the FCM mapping is reached.
+    f = _write_workbook(
+        tmp_path,
+        elements=VALID_ELEMENTS,  # D001, A001, P001
+        connections=[
+            {"source": "D001", "target": "A001", "weight": -0.7},   # FCM: -/strong
+            {"source": "A001", "target": "P001", "weight": 0.2},    # FCM: +/weak
+            {"source": "D001", "target": "P001",
+             "polarity": "+", "strength": "medium"},                # categorical: unchanged
+            {"source": "P001", "target": "A001",
+             "weight": 0.5, "polarity": "-"},                       # numeric weight wins → +
+        ],
+    )
+    result = parse_excel(f)
+    assert result.valid, result.errors
+    conns = {(c.source, c.target): c for c in result.project.isa_data.connections}
+
+    fcm_neg = conns[("D001", "A001")]
+    assert fcm_neg.polarity == "-" and fcm_neg.strength == "strong"
+
+    fcm_pos = conns[("A001", "P001")]
+    assert fcm_pos.polarity == "+" and fcm_pos.strength == "weak"
+
+    cat = conns[("D001", "P001")]
+    assert cat.polarity == "+" and cat.strength == "medium"
+
+    wins = conns[("P001", "A001")]
+    assert wins.polarity == "+" and wins.strength == "medium"  # weight sign (+0.5) overrides polarity "-"
+
+    # downstream sanity: an FCM strong lands as a real strength rank, not a degraded default.
+    from sespy import network
+    assert network._STRENGTH_RANK[fcm_neg.strength] == 3
+
+
+def test_parse_excel_categorical_weight_back_compat(tmp_path):
+    # A text "weight" cell stays categorical (regression guard for KUMU sheets).
+    f = _write_workbook(
+        tmp_path,
+        elements=VALID_ELEMENTS,
+        connections=[{"source": "D001", "target": "A001",
+                      "Polarity": "-", "Weight": "weak"}],
+    )
+    result = parse_excel(f)
+    assert result.valid, result.errors
+    c = result.project.isa_data.connections[0]
+    assert c.polarity == "-" and c.strength == "weak"
