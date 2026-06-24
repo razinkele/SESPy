@@ -30,8 +30,10 @@
 - Test: `tests/test_network.py`
 
 **Interfaces:**
-- Consumes: nothing (pure dict → str).
-- Produces: `disagreement_cell(d: dict, *, contested_label: str) -> str`.
+- Consumes: `connection_disagreement` (shipped) for `displayed_pairs`.
+- Produces:
+  - `disagreement_cell(d: dict, *, contested_label: str) -> str`
+  - `displayed_pairs(connections, *, contested_only: bool) -> list[tuple[int, Connection]]` — the pure, unit-testable core of the index contract: returns `(true_idx, conn)` pairs, all when `contested_only` is False, only `polarity_contested` rows when True. The `true_idx` is always the position in the input list, so a contested row keeps its **true** index after filtering.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -67,19 +69,34 @@ def test_disagreement_cell_from_real_connection_disagreement():
                                      contested_label="Contested") == "⚠ Contested"
     # same sign, weak vs strong → spread (strength rank 1 vs 3 → 2; confidence 3/3 → 0)
     c2 = Connection(source="A", target="B", ratings=[
-        Rating(rater_id="s1", polarity="+", strength="weak"),
-        Rating(rater_id="s2", polarity="+", strength="strong")])
+        Rating(rater_id="s1", polarity="+", strength="weak", confidence=3),
+        Rating(rater_id="s2", polarity="+", strength="strong", confidence=3)])
     assert network.disagreement_cell(network.connection_disagreement(c2),
                                      contested_label="X") == "~ 2/0"
     # single rating → none
     c3 = Connection(source="A", target="B", ratings=[Rating(rater_id="s1")])
     assert network.disagreement_cell(network.connection_disagreement(c3),
                                      contested_label="X") == "—"
+
+
+def test_displayed_pairs_full_and_filtered_preserve_true_index():
+    from sespy.data_structure import Connection, Rating
+    # connections[0] is NOT contested; connections[1] IS (+/- split).
+    c0 = Connection(source="A", target="B")  # no ratings → not contested
+    c1 = Connection(source="B", target="C", ratings=[
+        Rating(rater_id="s1", polarity="+"), Rating(rater_id="s2", polarity="-")])
+    conns = [c0, c1]
+    # Filter off: full list, indices intact.
+    assert network.displayed_pairs(conns, contested_only=False) == [(0, c0), (1, c1)]
+    # Filter on: only the contested row, and it KEEPS true index 1 (NOT 0).
+    pairs = network.displayed_pairs(conns, contested_only=True)
+    assert pairs == [(1, c1)]
+    assert pairs[0][0] == 1  # the index-contract guarantee: displayed-row-0 → true idx 1
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_network.py -k "disagreement_cell" -v`
+Run: `micromamba run -n shiny python -m pytest tests/test_network.py -k "disagreement_cell or displayed_pairs" -v`
 Expected: FAIL — `module 'sespy.network' has no attribute 'disagreement_cell'`.
 
 - [ ] **Step 3: Implement**
@@ -97,18 +114,30 @@ def disagreement_cell(d: dict, *, contested_label: str) -> str:
     if d["strength_spread"] > 0 or d["confidence_spread"] > 0:
         return f"~ {d['strength_spread']:.0f}/{d['confidence_spread']:.0f}"
     return "—"
+
+
+def displayed_pairs(connections, *, contested_only: bool):
+    """Pure core of the C3 index contract: (true_idx, connection) pairs — all
+    connections when not contested_only, else only polarity-contested ones.
+    true_idx is always the position in `connections`, so a contested row keeps
+    its true full-list index after filtering (the lookup the UI persists by)."""
+    pairs = list(enumerate(connections))
+    if not contested_only:
+        return pairs
+    return [(i, c) for i, c in pairs
+            if connection_disagreement(c)["polarity_contested"]]
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_network.py -k "disagreement_cell" -v`
-Expected: PASS (5 tests).
+Run: `micromamba run -n shiny python -m pytest tests/test_network.py -k "disagreement_cell or displayed_pairs" -v`
+Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add sespy/network.py tests/test_network.py
-git commit -m "feat(network): disagreement_cell — contested/spread/none column text"
+git commit -m "feat(network): disagreement_cell + displayed_pairs (contested view core)"
 ```
 
 ---
@@ -189,18 +218,15 @@ In `rate_connections_server`, immediately after `sel_idx = reactive.value(None)`
     @reactive.calc
     def displayed_connections():
         """(true_idx, connection) pairs for the table — full list, or only
-        polarity-contested rows when the filter is on. true_idx is the index
-        into the FULL isa_data.connections list (for persistence)."""
+        polarity-contested rows when the filter is on. Delegates to the pure
+        network.displayed_pairs (unit-tested). `input.contested_only()` is read
+        directly (NO try/except — it is a static sidebar checkbox, always
+        present; a guard would silently drop the reactive dependency)."""
         event_bus.isa_change.get()
-        conns = project_data.get().isa_data.connections
-        try:
-            only = input.contested_only()
-        except Exception:
-            only = False
-        if not only:
-            return list(enumerate(conns))
-        return [(i, c) for i, c in enumerate(conns)
-                if network.connection_disagreement(c)["polarity_contested"]]
+        return network.displayed_pairs(
+            project_data.get().isa_data.connections,
+            contested_only=input.contested_only(),
+        )
 ```
 
 Replace the entire `connections_table` render function with:
@@ -305,25 +331,45 @@ In `tests/test_rate_connections_e2e.py`, insert this block in `main()` immediate
         await page.click("#stakeholders-save_stakeholder")
         await page.wait_for_timeout(1000)
 
-        # 2. Back to Rate Connections; switch the rater to the 2nd option.
+        # 2. Back to Rate Connections; switch the rater to the 2nd stakeholder.
+        #    rater_picker is an @render.ui — wait until it has a 2nd option, then
+        #    drive by the runtime-generated id via the proven _set_select idiom
+        #    (selectedIndex is racy against the async select re-render).
         await page.click("#sespy_nav_rate")
         await page.wait_for_selector("#rate-connections_table table tbody tr", timeout=30000)
-        await page.evaluate(
-            "() => { const s=document.getElementById('rate-rater');"
-            " if(s){ s.selectedIndex=1; s.dispatchEvent(new Event('change',{bubbles:true})); } }"
+        await page.wait_for_function(
+            "() => { const s = document.getElementById('rate-rater');"
+            " return s && s.options.length >= 2; }",
+            timeout=30000,
         )
+        ngo_id = await page.evaluate(
+            "() => document.getElementById('rate-rater').options[1].value"
+        )
+        await _set_select(page, "rate-rater", ngo_id)
         await page.wait_for_timeout(500)
 
         # 3. Switching rater reset sel_idx — RE-CLICK the first row (TD), required.
         await page.click(RATE_ROW)
         await page.wait_for_selector("#rate-save_rating", timeout=30000)
 
-        # 4. Rate it with OPPOSITE polarity ("-"), then save.
-        await page.evaluate(
-            "() => { const r=document.querySelector(\"#rate-ed_polarity input[value='-']\");"
-            " if(r){ r.checked=true; r.dispatchEvent(new Event('change',{bubbles:true})); } }"
-        )
+        # 4. Rate it with OPPOSITE polarity ("-") via a native click (the repo's
+        #    proven radio idiom — a synthetic .checked may not register), then save.
+        await page.click("#rate-ed_polarity input[value='-']")
         await page.click("#rate-save_rating")
+
+        # 4b. Assert the 2nd-rater save landed (#ratings -> 2) BEFORE polling for
+        #     the contested marker, so a silent no-op is self-diagnosing.
+        saved2 = False
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            cells2 = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'#rate-connections_table table tbody tr:first-child td')).map(td => td.textContent.trim())"
+            )
+            if cells2 and "2" in cells2:
+                saved2 = True
+                break
+        assert saved2, f"2nd-rater save did not land (#ratings != 2): {cells2}"
 
         # 5. Poll until the first row's disagreement cell shows the contested marker.
         contested = False
