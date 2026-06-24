@@ -5306,6 +5306,9 @@
     "rate.nothing_to_remove": {"en": "You have no rating on this connection.", "es": "No tienes valoración en esta conexión.", "fr": "Vous n'avez pas d'évaluation sur ce lien.", "de": "Sie haben keine Bewertung für diese Verbindung.", "lt": "Neturite šio ryšio vertinimo.", "pt": "Não tem avaliação nesta conexão.", "it": "Non hai una valutazione su questa connessione.", "no": "Du har ingen vurdering på denne koblingen.", "el": "Δεν έχετε αξιολόγηση σε αυτή τη σύνδεση."},
     "strength.weak": {"en": "Weak", "es": "Débil", "fr": "Faible", "de": "Schwach", "lt": "Silpnas", "pt": "Fraco", "it": "Debole", "no": "Svak", "el": "Ασθενής"},
     "strength.medium": {"en": "Medium", "es": "Medio", "fr": "Moyen", "de": "Mittel", "lt": "Vidutinis", "pt": "Médio", "it": "Medio", "no": "Middels", "el": "Μέτριος"},
-    "strength.strong": {"en": "Strong", "es": "Fuerte", "fr": "Fort", "de": "Stark", "lt": "Stiprus", "pt": "Forte", "it": "Forte", "no": "Sterk", "el": "Ισχυρός"}
+    "strength.strong": {"en": "Strong", "es": "Fuerte", "fr": "Fort", "de": "Stark", "lt": "Stiprus", "pt": "Forte", "it": "Forte", "no": "Sterk", "el": "Ισχυρός"},
+    "rate.contested": {"en": "Contested", "es": "Disputado", "fr": "Contesté", "de": "Umstritten", "lt": "Ginčytinas", "pt": "Contestado", "it": "Conteso", "no": "Omstridt", "el": "Αμφισβητούμενο"},
+    "rate.contested_only": {"en": "Show contested only", "es": "Mostrar solo disputados", "fr": "Afficher uniquement les contestés", "de": "Nur umstrittene anzeigen", "lt": "Rodyti tik ginčytinus", "pt": "Mostrar apenas contestados", "it": "Mostra solo contesi", "no": "Vis kun omstridte", "el": "Εμφάνιση μόνο αμφισβητούμενων"},
+    "rate.contested_count": {"en": "{n} contested edges", "es": "{n} conexiones disputadas", "fr": "{n} liens contestés", "de": "{n} umstrittene Verbindungen", "lt": "{n} ginčytini ryšiai", "pt": "{n} conexões contestadas", "it": "{n} connessioni contese", "no": "{n} omstridte koblinger", "el": "{n} αμφισβητούμενες συνδέσεις"}
   }
 }
