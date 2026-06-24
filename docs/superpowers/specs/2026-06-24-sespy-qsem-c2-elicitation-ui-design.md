@@ -124,11 +124,14 @@ Beside `recompute_consensus` (the sole consensus writer, which these call):
 
 ### i18n — `sespy/translations/core.json`
 New keys × 9 languages: `nav.rate`, `rate.title`, `rate.rating_as`,
-`rate.no_stakeholders`, `rate.num_ratings`, `rate.mine`, `rate.your_rating`,
+`rate.no_stakeholders`, `rate.your_rating`,
 `rate.polarity`, `rate.strength`, `rate.confidence`, `rate.delay`,
 `rate.save`, `rate.remove`, `rate.current_ratings`, `rate.select_connection`,
-`rate.saved`, `rate.removed` (17 keys). **Plus three NEW strength-label keys**
-`strength.weak`, `strength.medium`, `strength.strong` (20 keys total): verified that
+`rate.saved`, `rate.removed`, `rate.nothing_to_remove` (16 keys; the
+connections-table headers `#ratings`/`mine` stay raw English like the existing
+`isa_data_entry`/`loops` tables, so no `rate.num_ratings`/`rate.mine` keys).
+**Plus three NEW strength-label keys**
+`strength.weak`, `strength.medium`, `strength.strong` (19 keys total): verified that
 `core.json` has NO top-level `strength.*` family — only `simplify.strength.{weak,
 medium,strong}`, which is scoped to the Simplify Network filter and must NOT be
 reused here. Delay option labels DO reuse the existing `delay.immediate/short/long`

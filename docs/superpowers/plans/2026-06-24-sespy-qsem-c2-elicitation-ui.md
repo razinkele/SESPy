@@ -127,7 +127,7 @@ git commit -m "feat(network): upsert_rating + remove_rating (rating mutation hel
 **Interfaces:**
 - Produces translation keys consumed by Task 3: `nav.rate`, `rate.title`, `rate.rating_as`, `rate.no_stakeholders`, `rate.your_rating`, `rate.polarity`, `rate.strength`, `rate.confidence`, `rate.delay`, `rate.save`, `rate.remove`, `rate.current_ratings`, `rate.select_connection`, `rate.saved`, `rate.removed`, `rate.nothing_to_remove`, and `strength.weak`, `strength.medium`, `strength.strong`.
 
-(Connection-table column headers stay raw English, matching the existing `isa_data_entry`/`loops` tables — no i18n keys for them.)
+**Spec reconciliation (intentional):** the spec's i18n list named `rate.num_ratings` and `rate.mine` (its "20 keys"). This plan deliberately DROPS those two — the connections-table column headers (`#ratings`, `mine`) stay raw English, matching the existing `isa_data_entry`/`loops` tables which also use raw headers — and ADDS `rate.nothing_to_remove` (required by the spec's error-handling "nothing to remove" notification). Net: **19 keys** (16 `rate.*` + 3 `strength.*`). No code calls `rate.num_ratings`/`rate.mine`, so nothing breaks. The spec's count is corrected to 19 to match.
 
 - [ ] **Step 1: Add the keys**
 
@@ -397,7 +397,7 @@ def rate_connections_server(
 
 - [ ] **Step 2: Wire it into `app.py`**
 
-Four edits in `app.py`:
+Five edits in `app.py` (all required — the `(e)` server call registers the module's reactive effects; without it the page is inert):
 
 (a) Import (near the other module imports, e.g. after the `isa_data_entry` import line):
 ```python
@@ -444,6 +444,20 @@ assert the connection row reflects the new rating (#ratings -> 1, mine -> check)
 import asyncio
 from playwright.async_api import async_playwright
 
+# Verified DataGrid selection idiom (test_stakeholders_e2e.py): click a TD cell,
+# not the TR — only a TD click sets aria-selected and propagates to cell_selection.
+RATE_ROW = "#rate-connections_table table tbody tr:first-child td:first-child"
+
+
+async def _set_select(page, el_id: str, value: str):
+    """Drive a Shiny <select> via el.value + change event (repo's proven pattern,
+    test_stakeholders_e2e.py)."""
+    await page.evaluate(
+        """([id, v]) => { const el = document.getElementById(id);
+          if (el) { el.value = v; el.dispatchEvent(new Event('change', {bubbles: true})); } }""",
+        [el_id, value],
+    )
+
 
 async def main():
     async with async_playwright() as p:
@@ -457,6 +471,7 @@ async def main():
         await page.click("#sespy_nav_stakeholders")
         await page.wait_for_selector("#stakeholders-sh_name", timeout=30000)
         await page.fill("#stakeholders-sh_name", "Port Authority")
+        await _set_select(page, "stakeholders-sh_type", "government")  # REQUIRED: save guard rejects blank type
         await page.click("#stakeholders-save_stakeholder")
         await page.wait_for_timeout(1000)
 
@@ -465,8 +480,8 @@ async def main():
         await page.wait_for_selector("#rate-connections_table table tbody tr", timeout=30000)
         await page.wait_for_selector("#rate-rater", timeout=30000)  # picker present (register non-empty)
 
-        # 3. Select the first connection row.
-        await page.click("#rate-connections_table table tbody tr:first-child")
+        # 3. Select the first connection row (click a TD — not the TR — per RATE_ROW).
+        await page.click(RATE_ROW)
         await page.wait_for_selector("#rate-save_rating", timeout=30000)  # editor rendered
 
         # 4. Set a rating and save.
@@ -495,7 +510,7 @@ async def main():
 asyncio.run(main())
 ```
 
-The stakeholder-add step uses the proven `#stakeholders-sh_name` + `#stakeholders-save_stakeholder` selectors (from `tests/test_stakeholders_e2e.py`) so the rater register is non-empty and `#rate-rater` renders. If the row-selection click (`:first-child`) does not register the selection, fall back to the verified `#rate-connections_table tbody tr td:first-child` cell-click idiom that `test_stakeholders_e2e.py` relies on.
+The stakeholder-add step uses the proven `#stakeholders-sh_name` + `_set_select(sh_type)` + `#stakeholders-save_stakeholder` sequence from `tests/test_stakeholders_e2e.py:95-97` — the save guard (`pims_stakeholders.py:306`) rejects a blank `stakeholder_type`, so the `sh_type` select MUST be set or no stakeholder is created and `#rate-rater` never renders. The row click targets a TD (`RATE_ROW`), the verified DataGrid-selection idiom — clicking the bare TR does not register `cell_selection`.
 
 - [ ] **Step 5: Run the e2e**
 
