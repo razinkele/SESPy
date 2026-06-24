@@ -955,3 +955,75 @@ def test_leverage_realm_unknown_returns_empty():
     assert network.leverage_realm("Measures") == ""
     assert network.leverage_realm("") == ""
     assert network.leverage_realm("Bogus") == ""
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (social-ecological fit)
+# ---------------------------------------------------------------------------
+
+
+def test_subsystem_classifies_all_types():
+    assert network.subsystem("Drivers") == "social"
+    assert network.subsystem("Activities") == "social"
+    assert network.subsystem("Responses") == "social"
+    assert network.subsystem("Goods & Benefits") == "social"
+    assert network.subsystem("Pressures") == "ecological"
+    assert network.subsystem("Marine Processes & Functioning") == "ecological"
+    assert network.subsystem("Ecosystem Services") == "ecological"
+    assert network.subsystem("Measures") == ""
+    assert network.subsystem("Bogus") == ""
+
+
+def test_fit_fully_crossed():
+    isa = IsaData(
+        elements=[Element(id="D", label="d", type="Drivers"),
+                  Element(id="P", label="p", type="Pressures")],
+        connections=[Connection(source="D", target="P")],
+    )
+    r = network.social_ecological_fit(isa)
+    assert r["cross_edges"] == 1 and r["total_edges"] == 1 and r["fit"] == 1.0
+    assert r["n_social"] == 1 and r["n_ecological"] == 1 and r["n_other"] == 0
+
+
+def test_fit_siloed_both_subsystems():
+    isa = IsaData(
+        elements=[Element(id="D", label="d", type="Drivers"),
+                  Element(id="A", label="a", type="Activities"),
+                  Element(id="P", label="p", type="Pressures"),
+                  Element(id="ES", label="e", type="Ecosystem Services")],
+        connections=[Connection(source="D", target="A"),
+                     Connection(source="P", target="ES")],
+    )
+    r = network.social_ecological_fit(isa)
+    assert r == {"n_social": 2, "n_ecological": 2, "n_other": 0,
+                 "within_social_edges": 1, "within_ecological_edges": 1,
+                 "cross_edges": 0, "total_edges": 2, "fit": 0.0}
+
+
+def test_fit_empty_graph():
+    r = network.social_ecological_fit(IsaData())
+    assert r["total_edges"] == 0 and r["fit"] == 0.0
+
+
+def test_fit_excludes_measures_self_loop_and_dangling():
+    isa = IsaData(
+        elements=[Element(id="D", label="d", type="Drivers"),
+                  Element(id="M", label="m", type="Measures")],
+        connections=[Connection(source="D", target="M"),   # touches unclassified → excluded
+                     Connection(source="D", target="D"),   # self-loop → skipped
+                     Connection(source="D", target="X")],  # dangling → skipped
+    )
+    r = network.social_ecological_fit(isa)
+    assert r["n_other"] == 1
+    assert r["total_edges"] == 0 and r["fit"] == 0.0
+
+
+def test_fit_sample_golden():
+    root = Path(__file__).resolve().parents[1]
+    r = network.social_ecological_fit(load_sample(root / "data" / "sample_ses.json"))
+    assert r["cross_edges"] == 8
+    assert r["within_social_edges"] == 6
+    assert r["within_ecological_edges"] == 6
+    assert r["total_edges"] == 20
+    assert r["n_other"] == 0
+    assert round(r["fit"], 2) == 0.40

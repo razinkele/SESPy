@@ -215,6 +215,71 @@ def leverage_realm(element_type: str) -> str:
     return _DAPSIWRM_REALM.get(element_type, "")
 
 
+_SUBSYSTEM: dict[str, str] = {
+    "Drivers": "social",
+    "Activities": "social",
+    "Responses": "social",
+    "Goods & Benefits": "social",
+    "Pressures": "ecological",
+    "Marine Processes & Functioning": "ecological",
+    "Ecosystem Services": "ecological",
+}
+
+
+def subsystem(element_type: str) -> str:
+    """'social' | 'ecological' | '' (unknown type, e.g. 'Measures'). Pure."""
+    return _SUBSYSTEM.get(element_type, "")
+
+
+def social_ecological_fit(isa) -> dict:
+    """Graph-level social↔ecological coupling. fit = cross / total edges.
+
+    Each element classified via subsystem(); over connections (self-loops and
+    dangling refs skipped, edges touching an unclassified node excluded), count
+    edges within-social, within-ecological, and crossing the boundary. Pure.
+    Duplicate (source,target) edges are forbidden by the data-entry layer, so
+    each valid connection is counted once. n_other distinguishes a pure-
+    unclassified graph (total 0, but has connections) from a genuinely empty one.
+    """
+    sub_by_id: dict[str, str] = {}
+    n_social = n_ecological = n_other = 0
+    for el in isa.elements:
+        s = subsystem(el.type)
+        sub_by_id[el.id] = s
+        if s == "social":
+            n_social += 1
+        elif s == "ecological":
+            n_ecological += 1
+        else:
+            n_other += 1
+
+    within_social = within_ecological = cross = 0
+    for c in isa.connections:
+        if c.source == c.target or c.source not in sub_by_id or c.target not in sub_by_id:
+            continue
+        a, b = sub_by_id[c.source], sub_by_id[c.target]
+        if a == "" or b == "":
+            continue
+        if a != b:
+            cross += 1
+        elif a == "social":
+            within_social += 1
+        else:
+            within_ecological += 1
+
+    total = within_social + within_ecological + cross
+    return {
+        "n_social": n_social,
+        "n_ecological": n_ecological,
+        "n_other": n_other,
+        "within_social_edges": within_social,
+        "within_ecological_edges": within_ecological,
+        "cross_edges": cross,
+        "total_edges": total,
+        "fit": (cross / total) if total else 0.0,
+    }
+
+
 def _axis_sums(isa: IsaData) -> tuple[dict[str, float], dict[str, float], dict[tuple[str, str], float]]:
     """Per-node Σ edge weights: (influence, dependence, weight_by_pair).
     Parallel (source,target) edges deduplicated (last-wins); self-loops and

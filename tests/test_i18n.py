@@ -87,3 +87,8 @@ def test_detect_initial_language_from_query():
 def test_leverage_realm_keys_present(translations):
     for token in ("parameters", "feedbacks", "design", "intent"):
         assert f"leverage.realm.{token}" in translations
+
+
+def test_metrics_fit_keys_present(translations):
+    for key in ("metrics.fit", "metrics.fit_caption", "metrics.fit_none"):
+        assert key in translations
