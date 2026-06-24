@@ -32,6 +32,12 @@ analysis immediately reflects it.
 
 ## Architecture / components
 
+**Implementation order (prerequisite):** the `sespy/network.py` helpers
+(`upsert_rating`, `remove_rating`) and their `tests/test_network.py` tests MUST be
+implemented and passing **before** `sespy/modules/rate_connections.py` is written —
+the module imports and calls them directly. (Verified: `network.py` currently has
+`recompute_consensus`/`connection_disagreement` but neither helper yet.)
+
 ### `sespy/network.py` — two pure mutation helpers (testable, thin module)
 Beside `recompute_consensus` (the sole consensus writer, which these call):
 
@@ -49,8 +55,9 @@ Beside `recompute_consensus` (the sole consensus writer, which these call):
 
 **UI** (sidebar + main, mirroring other analysis modules):
 - Sidebar: `output_ui("rater_picker")` → an `input_select("rater", …)` built from
-  `project_data.stakeholders` as `{s.id: s.name}`; when the register is empty,
-  render a muted guard message instead.
+  `project_data.get().stakeholders` as `{s.id: s.name}` (note `.get()` — `project_data`
+  is a `reactive.Value[Project]`, per `pims_stakeholders.py`); when the register is
+  empty, render a muted guard message instead.
 - Main:
   - `output_data_frame("connections_table")` (row-select) — one row per connection:
     `source→target` (with element labels), consensus `polarity/strength/confidence/delay`,
@@ -62,20 +69,35 @@ Beside `recompute_consensus` (the sole consensus writer, which these call):
     `input_select` (`constants.DELAY_LEVELS`), **pre-filled** from the rater's
     existing rating on that connection if present, else defaults
     (`+`/`medium`/`3`/`immediate`). `input_action_button("save_rating")` +
-    `input_action_button("remove_rating")` (outline-danger). Re-rendered on
-    rater/selection change so pre-fill is deterministic.
+    `input_action_button("remove_rating")` (outline-danger). Rendered against the
+    cached `sel_idx` (see Selection persistence) and re-rendered on rater/`sel_idx`
+    change so pre-fill is deterministic and survives the post-save re-render.
   - `output_ui("current_ratings")` — for the selected connection, a list of all
     ratings: rater name (resolved from the register, fallback to `rater_id`) +
     `polarity/strength/confidence/delay`.
 
 **Server data flow:**
-- Selection: `connections_table.cell_selection()["rows"][0]` → connection index
-  (mirrors `isa_data_entry`'s remove handler). Connections are uniquely keyed by
-  `(source, target)` (Edit Data forbids duplicates), so the index is stable within
-  a render.
-- Save (`@reactive.event(input.save_rating)`): read `rater`, selected index, and
-  the four editor inputs; guard missing rater/selection with
-  `ui.notification_show`. Build `Rating(rater_id=rater, strength, confidence,
+- Selection persistence (REQUIRED): saving emits `isa_change`, which re-renders
+  `connections_table`, and Shiny's `render.DataGrid` **clears row selection on every
+  re-render** — so a naive `cell_selection()` read would collapse the editor and
+  current-ratings panels after each save. Cache the selection in a
+  `reactive.Value[int | None]` (`sel_idx`): a `@reactive.effect` updates `sel_idx`
+  from `connections_table.cell_selection()["rows"][0]` whenever the user clicks a
+  row; the save/remove handlers read `sel_idx` (not the live `cell_selection`), and
+  the `rating_editor` / `current_ratings` outputs render against `sel_idx` so they
+  survive the post-save re-render. Reset `sel_idx` to `None` on rater change.
+- Connections are uniquely keyed by `(source, target)` (Edit Data forbids
+  duplicates), so the cached index maps to the same connection across the
+  save-triggered re-render.
+- Bounds guard (REQUIRED, both handlers): `connections_table` renders a stub row on
+  an empty project (mirroring `isa_data_entry.py`), so index 0 is selectable with no
+  real connection. After the no-selection guard, check
+  `if idx >= len(project_data.get().isa_data.connections): return` (exactly as
+  `isa_data_entry`'s remove handler does) before building the `Rating`.
+- Save (`@reactive.event(input.save_rating)`): read `rater`, the cached `sel_idx`,
+  and the four editor inputs; guard missing rater/selection with
+  `ui.notification_show`, then apply the bounds guard above. Build
+  `Rating(rater_id=rater, strength, confidence,
   polarity, delay)`; `new_conn = network.upsert_rating(conn, rating)`; rebuild the
   connections list with `new_conn` at the index; persist:
   ```python
@@ -92,6 +114,10 @@ Beside `recompute_consensus` (the sole consensus writer, which these call):
 ### `app.py`
 - Add `NavItem(id="rate", icon="user-pen", label="Rate Connections",
   label_key="nav.rate")` to `NAV`, placed immediately after the `entry` item.
+- **Add `"rate": "create"` to the `NAV_TO_STEP` dict** (alongside the existing
+  `"entry": "create"`). Every nav id maps to a workflow-stepper step; without this
+  entry the stepper shows no active step on the Rate Connections page
+  (`dashboard_server` falls through to no highlight for unmapped ids).
 - Import `rate_connections_ui/_server`; add the panel to the UI dispatch and call
   `rate_connections_server(..., project_data=…, event_bus=…, translator=…)`
   alongside the other module servers.
@@ -101,15 +127,21 @@ New keys × 9 languages: `nav.rate`, `rate.title`, `rate.rating_as`,
 `rate.no_stakeholders`, `rate.num_ratings`, `rate.mine`, `rate.your_rating`,
 `rate.polarity`, `rate.strength`, `rate.confidence`, `rate.delay`,
 `rate.save`, `rate.remove`, `rate.current_ratings`, `rate.select_connection`,
-`rate.saved`, `rate.removed`. (Strength/delay option labels reuse existing
-`strength.*`/`delay.*` keys where present; the connection table's consensus columns
-reuse existing `entry.*` headers where available.)
+`rate.saved`, `rate.removed` (17 keys). **Plus three NEW strength-label keys**
+`strength.weak`, `strength.medium`, `strength.strong` (20 keys total): verified that
+`core.json` has NO top-level `strength.*` family — only `simplify.strength.{weak,
+medium,strong}`, which is scoped to the Simplify Network filter and must NOT be
+reused here. Delay option labels DO reuse the existing `delay.immediate/short/long`
+keys. The connection table's consensus columns reuse existing `entry.*` headers
+where available. All keys × 9 languages.
 
 ## Error handling / edge cases
 
 - Empty stakeholder register → guard message; save/remove are no-ops with a
   notification.
 - No connection selected → save/remove notify "select a connection first".
+- Remove with no existing rating by this rater → no-op; notify "nothing to remove"
+  (not "rating removed"), so the message reflects reality.
 - Re-rating by the same rater replaces (never duplicates) — enforced by
   `upsert_rating` keying on `rater_id`.
 - Removing the last rating leaves consensus scalars at their last value (no-op
