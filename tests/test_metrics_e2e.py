@@ -77,6 +77,22 @@ async def main():
 
         await page.screenshot(path="tests/screenshots/metrics.png")
         print("\nmetrics e2e assertions pass — three-way reactive coupling works")
+
+        # --- Social-ecological fit summary renders with the golden value ---
+        await page.click("#sespy_nav_metrics")
+        await page.wait_for_selector("#metrics-fit_summary", timeout=30000)
+        fit_text = ""
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            fit_text = (await page.inner_text("#metrics-fit_summary")).strip()
+            if fit_text:
+                break
+        # Sample (data/sample_ses.json) has 8 cross of 20 edges → fit 0.40 (golden).
+        # Assert BOTH the heading (catches a broken metrics.fit translation) AND the value.
+        assert "Social-ecological fit" in fit_text, f"expected heading in summary, got: {fit_text!r}"
+        assert "0.40" in fit_text, f"expected fit 0.40 in summary, got: {fit_text!r}"
+        print(f"metrics fit summary: OK ({fit_text!r})")
+
         await browser.close()
 
 

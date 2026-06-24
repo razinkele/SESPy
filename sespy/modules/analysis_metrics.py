@@ -127,6 +127,8 @@ def analysis_metrics_ui() -> ui.Tag:
                 width=240,
             ),
             ui.div(
+                ui.output_ui("fit_summary"),
+                ui.tags.hr(),
                 ui.h4(t("metrics.top_ranked")),
                 ui.output_data_frame("metrics_table"),
                 ui.tags.hr(),
@@ -203,6 +205,20 @@ def analysis_metrics_server(
         ax.spines["right"].set_visible(False)
         fig.tight_layout()
         return fig
+
+    @output
+    @render.ui
+    def fit_summary():
+        event_bus.isa_change.get()
+        r = net_analysis.social_ecological_fit(project_data.get().isa_data)
+        if r["total_edges"] == 0:
+            return ui.p(t("metrics.fit_none"), class_="text-muted")
+        return ui.div(
+            ui.h5(t("metrics.fit")),
+            ui.tags.strong(f"{r['fit']:.2f}"),
+            ui.p(t("metrics.fit_caption", cross=r["cross_edges"], total=r["total_edges"]),
+                 class_="text-muted", style="font-size: 0.85rem;"),
+        )
 
     @output(id="metrics_network")
     @render_pyvis_network(
