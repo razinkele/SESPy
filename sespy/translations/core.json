@@ -5236,6 +5236,28 @@
       "no": "Stiplede kanter = forsinkede koblinger",
       "el": "Διακεκομμένες ακμές = καθυστερημένες συνδέσεις"
     },
+    "cld.contested_legend": {
+      "en": "⚠ / thick edge = raters disagree on the sign",
+      "es": "⚠ / arista gruesa = los evaluadores discrepan en el signo",
+      "fr": "⚠ / arête épaisse = les évaluateurs sont en désaccord sur le signe",
+      "de": "⚠ / dicke Kante = Bewerter sind sich beim Vorzeichen uneinig",
+      "lt": "⚠ / stora briauna = vertintojai nesutaria dėl ženklo",
+      "pt": "⚠ / aresta grossa = os avaliadores discordam no sinal",
+      "it": "⚠ / arco spesso = i valutatori non concordano sul segno",
+      "no": "⚠ / tykk kant = vurdererne er uenige om fortegnet",
+      "el": "⚠ / παχιά ακμή = οι αξιολογητές διαφωνούν ως προς το πρόσημο"
+    },
+    "cld.contested_sign": {
+      "en": "contested sign",
+      "es": "signo en disputa",
+      "fr": "signe contesté",
+      "de": "umstrittenes Vorzeichen",
+      "lt": "ginčijamas ženklas",
+      "pt": "sinal contestado",
+      "it": "segno conteso",
+      "no": "omstridt fortegn",
+      "el": "αμφισβητούμενο πρόσημο"
+    },
     "quadrant.split": {
       "en": "Cross-hair split",
       "es": "División de ejes",

@@ -101,3 +101,8 @@ def test_uncertainty_computing_key_present(translations):
 def test_blind_rating_keys_present(translations):
     assert "rate.blind_mode" in translations
     assert "rate.blind_hidden" in translations
+
+
+def test_cld_contested_keys_present(translations):
+    assert "cld.contested_legend" in translations
+    assert "cld.contested_sign" in translations
