@@ -65,9 +65,36 @@ change, nothing the analyses touch.
    render-clears-selection workaround) keeps the same connection selected across the save
    re-render, so the reveal lands on the row just rated.
 
-3. **i18n** — two new keys × 9 languages in the existing `rate.*` namespace:
-   - `rate.blind_mode` — toggle label, en = `"Blind mode (hide others' ratings)"`.
-   - `rate.blind_hidden` — placeholder, en = `"Hidden until you submit your own rating (blind mode)."`
+3. **i18n** — two new keys in the existing `rate.*` namespace, **each with all 9
+   languages** (every existing `rate.*` key carries all 9; `test_i18n.py`'s
+   `test_loader_handles_all_supported_languages` iterates EVERY key and hard-fails on the
+   first missing language, so English-only is not an option). Supply verbatim:
+
+   `rate.blind_mode`:
+   | lang | value |
+   |---|---|
+   | en | Blind mode (hide others' ratings) |
+   | es | Modo ciego (ocultar valoraciones ajenas) |
+   | fr | Mode aveugle (masquer les évaluations des autres) |
+   | de | Blindmodus (Bewertungen anderer ausblenden) |
+   | lt | Aklasis režimas (slėpti kitų vertinimus) |
+   | pt | Modo cego (ocultar avaliações de outros) |
+   | it | Modalità cieca (nascondi le valutazioni altrui) |
+   | no | Blindmodus (skjul andres vurderinger) |
+   | el | Τυφλή λειτουργία (απόκρυψη αξιολογήσεων άλλων) |
+
+   `rate.blind_hidden`:
+   | lang | value |
+   |---|---|
+   | en | Hidden until you submit your own rating (blind mode). |
+   | es | Oculto hasta que envíes tu propia valoración (modo ciego). |
+   | fr | Masqué jusqu'à ce que vous soumettiez votre évaluation (mode aveugle). |
+   | de | Ausgeblendet, bis Sie Ihre eigene Bewertung abgeben (Blindmodus). |
+   | lt | Paslėpta, kol pateiksite savo vertinimą (aklasis režimas). |
+   | pt | Oculto até enviares a tua avaliação (modo cego). |
+   | it | Nascosto finché non invii la tua valutazione (modalità cieca). |
+   | no | Skjult til du sender inn din egen vurdering (blindmodus). |
+   | el | Κρυμμένο μέχρι να υποβάλετε τη δική σας αξιολόγηση (τυφλή λειτουργία). |
 
 ## Error handling / edge cases
 
@@ -81,12 +108,26 @@ change, nothing the analyses touch.
 
 ## Testing
 
-- Extend `tests/test_rate_connections_e2e.py`: after a rater is set and a connection
-  selected, check `#rate-blind_mode`, assert `#rate-current_ratings` shows the
-  blind-hidden text (peer values NOT visible) for a not-yet-rated connection; click
-  `#rate-save_rating`; assert `#rate-current_ratings` now reveals the rater's
-  `+/strength/...` line. (Reuses the existing stakeholder-add + nav + RATE_ROW flow.)
-- i18n presence test for `rate.blind_mode` and `rate.blind_hidden` (all 9 languages).
+The hidden state is **only reachable with a peer rating present AND a *different* current
+rater who hasn't rated** — from a blank project `conn.ratings` is empty, so the
+`if conn is None or not conn.ratings: return "—"` early-return fires and the blind branch
+is never hit. The e2e must therefore use a **two-rater** setup (parallel to the existing
+contested-edge block in `test_rate_connections_e2e.py`, which already adds two
+stakeholders and switches rater):
+
+- Append a block after the existing two-rater flow: with rater 1's rating already saved
+  on the connection, switch the rater to stakeholder 2 (who has NOT rated it), re-click
+  the same `RATE_ROW`, then **check `#rate-blind_mode`**. Now `conn.ratings` is non-empty
+  but `rater_has_rated` is False → the blind branch renders.
+- Assert `#rate-current_ratings` **text equals the `rate.blind_hidden` string** (the app
+  runs in English in the e2e) — a class-only check is vacuous, since both `"—"` and the
+  blind placeholder are `<p class="text-muted">`. Also assert rater 1's value line is NOT
+  present.
+- Click `#rate-save_rating`; assert `#rate-current_ratings` now reveals the peer-list
+  `<ul>` (both rater 1's and rater 2's lines visible — the reveal lands on a connection
+  that now has two ratings).
+- i18n presence test for `rate.blind_mode` and `rate.blind_hidden`; the existing
+  `test_loader_handles_all_supported_languages` then enforces all 9 languages.
 - No `network.py` / consensus test changes (gate is display-only).
 
 ## Out of scope (YAGNI)
