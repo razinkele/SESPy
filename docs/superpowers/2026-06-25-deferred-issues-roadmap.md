@@ -12,7 +12,7 @@ highest-value, most plan-ready work.
 
 | Order | Issue | Size | Readiness | Why this slot |
 |---|---|---|---|---|
-| 1 | **#4** D2D async offload | S–M | **Plan-ready** | Fixes a UX wart in a *shipped* feature; the off-thread pattern already exists in the codebase; the core function is pure and untouched. Lowest risk, immediate payoff. |
+| ~~1~~ | ✅ **#4** D2D async offload | S–M | **SHIPPED** `bf5bdf2` | Done — extended_task offload + generation counter; spec review caught 5 reactive-concurrency Criticals. |
 | 2 | **#6** C2 anchoring mode | S | Near-ready (tiny brainstorm) | Small, self-contained UI change to one module; one design decision (toggle scope). |
 | 3 | **#5** QSEM-C4 | L | **Needs brainstorm** | Two distinct sub-features with real design questions (visual encoding + which analyses). Split before building. |
 
