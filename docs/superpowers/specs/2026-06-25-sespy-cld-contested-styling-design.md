@@ -31,17 +31,22 @@ colour*, so it cannot be shown by re-colouring.
 
 ## Architecture
 
-All in `sespy/modules/cld_visualization.py` (and one i18n key). `network` is already
-imported (used elsewhere); `connection_disagreement` and `delay_edge_kwargs` are existing
-pure functions.
+All in `sespy/modules/cld_visualization.py` (and two i18n keys). **Import fix
+(REQUIRED):** the module currently imports only `from ..network import delay_edge_kwargs`
+(line 41) — `connection_disagreement` is NOT in scope. Extend that line to:
+```python
+from ..network import connection_disagreement, delay_edge_kwargs
+```
+(`delay_edge_kwargs` is an existing pure function; `connection_disagreement` is the pure
+helper from `network.py`.)
 
 **Edge loop** (`_build_pyvis_network`, currently lines 231-240):
 ```python
     for c in isa.connections:
-        kwargs = delay_edge_kwargs(c)          # {"title": "<pol> · <delay>", "dashes": ...}
+        kwargs = delay_edge_kwargs(c)          # fresh dict per call {"title": .., "dashes": ..}
         label = c.polarity
         width = 2
-        if network.connection_disagreement(c)["polarity_contested"]:
+        if connection_disagreement(c)["polarity_contested"]:
             label = f"{c.polarity} ⚠"
             width = 6
             kwargs["title"] = f'{kwargs["title"]} · ⚠ {t("cld.contested_sign")}'
@@ -67,12 +72,35 @@ pure functions.
             ui.tags.small(t("cld.contested_legend"), class_="text-muted"),
 ```
 
-**i18n** — two new keys × 9 languages (joining the `cld.*` namespace):
-- `cld.contested_legend` — en = `"⚠ / thick edge = raters disagree on the sign"`.
-- `cld.contested_sign` — en = `"contested sign"` (used in the hover title).
+**i18n** — two new keys joining the `cld.*` namespace, **each with all 9 languages**
+(en es fr de lt pt it no el — `test_loader_handles_all_supported_languages` hard-fails on
+any missing language). Supply verbatim:
 
-(Both need all 9 languages — `test_loader_handles_all_supported_languages` hard-fails on
-any missing language.)
+`cld.contested_legend`:
+| lang | value |
+|---|---|
+| en | ⚠ / thick edge = raters disagree on the sign |
+| es | ⚠ / arista gruesa = los evaluadores discrepan en el signo |
+| fr | ⚠ / arête épaisse = les évaluateurs sont en désaccord sur le signe |
+| de | ⚠ / dicke Kante = Bewerter sind sich beim Vorzeichen uneinig |
+| lt | ⚠ / stora briauna = vertintojai nesutaria dėl ženklo |
+| pt | ⚠ / aresta grossa = os avaliadores discordam no sinal |
+| it | ⚠ / arco spesso = i valutatori non concordano sul segno |
+| no | ⚠ / tykk kant = vurdererne er uenige om fortegnet |
+| el | ⚠ / παχιά ακμή = οι αξιολογητές διαφωνούν ως προς το πρόσημο |
+
+`cld.contested_sign` (used in the hover title):
+| lang | value |
+|---|---|
+| en | contested sign |
+| es | signo en disputa |
+| fr | signe contesté |
+| de | umstrittenes Vorzeichen |
+| lt | ginčijamas ženklas |
+| pt | sinal contestado |
+| it | segno conteso |
+| no | omstridt fortegn |
+| el | αμφισβητούμενο πρόσημο |
 
 ## Error handling / edge cases
 
@@ -87,13 +115,18 @@ any missing language.)
 
 ## Testing
 
-- **Unit** (`tests/test_cld_build.py`, create if absent): call `_build_pyvis_network`
-  on an `IsaData` with two elements and one connection carrying **two sign-disagreeing
-  ratings** (`+` and `-`), inspect `net.edges` — assert that edge has `width > 2` and
-  `"⚠" in label`; and a control connection with **<2 ratings** has `width == 2` and no
-  `⚠`. `_build_pyvis_network` is module-level and importable; `net.edges` is a list of
-  edge dicts. Pass all required kwargs (`layout_kind="hierarchical", direction="UD",
-  level_sep=90, node_sp=120, size_scale=1.0, font_scale=1.0`).
+- **Unit** — extend the **existing `tests/test_cld.py`** (it already imports
+  `_build_pyvis_network`, has a `_fixture()` helper, and reads edges via
+  `net.get_network_data()` — do NOT create a new file). Add a test that builds an
+  `IsaData` with two elements and one connection carrying **two sign-disagreeing
+  ratings** (`Rating(..., polarity="+")` and `Rating(..., polarity="-")`), calls
+  `_build_pyvis_network` (same kwargs the file's other tests use — e.g.
+  `layout_kind="hierarchical", direction="UD", level_sep=90, node_sp=120,
+  size_scale=1.0, font_scale=1.0`), and inspects the edges (`net.edges` or
+  `net.get_network_data()[1]`, same list object): assert the contested edge has
+  `edge["width"] > 2` and `"⚠" in edge["label"]`; and a control connection with **<2
+  ratings** has `edge["width"] == 2` and no `⚠`. (Verified live: pyvis edge dicts carry
+  int `width` and the `⚠` glyph survives in `label`.)
 - **i18n** presence test for `cld.contested_legend` + `cld.contested_sign`.
 - The existing CLD e2e (`test_cld_e2e.py`) must stay green (default rendering unchanged
   for non-contested models); no new browser test needed — the build-function unit test
