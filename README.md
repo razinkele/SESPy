@@ -7,13 +7,57 @@
 A Shiny-for-Python port of the [MarineSABRES SES Toolbox](https://marinesabres.eu)
 that lives next door at `../SESToolbox/MarineSABRES_SES_Shiny`. The R app is
 ~90 KLOC across 46 modules with bs4Dash; this is the strategic-core port —
-**16 modules** covering the create→edit→analyze→export workflow with
-production-shaped infrastructure.
+**17 modules** covering the create→edit→analyze→export workflow with
+production-shaped infrastructure, now extended with multi-rater elicitation,
+Monte-Carlo uncertainty, and FCM import (see [What's new in v1.0.0](#whats-new-in-v100)).
 
 The R app is the **source of truth**: behaviour, schema, and intent come
 from it. Where the port deliberately deviates (e.g. Responses on their
 own row instead of vis.js's broken x-offset), commit messages call out
 the why.
+
+---
+
+## Screenshots
+
+| | |
+|---|---|
+| **CLD Visualization** — DAPSI-ordered hierarchical layout | **Factor Quadrant** — Vester influence × dependence |
+| ![CLD](docs/screenshots/cld.png) | ![Quadrant](docs/screenshots/quadrant.png) |
+| **Leverage Points** — composite score + Meadows realm + uncertainty CIs | **Loop Analysis** — reinforcing / balancing / oscillation-prone |
+| ![Leverage](docs/screenshots/leverage.png) | ![Loops](docs/screenshots/loops.png) |
+| **Network Metrics** — centrality + social-ecological fit | **Dynamic Simulation** — linear iteration + Monte-Carlo state-shift |
+| ![Metrics](docs/screenshots/metrics.png) | ![Simulation](docs/screenshots/simulation.png) |
+| **Stakeholders** — PIMS register (Power × Interest) | **Full app** — workflow stepper + nav |
+| ![Stakeholders](docs/screenshots/stakeholders.png) | ![Full app](docs/screenshots/full_app.png) |
+
+---
+
+## What's new in v1.0.0
+
+Beyond the strategic-core port, v1.0.0 adds a sequence of analytic improvements
+distilled from a QSEM (Hulme et al. 2026) and a weekly literature scan:
+
+- **Multi-rater elicitation (QSEM-C).** A new **Rate Connections** module lets
+  multiple stakeholders (from the PIMS register) each rate a connection; a
+  *materialized-consensus* model derives the scalar `strength`/`confidence`/
+  `polarity` every analysis reads, and a **contested-edges** view surfaces where
+  the team disagrees.
+- **Uncertainty-aware scoring (D2D).** `uncertainty_scores()` resamples edge
+  confidence via an edge drop + sign-flip Monte Carlo, surfacing per-node leverage
+  95% CIs and per-loop existence/polarity probabilities behind off-by-default
+  toggles in the Leverage and Loop modules.
+- **Social-ecological fit metric.** A graph-level social ↔ ecological coupling
+  diagnostic in Network Metrics.
+- **FCM import.** The Excel importer interprets a numeric (fuzzy-cognitive-map)
+  weight cell as a signed weight — sign → polarity, magnitude → strength.
+- **Factor Quadrant** (Vester influence × dependence, mean/median split) and
+  **delay-aware Loop Analysis** (oscillation-prone loops).
+- **Leverage typology** — each leverage row tagged with a Meadows depth realm
+  (parameters / feedbacks / design / intent).
+
+Every one of these shipped via a brainstorm → spec → multi-agent adversarial
+review → TDD → review → full-e2e cycle. All 9 UI languages stay in sync.
 
 ---
 
@@ -27,6 +71,7 @@ the why.
 | **Templates** (`sespy/modules/templates.py`) | `modules/template_ses_module.R` | Picker for built-in starter projects (Offshore Wind, Coastal Tourism, Small-scale Fisheries). |
 | **SES Wizard** (`sespy/modules/ai_isa_wizard.py`) | `modules/ai_isa_assistant_module.R` (and `ai_isa/`) | 12-step DAPSI(W)R(M) wizard with confirmation modal, live writes per step, and a stub `suggest_connections()` ready for SP3/SP4 scoring backends. |
 | **Edit Data** (`sespy/modules/isa_data_entry.py`) | `modules/isa_data_entry_module.R` | Add/remove elements & connections live; auto-IDs by DAPSIWRM type; cascading delete keeps the data validator-clean. |
+| **Rate Connections** (`sespy/modules/rate_connections.py`) | *new (QSEM multi-rater)* | Stakeholders from the PIMS register each rate a connection; a materialized-consensus model derives the scalars every analysis reads, plus a contested-edges column/filter. |
 | **CLD Visualization** (`sespy/modules/cld_visualization.py`) | `modules/cld_visualization_module.R` | Hierarchical/physics layouts with DAPSI-ordered rows, live size + spacing sliders, vis.js via `pyvis.shiny`. |
 | **Loop Analysis** (`sespy/modules/analysis_loops.py`) | `modules/analysis_loops.R` | Feedback loop detection (max length / max loops sliders), classification (Reinforcing / Balancing — even-negatives rule from R), per-loop pyvis canvas. |
 | **Network Metrics** (`sespy/modules/analysis_metrics.py`) | `modules/analysis_metrics.R` | Seven centrality measures (degree/in/out, betweenness, closeness, eigenvector, PageRank), top-N table, distribution histogram, pyvis network sized by metric. |
