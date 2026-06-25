@@ -157,6 +157,8 @@ def test_parse_upload_dispatches_by_extension(tmp_path):
     qsem_result = parse_upload("model.qsem", f)
     assert qsem_result.valid, qsem_result.errors
     assert qsem_result.project.isa_data.element_count() == 1
+    # project is named after the original upload, not Shiny's temp datapath stem
+    assert qsem_result.project.metadata.name == "model"
 
     # same JSON bytes but a .xlsx name -> parse_excel -> invalid (not a real xlsx)
     xlsx_result = parse_upload("model.xlsx", f)

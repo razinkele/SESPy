@@ -30,8 +30,19 @@ the why.
 | ![Loops](docs/screenshots/loops.png) | ![Metrics](docs/screenshots/metrics.png) |
 | **Dynamic Simulation** — linear iteration + Monte-Carlo state-shift | **Stakeholders** — PIMS register (Power × Interest) |
 | ![Simulation](docs/screenshots/simulation.png) | ![Stakeholders](docs/screenshots/stakeholders.png) |
-| **Full app** — workflow stepper + nav | |
-| ![Full app](docs/screenshots/full_app.png) | |
+| **Import** — Excel workbook or native `.qsem` model file | **Full app** — workflow stepper + nav |
+| ![QSEM import](docs/screenshots/qsem_import.png) | ![Full app](docs/screenshots/full_app.png) |
+
+---
+
+## What's new in v1.1.0
+
+- **Direct `.qsem` import.** Upload a native `.qsem` file (the QSEM web app's JSON
+  node/link graph) straight into SESPy — nodes → elements, links → connections
+  (`impact` → strength, `polarity` → sign, `delay` → lag), with ghost-node
+  de-duplication and theme → DAPSI(W)R(M) type matching. The Import module
+  auto-routes by file extension, so Excel workbooks and `.qsem` models share one
+  upload.
 
 ---
 
@@ -83,7 +94,7 @@ review → TDD → review → full-e2e cycle. All 9 UI languages stay in sync.
 | **Behaviour Over Time** (`sespy/modules/analysis_bot.py`) | `modules/analysis_bot.R` | Per-element time-series view with three input modes (manual entry, CSV upload, ISA-derived synthetic), trend + moving-average overlays, summary statistics. |
 | **Intervention** (`sespy/modules/analysis_intervention.py`) | `modules/analysis_intervention.R` | "Ablate node X" scenarios — pick nodes to remove, see before/after centrality shifts, network with greyed-out ablated nodes. |
 | **Simplify Network** (`sespy/modules/analysis_simplify.py`) | `modules/analysis_simplify.R` | Network reduction by minimum strength OR top-N edges by composite weight. Optional drop-isolated. |
-| **Import Data** (`sespy/modules/import_data.py`) | `modules/import_data_module.R` | Excel upload (Elements + Connections sheets, case-insensitive column-name fallbacks), schema-validated preview, commit-to-project. |
+| **Import Data** (`sespy/modules/import_data.py`) | `modules/import_data_module.R` | Excel upload (Elements + Connections sheets, case-insensitive column-name fallbacks) **or native `.qsem`** model files (auto-routed by extension), schema-validated preview, commit-to-project. |
 | **Recent Projects** (`sespy/modules/recent_projects.py`) | `modules/recent_projects_module.R` | List of recently saved/loaded files with click-to-load and remove. Persisted across sessions in `~/.sespy/recent.json`. |
 | **Export Report** (`sespy/modules/report_export.py`) | `modules/prepare_report_module.R` + `export_reports_module.R` | HTML / PDF (WeasyPrint) / Word (python-docx) — same content, three formats. Live preview iframe. |
 

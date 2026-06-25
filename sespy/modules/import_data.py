@@ -35,8 +35,14 @@ def parse_upload(name: str, datapath: Path | str) -> ValidationResult:
     extension — Shiny's temp `datapath` may not preserve the suffix."""
     suffix = Path(name).suffix.lower()
     if suffix in (".qsem", ".json"):
-        return parse_qsem(datapath)
-    return parse_excel(datapath)
+        result = parse_qsem(datapath)
+    else:
+        result = parse_excel(datapath)
+    # Name the project after the original upload, not Shiny's temp datapath
+    # (whose stem is an opaque index like "0").
+    if result.valid and result.project is not None:
+        result.project.metadata.name = Path(name).stem
+    return result
 
 
 @module.ui
