@@ -13,7 +13,7 @@ highest-value, most plan-ready work.
 | Order | Issue | Size | Readiness | Why this slot |
 |---|---|---|---|---|
 | ~~1~~ | ✅ **#4** D2D async offload | S–M | **SHIPPED** `bf5bdf2` | Done — extended_task offload + generation counter; spec review caught 5 reactive-concurrency Criticals. |
-| 2 | **#6** C2 anchoring mode | S | Near-ready (tiny brainstorm) | Small, self-contained UI change to one module; one design decision (toggle scope). |
+| ~~2~~ | ✅ **#6** C2 anchoring mode | S | **SHIPPED** `977351c` | Done — opt-in blind-mode toggle gates the per-rater list until self-submit; spec review fixed the e2e 2-rater scenario + 9-lang i18n. |
 | 3 | **#5** QSEM-C4 | L | **Needs brainstorm** | Two distinct sub-features with real design questions (visual encoding + which analyses). Split before building. |
 
 Each issue still runs the full pipeline used all session: **brainstorm → spec →
