@@ -5321,6 +5321,28 @@
     "rate.contested": {"en": "Contested", "es": "Disputado", "fr": "Contesté", "de": "Umstritten", "lt": "Ginčytinas", "pt": "Contestado", "it": "Conteso", "no": "Omstridt", "el": "Αμφισβητούμενο"},
     "rate.contested_only": {"en": "Show contested only", "es": "Mostrar solo disputados", "fr": "Afficher uniquement les contestés", "de": "Nur umstrittene anzeigen", "lt": "Rodyti tik ginčytinus", "pt": "Mostrar apenas contestados", "it": "Mostra solo contesi", "no": "Vis kun omstridte", "el": "Εμφάνιση μόνο αμφισβητούμενων"},
     "rate.contested_count": {"en": "{n} contested edges", "es": "{n} conexiones disputadas", "fr": "{n} liens contestés", "de": "{n} umstrittene Verbindungen", "lt": "{n} ginčytini ryšiai", "pt": "{n} conexões contestadas", "it": "{n} connessioni contese", "no": "{n} omstridte koblinger", "el": "{n} αμφισβητούμενες συνδέσεις"},
+    "rate.blind_mode": {
+      "en": "Blind mode (hide others' ratings)",
+      "es": "Modo ciego (ocultar valoraciones ajenas)",
+      "fr": "Mode aveugle (masquer les évaluations des autres)",
+      "de": "Blindmodus (Bewertungen anderer ausblenden)",
+      "lt": "Aklasis režimas (slėpti kitų vertinimus)",
+      "pt": "Modo cego (ocultar avaliações de outros)",
+      "it": "Modalità cieca (nascondi le valutazioni altrui)",
+      "no": "Blindmodus (skjul andres vurderinger)",
+      "el": "Τυφλή λειτουργία (απόκρυψη αξιολογήσεων άλλων)"
+    },
+    "rate.blind_hidden": {
+      "en": "Hidden until you submit your own rating (blind mode).",
+      "es": "Oculto hasta que envíes tu propia valoración (modo ciego).",
+      "fr": "Masqué jusqu'à ce que vous soumettiez votre évaluation (mode aveugle).",
+      "de": "Ausgeblendet, bis Sie Ihre eigene Bewertung abgeben (Blindmodus).",
+      "lt": "Paslėpta, kol pateiksite savo vertinimą (aklasis režimas).",
+      "pt": "Oculto até enviares a tua avaliação (modo cego).",
+      "it": "Nascosto finché non invii la tua valutazione (modalità cieca).",
+      "no": "Skjult til du sender inn din egen vurdering (blindmodus).",
+      "el": "Κρυμμένο μέχρι να υποβάλετε τη δική σας αξιολόγηση (τυφλή λειτουργία)."
+    },
     "leverage.realm.parameters": {"en": "Parameters", "es": "Parámetros", "fr": "Paramètres", "de": "Parameter", "lt": "Parametrai", "pt": "Parâmetros", "it": "Parametri", "no": "Parametre", "el": "Παράμετροι"},
     "leverage.realm.feedbacks": {"en": "Feedbacks", "es": "Retroalimentaciones", "fr": "Rétroactions", "de": "Rückkopplungen", "lt": "Grįžtamieji ryšiai", "pt": "Retroalimentações", "it": "Retroazioni", "no": "Tilbakekoblinger", "el": "Ανατροφοδοτήσεις"},
     "leverage.realm.design": {"en": "Design", "es": "Diseño", "fr": "Conception", "de": "Gestaltung", "lt": "Struktūra", "pt": "Conceção", "it": "Progettazione", "no": "Utforming", "el": "Σχεδιασμός"},

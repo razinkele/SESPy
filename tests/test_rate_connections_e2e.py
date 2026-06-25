@@ -94,6 +94,14 @@ async def main():
         await page.click(RATE_ROW)
         await page.wait_for_selector("#rate-save_rating", timeout=30000)
 
+        # Blind mode: rater 2 has NOT rated this connection yet, but rater 1 has.
+        # Enabling blind hides the peer value from rater 2 until they submit.
+        await page.check("#rate-blind_mode")
+        await page.wait_for_timeout(500)
+        blind_txt = (await page.text_content("#rate-current_ratings")) or ""
+        assert "blind mode" in blind_txt.lower(), f"blind placeholder not shown: {blind_txt!r}"
+        assert "/" not in blind_txt, f"peer rating value leaked under blind mode: {blind_txt!r}"
+
         # 4. Rate it with OPPOSITE polarity ("-") via a native click (the repo's
         #    proven radio idiom — a synthetic .checked may not register), then save.
         await page.click("#rate-ed_polarity input[value='-']")
@@ -112,6 +120,20 @@ async def main():
                 saved2 = True
                 break
         assert saved2, f"2nd-rater save did not land (#ratings != 2): {cells2}"
+
+        # Reveal: rater 2 has now submitted, so blind mode reveals the full peer list.
+        # Re-click the row to ensure sel_idx is current (DataGrid may deselect on re-render).
+        await page.click(RATE_ROW)
+        await page.wait_for_selector("#rate-save_rating", timeout=30000)
+        reveal = False
+        rtxt = ""
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            rtxt = (await page.text_content("#rate-current_ratings")) or ""
+            if "blind mode" not in rtxt.lower() and "/" in rtxt:
+                reveal = True
+                break
+        assert reveal, f"blind mode did not reveal after submit: {rtxt!r}"
 
         # 5. Poll until the first row's disagreement cell shows the contested marker.
         contested = False
