@@ -44,7 +44,7 @@ def import_data_ui() -> ui.Tag:
     return ui.card(
         ui.card_header("Import Data"),
         ui.div(
-            ui.h5("Upload Excel workbook"),
+            ui.h5("Upload Excel workbook or QSEM model"),
             ui.p(
                 "The workbook must contain an ",
                 ui.tags.b("Elements"),
