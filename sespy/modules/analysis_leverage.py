@@ -12,9 +12,13 @@ would produce identical rankings.
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from pyvis.network import Network
 from pyvis.shiny import output_pyvis_network, render_pyvis_network
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
+from shiny.types import SilentException
 
 from .. import network as net_analysis
 from ..constants import (
@@ -27,6 +31,8 @@ from ..constants import (
 from ..data_structure import IsaData, Project
 from ..event_bus import EventBus
 from ..i18n import Translator, t
+
+_COMPUTING = object()
 
 
 def _scale_size(value: float, lo: float, hi: float) -> int:
@@ -103,6 +109,7 @@ def analysis_leverage_ui() -> ui.Tag:
             ui.div(
                 ui.h4(t("leverage.highest")),
                 ui.output_data_frame("leverage_table"),
+                ui.output_ui("uncertainty_status"),
                 ui.tags.hr(),
                 ui.h4(t("leverage.network_sized")),
                 output_pyvis_network(
@@ -155,16 +162,42 @@ def analysis_leverage_server(
             })
         return out[: int(input.top_n() or 8)]
 
-    @reactive.calc
-    def uncertainty() -> dict | None:
-        if not input.show_uncertainty():
-            return None
-        event_bus.isa_change.get()
-        return net_analysis.uncertainty_scores(
-            project_data.get().isa_data,
-            n_samples=int(input.n_samples() or 100),
-            seed=0,
+    unc_state = reactive.value(None)            # None | _COMPUTING | <result dict>
+    _gen = [0]                                  # plain cell — NOT reactive (avoids self-loop)
+
+    @reactive.extended_task
+    async def _unc_task(isa, n_samples, gen):
+        result = await asyncio.to_thread(
+            net_analysis.uncertainty_scores, isa, n_samples=n_samples, seed=0,
         )
+        return (gen, result)
+
+    @reactive.effect
+    def _unc_trigger():
+        _gen[0] += 1
+        gen = _gen[0]
+        if not input.show_uncertainty():
+            unc_state.set(None)
+            return
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        n = int(input.n_samples() or 100)
+        unc_state.set(_COMPUTING)
+        _unc_task(isa, n, gen)
+
+    @reactive.effect
+    def _unc_observe():
+        try:
+            gen, result = _unc_task.result()
+        except SilentException:
+            raise
+        except Exception:                       # noqa: BLE001 — real task error: clear, don't crash
+            logging.getLogger(__name__).exception("leverage uncertainty task failed")
+            unc_state.set(None)
+            return
+        if gen != _gen[0]:
+            return
+        unc_state.set(result)
 
     @output
     @render.data_frame
@@ -176,11 +209,12 @@ def analysis_leverage_server(
         if not rows:
             return pd.DataFrame(columns=base_cols)
 
-        unc = uncertainty()
-        if unc is None:
+        unc = unc_state.get()
+        data = unc if isinstance(unc, dict) else None   # None when idle OR computing
+        if data is None:
             return pd.DataFrame(rows, columns=base_cols)
 
-        lev = unc.get("leverage", {})
+        lev = data.get("leverage", {})
         enriched = []
         for r in rows:
             u = lev.get(r["id"])
@@ -191,6 +225,13 @@ def analysis_leverage_server(
                              t("uncertainty.unstable"): unstable})
         cols = base_cols + [t("uncertainty.ci"), t("uncertainty.unstable")]
         return pd.DataFrame(enriched, columns=cols)
+
+    @output
+    @render.ui
+    def uncertainty_status():
+        if unc_state.get() is _COMPUTING:
+            return ui.p(t("uncertainty.computing"), class_="text-muted")
+        return ui.div()
 
     @output(id="leverage_network")
     @render_pyvis_network(

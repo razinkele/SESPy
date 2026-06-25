@@ -9,9 +9,13 @@ the CLD module's pyvis.shiny output).
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from pyvis.network import Network
 from pyvis.shiny import output_pyvis_network, render_pyvis_network
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
+from shiny.types import SilentException
 
 from .. import network as net_analysis
 from ..constants import (
@@ -24,6 +28,8 @@ from ..constants import (
 from ..data_structure import IsaData, Project
 from ..event_bus import EventBus
 from ..i18n import t
+
+_COMPUTING = object()
 
 _BEHAVIOR_KEY = {
     "reinforcing": "loops.behavior.reinforcing",
@@ -183,20 +189,53 @@ def analysis_loops_server(
     def classified() -> list[dict]:
         return net_analysis.classify_loops(detected.get(), project_data.get().isa_data)
 
-    @reactive.calc
-    def uncertainty_loops() -> dict[str, dict]:
+    unc_state = reactive.value(None)            # None | _COMPUTING | <result dict>
+    _gen = [0]                                  # plain cell — NOT reactive (avoids self-loop)
+
+    @reactive.extended_task
+    async def _unc_task(isa, cycles, n_samples, gen):
+        result = await asyncio.to_thread(
+            net_analysis.uncertainty_scores, isa,
+            cycles=cycles, n_samples=n_samples, seed=0,
+        )
+        return (gen, result)
+
+    @reactive.effect
+    def _unc_trigger():
+        _gen[0] += 1
+        gen = _gen[0]
         if not input.show_uncertainty():
-            return {}
+            unc_state.set(None)
+            return
         cycles = detected.get()
         if not cycles:
+            unc_state.set(None)
+            return
+        isa = project_data.get().isa_data
+        n = int(input.n_samples() or 100)
+        unc_state.set(_COMPUTING)
+        _unc_task(isa, cycles, n, gen)
+
+    @reactive.effect
+    def _unc_observe():
+        try:
+            gen, result = _unc_task.result()
+        except SilentException:
+            raise
+        except Exception:                       # noqa: BLE001 — real task error: clear, don't crash
+            logging.getLogger(__name__).exception("loops uncertainty task failed")
+            unc_state.set(None)
+            return
+        if gen != _gen[0]:
+            return
+        unc_state.set(result)
+
+    @reactive.calc
+    def uncertainty_loops() -> dict[str, dict]:
+        unc = unc_state.get()
+        if not isinstance(unc, dict):
             return {}
-        res = net_analysis.uncertainty_scores(
-            project_data.get().isa_data,
-            cycles=cycles,
-            n_samples=int(input.n_samples() or 100),
-            seed=0,
-        )
-        return {lp["id"]: lp for lp in res["loops"]}
+        return {lp["id"]: lp for lp in unc["loops"]}
 
     @output
     @render.ui
@@ -212,11 +251,15 @@ def analysis_loops_server(
                 ui.tags.strong(str(counts[b])), " ", t(_BEHAVIOR_KEY[b]),
                 style=f"color: {_BEHAVIOR_COLOR[b]}; margin-bottom: 4px;",
             )
-        return ui.div(
+        children = []
+        if unc_state.get() is _COMPUTING:
+            children.append(ui.p(t("uncertainty.computing"), class_="text-muted"))
+        children += [
             line("reinforcing"), line("balancing"), line("oscillating"),
             ui.tags.div(t("loops.oscillating_disclaimer"),
                         class_="text-muted", style="font-size: 0.72rem; margin-top: 6px;"),
-        )
+        ]
+        return ui.div(*children)
 
     @output
     @render.ui

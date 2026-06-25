@@ -92,3 +92,7 @@ def test_leverage_realm_keys_present(translations):
 def test_metrics_fit_keys_present(translations):
     for key in ("metrics.fit", "metrics.fit_caption", "metrics.fit_none"):
         assert key in translations
+
+
+def test_uncertainty_computing_key_present(translations):
+    assert "uncertainty.computing" in translations

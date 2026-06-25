@@ -5284,6 +5284,17 @@
     "uncertainty.n_samples": {"en": "Monte Carlo samples", "es": "Muestras de Monte Carlo", "fr": "Échantillons Monte-Carlo", "de": "Monte-Carlo-Stichproben", "lt": "Monte Karlo imtys", "pt": "Amostras de Monte Carlo", "it": "Campioni Monte Carlo", "no": "Monte Carlo-prøver", "el": "Δείγματα Monte Carlo"},
     "uncertainty.ci": {"en": "95% CI", "es": "IC 95%", "fr": "IC 95 %", "de": "95%-KI", "lt": "95% PI", "pt": "IC 95%", "it": "IC 95%", "no": "95% KI", "el": "95% ΔΕ"},
     "uncertainty.unstable": {"en": "unstable", "es": "inestable", "fr": "instable", "de": "instabil", "lt": "nestabilus", "pt": "instável", "it": "instabile", "no": "ustabil", "el": "ασταθές"},
+    "uncertainty.computing": {
+      "en": "Computing uncertainty (Monte Carlo)…",
+      "es": "Calculando incertidumbre (Monte Carlo)…",
+      "fr": "Calcul de l'incertitude (Monte-Carlo)…",
+      "de": "Unsicherheit wird berechnet (Monte-Carlo)…",
+      "lt": "Skaičiuojamas neapibrėžtumas (Monte Karlo)…",
+      "pt": "A calcular incerteza (Monte Carlo)…",
+      "it": "Calcolo dell'incertezza (Monte Carlo)…",
+      "no": "Beregner usikkerhet (Monte Carlo)…",
+      "el": "Υπολογισμός αβεβαιότητας (Monte Carlo)…"
+    },
     "loops.existence_pct": {"en": "Existence %", "es": "Existencia %", "fr": "Existence %", "de": "Existenz %", "lt": "Egzistavimas %", "pt": "Existência %", "it": "Esistenza %", "no": "Eksistens %", "el": "Ύπαρξη %"},
     "loops.reinforcing_pct": {"en": "Reinforcing %", "es": "Reforzador %", "fr": "Renforçant %", "de": "Verstärkend %", "lt": "Stiprinanti %", "pt": "Reforço %", "it": "Rinforzante %", "no": "Forsterkende %", "el": "Ενισχυτικό %"},
     "loops.balancing_pct": {"en": "Balancing %", "es": "Equilibrador %", "fr": "Équilibrant %", "de": "Ausgleichend %", "lt": "Balansuojanti %", "pt": "Equilíbrio %", "it": "Bilanciante %", "no": "Balanserende %", "el": "Εξισορροπητικό %"},

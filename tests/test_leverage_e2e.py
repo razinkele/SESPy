@@ -66,6 +66,18 @@ async def main():
         await page.fill("#leverage-n_samples", "50")
         await page.dispatch_event("#leverage-n_samples", "change")
         await page.check("#leverage-show_uncertainty")
+        # Async proof: the "computing…" caption shows while the worker thread runs.
+        # The caption is a transient ~4s state; poll generously (up to ~12s) so the
+        # window is reliably caught even when the server round-trip is slow under
+        # full-suite load (a tight window flaked at 3s).
+        computing_seen = False
+        for _ in range(40):
+            txt = (await page.text_content("#leverage-uncertainty_status")) or ""
+            if "Computing" in txt:
+                computing_seen = True
+                break
+            await page.wait_for_timeout(300)
+        assert computing_seen, "computing caption never appeared — sync regression?"
         # Table re-renders; poll for the new header (allow up to 30s for MC).
         found_ci = False
         headers = []
