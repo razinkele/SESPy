@@ -116,6 +116,19 @@ def test_qsem_to_isa_skips_ghosts_and_redirects_links():
     assert connections[0].source == "N001" and connections[0].target == "N002"
 
 
+def test_qsem_to_isa_ghost_self_loop_is_skipped():
+    """A link ghost→originalNodeId resolves to src==tgt and must be dropped."""
+    data = {"canvas": {"nodes": [
+        _node("real", "Fish stock"),
+        _node("ghost", "Fish stock", isGhost=True, originalNodeId="real"),
+    ], "links": [
+        _link("ghost", "real", polarity="positive", impact=2, delay=0),  # ghost→its origin
+    ]}}
+    elements, connections = qsem_to_isa(data)
+    assert [e.id for e in elements] == ["N001"]   # ghost not imported
+    assert connections == []                        # self-loop after redirect → skipped
+
+
 def test_parse_qsem_integration(tmp_path):
     data = {"canvas": {"nodes": [
         _node("a", "A", theme="Ecosystem Services"),
@@ -295,7 +308,7 @@ def parse_qsem(path: Path | str) -> ValidationResult:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_qsem_import.py -v`
-Expected: PASS (7 tests).
+Expected: PASS (8 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -405,7 +418,7 @@ and append one sentence to the help `<p>` (after the existing Connections-sheet 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_qsem_import.py -v`
-Expected: PASS (8 tests). Then confirm the app imports:
+Expected: PASS (9 tests). Then confirm the app imports:
 `micromamba run -n shiny python -c "import app; print('ok')"` → prints `ok`.
 
 - [ ] **Step 5: Commit**
@@ -424,4 +437,4 @@ git commit -m "feat(import): accept .qsem uploads (dispatch by extension)"
   `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q`
 - [ ] `import app` builds cleanly: `micromamba run -n shiny python -c "import app; print('ok')"`.
 - [ ] Full e2e: `micromamba run -n shiny python tests/run_e2e.py` → green except the pre-existing WeasyPrint `test_report_e2e.py` (the existing `test_import_e2e.py` xlsx path must still pass — the dispatch falls through to `parse_excel` for `.xlsx`).
-- [ ] Sanity (manual, optional): `parse_qsem` on a real file loads valid — e.g. `Food_web_V_00.qsem` → **69 elements** (80 nodes minus 11 ghosts) and most of its 111 links as connections (exact count = links minus any that resolve to a self-loop/dangling after ghost-redirect).
+- [ ] Sanity (manual, optional): `parse_qsem` on a real file loads valid — verified on `Food_web_V_00.qsem` → **69 elements** (80 nodes minus 11 ghosts, == `metadata.nodeCount`) and **all 111 links** as connections (0 self-loops / 0 dangling after ghost-redirect).
