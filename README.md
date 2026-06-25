@@ -22,14 +22,16 @@ the why.
 
 | | |
 |---|---|
-| **CLD Visualization** — DAPSI-ordered hierarchical layout | **Factor Quadrant** — Vester influence × dependence |
-| ![CLD](docs/screenshots/cld.png) | ![Quadrant](docs/screenshots/quadrant.png) |
-| **Leverage Points** — composite score + Meadows realm + uncertainty CIs | **Loop Analysis** — reinforcing / balancing / oscillation-prone |
-| ![Leverage](docs/screenshots/leverage.png) | ![Loops](docs/screenshots/loops.png) |
-| **Network Metrics** — centrality + social-ecological fit | **Dynamic Simulation** — linear iteration + Monte-Carlo state-shift |
-| ![Metrics](docs/screenshots/metrics.png) | ![Simulation](docs/screenshots/simulation.png) |
-| **Stakeholders** — PIMS register (Power × Interest) | **Full app** — workflow stepper + nav |
-| ![Stakeholders](docs/screenshots/stakeholders.png) | ![Full app](docs/screenshots/full_app.png) |
+| **Rate Connections** — multi-rater elicitation + contested-edges view | **CLD Visualization** — DAPSI-ordered hierarchical layout |
+| ![Rate Connections](docs/screenshots/rate_connections.png) | ![CLD](docs/screenshots/cld.png) |
+| **Factor Quadrant** — Vester influence × dependence | **Leverage Points** — composite score + Meadows realm + uncertainty CIs |
+| ![Quadrant](docs/screenshots/quadrant.png) | ![Leverage](docs/screenshots/leverage.png) |
+| **Loop Analysis** — reinforcing / balancing / oscillation-prone | **Network Metrics** — centrality + social-ecological fit |
+| ![Loops](docs/screenshots/loops.png) | ![Metrics](docs/screenshots/metrics.png) |
+| **Dynamic Simulation** — linear iteration + Monte-Carlo state-shift | **Stakeholders** — PIMS register (Power × Interest) |
+| ![Simulation](docs/screenshots/simulation.png) | ![Stakeholders](docs/screenshots/stakeholders.png) |
+| **Full app** — workflow stepper + nav | |
+| ![Full app](docs/screenshots/full_app.png) | |
 
 ---
 
