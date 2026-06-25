@@ -29,6 +29,7 @@ def rate_connections_ui() -> ui.Tag:
                 ui.output_ui("rater_picker"),
                 ui.tags.hr(),
                 ui.input_checkbox("contested_only", t("rate.contested_only"), value=False),
+                ui.input_checkbox("blind_mode", t("rate.blind_mode"), value=False),
                 width=260,
             ),
             ui.div(
@@ -179,6 +180,13 @@ def rate_connections_server(
         _, conn = _selected()
         if conn is None or not conn.ratings:
             return ui.tags.p("—", class_="text-muted")
+        try:
+            rater = input.rater()
+        except Exception:
+            rater = None
+        rater_has_rated = bool(rater) and any(r.rater_id == rater for r in conn.ratings)
+        if input.blind_mode() and not rater_has_rated:
+            return ui.tags.p(t("rate.blind_hidden"), class_="text-muted")
         name_by_id = {s.id: s.name for s in project_data.get().stakeholders}
         return ui.tags.ul(*[
             ui.tags.li(f"{name_by_id.get(r.rater_id, r.rater_id)}: "

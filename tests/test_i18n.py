@@ -96,3 +96,8 @@ def test_metrics_fit_keys_present(translations):
 
 def test_uncertainty_computing_key_present(translations):
     assert "uncertainty.computing" in translations
+
+
+def test_blind_rating_keys_present(translations):
+    assert "rate.blind_mode" in translations
+    assert "rate.blind_hidden" in translations
