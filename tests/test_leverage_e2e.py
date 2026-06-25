@@ -67,8 +67,11 @@ async def main():
         await page.dispatch_event("#leverage-n_samples", "change")
         await page.check("#leverage-show_uncertainty")
         # Async proof: the "computing…" caption shows while the worker thread runs.
+        # The caption is a transient ~4s state; poll generously (up to ~12s) so the
+        # window is reliably caught even when the server round-trip is slow under
+        # full-suite load (a tight window flaked at 3s).
         computing_seen = False
-        for _ in range(10):
+        for _ in range(40):
             txt = (await page.text_content("#leverage-uncertainty_status")) or ""
             if "Computing" in txt:
                 computing_seen = True
