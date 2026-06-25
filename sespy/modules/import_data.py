@@ -25,8 +25,18 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from ..data_structure import IsaData, Project
 from ..event_bus import EventBus
 from ..excel_import import parse_excel
+from ..qsem_import import parse_qsem
 from ..i18n import Translator
 from ..persistent_storage import ValidationResult
+
+
+def parse_upload(name: str, datapath: Path | str) -> ValidationResult:
+    """Dispatch an uploaded file to the right parser by its ORIGINAL filename
+    extension — Shiny's temp `datapath` may not preserve the suffix."""
+    suffix = Path(name).suffix.lower()
+    if suffix in (".qsem", ".json"):
+        return parse_qsem(datapath)
+    return parse_excel(datapath)
 
 
 @module.ui
@@ -46,14 +56,17 @@ def import_data_ui() -> ui.Tag:
                 "; Connections need ",
                 ui.tags.code("source, target"),
                 ".",
+                " You can also upload a ",
+                ui.tags.b(".qsem"),
+                " model file exported from the QSEM app.",
                 class_="text-muted",
             ),
             ui.input_file(
                 "xlsx",
                 "",
-                accept=[".xlsx", ".xls"],
+                accept=[".xlsx", ".xls", ".qsem", ".json"],
                 multiple=False,
-                button_label="Choose Excel file…",
+                button_label="Choose a file…",
                 placeholder="No file selected",
             ),
             ui.tags.hr(),
@@ -93,8 +106,8 @@ def import_data_server(
         if not files:
             parsed.set(None)
             return
-        path = Path(files[0]["datapath"])
-        result = parse_excel(path)
+        info = files[0]
+        result = parse_upload(info["name"], info["datapath"])
         parsed.set(result)
         # Enable/disable the commit button via JS — `update_action_button`
         # doesn't accept disabled= directly, so we toggle it client-side.
