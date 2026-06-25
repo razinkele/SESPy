@@ -38,7 +38,7 @@ from ..constants import (
 from ..data_structure import IsaData, Project, filter_elements
 from ..event_bus import EventBus
 from ..i18n import t
-from ..network import delay_edge_kwargs
+from ..network import connection_disagreement, delay_edge_kwargs
 
 
 @module.ui
@@ -133,6 +133,7 @@ def _cld_body() -> ui.Tag:
                 show_status=False,
             ),
             ui.tags.small(t("cld.delay_legend"), class_="text-muted"),
+            ui.tags.small(t("cld.contested_legend"), class_="text-muted"),
             ui.tags.p(
                 ui.output_text("selected_label"),
                 style="margin-top: 12px; color: #555;",
@@ -229,14 +230,21 @@ def _build_pyvis_network(
         )
 
     for c in isa.connections:
+        kwargs = delay_edge_kwargs(c)          # fresh dict per call: {"title": .., "dashes": ..}
+        label = c.polarity
+        width = 2
+        if connection_disagreement(c)["polarity_contested"]:
+            label = f"{c.polarity} ⚠"
+            width = 6
+            kwargs["title"] = f'{kwargs["title"]} · ⚠ {t("cld.contested_sign")}'
         net.add_edge(
             c.source,
             c.target,
-            label=c.polarity,
+            label=label,
             color=EDGE_COLORS["reinforcing" if c.polarity == "+" else "opposing"],
             arrows="to",
-            width=2,
-            **delay_edge_kwargs(c),
+            width=width,
+            **kwargs,
         )
 
     return net
