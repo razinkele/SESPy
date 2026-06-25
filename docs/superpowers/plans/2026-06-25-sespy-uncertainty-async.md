@@ -66,9 +66,12 @@ In `sespy/translations/core.json`, inside the `"translation"` object, add (keep 
     }
 ```
 
-- [ ] **Step 4: Run i18n tests to verify they pass**
+- [ ] **Step 4: Smoke-check JSON validity, then run i18n tests**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_i18n.py -v`
+First confirm the edit didn't break JSON (the multi-line entry sits among single-line neighbours — a stray/missing comma is the likely slip):
+`micromamba run -n shiny python -c "import json; json.load(open('sespy/translations/core.json', encoding='utf-8')); print('json ok')"`
+Expected: `json ok`.
+Then: `micromamba run -n shiny python -m pytest tests/test_i18n.py -v`
 Expected: PASS (the new presence test + the existing per-language completeness test).
 
 - [ ] **Step 5: Refactor the Leverage module to async**
@@ -159,16 +162,33 @@ and in the server, add the render:
         return ui.div()
 ```
 
-- [ ] **Step 6: Verify the app builds + leverage e2e still green**
+- [ ] **Step 6: Add an async-proof assertion to the leverage e2e, build, run**
 
-Run: `micromamba run -n shiny python -c "import app; print('ok')"` → `ok`.
-Then (server must be running on :8000): `micromamba run -n shiny python tests/test_leverage_e2e.py`
-Expected: PASS — the e2e already polls up to 30×1 s (`for _ in range(30)`) for the `CI` column header, so it waits through the async "computing…" state; the CI column appears when the worker thread finishes (~4 s at n_samples=50).
+The existing e2e only polls for the final `CI` header — that would still pass if the
+code regressed to synchronous. Add a positive proof that the offload is async: in
+`tests/test_leverage_e2e.py`, right after `await page.check("#leverage-show_uncertainty")`
+(the toggle, ~line 68) and BEFORE the CI-header poll, insert:
+```python
+        # Async proof: the "computing…" caption shows while the worker thread runs.
+        computing_seen = False
+        for _ in range(10):
+            txt = (await page.text_content("#leverage-uncertainty_status")) or ""
+            if "Computing" in txt:
+                computing_seen = True
+                break
+            await page.wait_for_timeout(300)
+        assert computing_seen, "computing caption never appeared — sync regression?"
+```
+Then: `micromamba run -n shiny python -c "import app; print('ok')"` → `ok`; and (server on
+:8000) `micromamba run -n shiny python tests/test_leverage_e2e.py`.
+Expected: PASS — the caption appears within ~1 s of toggling (the MC at n_samples=50 runs
+~4 s), then the existing `range(30)×1 s` poll catches the `CI` column when the worker
+finishes. (`uncertainty_status` is the new caption output id; en text starts "Computing".)
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add sespy/translations/core.json sespy/modules/analysis_leverage.py tests/test_i18n.py
+git add sespy/translations/core.json sespy/modules/analysis_leverage.py tests/test_i18n.py tests/test_leverage_e2e.py
 git commit -m "feat(leverage): offload uncertainty Monte Carlo to a worker thread (#4)"
 ```
 
