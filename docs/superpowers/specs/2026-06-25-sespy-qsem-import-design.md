@@ -16,15 +16,22 @@ factor-quadrant, delay-loop, and multi-rater work) loads with no manual reshapin
 
 ```
 { "version", "metadata", "canvas", "loops", "dictionary", "themes", "ui", "analysis" }
-canvas.nodes[] : { id:"node-…", label, theme, themeColor, position{x,y}, … }
+canvas.nodes[] : { id:"node-…", label, theme?(optional), themeColor?, position{x,y},
+                   isGhost?(bool), originalNodeId?(str), … }
 canvas.links[] : { id, sourceNodeId, targetNodeId, polarity:"positive"|"negative",
                    delay:int, impact:int(1..3), control:int, reviewStatus, … }
 themes.definitions[] : { name, color }
 ```
-Real values seen: `polarity` ∈ {positive, negative}; **`impact` ∈ {1,2,3}** (the
-strength); `delay` small int (mostly 1, rarely 3); themes = OWFs, Policy,
-Environmental pressures, Ecosystem components, Ecosystem Services, LWB, NiD.
-`loops`/`analysis` are precomputed QSEM artifacts — **ignored** (SESPy recomputes).
+Real values seen (verified across all four sample files): `label` always present;
+`theme` **key is ABSENT (not null) on ~half the nodes** — must use `.get`;
+`polarity` ∈ {positive, negative} (always present); **`impact` ∈ {1,2,3}** (the
+strength, always present); `delay` int **∈ {0,1,2,3} seen** (0 and 2 appear in
+`Social-Economic focus.qsem`); themes = OWFs, Policy, Environmental pressures,
+Ecosystem components, Ecosystem Services, LWB, NiD, Food web. **Ghost nodes**
+(`isGhost:true` + `originalNodeId`) are visual duplicates of a canonical node used to
+draw cross-canvas edges — e.g. `Food_web_V_00.qsem` has 11 ghosts among 80 nodes (69
+canonical = `metadata.nodeCount`), and 7 links source from a ghost. `loops`/`analysis`
+are precomputed QSEM artifacts — **ignored** (SESPy recomputes).
 
 ## Decisions
 
@@ -46,29 +53,39 @@ Environmental pressures, Ecosystem components, Ecosystem Services, LWB, NiD.
 
 `qsem_to_isa(data: dict) -> tuple[list[Element], list[Connection]]` (pure):
 
-**Nodes → Elements.** Iterate `data["canvas"]["nodes"]`; assign clean sequential ids
-`N001, N002, …` (zero-padded width 3) and build `id_map[node["id"]] = new_id`:
+**Nodes → Elements.** First split ghosts from canonical nodes:
+`canonical = [n for n in data["canvas"]["nodes"] if not n.get("isGhost")]` and
+`ghost_to_original = {n["id"]: n.get("originalNodeId") for n in nodes if n.get("isGhost")}`.
+Iterate **canonical** nodes only; assign clean sequential ids `N001, N002, …`
+(zero-padded width 3) and build `id_map[node["id"]] = new_id`:
 - `id` = generated `N00k`
-- `label` = `node["label"]`
-- `type` = `node["theme"]` **iff** it exactly matches a `constants.DAPSIWRM_ELEMENTS`
-  value (so `"Ecosystem Services"` → real type); otherwise `""`.
-- `description` = `f"Theme: {theme}"` when `theme` is set but did NOT map to a type
-  (preserve the grouping); else `""`.
+- `label` = `node.get("label", "")`
+- `theme = node.get("theme") or ""` (the key is ABSENT on ~half of real nodes — every
+  node-field access must use `.get`, never `node["theme"]`).
+- `type` = `theme` **iff** `theme` exactly matches a `constants.DAPSIWRM_ELEMENTS` value
+  (so `"Ecosystem Services"` → real type); otherwise `""`.
+- `description` = `f"Theme: {theme}"` when `theme` is non-empty but did NOT map to a
+  type (preserve the grouping); else `""`.
 - `confidence` = 3
-- Duplicate labels are allowed (ids are generated-unique).
+- Duplicate labels are allowed (ids are generated-unique) — real files carry 5–15
+  duplicate labels, partly from ghosts now filtered out.
 
-**Links → Connections.** Iterate `data["canvas"]["links"]`:
-- `source` = `id_map.get(link["sourceNodeId"])`, `target` = `id_map.get(link["targetNodeId"])`
-- **Skip** (don't emit) if either ref is missing from `id_map` (dangling), or if
-  `source == target` (self-loop).
+**Links → Connections.** Iterate `data["canvas"]["links"]` (guard a missing/non-list
+`links` as `[]`). For each link, **resolve ghost refs to their canonical node first**,
+then map to the generated id — `resolve(ref) = id_map.get(ghost_to_original.get(ref, ref))`:
+- `source = resolve(link.get("sourceNodeId"))`, `target = resolve(link.get("targetNodeId"))`
+- **Skip** (don't emit) if either resolved ref is `None` (dangling / unknown), or if
+  `source == target` (self-loop — incl. a ghost edge that resolves back to its origin).
 - `polarity` = `"-"` if `link.get("polarity") == "negative"` else `"+"`.
 - `strength` from `impact`: `imp = link.get("impact", 2)`; `"weak" if imp <= 1 else
   "medium" if imp == 2 else "strong"` (so `imp >= 3` → strong; clamp).
 - `delay` from `qsem_delay_to_level(link.get("delay", 0))`: `<= 0 → "immediate"`,
   `== 1 → "short"`, `>= 2 → "long"`. (Documented assumption: higher int = longer lag;
-  uses all three `DELAY_LEVELS` and preserves QSEM's slow-link signal that
-  `normalize_delay` would flatten to `"short"`. `QSEM.docx` does not specify exact
-  semantics, so this is the chosen convention.)
+  uses all three `DELAY_LEVELS` and preserves QSEM's slow-link signal. `QSEM.docx` does
+  not specify exact semantics, so this is the chosen convention.) **Do not substitute
+  `constants.normalize_delay` here**: its numeric branch maps every nonzero int to
+  `"short"` (`"long"` is only reachable by an exact string match), so `delay=2` and
+  `delay=3` would silently lose their slow-link signal.
 - `confidence` = 3; `ratings` = `[]`.
 
 `strength` values are exactly `weak`/`medium`/`strong` (match `network._STRENGTH_RANK`);
@@ -78,9 +95,13 @@ Environmental pressures, Ecosystem components, Ecosystem Services, LWB, NiD.
 
 1. `json.load` the file. On `JSONDecodeError`/`OSError` → `ValidationResult(False,
    ["Not a valid QSEM/JSON file: <msg>"])`.
-2. Shape guard: `data` is a dict with a list at `data["canvas"]["nodes"]`; else
-   `ValidationResult(False, ["Not a QSEM file (missing canvas.nodes)"])`.
-3. Empty guard: no nodes → `ValidationResult(False, ["QSEM file has no nodes"])`.
+2. Shape guard (all `.get`-safe — never raise): `canvas = data.get("canvas", {})` must be
+   a dict with a list at `canvas.get("nodes")`; else
+   `ValidationResult(False, ["Not a QSEM file (missing canvas.nodes)"])`. A missing/non-list
+   `canvas.get("links")` is tolerated (treated as `[]`), not an error.
+3. Empty guard: no nodes → `ValidationResult(False, ["QSEM file has no nodes"])`. (Note:
+   `validate_project_payload` accepts an empty elements list as *valid*, so this step-3
+   guard is the ONLY place an empty QSEM is rejected — it must be tested.)
 4. `elements, connections = qsem_to_isa(data)`.
 5. Build the same payload shape `parse_excel` uses
    (`metadata.name = path.stem`, `description = f"Imported from {path.name}"`,
@@ -101,9 +122,13 @@ Environmental pressures, Ecosystem components, Ecosystem Services, LWB, NiD.
 
 - Malformed JSON / not a dict / missing `canvas.nodes` / empty nodes → friendly
   `ValidationResult` errors (above), surfaced by the existing preview error panel.
-- A link to a node absent from `canvas.nodes` → skipped (no dangling ref reaches the
-  validator).
-- Self-loops → skipped.
+- **Ghost nodes** (`isGhost:true`) → not imported as elements; links referencing a ghost
+  are redirected to the ghost's `originalNodeId` (a canonical node) so the edge attaches
+  to the real node instead of being dropped or duplicating it.
+- A link to a node absent from `canvas.nodes` (and not a resolvable ghost) → skipped (no
+  dangling ref reaches the validator).
+- Self-loops (including a ghost edge that resolves back onto its origin) → skipped.
+- `theme` key absent (the common case — ~half of real nodes) → `type=""`, `description=""`.
 - `impact`/`delay` missing on a link → defaults (`impact` 2 → medium, `delay` 0 →
   immediate).
 - `impact` out of 1..3 (e.g. 0, 5) → clamped (`<=1` weak, `>=3` strong).
@@ -113,20 +138,32 @@ Environmental pressures, Ecosystem components, Ecosystem Services, LWB, NiD.
 
 ## Testing
 
-New `tests/test_qsem_import.py` (+ a committed fixture):
+New `tests/test_qsem_import.py` (inline-built JSON via `tmp_path`/`json.dump` — the same
+build-on-the-fly convention `test_excel_import.py` uses; **no committed binary fixture**,
+no hand-trimming a 178 KB file):
 - **`qsem_to_isa` unit** on an inline dict with: a node `theme="Ecosystem Services"`
   (→ `type` match), a node `theme="OWFs"` (→ `type=""`, `description="Theme: OWFs"`),
-  a node with no theme; links covering `positive`/`negative`, `impact` 1/2/3 (→
-  weak/medium/strong), `delay` 0/1/3 (→ immediate/short/long), one link with a dangling
-  `targetNodeId` (skipped), one self-loop (skipped). Assert element ids are remapped
-  `N001…`, link refs resolve to those ids, and the skipped links are absent.
+  a node with **no `theme` key at all** (→ `type=""`, `description=""` — guards the
+  KeyError trap), and **two nodes sharing a label** (→ both imported, distinct `N00k`
+  ids); links covering `positive`/`negative`, `impact` 1/2/3 (→ weak/medium/strong),
+  `delay` 0/1/2/3 (→ immediate/short/long/long), one link with a dangling `targetNodeId`
+  (skipped), one self-loop (skipped). Assert element ids are remapped `N001…`, link refs
+  resolve to those ids, the skipped links are absent.
+- **Ghost handling**: an inline dict with a canonical node, a `isGhost:true` node whose
+  `originalNodeId` is the canonical node (same label), and a link sourced from the ghost
+  → assert the ghost is NOT imported as an element, and the link is emitted connecting
+  the canonical node's generated id (ref redirected through `originalNodeId`).
 - **`qsem_delay_to_level`** boundaries: `-1→immediate`, `0→immediate`, `1→short`,
-  `2→long`, `3→long`.
-- **`parse_qsem` integration** on a small real-shaped fixture committed at
-  `tests/fixtures/sample.qsem` (≤5 nodes, derived/trimmed from a real export): returns
-  `valid` with the expected element/connection counts and a sample mapped connection.
+  `2→long`, `3→long`. **Plus** assert `constants.normalize_delay(2) == "short"` — a guard
+  documenting *why* the custom function exists (a refactor swapping in `normalize_delay`
+  would silently break slow links).
+- **`parse_qsem` integration**: write a minimal inline dict (3 canonical nodes, 2 valid
+  links + 1 dangling link to be skipped) to `tmp_path / "sample.qsem"` via `json.dump`,
+  `parse_qsem` it → `valid` with 3 elements / 2 connections and a spot-checked mapped
+  connection (polarity + strength + delay).
 - **`parse_qsem` errors**: a non-JSON file → invalid with the JSON message; a JSON file
-  without `canvas.nodes` → invalid with the shape message.
+  with no `canvas.nodes` → invalid with the shape message; a JSON file whose
+  `canvas.nodes` is `[]` → invalid with the "QSEM file has no nodes" message.
 - Back-compat: `parse_excel` and the existing `test_excel_import.py` are untouched;
   full e2e (incl. `test_import_e2e.py`) stays green.
 
