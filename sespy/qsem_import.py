@@ -49,9 +49,9 @@ def qsem_to_isa(data: dict) -> tuple[list[Element], list[Connection]]:
     nodes = canvas.get("nodes") if isinstance(canvas.get("nodes"), list) else []
     links = canvas.get("links") if isinstance(canvas.get("links"), list) else []
 
-    canonical = [n for n in nodes if not n.get("isGhost")]
+    canonical = [n for n in nodes if isinstance(n, dict) and not n.get("isGhost")]
     ghost_to_original = {
-        n.get("id"): n.get("originalNodeId") for n in nodes if n.get("isGhost")
+        n.get("id"): n.get("originalNodeId") for n in nodes if isinstance(n, dict) and n.get("isGhost")
     }
 
     elements: list[Element] = []
@@ -76,6 +76,8 @@ def qsem_to_isa(data: dict) -> tuple[list[Element], list[Connection]]:
 
     connections: list[Connection] = []
     for link in links:
+        if not isinstance(link, dict):
+            continue
         src = resolve(link.get("sourceNodeId"))
         tgt = resolve(link.get("targetNodeId"))
         if src is None or tgt is None or src == tgt:

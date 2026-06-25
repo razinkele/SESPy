@@ -134,6 +134,17 @@ def test_parse_qsem_rejects_empty_nodes(tmp_path):
     assert any("no nodes" in e for e in result.errors)
 
 
+def test_qsem_to_isa_tolerates_non_dict_members():
+    """Non-dict nodes/links (from a hostile .json) are skipped, not crashed on."""
+    data = {"canvas": {
+        "nodes": [None, "garbage", _node("a", "A"), {"no": "id"}],
+        "links": [None, "x", _link("a", "a")],  # the real link is a self-loop -> skipped
+    }}
+    elements, connections = qsem_to_isa(data)  # must not raise
+    assert [e.label for e in elements] == ["A", ""]   # the two dict nodes; "no id" -> label ""
+    assert connections == []
+
+
 def test_parse_upload_dispatches_by_extension(tmp_path):
     # The dispatch keys off the ORIGINAL filename, not the temp datapath.
     from sespy.modules.import_data import parse_upload
