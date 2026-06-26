@@ -120,6 +120,14 @@ def _options_modal(translator, current_theme, autosave_enabled) -> ui.Tag:
     )
 
 
+def _help_modal(translator) -> ui.Tag:
+    return ui.modal(
+        ui.markdown(_t(translator, "help.body", "See the README.")),
+        title=_t(translator, "help.title", "Help"),
+        footer=ui.modal_button("Close"), size="l", easy_close=True,
+    )
+
+
 def topbar_actions_server(input, output, session, *, project_data, translator=None,
                           current_theme=None, autosave_enabled=None) -> None:
     """Wires the four topbar buttons to their modals. current_theme /
@@ -139,6 +147,11 @@ def topbar_actions_server(input, output, session, *, project_data, translator=No
     @reactive.event(input.tb_options)
     def _open_options():
         ui.modal_show(_options_modal(translator, current_theme, autosave_enabled))
+
+    @reactive.effect
+    @reactive.event(input.tb_help)
+    def _open_help():
+        ui.modal_show(_help_modal(translator))
 
     @reactive.effect
     @reactive.event(input.theme_select)

@@ -37,6 +37,16 @@ async def main():
                 ok = True; break
         assert ok, "data-theme not applied"
         print("topbar options/theme: OK")
+        # close options modal and wait for it to fully disappear
+        await pg.click(".modal button:has-text('Close')")
+        await pg.wait_for_selector(".modal", state="hidden", timeout=10000)
+        await pg.wait_for_timeout(300)
+        # Help modal opens and shows workflow text
+        await pg.click("#tb_help")
+        await pg.wait_for_selector(".modal", timeout=10000)
+        body = await pg.text_content(".modal") or ""
+        assert "workflow" in body.lower() or "create" in body.lower(), f"workflow text missing: {body[:200]}"
+        print("topbar help: OK")
         await b.close()
 
 asyncio.run(main())

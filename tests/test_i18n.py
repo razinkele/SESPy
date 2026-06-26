@@ -131,3 +131,8 @@ def test_options_keys_present(translations):
               "options.autosave", "options.autosave_enable", "options.autosave_clear",
               "options.autosave_status"):
         assert k in translations, k
+
+
+def test_help_keys_present(translations):
+    for k in ("help.title", "help.body"):
+        assert k in translations, k
