@@ -35,6 +35,9 @@ tests/screenshots/
 .remember/
 .playwright-mcp/
 
+# Feedback SQLite store (runtime state)
+sespy/logs/
+
 # Stray artifacts from shell mishaps (review and delete manually if you don't need them)
 0]
 e.id)')
