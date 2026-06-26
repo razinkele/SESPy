@@ -35,6 +35,31 @@ the why.
 
 ---
 
+## What's new in v1.2.0
+
+A round of **multi-rater robustness + responsiveness** improvements — making
+disagreement and uncertainty visible where the system is read, and keeping the UI
+responsive under heavy analysis:
+
+- **Disagreement-aware loops.** A feedback loop whose Reinforcing/Balancing
+  classification *hinges on an edge the raters disagree on the sign of* now shows a
+  `⚠` on its behavior label. (Scoped to loops by design: loop classification is
+  sign-based, so polarity disagreement can threaten it — whereas leverage is structural
+  and the quadrant is magnitude-based.)
+- **Contested edges on the CLD.** Polarity-contested edges render with a heavier width
+  + a `⚠` marker + a hover detail on the graph itself, not just the Rate Connections
+  table.
+- **Blind rating mode.** An opt-in toggle in Rate Connections hides peers' ratings until
+  you submit your own (Delphi-style anti-anchoring); aggregate signals stay visible.
+- **Responsive uncertainty.** The leverage/loop Monte-Carlo uncertainty now runs on a
+  worker thread with a "computing…" indicator — toggling it no longer freezes the UI.
+
+All four self-gate on multi-rater data, so single-author and imported models are
+unaffected. Every one shipped via brainstorm → spec → multi-agent adversarial review →
+TDD → review → full-e2e cycle.
+
+---
+
 ## What's new in v1.1.0
 
 - **Direct `.qsem` import.** Upload a native `.qsem` file (the QSEM web app's JSON

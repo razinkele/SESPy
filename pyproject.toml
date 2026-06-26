@@ -1,6 +1,6 @@
 [project]
 name = "sespy"
-version = "1.1.0"
+version = "1.2.0"
 description = "Shiny for Python port of the MarineSABRES SES Toolbox — DAPSI(W)R(M) social-ecological systems analysis (Horizon Europe)."
 requires-python = ">=3.11"
 license = "MIT"
