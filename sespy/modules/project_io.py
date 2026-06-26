@@ -101,6 +101,7 @@ def quick_actions_server(
     event_bus: EventBus,
     sample_path: Path,
     translator: Translator | None = None,
+    autosave_enabled=None,
 ) -> None:
     """Wire the Quick Actions buttons.
 

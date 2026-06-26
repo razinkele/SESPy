@@ -22,9 +22,9 @@ from sespy.dashboard import (
     StepperItem,
     dashboard_page,
     dashboard_server,
-    language_switcher,
     workflow_stepper_slot,
 )
+from sespy.modules.topbar_actions import topbar_actions_ui, topbar_actions_server
 from sespy.event_bus import create_event_bus
 from sespy import i18n as _i18n
 from sespy.i18n import Translator, load_translations
@@ -156,7 +156,7 @@ app_ui = dashboard_page(
     title=T.t("ui.app.title"),
     brand_title=T.t("ui.brand.title"),
     pre_panel_slot=workflow_stepper_slot(),
-    header_actions=language_switcher(T),
+    header_actions=topbar_actions_ui(T),
     quick_actions=quick_actions_ui(T),
 )
 
@@ -166,6 +166,8 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         data_structure.Project.from_isa(data_structure.load_sample(SAMPLE))
     )
     event_bus = create_event_bus()
+    current_theme = reactive.value("light-marine")
+    autosave_enabled = reactive.value(True)
 
     dashboard_server(
         input, output, session,
@@ -181,6 +183,14 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         event_bus=event_bus,
         sample_path=SAMPLE,
         translator=T,
+        autosave_enabled=autosave_enabled,
+    )
+    topbar_actions_server(
+        input, output, session,
+        project_data=project_data,
+        translator=T,
+        current_theme=current_theme,
+        autosave_enabled=autosave_enabled,
     )
 
     pims_project_server(
