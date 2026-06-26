@@ -5397,6 +5397,8 @@
     "feedback.cat_bug": {"en":"Bug","es":"Error","fr":"Bogue","de":"Fehler","lt":"Klaida","pt":"Erro","it":"Bug","no":"Feil","el":"Σφάλμα"},
     "feedback.cat_suggestion": {"en":"Suggestion","es":"Sugerencia","fr":"Suggestion","de":"Vorschlag","lt":"Pasiūlymas","pt":"Sugestão","it":"Suggerimento","no":"Forslag","el":"Πρόταση"},
     "feedback.cat_question": {"en":"Question","es":"Pregunta","fr":"Question","de":"Frage","lt":"Klausimas","pt":"Pergunta","it":"Domanda","no":"Spørsmål","el":"Ερώτηση"},
-    "feedback.cat_other": {"en":"Other","es":"Otro","fr":"Autre","de":"Sonstiges","lt":"Kita","pt":"Outro","it":"Altro","no":"Annet","el":"Άλλο"}
+    "feedback.cat_other": {"en":"Other","es":"Otro","fr":"Autre","de":"Sonstiges","lt":"Kita","pt":"Outro","it":"Altro","no":"Annet","el":"Άλλο"},
+    "about.overview": {"en":"Overview","es":"Resumen","fr":"Aperçu","de":"Übersicht","lt":"Apžvalga","pt":"Visão geral","it":"Panoramica","no":"Oversikt","el":"Επισκόπηση"},
+    "about.changelog": {"en":"Changelog","es":"Registro de cambios","fr":"Journal des modifications","de":"Änderungsprotokoll","lt":"Pakeitimų žurnalas","pt":"Registo de alterações","it":"Registro modifiche","no":"Endringslogg","el":"Αρχείο αλλαγών"}
   }
 }

@@ -3,10 +3,30 @@ modals. Plain functions wired at root (NOT a Shiny module), so input ids are
 global. Mimics the BowTie app's feedback (SQLite) + About/Options/Help."""
 from __future__ import annotations
 
+from importlib.metadata import version as _pkg_version
+from pathlib import Path
+
 from shiny import reactive, ui
 
 from ..i18n import Translator
 from .. import feedback_store
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]   # sespy/modules/ -> repo root
+
+
+def read_project_doc(name: str) -> str:
+    """Best-effort read of a repo-root doc; short fallback if missing."""
+    try:
+        return (_REPO_ROOT / name).read_text(encoding="utf-8")
+    except OSError:
+        return f"_{name} not available._"
+
+
+def _app_version() -> str:
+    try:
+        return _pkg_version("sespy")
+    except Exception:
+        return "1.2.0"
 
 _CATEGORY_KEYS = ("bug", "suggestion", "question", "other")
 
@@ -51,6 +71,27 @@ def _feedback_modal(translator: Translator | None) -> ui.Tag:
     )
 
 
+def _about_modal(translator) -> ui.Tag:
+    header = ui.markdown(
+        f"### MarineSABRES SES Toolbox — Python\n\n"
+        f"**Version {_app_version()}** — developed within the "
+        f"[MarineSABRES](https://marinesabres.eu) Horizon Europe project. "
+        f"[Source](https://github.com/razinkele/SESPy). MIT licensed."
+    )
+    return ui.modal(
+        ui.navset_tab(
+            ui.nav_panel(_t(translator, "about.overview", "Overview"),
+                         ui.div(header, class_="mb-3"),
+                         ui.markdown(read_project_doc("README.md"))),
+            ui.nav_panel(_t(translator, "about.changelog", "Changelog"),
+                         ui.markdown(read_project_doc("CHANGELOG.md"))),
+        ),
+        title="About",
+        footer=ui.modal_button("Close"),
+        size="l", easy_close=True,
+    )
+
+
 def topbar_actions_server(input, output, session, *, project_data, translator=None,
                           current_theme=None, autosave_enabled=None) -> None:
     """Wires the four topbar buttons to their modals. current_theme /
@@ -60,6 +101,11 @@ def topbar_actions_server(input, output, session, *, project_data, translator=No
     @reactive.event(input.tb_feedback)
     def _open_feedback():
         ui.modal_show(_feedback_modal(translator))
+
+    @reactive.effect
+    @reactive.event(input.tb_about)
+    def _open_about():
+        ui.modal_show(_about_modal(translator))
 
     @reactive.effect
     @reactive.event(input.fb_submit)

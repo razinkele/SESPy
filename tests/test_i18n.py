@@ -119,3 +119,8 @@ def test_topbar_and_feedback_keys_present(translations):
               "feedback.cat_bug", "feedback.cat_suggestion", "feedback.cat_question",
               "feedback.cat_other"):
         assert k in translations, k
+
+
+def test_about_keys_present(translations):
+    for k in ("about.overview", "about.changelog"):
+        assert k in translations, k

@@ -17,6 +17,14 @@ async def main():
         await pg.click("#fb_submit")
         await pg.wait_for_selector(".shiny-notification", timeout=10000)
         print("topbar feedback: OK")
+        await pg.click("#tb_about")
+        await pg.wait_for_selector(".modal", timeout=10000)
+        body = await pg.text_content(".modal") or ""
+        assert "Overview" in body and "Changelog" in body, body[:120]
+        # dismiss any notification that might block the Close button, then close modal
+        await pg.evaluate("document.getElementById('shiny-notification-panel') && (document.getElementById('shiny-notification-panel').style.display='none')")
+        await pg.click(".modal .btn-default, .modal button:has-text('Close')")
+        print("topbar about: OK")
         await b.close()
 
 asyncio.run(main())
