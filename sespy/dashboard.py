@@ -259,6 +259,14 @@ def dashboard_page(
         });
     """)
 
+    theme_js = ui.tags.script("""
+      $(document).on('shiny:connected', function () {
+        Shiny.addCustomMessageHandler('set_theme', function (t) {
+          document.documentElement.setAttribute('data-theme', t);
+        });
+      });
+    """)
+
     return ui.tags.div(
         # Inject the shell stylesheet at the page level. The skin contains the
         # design tokens, layout, AND the critical guards (display:block on
@@ -268,6 +276,7 @@ def dashboard_page(
         ui.head_content(
             ui.tags.link(rel="stylesheet", href="sespy-skin.css"),
             ui.tags.link(rel="stylesheet", href="cld.css"),
+            ui.tags.link(rel="stylesheet", href="themes.css"),
             # Font Awesome — needed for the icons in NavItem entries
             ui.tags.link(
                 rel="stylesheet",
@@ -276,6 +285,7 @@ def dashboard_page(
             ),
             burger_js,
             bookmark_js,
+            theme_js,
         ),
         ui.page_sidebar(
             ui.sidebar(*sidebar_children, width=280, class_="sespy-sidebar sespy-nav-shell"),
@@ -327,6 +337,16 @@ def dashboard_server(
         _wire_nav_button(input, session, item, active_panel)
 
     if translator is not None:
+        # Reset the process-global translator to the default language at the
+        # start of each session. The visible language switcher now lives in
+        # the Options modal (not the initial page DOM), so the per-session
+        # re-init that used to fire when the static topbar switcher's input
+        # initialised is gone. Without this, one visitor's language choice
+        # leaks into the next session served by the same process (and the
+        # e2e suite's i18n test would taint every later test on the shared
+        # server). The in-modal switcher still updates the language in-session.
+        translator.set_language(translator.fallback)
+
         @reactive.effect
         @reactive.event(input[LANGUAGE_INPUT_ID])
         def _switch_language():

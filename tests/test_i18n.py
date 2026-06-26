@@ -110,3 +110,29 @@ def test_cld_contested_keys_present(translations):
 
 def test_disagreement_legend_key_present(translations):
     assert "loops.disagreement_legend" in translations
+
+
+def test_topbar_and_feedback_keys_present(translations):
+    for k in ("topbar.feedback", "topbar.about", "topbar.options", "topbar.help",
+              "feedback.title", "feedback.message", "feedback.rating", "feedback.category",
+              "feedback.submit", "feedback.sent", "feedback.empty",
+              "feedback.cat_bug", "feedback.cat_suggestion", "feedback.cat_question",
+              "feedback.cat_other"):
+        assert k in translations, k
+
+
+def test_about_keys_present(translations):
+    for k in ("about.overview", "about.changelog"):
+        assert k in translations, k
+
+
+def test_options_keys_present(translations):
+    for k in ("options.title", "options.appearance", "options.theme", "options.language",
+              "options.autosave", "options.autosave_enable", "options.autosave_clear",
+              "options.autosave_status"):
+        assert k in translations, k
+
+
+def test_help_keys_present(translations):
+    for k in ("help.title", "help.body"):
+        assert k in translations, k
