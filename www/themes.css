@@ -1,0 +1,23 @@
+/* Light-marine is the default skin (sespy-skin.css). Deep-ocean overrides key
+   colours when <html data-theme="deep-ocean"> is set by the theme switcher. */
+html[data-theme="deep-ocean"] body,
+html[data-theme="deep-ocean"] {
+    background: #0b1f33;
+    color: #d6e6f5;
+}
+html[data-theme="deep-ocean"] .card,
+html[data-theme="deep-ocean"] .sespy-card,
+html[data-theme="deep-ocean"] .modal-content,
+html[data-theme="deep-ocean"] .sidebar,
+html[data-theme="deep-ocean"] .sespy-topbar {
+    background: #12314d;
+    color: #d6e6f5;
+    border-color: #1e4a72;
+}
+html[data-theme="deep-ocean"] a { color: #6fb8ff; }
+html[data-theme="deep-ocean"] .text-muted { color: #8fb0cc !important; }
+html[data-theme="deep-ocean"] .btn-default,
+html[data-theme="deep-ocean"] .sespy-topbar-btn {
+    background: #1b3e60; color: #d6e6f5; border-color: #2b5d8a;
+}
+/* pyvis graph canvases keep their in-code white bgcolor (framed cards) — v1. */

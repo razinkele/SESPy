@@ -5399,6 +5399,14 @@
     "feedback.cat_question": {"en":"Question","es":"Pregunta","fr":"Question","de":"Frage","lt":"Klausimas","pt":"Pergunta","it":"Domanda","no":"Spørsmål","el":"Ερώτηση"},
     "feedback.cat_other": {"en":"Other","es":"Otro","fr":"Autre","de":"Sonstiges","lt":"Kita","pt":"Outro","it":"Altro","no":"Annet","el":"Άλλο"},
     "about.overview": {"en":"Overview","es":"Resumen","fr":"Aperçu","de":"Übersicht","lt":"Apžvalga","pt":"Visão geral","it":"Panoramica","no":"Oversikt","el":"Επισκόπηση"},
-    "about.changelog": {"en":"Changelog","es":"Registro de cambios","fr":"Journal des modifications","de":"Änderungsprotokoll","lt":"Pakeitimų žurnalas","pt":"Registo de alterações","it":"Registro modifiche","no":"Endringslogg","el":"Αρχείο αλλαγών"}
+    "about.changelog": {"en":"Changelog","es":"Registro de cambios","fr":"Journal des modifications","de":"Änderungsprotokoll","lt":"Pakeitimų žurnalas","pt":"Registo de alterações","it":"Registro modifiche","no":"Endringslogg","el":"Αρχείο αλλαγών"},
+    "options.title": {"en":"Options","es":"Opciones","fr":"Options","de":"Optionen","lt":"Parinktys","pt":"Opções","it":"Opzioni","no":"Innstillinger","el":"Επιλογές"},
+    "options.appearance": {"en":"Appearance","es":"Apariencia","fr":"Apparence","de":"Darstellung","lt":"Išvaizda","pt":"Aparência","it":"Aspetto","no":"Utseende","el":"Εμφάνιση"},
+    "options.theme": {"en":"Theme","es":"Tema","fr":"Thème","de":"Design","lt":"Tema","pt":"Tema","it":"Tema","no":"Tema","el":"Θέμα"},
+    "options.language": {"en":"Language","es":"Idioma","fr":"Langue","de":"Sprache","lt":"Kalba","pt":"Idioma","it":"Lingua","no":"Språk","el":"Γλώσσα"},
+    "options.autosave": {"en":"Autosave","es":"Autoguardado","fr":"Sauvegarde auto","de":"Automatisch speichern","lt":"Automatinis įrašymas","pt":"Gravação automática","it":"Salvataggio automatico","no":"Autolagring","el":"Αυτόματη αποθήκευση"},
+    "options.autosave_enable": {"en":"Enable autosave","es":"Activar autoguardado","fr":"Activer la sauvegarde auto","de":"Automatisch speichern aktivieren","lt":"Įjungti automatinį įrašymą","pt":"Ativar gravação automática","it":"Attiva salvataggio automatico","no":"Slå på autolagring","el":"Ενεργοποίηση αυτόματης αποθήκευσης"},
+    "options.autosave_clear": {"en":"Clear autosaved data","es":"Borrar datos autoguardados","fr":"Effacer les données auto-sauvegardées","de":"Automatisch gespeicherte Daten löschen","lt":"Išvalyti automatiškai įrašytus duomenis","pt":"Limpar dados gravados automaticamente","it":"Cancella i dati salvati automaticamente","no":"Tøm autolagrede data","el":"Εκκαθάριση αυτόματα αποθηκευμένων δεδομένων"},
+    "options.autosave_status": {"en":"Last autosave","es":"Último autoguardado","fr":"Dernière sauvegarde","de":"Letzte Speicherung","lt":"Paskutinis įrašymas","pt":"Última gravação","it":"Ultimo salvataggio","no":"Siste autolagring","el":"Τελευταία αποθήκευση"}
   }
 }

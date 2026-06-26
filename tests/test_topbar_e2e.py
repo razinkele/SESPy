@@ -25,6 +25,18 @@ async def main():
         await pg.evaluate("document.getElementById('shiny-notification-panel') && (document.getElementById('shiny-notification-panel').style.display='none')")
         await pg.click(".modal .btn-default, .modal button:has-text('Close')")
         print("topbar about: OK")
+        await pg.click("#tb_options")
+        await pg.wait_for_selector(".modal #theme_select", timeout=10000)
+        # pick Deep Ocean → data-theme applied
+        await pg.click(".modal input[value='deep-ocean']")
+        ok = False
+        for _ in range(20):
+            await pg.wait_for_timeout(300)
+            dt = await pg.get_attribute("html", "data-theme")
+            if dt == "deep-ocean":
+                ok = True; break
+        assert ok, "data-theme not applied"
+        print("topbar options/theme: OK")
         await b.close()
 
 asyncio.run(main())

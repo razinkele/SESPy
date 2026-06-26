@@ -27,11 +27,10 @@ async def main():
         assert "CLD Visualization" in en_labels
         assert any("Get Started" in s for s in en_steps)
 
-        # Switch to Spanish via the language switcher select
-        await page.evaluate("""() => {
-          const sel = document.getElementById('__sespy_language__');
-          if (sel) { sel.value = 'es'; sel.dispatchEvent(new Event('change', {bubbles: true})); }
-        }""")
+        # Switch to Spanish via the language switcher inside the Options modal
+        await page.click("#tb_options")
+        await page.wait_for_selector(".modal #__sespy_language__", timeout=10000)
+        await page.select_option(".modal #__sespy_language__", "es")
         await page.wait_for_timeout(1500)
 
         es_labels = await page.eval_on_selector_all(

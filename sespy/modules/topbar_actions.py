@@ -10,6 +10,10 @@ from shiny import reactive, ui
 
 from ..i18n import Translator
 from .. import feedback_store
+from ..dashboard import language_switcher
+from ..autosave import clear_autosave, autosave_age_seconds
+
+_THEME_CHOICES = {"light-marine": "Light Marine", "deep-ocean": "Deep Ocean (Dark)"}
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]   # sespy/modules/ -> repo root
 
@@ -92,6 +96,30 @@ def _about_modal(translator) -> ui.Tag:
     )
 
 
+def _options_modal(translator, current_theme, autosave_enabled) -> ui.Tag:
+    age = autosave_age_seconds()
+    status = (f"{int(age)}s ago" if age is not None else "—")
+    return ui.modal(
+        ui.h5(_t(translator, "options.appearance", "Appearance")),
+        ui.input_radio_buttons("theme_select", _t(translator, "options.theme", "Theme"),
+                               choices=_THEME_CHOICES, selected=current_theme.get()),
+        ui.h5(_t(translator, "options.language", "Language")),
+        language_switcher(translator),   # the relocated language selector (label is None;
+                                         # the h5 above gives it a translated heading)
+        ui.tags.hr(),
+        ui.h5(_t(translator, "options.autosave", "Autosave")),
+        ui.input_switch("autosave_enabled", _t(translator, "options.autosave_enable",
+                        "Enable autosave"), value=autosave_enabled.get()),
+        ui.p(f"{_t(translator, 'options.autosave_status', 'Last autosave')}: {status}",
+             class_="text-muted"),
+        ui.input_action_button("autosave_clear",
+                               _t(translator, "options.autosave_clear", "Clear autosaved data"),
+                               class_="btn-outline-danger btn-sm"),
+        title=_t(translator, "options.title", "Options"),
+        footer=ui.modal_button("Close"), easy_close=True,
+    )
+
+
 def topbar_actions_server(input, output, session, *, project_data, translator=None,
                           current_theme=None, autosave_enabled=None) -> None:
     """Wires the four topbar buttons to their modals. current_theme /
@@ -106,6 +134,31 @@ def topbar_actions_server(input, output, session, *, project_data, translator=No
     @reactive.event(input.tb_about)
     def _open_about():
         ui.modal_show(_about_modal(translator))
+
+    @reactive.effect
+    @reactive.event(input.tb_options)
+    def _open_options():
+        ui.modal_show(_options_modal(translator, current_theme, autosave_enabled))
+
+    @reactive.effect
+    @reactive.event(input.theme_select)
+    async def _apply_theme():
+        theme = input.theme_select()
+        if theme in _THEME_CHOICES:
+            current_theme.set(theme)
+            await session.send_custom_message("set_theme", theme)
+
+    @reactive.effect
+    @reactive.event(input.autosave_enabled)
+    def _apply_autosave_pref():
+        if autosave_enabled is not None:
+            autosave_enabled.set(bool(input.autosave_enabled()))
+
+    @reactive.effect
+    @reactive.event(input.autosave_clear)
+    def _clear_autosave():
+        clear_autosave()
+        ui.notification_show("Autosaved data cleared.", type="message", duration=3)
 
     @reactive.effect
     @reactive.event(input.fb_submit)

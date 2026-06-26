@@ -124,3 +124,10 @@ def test_topbar_and_feedback_keys_present(translations):
 def test_about_keys_present(translations):
     for k in ("about.overview", "about.changelog"):
         assert k in translations, k
+
+
+def test_options_keys_present(translations):
+    for k in ("options.title", "options.appearance", "options.theme", "options.language",
+              "options.autosave", "options.autosave_enable", "options.autosave_clear",
+              "options.autosave_status"):
+        assert k in translations, k

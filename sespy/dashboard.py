@@ -259,6 +259,14 @@ def dashboard_page(
         });
     """)
 
+    theme_js = ui.tags.script("""
+      $(document).on('shiny:connected', function () {
+        Shiny.addCustomMessageHandler('set_theme', function (t) {
+          document.documentElement.setAttribute('data-theme', t);
+        });
+      });
+    """)
+
     return ui.tags.div(
         # Inject the shell stylesheet at the page level. The skin contains the
         # design tokens, layout, AND the critical guards (display:block on
@@ -268,6 +276,7 @@ def dashboard_page(
         ui.head_content(
             ui.tags.link(rel="stylesheet", href="sespy-skin.css"),
             ui.tags.link(rel="stylesheet", href="cld.css"),
+            ui.tags.link(rel="stylesheet", href="themes.css"),
             # Font Awesome — needed for the icons in NavItem entries
             ui.tags.link(
                 rel="stylesheet",
@@ -276,6 +285,7 @@ def dashboard_page(
             ),
             burger_js,
             bookmark_js,
+            theme_js,
         ),
         ui.page_sidebar(
             ui.sidebar(*sidebar_children, width=280, class_="sespy-sidebar sespy-nav-shell"),

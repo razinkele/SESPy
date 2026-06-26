@@ -121,6 +121,8 @@ def quick_actions_server(
     def _autosave_on_change():
         # Subscribe to ISA changes so editor activity and metadata edits are autosaved.
         event_bus.isa_change.get()
+        if autosave_enabled is not None and not autosave_enabled.get():
+            return
         try:
             write_autosave(project_data.get())
             from datetime import datetime as _dt
