@@ -45,3 +45,6 @@ _verify_*.py
 
 # Deploy: keep the real host/path out of the (public) repo
 deploy/config.env
+
+# Shiny Server reload trigger (runtime artifact, created by deploy)
+restart.txt
