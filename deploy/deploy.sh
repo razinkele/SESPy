@@ -34,7 +34,9 @@ cd "$REPO_ROOT"
 
 # Runtime files to ship. Anything not listed (tests/, docs/, build/, dist/,
 # .git/, sespy.egg-info/, LITERATURE/, .superpowers/) is intentionally excluded.
-RUNTIME=(app.py sespy data www environment.yml pyproject.toml)
+# README.md + CHANGELOG.md are runtime docs: the About modal renders them via
+# read_project_doc(), so they must ship with the app (not just dev metadata).
+RUNTIME=(app.py sespy data www environment.yml pyproject.toml README.md CHANGELOG.md)
 
 VERSION="$(git describe --tags --always 2>/dev/null || echo unknown)"
 echo "==> Deploying SESPy ${VERSION} to ${SERVER}:${APP_DIR}"
