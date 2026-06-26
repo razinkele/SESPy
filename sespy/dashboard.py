@@ -337,6 +337,16 @@ def dashboard_server(
         _wire_nav_button(input, session, item, active_panel)
 
     if translator is not None:
+        # Reset the process-global translator to the default language at the
+        # start of each session. The visible language switcher now lives in
+        # the Options modal (not the initial page DOM), so the per-session
+        # re-init that used to fire when the static topbar switcher's input
+        # initialised is gone. Without this, one visitor's language choice
+        # leaks into the next session served by the same process (and the
+        # e2e suite's i18n test would taint every later test on the shared
+        # server). The in-modal switcher still updates the language in-session.
+        translator.set_language(translator.fallback)
+
         @reactive.effect
         @reactive.event(input[LANGUAGE_INPUT_ID])
         def _switch_language():
