@@ -140,6 +140,7 @@ def _loops_body() -> ui.Tag:
         ui.div(
             ui.h4(t("loops.detected_loops")),
             ui.output_data_frame("loops_table"),
+            ui.tags.small(t("loops.disagreement_legend"), class_="text-muted"),
             ui.tags.hr(),
             ui.h4(t("loops.selected_loop")),
             ui.output_ui("loop_narrative"),
@@ -280,12 +281,16 @@ def analysis_loops_server(
         if not rows:
             return pd.DataFrame(columns=cols)
 
+        isa = project_data.get().isa_data
         unc = uncertainty_loops()
 
         def base_row(r):
+            behavior = t(_BEHAVIOR_KEY[r["behavior"]])
+            if net_analysis.loop_polarity_contested(r["nodes"], isa):
+                behavior = f"{behavior} ⚠"
             return {
                 "id": r["id"],
-                "behavior": t(_BEHAVIOR_KEY[r["behavior"]]),
+                "behavior": behavior,
                 "delayed": "✓" if r["delayed"] else "—",
                 "type": r["type"],
                 "length": r["length"],

@@ -5321,6 +5321,17 @@
     "loops.reinforcing_pct": {"en": "Reinforcing %", "es": "Reforzador %", "fr": "Renforçant %", "de": "Verstärkend %", "lt": "Stiprinanti %", "pt": "Reforço %", "it": "Rinforzante %", "no": "Forsterkende %", "el": "Ενισχυτικό %"},
     "loops.balancing_pct": {"en": "Balancing %", "es": "Equilibrador %", "fr": "Équilibrant %", "de": "Ausgleichend %", "lt": "Balansuojanti %", "pt": "Equilíbrio %", "it": "Bilanciante %", "no": "Balanserende %", "el": "Εξισορροπητικό %"},
     "loops.contested": {"en": "Contested", "es": "Disputado", "fr": "Contesté", "de": "Umstritten", "lt": "Ginčytinas", "pt": "Contestado", "it": "Conteso", "no": "Omstridt", "el": "Αμφισβητούμενο"},
+    "loops.disagreement_legend": {
+      "en": "⚠ = a loop edge has raters disagreeing on its sign (classification disputed)",
+      "es": "⚠ = un enlace del bucle tiene evaluadores que discrepan en su signo (clasificación en disputa)",
+      "fr": "⚠ = un lien de la boucle a des évaluateurs en désaccord sur son signe (classification contestée)",
+      "de": "⚠ = eine Schleifenkante hat Bewerter, die sich beim Vorzeichen uneinig sind (Klassifizierung strittig)",
+      "lt": "⚠ = kilpos ryšio ženklą vertintojai vertina nevienodai (klasifikacija ginčytina)",
+      "pt": "⚠ = uma aresta do ciclo tem avaliadores em desacordo sobre o seu sinal (classificação contestada)",
+      "it": "⚠ = un arco del ciclo ha valutatori in disaccordo sul segno (classificazione contestata)",
+      "no": "⚠ = en sløyfekant har vurderere som er uenige om fortegnet (klassifisering omstridt)",
+      "el": "⚠ = μια ακμή του κύκλου έχει αξιολογητές που διαφωνούν ως προς το πρόσημό της (αμφισβητούμενη ταξινόμηση)"
+    },
     "nav.rate": {"en": "Rate Connections", "es": "Valorar conexiones", "fr": "Évaluer les liens", "de": "Verbindungen bewerten", "lt": "Vertinti ryšius", "pt": "Avaliar conexões", "it": "Valuta connessioni", "no": "Vurder koblinger", "el": "Αξιολόγηση συνδέσεων"},
     "rate.title": {"en": "Rate Connections", "es": "Valorar conexiones", "fr": "Évaluer les liens", "de": "Verbindungen bewerten", "lt": "Vertinti ryšius", "pt": "Avaliar conexões", "it": "Valuta connessioni", "no": "Vurder koblinger", "el": "Αξιολόγηση συνδέσεων"},
     "rate.rating_as": {"en": "Rating as", "es": "Valorando como", "fr": "Évaluer en tant que", "de": "Bewerten als", "lt": "Vertina", "pt": "Avaliando como", "it": "Valuti come", "no": "Vurderer som", "el": "Αξιολόγηση ως"},
