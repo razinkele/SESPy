@@ -128,7 +128,7 @@ def _help_modal(translator) -> ui.Tag:
     )
 
 
-def topbar_actions_server(input, output, session, *, project_data, translator=None,
+def topbar_actions_server(input, output, session, *, translator=None,
                           current_theme=None, autosave_enabled=None) -> None:
     """Wires the four topbar buttons to their modals. current_theme /
     autosave_enabled are the shared reactive.Values (used by the Options modal)."""

@@ -156,6 +156,19 @@ label, .form-label, .control-label {
   gap: var(--space-md);
   padding: 0 0 var(--space-sm) 0;
 }
+/* The utility-button cluster (Feedback / About / Options / Help) sits on the
+   LEFT of the topbar; margin-right:auto pins it left within the flex row. */
+.sespy-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-right: auto;
+}
+.sespy-topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
 .sespy-language-switcher {
   display: inline-flex;
   align-items: center;

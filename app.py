@@ -187,7 +187,6 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
     )
     topbar_actions_server(
         input, output, session,
-        project_data=project_data,
         translator=T,
         current_theme=current_theme,
         autosave_enabled=autosave_enabled,
