@@ -42,3 +42,6 @@ _verify_*.py
 
 # Claude Code local state — keep settings versioned, not session state
 .claude/local/
+
+# Deploy: keep the real host/path out of the (public) repo
+deploy/config.env
