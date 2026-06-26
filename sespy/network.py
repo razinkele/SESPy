@@ -94,6 +94,21 @@ def loop_polarity(cycle: list[str], isa: IsaData) -> str:
     return "Reinforcing" if n_negative % 2 == 0 else "Balancing"
 
 
+def loop_polarity_contested(cycle: list[str], isa: IsaData) -> bool:
+    """True if any directed edge of the cycle is rater-polarity-contested.
+
+    Mirrors loop_polarity's edge iteration (consecutive pairs, wrap-around), so
+    the flagged edges are exactly those that determine the loop classification.
+    Pure; False for loops whose edges have <2 ratings."""
+    conn_by_pair = {(c.source, c.target): c for c in isa.connections}
+    n = len(cycle)
+    for i in range(n):
+        c = conn_by_pair.get((cycle[i], cycle[(i + 1) % n]))
+        if c is not None and connection_disagreement(c)["polarity_contested"]:
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Centrality metrics — port of functions/network_analysis.R::calculate_metrics
 # (seven per-node centrality measures used in modules/analysis_metrics.R).

@@ -1027,3 +1027,48 @@ def test_fit_sample_golden():
     assert r["total_edges"] == 20
     assert r["n_other"] == 0
     assert round(r["fit"], 2) == 0.40
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (loops): disagreement_aware_loop_flagging
+# ---------------------------------------------------------------------------
+
+def test_loop_polarity_contested():
+    from sespy.data_structure import Element, Connection, Rating, IsaData
+
+    els = [Element(id="A", label="A", type="Drivers"),
+           Element(id="B", label="B", type="Pressures")]
+
+    def rating(pol):
+        return Rating(rater_id=f"r{pol}", strength="medium", confidence=3,
+                      polarity=pol, delay="immediate")
+
+    # A→B carries two sign-disagreeing ratings → the loop A→B→A is contested.
+    contested = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", polarity="+", ratings=[rating("+"), rating("-")]),
+        Connection(source="B", target="A", polarity="+", ratings=[]),
+    ])
+    assert network.loop_polarity_contested(["A", "B"], contested) is True
+
+    # Unanimous ratings → not contested.
+    unanimous = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", polarity="+", ratings=[rating("+"), rating("+")]),
+        Connection(source="B", target="A", polarity="+", ratings=[]),
+    ])
+    assert network.loop_polarity_contested(["A", "B"], unanimous) is False
+
+    # <2 ratings → not contested.
+    one = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", polarity="+", ratings=[rating("+")]),
+        Connection(source="B", target="A", polarity="+", ratings=[]),
+    ])
+    assert network.loop_polarity_contested(["A", "B"], one) is False
+
+    # A contested edge that is NOT on the loop path → not contested.
+    els3 = els + [Element(id="C", label="C", type="Pressures")]
+    offpath = IsaData(elements=els3, connections=[
+        Connection(source="A", target="B", polarity="+", ratings=[]),
+        Connection(source="B", target="A", polarity="+", ratings=[]),
+        Connection(source="A", target="C", polarity="+", ratings=[rating("+"), rating("-")]),
+    ])
+    assert network.loop_polarity_contested(["A", "B"], offpath) is False

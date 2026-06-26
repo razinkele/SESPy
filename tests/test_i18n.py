@@ -106,3 +106,7 @@ def test_blind_rating_keys_present(translations):
 def test_cld_contested_keys_present(translations):
     assert "cld.contested_legend" in translations
     assert "cld.contested_sign" in translations
+
+
+def test_disagreement_legend_key_present(translations):
+    assert "loops.disagreement_legend" in translations
