@@ -14,7 +14,9 @@ highest-value, most plan-ready work.
 |---|---|---|---|---|
 | ~~1~~ | ✅ **#4** D2D async offload | S–M | **SHIPPED** `bf5bdf2` | Done — extended_task offload + generation counter; spec review caught 5 reactive-concurrency Criticals. |
 | ~~2~~ | ✅ **#6** C2 anchoring mode | S | **SHIPPED** `977351c` | Done — opt-in blind-mode toggle gates the per-rater list until self-submit; spec review fixed the e2e 2-rater scenario + 9-lang i18n. |
-| 3 | ~~**#5** QSEM-C4~~ → **split** | L | **SPLIT into #8/#9** | Was two sub-features; split per recommendation. **#5a/#8 (CLD edge styling) SHIPPED** `44e39b7` (width + ⚠ marker, spec review caught a Critical import). **#5b/#9 (disagreement-aware analyses) still OPEN** — needs its own brainstorm; conceptually overlaps the D2D #4 "result robustness" surface. |
+| 3 | ~~**#5** QSEM-C4~~ → **split** | L | **BOTH SHIPPED** | Split into #8/#9. **#5a/#8 (CLD edge styling) SHIPPED** `44e39b7` (width + ⚠ marker). **#5b/#9 (disagreement-aware loop flagging) SHIPPED** `6e2edf5` — scoped to loops (sign-based classification); leverage (structural) + quadrant (magnitude) ruled out by the same asymmetry the D2D work uses. |
+
+**All deferred follow-ups complete (#4, #6, #8, #9). Zero open issues as of 2026-06-26.**
 
 Each issue still runs the full pipeline used all session: **brainstorm → spec →
 in-loop Workflow spec-review → writing-plans → in-loop Workflow plan-review →
