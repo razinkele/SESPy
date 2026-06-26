@@ -91,8 +91,19 @@ the `behavior` line changes; the rest of `base_row` is unchanged.
 **Legend** — a `ui.tags.small(t("loops.disagreement_legend"), class_="text-muted")`
 near the loops table (mirroring the CLD/rate legends).
 
-**i18n** — one new key `loops.disagreement_legend` × 9 languages,
-en = `"⚠ = a loop edge has raters disagreeing on its sign (classification disputed)"`.
+**i18n** — one new key `loops.disagreement_legend`, **all 9 languages**
+(`test_loader_handles_all_supported_languages` hard-fails on any missing). Supply verbatim:
+| lang | value |
+|---|---|
+| en | ⚠ = a loop edge has raters disagreeing on its sign (classification disputed) |
+| es | ⚠ = un enlace del bucle tiene evaluadores que discrepan en su signo (clasificación en disputa) |
+| fr | ⚠ = un lien de la boucle a des évaluateurs en désaccord sur son signe (classification contestée) |
+| de | ⚠ = eine Schleifenkante hat Bewerter, die sich beim Vorzeichen uneinig sind (Klassifizierung strittig) |
+| lt | ⚠ = kilpos ryšio ženklą vertintojai vertina nevienodai (klasifikacija ginčytina) |
+| pt | ⚠ = uma aresta do ciclo tem avaliadores em desacordo sobre o seu sinal (classificação contestada) |
+| it | ⚠ = un arco del ciclo ha valutatori in disaccordo sul segno (classificazione contestata) |
+| no | ⚠ = en sløyfekant har vurderere som er uenige om fortegnet (klassifisering omstridt) |
+| el | ⚠ = μια ακμή του κύκλου έχει αξιολογητές που διαφωνούν ως προς το πρόσημό της (αμφισβητούμενη ταξινόμηση) |
 
 ## Error handling / edge cases
 
@@ -114,10 +125,15 @@ en = `"⚠ = a loop edge has raters disagreeing on its sign (classification disp
   (`+`/`-`) → `True`; the same topology with unanimous ratings / `<2` ratings → `False`;
   a cycle whose contested edge is not on the loop path → `False` (mirrors the wrap-around
   edge set). Build `Rating` objects directly.
-- **i18n** presence test for `loops.disagreement_legend`.
-- The existing `test_loops_e2e.py` stays green (the sample project has no multi-rater
-  ratings → no behavior cell changes). No new browser test — the pure-helper unit test
-  covers the logic (same approach as #5a).
+- **i18n** — add a named targeted presence test `test_disagreement_legend_key_present`
+  (mirrors `test_cld_contested_keys_present`): `assert "loops.disagreement_legend" in
+  translations`. (The generic `test_loader_handles_all_supported_languages` only checks
+  *language* completeness for keys already present — it can't catch a forgotten key.)
+- The existing `test_loops_e2e.py` stays green: its behavior-cell selector is a substring
+  match (`"scill" in b.lower()` for the oscillation-prone row), resilient to an appended
+  `⚠`, and the bundled templates carry no multi-rater ratings → `loop_polarity_contested`
+  is `False` for all loops, so no `⚠` is appended during CI. No new browser test — the
+  pure-helper unit test covers the logic (same approach as #5a).
 
 ## Out of scope (YAGNI)
 
