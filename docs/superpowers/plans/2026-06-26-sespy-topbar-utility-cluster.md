@@ -15,7 +15,8 @@
 - **Shared state:** `current_theme = reactive.value("light-marine")` and `autosave_enabled = reactive.value(True)` are created in `app.py`'s `server()` and passed to `topbar_actions_server` (modal reads them for initial input values, so reopening reflects the real state) and `autosave_enabled` also to `quick_actions_server` (its `_autosave_on_change` early-returns when disabled).
 - **Theme JS** registers inside `$(document).on('shiny:connected', …)` (mirroring `dashboard.py`'s `bookmark_js` — `Shiny` is undefined at parse time). `www/themes.css` is injected AFTER `sespy-skin.css` in `dashboard.py`'s page CSS links.
 - **feedback_store**: `_connect` does `path.parent.mkdir(parents=True, exist_ok=True)`; DB path = arg > `SESPY_FEEDBACK_DB` env > `sespy/logs/feedback.db`. Add `sespy/logs/` to `.gitignore`.
-- **i18n**: ~26 new keys, EACH with all 9 languages (en es fr de lt pt it no el); `test_loader_handles_all_supported_languages` hard-fails on any missing. Named presence test per group.
+- **i18n**: ~27 new keys, EACH with all 9 languages (en es fr de lt pt it no el); `test_loader_handles_all_supported_languages` hard-fails on any missing. Named presence test per group.
+- **JSON insert discipline (every core.json Step):** `core.json`'s `translation` object currently ends with `"metrics.fit_none": {…}` (NO trailing comma) then `}`. Before pasting a new key block, **add a trailing comma to the current last entry** (Task 2 → after `metrics.fit_none`; Task 3 → after `feedback.cat_other`; Task 4 → after `about.changelog`; Task 5 → after `options.autosave_status`). The per-step `json.load` smoke check verifies validity.
 - Run pytest/e2e via micromamba `shiny`; e2e needs a live server on :8000. Windows: never multi-line `python -c`. Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
 ---
@@ -317,7 +318,7 @@ def topbar_actions_server(input, output, session, *, project_data, translator=No
 
 - [ ] **Step 4: Wire into `app.py`**
 
-a) Imports: add `from sespy.modules.topbar_actions import topbar_actions_ui, topbar_actions_server`.
+a) Imports: add `from sespy.modules.topbar_actions import topbar_actions_ui, topbar_actions_server`. **Also REMOVE `language_switcher` from app.py's `from sespy.dashboard import (...)` tuple** — it is no longer called at root (Task 4 re-imports it inside `topbar_actions.py`), so leaving it would be an unused import.
 
 b) In the shell construction, change `header_actions=language_switcher(T),` to
 `header_actions=topbar_actions_ui(T),`.
@@ -597,7 +598,9 @@ def _options_modal(translator, current_theme, autosave_enabled) -> ui.Tag:
         ui.h5(_t(translator, "options.appearance", "Appearance")),
         ui.input_radio_buttons("theme_select", _t(translator, "options.theme", "Theme"),
                                choices=_THEME_CHOICES, selected=current_theme.get()),
-        language_switcher(translator),   # the relocated language selector
+        ui.h5(_t(translator, "options.language", "Language")),
+        language_switcher(translator),   # the relocated language selector (label is None;
+                                         # the h5 above gives it a translated heading)
         ui.tags.hr(),
         ui.h5(_t(translator, "options.autosave", "Autosave")),
         ui.input_switch("autosave_enabled", _t(translator, "options.autosave_enable",
