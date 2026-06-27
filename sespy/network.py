@@ -717,7 +717,7 @@ def uncertainty_scores(
             "mean": float(arr.mean()),
             "ci_low": float(np.percentile(arr, 2.5)),
             "ci_high": float(np.percentile(arr, 97.5)),
-            "std": float(arr.std()),
+            "std": float(arr.std(ddof=1)) if arr.size > 1 else 0.0,
         }
 
     label_by_id = {el.id: el.label for el in isa.elements}

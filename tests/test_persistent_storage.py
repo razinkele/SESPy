@@ -78,6 +78,111 @@ def test_load_rejects_duplicate_element_ids(tmp_path):
     assert "duplicate" in str(exc.value).lower()
 
 
+def test_load_rejects_invalid_element_type(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({
+        "isa_data": {
+            "elements": [{"id": "A", "label": "Alpha", "type": "Unicorn"}],
+            "connections": [],
+        },
+    }))
+    with pytest.raises(ValueError) as exc:
+        load_project(bad)
+    assert "Unicorn" in str(exc.value)
+
+
+def test_validate_allows_empty_element_type():
+    """An explicitly-untyped node (type == "") is tolerated — QSEM themes
+    that don't map onto a DAPSI(W)R(M) layer round-trip this way."""
+    result = validate_project_payload({
+        "isa_data": {
+            "elements": [{"id": "A", "label": "Alpha", "type": ""}],
+            "connections": [],
+        },
+    })
+    assert result.valid, result.errors
+
+
+def test_load_rejects_self_loop(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({
+        "isa_data": {
+            "elements": [{"id": "A", "label": "Alpha", "type": "Drivers"}],
+            "connections": [{"source": "A", "target": "A", "polarity": "+"}],
+        },
+    }))
+    with pytest.raises(ValueError) as exc:
+        load_project(bad)
+    assert "self-loop" in str(exc.value).lower()
+
+
+def test_load_rejects_invalid_polarity(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({
+        "isa_data": {
+            "elements": [
+                {"id": "A", "label": "Alpha", "type": "Drivers"},
+                {"id": "B", "label": "Beta", "type": "Activities"},
+            ],
+            "connections": [{"source": "A", "target": "B", "polarity": "maybe"}],
+        },
+    }))
+    with pytest.raises(ValueError) as exc:
+        load_project(bad)
+    assert "polarity" in str(exc.value).lower()
+
+
+def test_load_rejects_invalid_strength(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({
+        "isa_data": {
+            "elements": [
+                {"id": "A", "label": "Alpha", "type": "Drivers"},
+                {"id": "B", "label": "Beta", "type": "Activities"},
+            ],
+            "connections": [
+                {"source": "A", "target": "B", "polarity": "+", "strength": "huge"}
+            ],
+        },
+    }))
+    with pytest.raises(ValueError) as exc:
+        load_project(bad)
+    assert "strength" in str(exc.value).lower()
+
+
+def test_load_rejects_invalid_delay(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({
+        "isa_data": {
+            "elements": [
+                {"id": "A", "label": "Alpha", "type": "Drivers"},
+                {"id": "B", "label": "Beta", "type": "Activities"},
+            ],
+            "connections": [
+                {"source": "A", "target": "B", "polarity": "+", "delay": "eventually"}
+            ],
+        },
+    }))
+    with pytest.raises(ValueError) as exc:
+        load_project(bad)
+    assert "delay" in str(exc.value).lower()
+
+
+def test_validate_accepts_connection_with_omitted_optional_vocab():
+    """polarity/strength/delay are optional — a bare source/target connection
+    falls back to dataclass defaults and must validate."""
+    result = validate_project_payload({
+        "isa_data": {
+            "elements": [
+                {"id": "A", "label": "Alpha", "type": "Drivers"},
+                {"id": "B", "label": "Beta", "type": "Activities"},
+            ],
+            "connections": [{"source": "A", "target": "B"}],
+        },
+    })
+    assert result.valid, result.errors
+
+
 def test_validate_accepts_flat_isa_shape():
     """Tolerate the older "flat" {elements, connections} shape that the
     sample file uses, in addition to the {metadata, isa_data} envelope."""

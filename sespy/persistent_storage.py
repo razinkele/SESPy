@@ -14,7 +14,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .data_structure import IsaData, Project
+from .constants import DAPSIWRM_ELEMENTS, DELAY_LEVELS
+from .data_structure import Project
+
+# Controlled vocabularies enforced at load time. A value is only checked when
+# the key is present and non-null — an omitted field falls back to the
+# dataclass default in Project.from_dict, so optional fields stay optional.
+# Element.type tolerates "" (an explicitly untyped node — e.g. a QSEM theme
+# that doesn't map onto a DAPSI(W)R(M) layer) so importer round-trips survive.
+_VALID_ELEMENT_TYPES: frozenset[str] = frozenset(DAPSIWRM_ELEMENTS) | {""}
+_VALID_POLARITIES: frozenset[str] = frozenset({"+", "-"})
+_VALID_STRENGTHS: frozenset[str] = frozenset({"weak", "medium", "strong"})
+_VALID_DELAYS: frozenset[str] = frozenset(DELAY_LEVELS)
 
 
 @dataclass
@@ -37,16 +48,16 @@ def validate_project_payload(raw: dict[str, Any]) -> ValidationResult:
     isa = raw.get("isa_data") or raw  # tolerate flat shape
     elements = isa.get("elements")
     connections = isa.get("connections")
-    if not isinstance(elements, list):
-        errors.append("isa_data.elements must be a list")
-    if not isinstance(connections, list):
-        errors.append("isa_data.connections must be a list")
-    if errors:
+    if not isinstance(elements, list) or not isinstance(connections, list):
+        if not isinstance(elements, list):
+            errors.append("isa_data.elements must be a list")
+        if not isinstance(connections, list):
+            errors.append("isa_data.connections must be a list")
         return ValidationResult(False, errors)
 
     # Per-element / per-connection structural checks. Stop after first 5
     # errors per category so the user gets a concise summary, not a flood.
-    seen_ids: set[str] = set()
+    seen_ids: set[Any] = set()
     for i, el in enumerate(elements):
         if not isinstance(el, dict):
             errors.append(f"element[{i}] is not an object")
@@ -54,6 +65,12 @@ def validate_project_payload(raw: dict[str, Any]) -> ValidationResult:
         for required in ("id", "label", "type"):
             if required not in el:
                 errors.append(f"element[{i}] missing required field {required!r}")
+        etype = el.get("type")
+        if etype is not None and etype not in _VALID_ELEMENT_TYPES:
+            errors.append(
+                f"element[{i}] has invalid type {etype!r} "
+                f"(expected one of {sorted(DAPSIWRM_ELEMENTS)})"
+            )
         if el.get("id") in seen_ids:
             errors.append(f"element[{i}] has duplicate id {el.get('id')!r}")
         else:
@@ -73,6 +90,34 @@ def validate_project_payload(raw: dict[str, Any]) -> ValidationResult:
                         f"connection[{i}].{ref} references unknown element id "
                         f"{c.get(ref)!r}"
                     )
+            # Self-loop: a connection from an element to itself. Rejected
+            # outright (not silently dropped) so a malformed model surfaces at
+            # load instead of vanishing in the analysis layer, which skips
+            # self-loops.
+            src, tgt = c.get("source"), c.get("target")
+            if src is not None and src == tgt:
+                errors.append(
+                    f"connection[{i}] is a self-loop on element {src!r} "
+                    f"(source and target must differ)"
+                )
+            pol = c.get("polarity")
+            if pol is not None and pol not in _VALID_POLARITIES:
+                errors.append(
+                    f"connection[{i}] has invalid polarity {pol!r} "
+                    f"(expected '+' or '-')"
+                )
+            strength = c.get("strength")
+            if strength is not None and strength not in _VALID_STRENGTHS:
+                errors.append(
+                    f"connection[{i}] has invalid strength {strength!r} "
+                    f"(expected one of {sorted(_VALID_STRENGTHS)})"
+                )
+            delay = c.get("delay")
+            if delay is not None and delay not in _VALID_DELAYS:
+                errors.append(
+                    f"connection[{i}] has invalid delay {delay!r} "
+                    f"(expected one of {sorted(_VALID_DELAYS)})"
+                )
             if len(errors) >= 10:
                 break
 

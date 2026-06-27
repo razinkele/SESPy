@@ -16,7 +16,6 @@ import numpy as np
 from . import network as _net  # for _STRENGTH_RANK
 from .data_structure import IsaData
 
-
 # =============================================================================
 # Matrix construction
 # =============================================================================
@@ -487,7 +486,7 @@ def state_shift_monte_carlo(
         if col.size:
             summary[i] = StateShiftSummary(
                 mean=float(col.mean()),
-                sd=float(col.std()),
+                sd=float(col.std(ddof=1)) if col.size > 1 else 0.0,
                 p5=float(np.percentile(col, 5)),
                 p95=float(np.percentile(col, 95)),
             )
