@@ -1,12 +1,12 @@
 """Unit tests for the autosave layer."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
 
-from sespy import autosave, data_structure as ds
+from sespy import autosave
+from sespy import data_structure as ds
 
 SAMPLE = Path(__file__).resolve().parents[1] / "data" / "sample_ses.json"
 

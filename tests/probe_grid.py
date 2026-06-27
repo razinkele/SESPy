@@ -1,5 +1,6 @@
 """Diagnose what bslib uses for the grid layout in page_sidebar."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

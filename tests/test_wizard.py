@@ -1,13 +1,13 @@
 """Unit tests for sespy.wizard — pure-data wizard flow."""
 from __future__ import annotations
 
+from sespy.data_structure import WizardState
 from sespy.wizard import (
-    WIZARD_STEPS,
     ELEMENT_TYPE_MAP,
     REGIONAL_SEAS,
+    WIZARD_STEPS,
     suggest_connections,
 )
-from sespy.data_structure import WizardState
 
 
 def test_wizard_steps_count_is_12():
@@ -77,9 +77,9 @@ def test_suggest_connections_empty_state_returns_empty():
 # via e2e in tests/test_wizard_e2e.py.
 # ===========================================================================
 
-import pytest
 
 from sespy.data_structure import ConnectionSuggestion
+
 # Import the production helper directly — NOT a copy. Tests below
 # exercise the exact same algorithm _on_finish uses.
 from sespy.modules.ai_isa_wizard import _dedup_accepted as _dedup

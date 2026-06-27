@@ -21,11 +21,11 @@ from typing import Any, assert_never
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from shiny.types import SilentException
 
-from ..claude_backend import (    # NOTE: lazy import for runtime use lives in
-    ClaudeBackendError,           #       the @reactive.extended_task body (Task 13).
-    ValidationOutcome,            #       These top-level imports are types only —
-    _REASON_TO_I18N,              #       claude_backend imports nothing from Shiny,
-)                                 #       and these are pure dataclasses, safe to import.
+from ..claude_backend import (  # NOTE: lazy import for runtime use lives in
+    _REASON_TO_I18N,  #       claude_backend imports nothing from Shiny,
+    ClaudeBackendError,  #       the @reactive.extended_task body (Task 13).
+    ValidationOutcome,  #       These top-level imports are types only —
+)  #       and these are pure dataclasses, safe to import.
 from ..constants import ELEMENT_ID_PREFIX
 from ..data_structure import (
     Connection,
@@ -44,7 +44,6 @@ from ..wizard import (
     WIZARD_STEPS,
     suggest_connections,
 )
-
 
 # ---------------------------------------------------------------------------
 # SP4 sum-typed status — distinguishes never-called, in-flight, returned-N,
@@ -277,7 +276,9 @@ def _render_connection_review(
                     t("wizard.claude_generating"),
                     class_="my-3 text-muted",
                 ))
-            case _ClaudeFailed(error=ClaudeBackendError(reason="rate_limit", retry_after=ra)) if ra is not None and ra > 0:
+            case _ClaudeFailed(
+                error=ClaudeBackendError(reason="rate_limit", retry_after=ra)
+            ) if ra is not None and ra > 0:
                 # Positive Retry-After only — zero/absent means "retry now".
                 parts.append(ui.input_action_button(
                     "wizard_claude_generate",

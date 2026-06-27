@@ -10,6 +10,7 @@ end-to-end:
   - Boolean tab shows a populated ``<table>`` (no warning, no danger alert).
 """
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

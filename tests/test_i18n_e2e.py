@@ -1,5 +1,6 @@
 """End-to-end check: switching the language updates nav + stepper labels live."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

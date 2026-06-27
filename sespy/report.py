@@ -15,14 +15,12 @@ Jinja2 + WeasyPrint runs synchronously in the worker thread.
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, BaseLoader, select_autoescape
+from jinja2 import BaseLoader, Environment, select_autoescape
 
 from . import network as net_analysis
-from .data_structure import IsaData, Project
-
+from .data_structure import Project
 
 _TEMPLATE = """\
 <!DOCTYPE html>

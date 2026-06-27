@@ -3,6 +3,7 @@ and `event_bus.isa_change` (fired from project_io's New Project) propagates
 to all three modules at once.
 """
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

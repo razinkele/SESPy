@@ -1,6 +1,7 @@
 """Final integration smoke: all 5 nav tabs render, language switch works,
 hamburger collapses sidebar to mini-mode."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

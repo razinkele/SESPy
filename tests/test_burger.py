@@ -2,6 +2,7 @@
 capture before/after screenshots for visual comparison.
 """
 import asyncio
+
 from playwright.async_api import async_playwright
 
 
@@ -16,13 +17,6 @@ async def main():
         # doesn't race the first render (this test was intermittently flaky
         # on a fixed 1.5s sleep).
         await page.wait_for_selector(".sespy-nav-icon", timeout=20000)
-
-        # OUTER toggle — direct child of the page-level sidebar layout,
-        # NOT inside a .sespy-card.
-        OUTER_TOGGLE = (
-            "body > div > .bslib-sidebar-layout > .collapse-toggle, "
-            ".bslib-page-sidebar > .bslib-sidebar-layout > .collapse-toggle"
-        )
 
         before = await page.evaluate(
             "() => ({"

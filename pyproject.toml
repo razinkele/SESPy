@@ -33,11 +33,38 @@ prod = ["python-igraph>=0.11"]
 # libraries (cairo, pango, gdk-pixbuf); install with `pip install sespy[pdf]`.
 # HTML and Word export work without it.
 pdf = ["weasyprint>=60"]
-test = ["pytest>=8", "pytest-playwright>=0.5", "pytest-asyncio>=0.23"]
+test = ["pytest>=8", "pytest-playwright>=0.5", "pytest-asyncio>=0.23", "pytest-cov>=4"]
+lint = ["ruff>=0.6", "mypy>=1.10"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: isort. A focused, high-signal set —
+# correctness + unused-import/name hygiene + import ordering.
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test modules legitimately group imports into commented "sections" (e.g.
+# importorskip guards, second topic-block imports), which trips E402; and
+# e2e scripts embed long inline JS / absolute-path literals that can't wrap
+# (E501).
+"tests/**" = ["E402", "E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_configs = true
+# Pragmatic baseline for a Shiny app being incrementally typed: the codebase
+# is not yet mypy-clean, so CI runs this as a non-blocking signal (see
+# .github/workflows/ci.yml). Tighten toward strict as modules are annotated.
 
 [build-system]
 requires = ["setuptools>=77"]

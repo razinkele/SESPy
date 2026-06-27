@@ -1,6 +1,7 @@
 """E2E for the Intervention module: select a node to ablate, verify
 table updates and network re-renders with greyed-out node."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

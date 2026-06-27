@@ -8,10 +8,10 @@ from pathlib import Path
 
 from shiny import reactive, ui
 
-from ..i18n import Translator
 from .. import feedback_store
+from ..autosave import autosave_age_seconds, clear_autosave
 from ..dashboard import language_switcher
-from ..autosave import clear_autosave, autosave_age_seconds
+from ..i18n import Translator
 
 _THEME_CHOICES = {"light-marine": "Light Marine", "deep-ocean": "Deep Ocean (Dark)"}
 

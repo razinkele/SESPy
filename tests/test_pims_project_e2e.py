@@ -8,6 +8,7 @@ Two cases:
      to PIMS, assert template's metadata fields populate the form.
 """
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

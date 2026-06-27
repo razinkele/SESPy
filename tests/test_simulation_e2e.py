@@ -1,6 +1,7 @@
 """E2E for the Dynamic Simulation module: navigate, click Run Simulation
 and Run Monte Carlo, verify both result panels populate."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

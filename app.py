@@ -17,6 +17,7 @@ from pathlib import Path
 from shiny import App, Inputs, Outputs, Session, reactive, ui
 
 from sespy import data_structure
+from sespy import i18n as _i18n
 from sespy.dashboard import (
     NavItem,
     StepperItem,
@@ -24,9 +25,7 @@ from sespy.dashboard import (
     dashboard_server,
     workflow_stepper_slot,
 )
-from sespy.modules.topbar_actions import topbar_actions_ui, topbar_actions_server
 from sespy.event_bus import create_event_bus
-from sespy import i18n as _i18n
 from sespy.i18n import Translator, load_translations
 from sespy.modules.ai_isa_wizard import ai_isa_wizard_server, ai_isa_wizard_ui
 from sespy.modules.analysis_boolean import (
@@ -39,9 +38,9 @@ from sespy.modules.analysis_intervention import (
     analysis_intervention_ui,
 )
 from sespy.modules.analysis_leverage import analysis_leverage_server, analysis_leverage_ui
-from sespy.modules.analysis_quadrant import analysis_quadrant_server, analysis_quadrant_ui
 from sespy.modules.analysis_loops import analysis_loops_server, analysis_loops_ui
 from sespy.modules.analysis_metrics import analysis_metrics_server, analysis_metrics_ui
+from sespy.modules.analysis_quadrant import analysis_quadrant_server, analysis_quadrant_ui
 from sespy.modules.analysis_simplify import (
     analysis_simplify_server,
     analysis_simplify_ui,
@@ -50,19 +49,20 @@ from sespy.modules.analysis_simulation import (
     analysis_simulation_server,
     analysis_simulation_ui,
 )
+from sespy.modules.cld_visualization import cld_viz_server, cld_viz_ui
+from sespy.modules.import_data import import_data_server, import_data_ui
+from sespy.modules.isa_data_entry import isa_data_entry_server, isa_data_entry_ui
 from sespy.modules.pims_project import pims_project_server, pims_project_ui
 from sespy.modules.pims_stakeholders import (
     pims_stakeholders_server,
     pims_stakeholders_ui,
 )
-from sespy.modules.cld_visualization import cld_viz_server, cld_viz_ui
-from sespy.modules.import_data import import_data_server, import_data_ui
-from sespy.modules.isa_data_entry import isa_data_entry_server, isa_data_entry_ui
-from sespy.modules.rate_connections import rate_connections_server, rate_connections_ui
 from sespy.modules.project_io import quick_actions_server, quick_actions_ui
+from sespy.modules.rate_connections import rate_connections_server, rate_connections_ui
 from sespy.modules.recent_projects import recent_projects_server, recent_projects_ui
 from sespy.modules.report_export import report_export_server, report_export_ui
 from sespy.modules.templates import templates_server, templates_ui
+from sespy.modules.topbar_actions import topbar_actions_server, topbar_actions_ui
 
 ROOT = Path(__file__).parent
 WWW = ROOT / "www"

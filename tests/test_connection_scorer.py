@@ -9,12 +9,9 @@ Test groups (per spec §7):
 """
 from __future__ import annotations
 
-import json
-import re
 from pathlib import Path
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Group 1: JSON schema / loader (5 tests)
@@ -423,16 +420,16 @@ def test_pair_with_relevance_exactly_03_survives():
 
 def test_empty_state_returns_empty():
     """state.elements = [] → []."""
-    from sespy.data_structure import WizardState
     from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import WizardState
     state = WizardState()
     assert suggest_connections(state) == []
 
 
 def test_single_element_state_returns_empty():
     """Only one element → no possible cross-product → []."""
-    from sespy.data_structure import WizardState
     from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import WizardState
     state = WizardState(
         elements=[_make_element("D001", "Tourism", "Drivers")]
     )
@@ -443,8 +440,8 @@ def test_full_state_returns_typed_suggestions():
     """Multi-type state → all items are ConnectionSuggestion, all
     confidence ∈ {0.3, 0.6, 0.9}, all polarity ∈ {'+', '-'}.
     """
-    from sespy.data_structure import WizardState, ConnectionSuggestion
     from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import ConnectionSuggestion, WizardState
     state = WizardState(elements=[
         _make_element("D001", "Tourism", "Drivers"),
         _make_element("A001", "Recreation", "Activities"),
@@ -460,8 +457,8 @@ def test_full_state_returns_typed_suggestions():
 
 def test_per_type_cap_honored_end_to_end():
     """State designed to overflow D→A → ≤ 15 D→A suggestions in output."""
-    from sespy.data_structure import WizardState
     from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import WizardState
     # 5 × 5 = 25 D→A candidates; cap at 15.
     drivers = [_make_element(f"D{i:03d}", f"Tourism{i}", "Drivers")
                for i in range(1, 6)]
@@ -487,8 +484,8 @@ def test_all_10_types_yield_high_confidence_suggestions():
     form actually verifies the keyword JSON has overlap-rich coverage —
     if a future JSON edit drops too many stems, this test fails.
     """
+    from sespy.connection_scorer import _CONN_TYPES, suggest_connections
     from sespy.data_structure import WizardState
-    from sespy.connection_scorer import suggest_connections, _CONN_TYPES
     # IMPORTANT: at least one element per S/I/W group MUST have a label
     # WITHOUT loss_keywords (loss/decline/declin/degrad/reduc/damag/...)
     # because the double-negative filter drops pairs where BOTH labels
@@ -543,8 +540,9 @@ def test_unknown_element_type_skipped(caplog):
     id and type in the message for diagnostics.
     """
     import logging
-    from sespy.data_structure import WizardState
+
     from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import WizardState
     state = WizardState(elements=[
         _make_element("X001", "Mystery thing", "Foo"),  # unknown type
         _make_element("D001", "Tourism", "Drivers"),
@@ -561,8 +559,8 @@ def test_unknown_element_type_skipped(caplog):
 
 def test_type_slug_map_is_inverse_of_wizard_map():
     """_TYPE_TO_SLUG exactly inverts ELEMENT_TYPE_MAP."""
-    from sespy.data_structure import ELEMENT_TYPE_MAP
     from sespy.connection_scorer import _TYPE_TO_SLUG
+    from sespy.data_structure import ELEMENT_TYPE_MAP
     for slug, type_str in ELEMENT_TYPE_MAP.items():
         assert _TYPE_TO_SLUG[type_str] == slug
     assert len(_TYPE_TO_SLUG) == len(ELEMENT_TYPE_MAP)
@@ -574,8 +572,8 @@ def test_polarity_default_fallback_returns_positive():
     fallback). Distinct from test_default_fallback_for_unspecified_pair
     in Group 3 by being end-to-end through suggest_connections.
     """
-    from sespy.data_structure import WizardState
     from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import WizardState
     state = WizardState(elements=[
         _make_element("D001", "Tourism", "Drivers"),
         _make_element("A001", "Recreation", "Activities"),
@@ -595,7 +593,6 @@ def test_no_wizard_import_in_connection_scorer():
     the test works regardless of pytest's cwd.
     """
     import ast
-    from pathlib import Path
     src_path = (
         Path(__file__).resolve().parent.parent
         / "sespy" / "connection_scorer.py"

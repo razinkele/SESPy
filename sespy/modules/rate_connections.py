@@ -11,11 +11,11 @@ from __future__ import annotations
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
+from .. import network
 from ..constants import CONNECTION_POLARITY_LABELS, DELAY_LEVELS
 from ..data_structure import IsaData, Rating
 from ..event_bus import EventBus
 from ..i18n import Translator, t
-from .. import network
 
 _STRENGTHS = ("weak", "medium", "strong")
 

@@ -1,10 +1,10 @@
 """Every full-graph edge builder applies the shared delay cue (dashes)."""
-from sespy.data_structure import Element, Connection, IsaData, Rating
-from sespy.modules.cld_visualization import _build_pyvis_network
+from sespy.data_structure import Connection, Element, IsaData, Rating
+from sespy.modules.analysis_intervention import _build_intervention_network
 from sespy.modules.analysis_leverage import _build_leverage_network
 from sespy.modules.analysis_metrics import _build_metrics_network
 from sespy.modules.analysis_simplify import _build_simplified_network
-from sespy.modules.analysis_intervention import _build_intervention_network
+from sespy.modules.cld_visualization import _build_pyvis_network
 
 
 def _fixture():

@@ -1,6 +1,7 @@
 """E2E for Templates: panel renders, clicking a template loads it,
 analysis modules see the new data."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

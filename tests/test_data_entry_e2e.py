@@ -1,6 +1,7 @@
 """E2E for the ISA Data Entry module: add/remove elements & connections,
 verify changes propagate to other modules via event_bus.isa_change."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

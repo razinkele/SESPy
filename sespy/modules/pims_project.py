@@ -18,7 +18,6 @@ from ..data_structure import Project, ProjectMetadata
 from ..event_bus import EventBus
 from ..i18n import Translator, t
 
-
 _TEMPORAL_LABEL_KEYS = {
     "Daily": "pims.temporal_daily",
     "Monthly": "pims.temporal_monthly",

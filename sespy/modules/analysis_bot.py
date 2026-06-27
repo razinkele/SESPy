@@ -16,10 +16,9 @@ import numpy as np
 import pandas as pd
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
-from ..data_structure import IsaData, Project
+from ..data_structure import Project
 from ..event_bus import EventBus
 from ..i18n import Translator, t
-
 
 _YEAR_COL_CANDIDATES = ("year",)
 _VALUE_COL_CANDIDATES = ("value", "measurement")

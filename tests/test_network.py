@@ -455,7 +455,7 @@ def test_normalize_delay_table():
 # ---------------------------------------------------------------------------
 
 def _delay_fixture(ab_polarity, ab_delay, ba_polarity="+", ba_delay="immediate"):
-    from sespy.data_structure import Element, Connection, IsaData
+    from sespy.data_structure import Connection, Element, IsaData
     els = [Element(id="A", label="A", type="Drivers"),
            Element(id="B", label="B", type="State")]
     conns = [Connection(source="A", target="B", polarity=ab_polarity, delay=ab_delay),
@@ -497,7 +497,7 @@ def test_classify_loops_behavior_buckets_sum_to_total(isa):
 
 
 def test_loop_has_delay_parallel_edges_last_wins():
-    from sespy.data_structure import Element, Connection, IsaData
+    from sespy.data_structure import Connection, Element, IsaData
     els = [Element(id="A", label="A", type="Drivers"),
            Element(id="B", label="B", type="State")]
     # Two A->B edges; last one wins the (source,target) lookup.
@@ -579,7 +579,7 @@ def test_influence_dependence_median_reclassifies_sample(isa):
 def _skew_fixture():
     """isa where node 'A' has 4 strong out-edges (influence 12) and each of
     B,C,D,E has 1 weak out-edge (influence 1) → nz=[12,1,1,1,1], max 12 > 3·1."""
-    from sespy.data_structure import Element, Connection, IsaData
+    from sespy.data_structure import Connection, Element, IsaData
     els = [Element(id=i, label=i, type="Drivers") for i in ("A", "B", "C", "D", "E")]
     conns = [Connection(source="A", target=t, strength="strong", confidence=1)
              for t in ("B", "C", "D", "E")]
@@ -593,7 +593,7 @@ def test_influence_skew_true_on_hub():
 
 
 def test_influence_skew_false_balanced():
-    from sespy.data_structure import Element, Connection, IsaData
+    from sespy.data_structure import Connection, Element, IsaData
     els = [Element(id=i, label=i, type="Drivers") for i in ("A", "B", "C")]
     conns = [Connection(source="A", target="B", strength="medium", confidence=1),
              Connection(source="B", target="C", strength="medium", confidence=1),
@@ -603,7 +603,7 @@ def test_influence_skew_false_balanced():
 
 def test_influence_skew_false_boundary():
     # nz = [6, 2, 2, 2]: max 6 == 3*median 2 -> strict '>' is False.
-    from sespy.data_structure import Element, Connection, IsaData
+    from sespy.data_structure import Connection, Element, IsaData
     els = [Element(id=i, label=i, type="Drivers") for i in ("H", "B", "C", "D", "S")]
     conns = [
         Connection(source="H", target="S", strength="strong", confidence=2),  # H influence 6
@@ -1034,7 +1034,7 @@ def test_fit_sample_golden():
 # ---------------------------------------------------------------------------
 
 def test_loop_polarity_contested():
-    from sespy.data_structure import Element, Connection, Rating, IsaData
+    from sespy.data_structure import Connection, Element, IsaData, Rating
 
     els = [Element(id="A", label="A", type="Drivers"),
            Element(id="B", label="B", type="Pressures")]

@@ -10,7 +10,7 @@ from datetime import datetime
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
-from ..data_structure import IsaData, Project
+from ..data_structure import Project
 from ..event_bus import EventBus
 from ..i18n import Translator
 from ..report import render_docx, render_html, render_pdf

@@ -14,8 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..persistent_storage import load_project
 from ..data_structure import Project
+from ..persistent_storage import load_project
 
 
 @dataclass(frozen=True)

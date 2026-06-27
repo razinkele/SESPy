@@ -22,12 +22,12 @@ from pathlib import Path
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
-from ..data_structure import IsaData, Project
+from ..data_structure import Project
 from ..event_bus import EventBus
 from ..excel_import import parse_excel
-from ..qsem_import import parse_qsem
 from ..i18n import Translator
 from ..persistent_storage import ValidationResult
+from ..qsem_import import parse_qsem
 
 
 def parse_upload(name: str, datapath: Path | str) -> ValidationResult:

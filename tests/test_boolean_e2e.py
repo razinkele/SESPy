@@ -13,6 +13,7 @@ tests/test_dynamics.py against small synthetic networks. This e2e covers the
 wire-up and the too-large code branch — the two things unit tests can't reach.
 """
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

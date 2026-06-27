@@ -7,7 +7,6 @@ aria-selected="true" and propagates the selection to cell_selection()["rows"].
 Confirmed working selector: '#stakeholders-stakeholder_table tbody tr td:first-child'
 """
 import asyncio
-import os
 from pathlib import Path
 
 from playwright.async_api import async_playwright

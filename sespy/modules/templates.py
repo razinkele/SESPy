@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
-from ..data_structure import IsaData, Project, ProjectMetadata
+from ..data_structure import Project
 from ..event_bus import EventBus
 from ..i18n import Translator, t
 from ..templates import TemplateInfo, list_templates, load_template

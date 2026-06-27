@@ -10,7 +10,6 @@ import pytest
 from sespy import dynamics
 from sespy.data_structure import Connection, Element, IsaData
 
-
 # ============================================================
 # isa_to_numeric_matrix
 # ============================================================

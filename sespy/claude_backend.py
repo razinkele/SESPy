@@ -21,14 +21,13 @@ from dataclasses import dataclass
 from typing import Literal, get_args
 
 from .data_structure import (
-    Element,
+    _VALID_TYPE_PAIRS,
     ELEMENT_TYPE_MAP,
+    ConnectionSuggestion,
+    Element,
     Slug,
     WizardState,
-    ConnectionSuggestion,
-    _VALID_TYPE_PAIRS,
 )
-
 
 # ---------------------------------------------------------------------------
 # Module-level constants
@@ -492,7 +491,7 @@ def suggest_connections(state: WizardState) -> ValidationOutcome:
         )
         raise ClaudeBackendError(reason="too_many")
 
-    import anthropic                                   # lazy import
+    import anthropic  # lazy import
     # `os.environ.get(key, default)` returns '' for explicitly-empty env
     # var. `or _DEFAULT_MODEL` handles empty-string-as-falsy.
     model = os.environ.get("SESPY_CLAUDE_MODEL") or _DEFAULT_MODEL

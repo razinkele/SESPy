@@ -1,5 +1,6 @@
 """Probe each ancestor of #cld-network and report any with a visible border."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

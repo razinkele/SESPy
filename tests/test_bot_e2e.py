@@ -5,6 +5,7 @@ all cases. Mirrors the script style of test_boolean_happy_e2e.py — boot
 the app on port 8000, run this script.
 """
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

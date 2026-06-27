@@ -15,7 +15,8 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from sespy.data_structure import Project, Stakeholder
 from sespy.event_bus import EventBus
-from sespy.i18n import Translator, t as _t
+from sespy.i18n import Translator
+from sespy.i18n import t as _t
 from sespy.stakeholder_reports import (
     build_power_interest_png,
     build_stakeholder_workbook,
@@ -32,13 +33,17 @@ from sespy.stakeholders import (
     add_stakeholder,
     communication_rows,
     count_by,
-    engagement_coverage as compute_engagement_coverage,
     engagement_rows,
     level_num,
     remove_stakeholder,
-    stakeholder_stats as compute_stakeholder_stats,
     summarize_quadrants,
     update_stakeholder,
+)
+from sespy.stakeholders import (
+    engagement_coverage as compute_engagement_coverage,
+)
+from sespy.stakeholders import (
+    stakeholder_stats as compute_stakeholder_stats,
 )
 
 # code -> i18n label-key suffix maps (codes are stored; labels are rendered)

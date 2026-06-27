@@ -6,13 +6,12 @@ from typing import get_args
 import pytest
 
 from sespy.claude_backend import (
+    _REASON_TO_I18N,
     ClaudeBackendError,
     ClaudeErrorReason,
     DropReason,
     ValidationOutcome,
-    _REASON_TO_I18N,
 )
-from sespy.data_structure import ConnectionSuggestion
 
 
 def test_claude_backend_error_is_raisable_exception():
@@ -468,8 +467,8 @@ def test_returns_empty_outcome_when_all_invalid():
     assert outcome.drops_by_reason["missing_key"] == 1
 
 
-from unittest.mock import patch, MagicMock
 import logging
+from unittest.mock import patch
 
 import anthropic
 import httpx
@@ -759,6 +758,7 @@ def test_module_imports_with_no_env_var_set(monkeypatch):
     # Re-import under cleared env (already imported in this test process,
     # but verify the contract: no env reads at import).
     import importlib
+
     import sespy.claude_backend
     importlib.reload(sespy.claude_backend)
     assert sespy.claude_backend._DEFAULT_MODEL == "claude-sonnet-4-6"

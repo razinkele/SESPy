@@ -12,6 +12,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint (ruff) + type-check (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install lint tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[lint]
+
+      - name: Ruff (blocking)
+        run: ruff check sespy tests app.py
+
+      - name: Mypy (non-blocking — incremental adoption)
+        # The codebase is being typed incrementally, so mypy is informational
+        # for now. Flip continue-on-error to false once sespy is clean.
+        continue-on-error: true
+        run: mypy sespy
+
   unit-tests:
     name: Unit tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -43,13 +68,27 @@ jobs:
         #   * the pyvis-loop payload test (pyvis.shiny — the pyvis fork, not
         #     on PyPI). Both use pytest.importorskip, so they run in dev where
         #     those are installed and skip cleanly here.
+        # Coverage is measured over the sespy package and printed as a summary
+        # (term-missing). No hard --cov-fail-under gate yet: many UI modules
+        # are e2e-only, so a coverage floor here would block on code that is
+        # exercised in the e2e job. Raise to a gate once unit coverage of the
+        # modules/ layer grows.
         run: |
           pytest tests/ \
             --ignore-glob='*e2e*' \
             --ignore=tests/test_burger.py \
             --ignore=tests/test_stepper.py \
             --ignore=tests/test_stepper_click.py \
+            --cov=sespy --cov-report=term-missing --cov-report=xml \
             -q
+
+      - name: Upload coverage XML artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: ignore
 
   full-app:
     name: Full app (conda env + razinka pyvis fork)

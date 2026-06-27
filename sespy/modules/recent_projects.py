@@ -13,7 +13,7 @@ from pathlib import Path
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
-from ..data_structure import IsaData, Project, ProjectMetadata
+from ..data_structure import Project
 from ..event_bus import EventBus
 from ..i18n import Translator
 from ..persistent_storage import load_project

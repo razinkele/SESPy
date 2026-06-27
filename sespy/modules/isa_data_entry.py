@@ -21,8 +21,8 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from ..constants import (
     CONNECTION_POLARITY_LABELS,
-    DELAY_LEVELS,
     DAPSIWRM_ELEMENTS,
+    DELAY_LEVELS,
 )
 from ..data_structure import Connection, Element, IsaData, Project
 from ..event_bus import EventBus

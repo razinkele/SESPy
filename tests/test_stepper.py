@@ -1,5 +1,6 @@
 """Verify the workflow stepper renders + tracks active panel changes."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 
 from sespy import constants
-from sespy.qsem_import import parse_qsem, qsem_to_isa, qsem_delay_to_level
+from sespy.qsem_import import parse_qsem, qsem_delay_to_level, qsem_to_isa
 
 
 def _node(nid, label, **extra):

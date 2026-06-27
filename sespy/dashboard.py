@@ -19,11 +19,9 @@ on every language change once i18n lands — the same path covers both.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from htmltools import Tag
 from shiny import Inputs, Outputs, Session, reactive, render, ui
-from shiny.module import resolve_id
 
 from .i18n import Translator
 

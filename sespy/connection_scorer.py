@@ -19,13 +19,12 @@ from pathlib import Path
 from typing import Any
 
 from .data_structure import (
-    WizardState,
+    _CONN_TYPES,  # re-exported for SP3-era tests
+    ELEMENT_TYPE_MAP,  # post-Task-2 home (data_structure.py)
     ConnectionSuggestion,
     Element,
-    ELEMENT_TYPE_MAP,  # post-Task-2 home (data_structure.py)
-    _CONN_TYPES,  # re-exported for SP3-era tests
+    WizardState,
 )
-
 
 _KW_PATH = Path(__file__).parent / "connection_keywords.json"
 _logger = logging.getLogger(__name__)

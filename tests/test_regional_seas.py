@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from sespy.regional_seas import get_regional_seas, get_eu_member_codes
+from sespy.regional_seas import get_eu_member_codes, get_regional_seas
 
 
 # Test 1

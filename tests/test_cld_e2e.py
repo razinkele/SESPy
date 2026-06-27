@@ -1,5 +1,6 @@
 """E2E: the main CLD network dashes the seeded delayed edge."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

@@ -20,10 +20,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from .data_structure import WizardState, ConnectionSuggestion, ELEMENT_TYPE_MAP
 from .connection_scorer import suggest_connections as _suggest_impl
+from .data_structure import ELEMENT_TYPE_MAP as ELEMENT_TYPE_MAP  # re-export (SP1 caller compat)
+from .data_structure import ConnectionSuggestion, WizardState
 from .regional_seas import get_regional_seas
-
 
 # ---------------------------------------------------------------------------
 # Wizard step flow — 12 steps as a list of dicts. Each dict has:

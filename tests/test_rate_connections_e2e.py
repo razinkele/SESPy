@@ -1,6 +1,7 @@
 """E2E for Rate Connections (QSEM-C2): add a stakeholder, rate a connection,
 assert the connection row reflects the new rating (#ratings -> 1, mine -> check)."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 # Verified DataGrid selection idiom (test_stakeholders_e2e.py): click a TD cell,

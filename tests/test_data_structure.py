@@ -92,7 +92,7 @@ def test_wizard_state_defaults():
 
 
 def test_wizard_state_construction():
-    from sespy.data_structure import WizardState, Element
+    from sespy.data_structure import Element, WizardState
     elements = [Element(id="D001", label="Tourism", type="Drivers")]
     state = WizardState(
         regional_sea="baltic",
@@ -126,13 +126,11 @@ def test_connection_suggestion_construction():
 """Tests for the shared data-layer constants used by both backends."""
 from typing import get_args
 
-import pytest
-
 from sespy.data_structure import (
-    ELEMENT_TYPE_MAP,
-    Slug,
     _CONN_TYPES,
     _VALID_TYPE_PAIRS,
+    ELEMENT_TYPE_MAP,
+    Slug,
 )
 
 

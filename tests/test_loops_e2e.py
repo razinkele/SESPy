@@ -1,6 +1,7 @@
 """E2E for delay-aware Loop Analysis: detect loops, confirm an oscillation-prone
 loop is reported and its delayed edge renders dashed in the loop network."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

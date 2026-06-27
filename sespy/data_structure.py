@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass, field, fields, replace as _dc_replace
+from dataclasses import asdict, dataclass, field, fields
+from dataclasses import replace as _dc_replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Literal

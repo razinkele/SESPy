@@ -1,5 +1,7 @@
 import asyncio
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     async with async_playwright() as p:
@@ -34,7 +36,8 @@ async def main():
             await pg.wait_for_timeout(300)
             dt = await pg.get_attribute("html", "data-theme")
             if dt == "deep-ocean":
-                ok = True; break
+                ok = True
+                break
         assert ok, "data-theme not applied"
         print("topbar options/theme: OK")
         # close options modal and wait for it to fully disappear

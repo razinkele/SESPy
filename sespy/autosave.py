@@ -21,10 +21,8 @@ from pathlib import Path
 
 from .data_structure import IsaData, Project
 from .persistent_storage import (
-    ValidationResult,
     load_project,
     save_project_atomic,
-    validate_project_payload,
 )
 
 

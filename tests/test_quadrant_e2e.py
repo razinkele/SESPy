@@ -1,5 +1,6 @@
 """E2E for the Factor Quadrant module."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

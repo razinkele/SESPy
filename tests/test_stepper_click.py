@@ -1,5 +1,6 @@
 """Verify clicking a stepper step navigates to the matching panel."""
 import asyncio
+
 from playwright.async_api import async_playwright
 
 

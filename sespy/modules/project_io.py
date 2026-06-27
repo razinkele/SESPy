@@ -24,7 +24,6 @@ from shiny import Inputs, Outputs, Session, reactive, render, ui
 from .. import data_structure as ds
 from ..autosave import (
     autosave_age_seconds,
-    autosave_path,
     clear_autosave,
     read_autosave,
     write_autosave,
@@ -32,10 +31,8 @@ from ..autosave import (
 from ..event_bus import EventBus
 from ..i18n import Translator
 from ..persistent_storage import (
-    ValidationResult,
     load_project,
     project_to_bytes,
-    validate_project_payload,
 )
 from ..recent_projects import add_recent
 

@@ -72,7 +72,10 @@ def build_summary_pdf(project_name, stats, stakeholders) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import (
-        Paragraph, SimpleDocTemplate, Spacer, Table,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
     )
 
     buf = BytesIO()

@@ -8,12 +8,11 @@ Pattern matches `analysis_metrics.py` (matplotlib via @render.plot, no pyvis).
 """
 from __future__ import annotations
 
+import numpy as np
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
-import numpy as np
-
 from .. import dynamics
-from ..data_structure import IsaData, Project
+from ..data_structure import Project
 from ..event_bus import EventBus
 from ..i18n import Translator, t
 

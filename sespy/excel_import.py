@@ -19,7 +19,7 @@ from typing import Any, Sequence
 import pandas as pd
 
 from .constants import normalize_delay
-from .data_structure import Connection, Element, IsaData, Project, ProjectMetadata
+from .data_structure import Connection, Element
 from .persistent_storage import ValidationResult, validate_project_payload
 
 # Column-name fallbacks (case-insensitive, port of constants.R)

@@ -4,9 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
-from sespy.excel_import import parse_excel, _try_float, fcm_weight_to_fields
+from sespy.excel_import import _try_float, fcm_weight_to_fields, parse_excel
 
 
 def _write_workbook(
