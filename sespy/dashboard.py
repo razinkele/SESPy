@@ -191,9 +191,24 @@ def dashboard_page(
     if quick_actions is not None:
         sidebar_children.append(quick_actions)
 
-    main_children: list[Tag] = []
+    # Title bar: brand text on the left, the utility-button cluster
+    # (header_actions = Feedback/About/Options/Help) pinned to the right.
+    # Passing a Tag — not a str — as page_sidebar's `title=` drops it straight
+    # into the navbar's full-width `.container-fluid` instead of being wrapped
+    # in a left-aligned `.navbar-brand`; that's what lets the flex row's
+    # `space-between` push the cluster to the right edge of the top bar. We
+    # keep the `.bslib-page-title navbar-brand` classes on the <h1> so the
+    # existing navbar styling still applies, and pass `window_title` (below)
+    # so the browser tab still reads the plain title string.
+    page_title: str | Tag = title
     if header_actions is not None:
-        main_children.append(ui.tags.div(header_actions, class_="sespy-topbar"))
+        page_title = ui.tags.div(
+            ui.tags.h1(title, class_="bslib-page-title navbar-brand sespy-app-title"),
+            header_actions,
+            class_="sespy-titlebar",
+        )
+
+    main_children: list[Tag] = []
     if pre_panel_slot is not None:
         main_children.append(pre_panel_slot)
     main_children.append(ui.navset_hidden(*panels, id="main_nav", selected=initial))
@@ -288,7 +303,8 @@ def dashboard_page(
         ui.page_sidebar(
             ui.sidebar(*sidebar_children, width=280, class_="sespy-sidebar sespy-nav-shell"),
             *main_children,
-            title=title,
+            title=page_title,
+            window_title=title,
             fillable=True,
         ),
     )

@@ -145,29 +145,47 @@ label, .form-label, .control-label {
 }
 
 /* =================================================================
-   TOPBAR — populated with header_actions (currently the language
-   switcher). The burger functionality moved to bslib's built-in
-   outer-sidebar toggle, hijacked via JS in dashboard.py.
+   TITLE BAR — header_actions (the Feedback/About/Options/Help cluster)
+   now lives INSIDE the full-width navbar that carries the app title.
+   `.sespy-titlebar` is passed as page_sidebar's `title=` (a Tag, so bslib
+   drops it raw into the navbar's `.container-fluid`); `space-between`
+   keeps the brand <h1> on the left and the button cluster on the right.
    ================================================================= */
-.sespy-topbar {
+.sespy-titlebar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  width: 100%;
   gap: var(--space-md);
-  padding: 0 0 var(--space-sm) 0;
 }
-/* The utility-button cluster (Feedback / About / Options / Help) sits on the
-   LEFT of the topbar; margin-right:auto pins it left within the flex row. */
+.sespy-app-title {
+  margin: 0;
+}
+/* The utility-button cluster (Feedback / About / Options / Help) — a flex
+   group sitting at the right end of the title bar. */
 .sespy-topbar-actions {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  margin-right: auto;
 }
 .sespy-topbar-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+/* Buttons sit on the dark ocean-gradient navbar now — give them a glassy,
+   legible look (white text + translucent fill) instead of the default
+   light-on-light Bootstrap button. */
+.sespy-titlebar .sespy-topbar-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+.sespy-titlebar .sespy-topbar-btn:hover,
+.sespy-titlebar .sespy-topbar-btn:focus {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #ffffff;
 }
 .sespy-language-switcher {
   display: inline-flex;

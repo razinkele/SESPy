@@ -3,7 +3,7 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
-- Topbar utility cluster: Feedback, About, Options, and Help buttons on the left of the topbar.
+- Title-bar utility cluster: Feedback, About, Options, and Help buttons in the right corner of the app title bar.
 - Feedback modal writing to a local SQLite store (message, rating, category).
 - About modal with Overview and Changelog tabs (rendered from README + this file).
 - Options modal: colour theme (Light Marine / Deep Ocean), the language selector
