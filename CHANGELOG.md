@@ -3,6 +3,10 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- Fix: imported QSEM / food-web models now render in the CLD. Their nodes use
+  non-DAPSIWRM themes (or none), and the DAPSIWRM-only type filter was silently
+  dropping every untyped element, so the diagram came up empty. Untyped / custom
+  themes the filter doesn't offer are now always shown.
 - Title-bar utility cluster: Feedback, About, Options, and Help buttons in the right corner of the app title bar.
 - Feedback modal now lists recent feedback below the form (date, category, rating,
   message; newest first, 10 rows, scroll-capped). The listing read is guarded so a

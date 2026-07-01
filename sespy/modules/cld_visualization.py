@@ -15,6 +15,8 @@ fork also exposes a diff-based `network_update_data` path for larger graphs.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from pyvis.network import Network
 from pyvis.shiny import (
     PyVisNetworkController,
@@ -250,6 +252,22 @@ def _build_pyvis_network(
     return net
 
 
+def cld_keep_types(isa: IsaData, selected: Iterable[str]) -> set[str]:
+    """Element types to render: the user-selected DAPSIWRM types PLUS any type
+    present in the data that the DAPSIWRM checkbox filter doesn't even offer
+    (untyped "" or custom QSEM / food-web themes like 'OWFs', 'Policy').
+
+    The `element_types` filter only lists DAPSIWRM types, so it can only ever
+    HIDE DAPSIWRM-typed elements. Without this, importing a non-DAPSIWRM model
+    (whose elements are mostly type="") filters every node out and the diagram
+    renders empty — see the QSEM absent-theme trap. Keeping the unofferable
+    types unconditionally means such a model renders in full while DAPSIWRM
+    projects keep their per-type toggles unchanged.
+    """
+    unofferable = {e.type for e in isa.elements} - set(DAPSIWRM_ELEMENTS)
+    return set(selected) | unofferable
+
+
 @module.server
 def cld_viz_server(
     input: Inputs,
@@ -262,7 +280,8 @@ def cld_viz_server(
     @reactive.calc
     def filtered() -> IsaData:
         event_bus.cld_update.get()
-        return filter_elements(project_data.get().isa_data, input.element_types() or ())
+        isa = project_data.get().isa_data
+        return filter_elements(isa, cld_keep_types(isa, input.element_types() or ()))
 
     # The pyvis renderer fires whenever any reactive input it reads changes —
     # we read every layout/spacing/scale slider so the network rebuilds when
