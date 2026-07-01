@@ -320,12 +320,20 @@ def test_suggest_known_themes():
     assert m["Policy"] == "Responses"
     assert m["Food web"] == "Marine Processes & Functioning"
     assert m["Ecosystem Services"] == "Ecosystem Services"  # exact match first
-    assert m["LWB"] == "" and m["NiD"] == "" and m[""] == ""
+    assert m["NiD"] == "Responses"      # exact abbreviation lookup (user-confirmed)
+    assert m["LWB"] == "" and m[""] == ""
 
 
 def test_suggest_ordering_responses_before_goods():
     # "governance" must win over the broad "good"
     assert suggest_dapsiwrm_map(["Good governance"])["Good governance"] == "Responses"
+
+
+def test_suggest_abbrev_is_exact_not_substring():
+    # exact 'NiD' -> Responses, but a word merely CONTAINING 'nid' must not match
+    m = suggest_dapsiwrm_map(["NiD", "Unidentified stressors"])
+    assert m["NiD"] == "Responses"
+    assert m["Unidentified stressors"] == ""   # no false substring hit
 ```
 
 - [ ] **Step 2: Run to verify fail**
@@ -351,15 +359,25 @@ _HEURISTIC_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
 )
 
 
+# NiD4OCEAN project abbreviations — EXACT (case-insensitive) match, so short
+# codes cannot false-match as substrings (bare "nid" would hit "Unidentified").
+# LWB deliberately omitted -> stays untyped (user-confirmed).
+_ABBREV: dict[str, str] = {"nid": "Responses"}
+
+
 def suggest_dapsiwrm_map(themes: Iterable[str]) -> dict[str, str]:
-    """Heuristic best-guess theme -> DAPSIWRM type (or "" untyped). Exact
-    DAPSIWRM match wins; else first keyword-substring rule (case-insensitive)."""
+    """Heuristic best-guess theme -> DAPSIWRM type (or "" untyped). Precedence:
+    exact DAPSIWRM match → exact project-abbreviation lookup → first
+    keyword-substring rule (case-insensitive)."""
     out: dict[str, str] = {}
     for theme in themes:
         if theme in DAPSIWRM_ELEMENTS:
             out[theme] = theme
             continue
         low = theme.lower()
+        if low in _ABBREV:
+            out[theme] = _ABBREV[low]
+            continue
         out[theme] = ""
         for keywords, dtype in _HEURISTIC_RULES:
             if any(k in low for k in keywords):

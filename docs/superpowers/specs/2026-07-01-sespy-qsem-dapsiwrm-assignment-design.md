@@ -85,15 +85,19 @@ theme→type authority:
   | 6 | `policy`, `response`, `management`, `measure`, `governance`, `regulation` | Responses |
   | 7 | `benefit`, `good`, `welfare`, `value`, `econom` | Goods & Benefits |
 
+  Between the exact-`DAPSIWRM_ELEMENTS` check and the substring rules there is an
+  **exact (case-insensitive) abbreviation lookup** for NiD4OCEAN project codes,
+  currently `{"nid": "Responses"}` (Nature-inclusive Design → a management
+  response; user-confirmed). Exact rather than substring so short codes can't
+  false-match (bare `nid` would hit "Unidentified…"). `LWB` is intentionally NOT
+  in the lookup → stays untyped (user-confirmed; expansion still TBC).
+
   No keyword match → `""` (Leave untyped). Verified against every real NiD4OCEAN
   theme: `OWFs`→Activities, `Environmental pressures`→Pressures, `Ecosystem
   components`→Marine Processes, `Policy`→Responses, `Food web`→Marine Processes,
-  `Ecosystem Services`→itself; `LWB`, `NiD`, `""` → untyped. **Note (review):**
-  bare short/abbrev substrings are fragile — `nid` was DROPPED from the rules (it
-  would match "Unidentified…"); `LWB`/`NiD` stay untyped by design and the user
-  assigns them in the UI. `good`/`value` remain broad but now sit behind the more
-  specific rules, and every guess is user-editable. The table is a starting
-  point, not an authority.
+  `Ecosystem Services`→itself, `NiD`→Responses; `LWB`, `""` → untyped.
+  `good`/`value` remain broad but sit behind the more specific rules, and every
+  guess is user-editable. The table is a starting point, not an authority.
 
 ### 2. UI — `sespy/modules/import_data.py`
 
