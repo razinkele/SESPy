@@ -53,18 +53,41 @@ for item in "${RUNTIME[@]}"; do
 done
 find "$STAGE" -name __pycache__ -type d -prune -exec rm -rf {} +
 find "$STAGE" -name '*.pyc' -delete
+# Never ship the runtime feedback DB / logs. The server OWNS its own
+# sespy/logs/ (feedback.db, surfaced in the Feedback modal); shipping the
+# local copy would clobber production feedback with dev/test entries. The
+# server's copy is preserved across the package wipe in step 2/4 below.
+rm -rf "$STAGE/sespy/logs"
 
 # 2. Ensure the target exists; clear the managed package dir + any stale
 #    top-level bytecode so a module deleted upstream does not linger and the
 #    new app.py is not shadowed by an old .pyc (scp overwrites but never
 #    deletes). Only sespy/ and __pycache__ are removed — the rest of $APP_DIR
-#    (incl. .git) is untouched.
-ssh "$SERVER" "mkdir -p '$APP_DIR' && rm -rf '$APP_DIR/sespy' '$APP_DIR/__pycache__'"
+#    (incl. .git) is untouched. The server-owned sespy/logs/ (feedback.db) is
+#    stashed aside first and restored in step 4 so a deploy never destroys it.
+ssh "$SERVER" "
+  mkdir -p '$APP_DIR' &&
+  if [ -d '$APP_DIR/sespy/logs' ]; then
+    rm -rf '$APP_DIR/.deploy-keep' &&
+    mkdir -p '$APP_DIR/.deploy-keep' &&
+    mv '$APP_DIR/sespy/logs' '$APP_DIR/.deploy-keep/logs';
+  fi &&
+  rm -rf '$APP_DIR/sespy' '$APP_DIR/__pycache__'
+"
 
-# 3. Copy the staged runtime tree.
+# 3. Copy the staged runtime tree (scp merges sespy/ into the dir left behind).
 scp -rq "$STAGE"/* "$SERVER:$APP_DIR/"
 
-# 4. Reload: Shiny Server restarts an app's workers when restart.txt changes.
-ssh "$SERVER" "touch '$APP_DIR/restart.txt'"
+# 4. Restore the preserved feedback DB / logs, then reload: Shiny Server
+#    restarts an app's workers when restart.txt changes.
+ssh "$SERVER" "
+  if [ -d '$APP_DIR/.deploy-keep/logs' ]; then
+    rm -rf '$APP_DIR/sespy/logs' &&
+    mkdir -p '$APP_DIR/sespy' &&
+    mv '$APP_DIR/.deploy-keep/logs' '$APP_DIR/sespy/logs';
+  fi &&
+  rm -rf '$APP_DIR/.deploy-keep' &&
+  touch '$APP_DIR/restart.txt'
+"
 
 echo "==> Done. ${APP_DIR} updated to ${VERSION}; Shiny Server reloads on next request."

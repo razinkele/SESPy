@@ -3,6 +3,7 @@ modals. Plain functions wired at root (NOT a Shiny module), so input ids are
 global. Mimics the BowTie app's feedback (SQLite) + About/Options/Help."""
 from __future__ import annotations
 
+from datetime import datetime
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
@@ -56,6 +57,69 @@ def topbar_actions_ui(translator: Translator | None = None) -> ui.Tag:
     )
 
 
+def _fmt_ts(created_at: str) -> str:
+    """ISO-8601 UTC timestamp → compact 'YYYY-MM-DD HH:MM'. Best-effort: returns
+    the raw string on a parse failure, or an em dash for empty input."""
+    if not created_at:
+        return "—"
+    try:
+        return datetime.fromisoformat(created_at).strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return created_at
+
+
+def _truncate(text: str, n: int = 60) -> str:
+    """Trim to <= n chars, appending an ellipsis when shortened. Full text is
+    kept in the cell's title= attribute (see _feedback_table) for hover."""
+    text = (text or "").strip()
+    return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+
+
+_RATING_MAX = 5
+
+
+def _feedback_table(entries: list[dict], translator: Translator | None = None) -> ui.Tag:
+    """Read-only 'recent feedback' listing for the Feedback modal.
+
+    Pure function of `entries` (dicts as returned by feedback_store.list_entries,
+    newest first) so it is unit-testable without a database. Renders an empty-
+    state note when there are no entries, otherwise a compact Bootstrap table.
+    """
+    heading = ui.h6(_t(translator, "feedback.recent_title", "Recent feedback"),
+                    class_="mt-3")
+    if not entries:
+        return ui.TagList(
+            heading,
+            ui.p(_t(translator, "feedback.none", "No feedback yet."),
+                 class_="text-muted small"),
+        )
+
+    header = ui.tags.thead(ui.tags.tr(
+        ui.tags.th(_t(translator, "feedback.col_date", "Date")),
+        ui.tags.th(_t(translator, "feedback.category", "Category")),
+        ui.tags.th(_t(translator, "feedback.rating", "Rating")),
+        ui.tags.th(_t(translator, "feedback.col_message", "Message")),
+    ))
+    rows = []
+    for e in entries:
+        cat = e.get("category") or "other"
+        cat_label = _t(translator, f"feedback.cat_{cat}", str(cat).title())
+        rating = e.get("rating")
+        rating_txt = f"{int(rating)}★" if rating is not None else "—"
+        msg = (e.get("message") or "").strip()
+        rows.append(ui.tags.tr(
+            ui.tags.td(_fmt_ts(e.get("created_at", "")), class_="text-nowrap"),
+            ui.tags.td(cat_label),
+            ui.tags.td(rating_txt, class_="text-nowrap"),
+            ui.tags.td(_truncate(msg), title=msg),
+        ))
+    table = ui.tags.table(
+        header, ui.tags.tbody(*rows),
+        class_="table table-sm table-striped sespy-feedback-table mb-0",
+    )
+    return ui.TagList(heading, ui.div(table, class_="sespy-feedback-table-wrap"))
+
+
 def _feedback_modal(translator: Translator | None) -> ui.Tag:
     cats = {c: _t(translator, f"feedback.cat_{c}", c.title()) for c in _CATEGORY_KEYS}
     return ui.modal(
@@ -65,6 +129,11 @@ def _feedback_modal(translator: Translator | None) -> ui.Tag:
                         min=1, max=5, value=3, step=1),
         ui.input_select("fb_category", _t(translator, "feedback.category", "Category"),
                         choices=cats),
+        ui.tags.hr(),
+        # Recent-feedback listing. Built at modal-open time, so it reflects the
+        # store as of when Feedback was opened (a freshly submitted entry shows
+        # on the next open). Capped at 10 rows to keep the dialog compact.
+        _feedback_table(feedback_store.list_entries(limit=10), translator),
         title=_t(translator, "feedback.title", "Send feedback"),
         footer=ui.TagList(
             ui.input_action_button("fb_submit", _t(translator, "feedback.submit", "Submit"),

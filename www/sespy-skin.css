@@ -187,6 +187,29 @@ label, .form-label, .control-label {
   border-color: rgba(255, 255, 255, 0.45);
   color: #ffffff;
 }
+
+/* Recent-feedback listing inside the Feedback modal — a compact, scroll-capped
+   table so the dialog stays short no matter how many entries exist. */
+.sespy-feedback-table-wrap {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid rgba(74, 144, 184, 0.18);
+  border-radius: var(--radius-sm);
+}
+.sespy-feedback-table {
+  font-size: 0.85rem;
+  margin-bottom: 0;
+}
+.sespy-feedback-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--mist-light);
+  color: var(--ocean-deep);
+  z-index: 1;
+}
+.sespy-feedback-table td {
+  vertical-align: middle;
+}
 .sespy-language-switcher {
   display: inline-flex;
   align-items: center;
