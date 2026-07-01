@@ -13,8 +13,13 @@ async def main():
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
         await page.wait_for_timeout(1500)
 
-        # The default tab is CLD — wait for its pyvis state
-        for _ in range(10):
+        # The default tab is CLD — wait for its network container to MOUNT
+        # first (mirrors test_cld_e2e) so "tab never rendered under load" is
+        # not conflated with "network empty". Then poll the pyvis state. The
+        # container-wait + a generous poll window keeps this robust when the
+        # machine is loaded and the first render is slow.
+        await page.wait_for_selector("#cld-network", timeout=30000)
+        for _ in range(30):
             init_count = await page.evaluate("""() => {
               const s = window.pyvisNetworks && window.pyvisNetworks['cld-network'];
               return s && s.nodes ? s.nodes.length : null;
@@ -43,7 +48,8 @@ async def main():
 
         # Switch to CLD and verify the count went up
         await page.click("#sespy_nav_cld")
-        for _ in range(12):
+        await page.wait_for_selector("#cld-network", timeout=30000)
+        for _ in range(30):
             after_add = await page.evaluate("""() => {
               const s = window.pyvisNetworks && window.pyvisNetworks['cld-network'];
               return s && s.nodes ? s.nodes.length : null;
@@ -56,7 +62,8 @@ async def main():
 
         # Verify the metrics module also picked up the change
         await page.click("#sespy_nav_metrics")
-        for _ in range(12):
+        await page.wait_for_selector("#metrics-metrics_network", timeout=30000)
+        for _ in range(30):
             metrics_nodes = await page.evaluate("""() => {
               const s = window.pyvisNetworks && window.pyvisNetworks['metrics-metrics_network'];
               return s && s.nodes ? s.nodes.length : null;
