@@ -5,7 +5,9 @@ All notable changes to SESPy.
 ## [Unreleased]
 - Title-bar utility cluster: Feedback, About, Options, and Help buttons in the right corner of the app title bar.
 - Feedback modal now lists recent feedback below the form (date, category, rating,
-  message; newest first, 10 rows, scroll-capped).
+  message; newest first, 10 rows, scroll-capped). The listing read is guarded so a
+  read-only / unwritable store degrades to an empty table instead of crashing the
+  dialog (fixes a server crash when the deployed app user could not write the DB).
 - Deploy: the server-owned feedback database (`sespy/logs/feedback.db`) is preserved
   across deploys instead of being overwritten by the local copy.
 - Feedback modal writing to a local SQLite store (message, rating, category).

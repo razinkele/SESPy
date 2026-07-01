@@ -3,6 +3,7 @@ modals. Plain functions wired at root (NOT a Shiny module), so input ids are
 global. Mimics the BowTie app's feedback (SQLite) + About/Options/Help."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
@@ -120,6 +121,19 @@ def _feedback_table(entries: list[dict], translator: Translator | None = None) -
     return ui.TagList(heading, ui.div(table, class_="sespy-feedback-table-wrap"))
 
 
+def _safe_recent_entries(limit: int = 10) -> list[dict]:
+    """Best-effort recent-feedback read for the modal. NEVER raises: a store
+    problem (e.g. a read-only DB when the deployed app user cannot write the
+    WAL/journal) must not crash the whole Feedback dialog — the form still
+    opens, the table just shows its empty state. The submit path has its own
+    guard, so writing is unaffected by this."""
+    try:
+        return feedback_store.list_entries(limit=limit)
+    except Exception:
+        logging.getLogger(__name__).exception("feedback list_entries failed; showing empty table")
+        return []
+
+
 def _feedback_modal(translator: Translator | None) -> ui.Tag:
     cats = {c: _t(translator, f"feedback.cat_{c}", c.title()) for c in _CATEGORY_KEYS}
     return ui.modal(
@@ -132,8 +146,9 @@ def _feedback_modal(translator: Translator | None) -> ui.Tag:
         ui.tags.hr(),
         # Recent-feedback listing. Built at modal-open time, so it reflects the
         # store as of when Feedback was opened (a freshly submitted entry shows
-        # on the next open). Capped at 10 rows to keep the dialog compact.
-        _feedback_table(feedback_store.list_entries(limit=10), translator),
+        # on the next open). Capped at 10 rows to keep the dialog compact. The
+        # read is guarded so a DB error degrades to an empty table, not a crash.
+        _feedback_table(_safe_recent_entries(10), translator),
         title=_t(translator, "feedback.title", "Send feedback"),
         footer=ui.TagList(
             ui.input_action_button("fb_submit", _t(translator, "feedback.submit", "Submit"),

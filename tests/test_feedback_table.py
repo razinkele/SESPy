@@ -3,7 +3,10 @@
 The renderer is a pure function of a list of entry dicts (as returned by
 feedback_store.list_entries), so no database is needed here.
 """
-from sespy.modules.topbar_actions import _feedback_table, _fmt_ts, _truncate
+import sqlite3
+
+from sespy.modules import topbar_actions
+from sespy.modules.topbar_actions import _feedback_table, _fmt_ts, _safe_recent_entries, _truncate
 
 
 def test_fmt_ts_iso_to_minute():
@@ -43,6 +46,27 @@ def test_feedback_table_renders_rows():
     assert "2★" in html and "5★" in html          # rating rendering
     assert "Bug" in html                           # category label (English fallback)
     assert "2026-06-30 10:00" in html              # formatted timestamp
+
+
+def test_safe_recent_entries_swallows_readonly_db_error(monkeypatch):
+    """Reproduces the server crash: the app user cannot write the WAL, so the
+    store read raises. The modal helper must degrade to [] rather than crash
+    the Feedback dialog (and thus the whole session)."""
+    def boom(*a, **k):
+        raise sqlite3.OperationalError("attempt to write a readonly database")
+
+    monkeypatch.setattr(topbar_actions.feedback_store, "list_entries", boom)
+    assert _safe_recent_entries(10) == []
+
+
+def test_safe_recent_entries_returns_rows_on_success(monkeypatch):
+    monkeypatch.setattr(
+        topbar_actions.feedback_store, "list_entries",
+        lambda *a, **k: [{"created_at": "2026-06-30T10:00:00+00:00",
+                          "category": "bug", "rating": 2, "message": "x"}],
+    )
+    rows = _safe_recent_entries(10)
+    assert len(rows) == 1 and rows[0]["message"] == "x"
 
 
 def test_feedback_table_truncates_long_message_with_full_title():
