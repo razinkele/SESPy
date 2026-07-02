@@ -201,7 +201,7 @@ def import_data_server(
         counts = dict(qsem_themes(raw_qsem.get()))
         rows = [
             ui.tags.tr(
-                ui.tags.td(t or _t("import.leave_untyped", "(untyped)")),
+                ui.tags.td(t or _t("import.untyped_theme", "(untyped)")),
                 ui.tags.td(str(counts.get(t, 0)), class_="text-nowrap"),
                 ui.tags.td(ui.input_select(
                     f"map_{s}_{i}", None, choices=choices, selected=suggested.get(t, ""),
