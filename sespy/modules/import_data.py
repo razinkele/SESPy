@@ -29,7 +29,7 @@ from ..event_bus import EventBus
 from ..excel_import import parse_excel
 from ..i18n import Translator
 from ..persistent_storage import ValidationResult
-from ..qsem_import import parse_qsem, qsem_themes, suggest_dapsiwrm_map
+from ..qsem_import import build_project, parse_qsem, qsem_themes, resolve_theme_map, suggest_dapsiwrm_map
 
 
 def parse_upload(name: str, datapath: Path | str) -> ValidationResult:
@@ -224,16 +224,46 @@ def import_data_server(
         result = parsed.get()
         if result is None or not result.valid or result.project is None:
             return
-        project_data.set(result.project)
+
+        data = raw_qsem.get()
+        # Checkbox is static (always in DOM) -> input.assign_dapsiwrm() is always
+        # safe to read. Non-QSEM uploads have raw_qsem=None -> plain path.
+        if data is not None and input.assign_dapsiwrm():
+            th = themes.get()
+            suggested = suggest_dapsiwrm_map(th)
+            s = seq.get()
+
+            def _read(i: int):
+                # Per-theme selects ARE dynamic -> guard existence + set-ness,
+                # falling back (in resolve_theme_map) to the heuristic guess.
+                key = f"map_{s}_{i}"
+                try:
+                    return input[key]() if input[key].is_set() else None
+                except Exception:
+                    return None
+
+            theme_map = resolve_theme_map(th, suggested, _read)
+            remapped = build_project(data, result.project.metadata.name, theme_map)
+            project = remapped.project if remapped.valid and remapped.project else result.project
+        else:
+            project = result.project
+
+        project_data.set(project)
         event_bus.emit_isa_change()
         event_bus.emit_cld_update()
         event_bus.emit_project_loaded()
+
+        typed = sum(1 for e in project.isa_data.elements if e.type)
         ui.notification_show(
-            f"Imported {result.project.isa_data.element_count()} elements "
-            f"and {result.project.isa_data.connection_count()} connections.",
-            type="message",
-            duration=4,
+            _t("import.typed_summary",
+               "Assigned DAPSIWRM types to {typed} of {total} elements.").format(
+                   typed=typed, total=project.isa_data.element_count()),
+            type="message", duration=4,
         )
-        # Reset the form so the same file can be re-uploaded later.
+
+        # reset all state so the next upload starts clean
         parsed.set(None)
+        raw_qsem.set(None)
+        themes.set([])
         ui.update_action_button("commit", disabled=True)
+        ui.update_checkbox("assign_dapsiwrm", value=False)
