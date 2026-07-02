@@ -59,6 +59,8 @@ async def main():
 
         # Click Load into project
         await page.click("#import-commit")
+        # Excel import still works with the DAPSIWRM checkbox present-but-unused
+        await page.wait_for_selector(".shiny-notification", timeout=10000)
         await page.wait_for_timeout(1500)
 
         # Switch to CLD: should now show 4 nodes from the imported file.
