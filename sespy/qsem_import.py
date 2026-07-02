@@ -41,7 +41,18 @@ def _impact_to_strength(impact: object) -> str:
     return "strong"
 
 
-def qsem_to_isa(data: dict) -> tuple[list[Element], list[Connection]]:
+def _resolve_type(theme: str, theme_map: dict[str, str] | None) -> str:
+    """The final DAPSIWRM type for a node's theme. Membership-coerced (not
+    truthiness) so None/stale/non-DAPSIWRM values become untyped."""
+    if theme_map is None:
+        return theme if theme in DAPSIWRM_ELEMENTS else ""
+    rt = theme_map.get(theme, "")
+    return rt if rt in DAPSIWRM_ELEMENTS else ""
+
+
+def qsem_to_isa(
+    data: dict, theme_map: dict[str, str] | None = None
+) -> tuple[list[Element], list[Connection]]:
     """Pure map: a QSEM dict -> (elements, connections). Ghost nodes are skipped;
     links referencing a ghost are redirected to its `originalNodeId`. Dangling
     and self-loop links are skipped. Every node-field access is `.get`-safe."""
@@ -62,12 +73,12 @@ def qsem_to_isa(data: dict) -> tuple[list[Element], list[Connection]]:
         if qid is not None:
             id_map[qid] = new_id
         theme = node.get("theme") or ""
-        mapped = theme in DAPSIWRM_ELEMENTS
+        rt = _resolve_type(theme, theme_map)
         elements.append(Element(
             id=new_id,
             label=str(node.get("label", "")),
-            type=theme if mapped else "",
-            description="" if (mapped or not theme) else f"Theme: {theme}",
+            type=rt,
+            description="" if (rt or not theme) else f"Theme: {theme}",
             confidence=3,
         ))
 
@@ -93,6 +104,23 @@ def qsem_to_isa(data: dict) -> tuple[list[Element], list[Connection]]:
     return elements, connections
 
 
+def build_project(
+    data: dict, name: str, theme_map: dict[str, str] | None = None
+) -> ValidationResult:
+    """Map a QSEM dict -> validated Project named `name`. Shared by parse_qsem
+    (theme_map=None) and the import module's DAPSIWRM re-map path, so both
+    validate and name identically."""
+    elements, connections = qsem_to_isa(data, theme_map)
+    payload = {
+        "metadata": {"name": name, "description": f"Imported from {name}"},
+        "isa_data": {
+            "elements": [e.__dict__ for e in elements],
+            "connections": [c.__dict__ for c in connections],
+        },
+    }
+    return validate_project_payload(payload)
+
+
 def parse_qsem(path: Path | str) -> ValidationResult:
     """Parse a .qsem JSON file into a Project. Same contract as parse_excel."""
     path = Path(path)
@@ -108,15 +136,4 @@ def parse_qsem(path: Path | str) -> ValidationResult:
     if not canvas.get("nodes"):
         return ValidationResult(False, ["QSEM file has no nodes"])
 
-    elements, connections = qsem_to_isa(data)
-    payload = {
-        "metadata": {
-            "name": path.stem,
-            "description": f"Imported from {path.name}",
-        },
-        "isa_data": {
-            "elements": [e.__dict__ for e in elements],
-            "connections": [c.__dict__ for c in connections],
-        },
-    }
-    return validate_project_payload(payload)
+    return build_project(data, path.stem)
