@@ -1,5 +1,10 @@
 """Unit tests for optional DAPSIWRM assignment on QSEM import."""
-from sespy.qsem_import import build_project, qsem_to_isa
+import json
+from pathlib import Path
+
+import pytest
+
+from sespy.qsem_import import build_project, qsem_themes, qsem_to_isa
 
 
 def _canvas(nodes, links=None):
@@ -39,3 +44,35 @@ def test_build_project_names_and_validates():
     assert res.valid and res.project is not None
     assert res.project.metadata.name == "MyModel"
     assert res.project.isa_data.elements[0].type == "Activities"
+
+
+_MODELS_DIR = Path(
+    r"C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\NiD4OCEAN"
+    r"\DST\social ecological system map\Social ecological systems map"
+)
+
+
+def test_qsem_themes_counts_and_untyped_and_ghosts():
+    data = _canvas([
+        {"id": "a", "label": "A", "theme": "OWFs"},
+        {"id": "b", "label": "B", "theme": "OWFs"},
+        {"id": "c", "label": "C"},                       # missing theme -> ""
+        {"id": "d", "label": "D", "theme": None},        # None -> ""
+        {"id": "g", "label": "G", "theme": "OWFs", "isGhost": True},  # excluded
+        "not-a-dict",                                    # excluded
+    ])
+    themes = dict(qsem_themes(data))
+    assert themes["OWFs"] == 2       # ghost + non-dict excluded
+    assert themes[""] == 2           # missing + None collapse to ""
+
+
+@pytest.mark.skipif(not _MODELS_DIR.is_dir(), reason="external models absent")
+def test_qsem_themes_keyset_matches_qsem_to_isa():
+    for f in _MODELS_DIR.glob("*.qsem"):
+        data = json.loads(f.read_text(encoding="utf-8"))
+        theme_keys = {t for t, _ in qsem_themes(data)}
+        # themes qsem_to_isa actually normalizes from canonical nodes
+        canon = [n for n in data["canvas"]["nodes"]
+                 if isinstance(n, dict) and not n.get("isGhost")]
+        seen = {(n.get("theme") or "") for n in canon}
+        assert theme_keys == seen, f.name

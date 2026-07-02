@@ -7,6 +7,7 @@ runs — so a bad .qsem fails the same way a bad JSON/Excel load does.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
 from .constants import DAPSIWRM_ELEMENTS
@@ -102,6 +103,20 @@ def qsem_to_isa(
             delay=qsem_delay_to_level(link.get("delay", 0)),
         ))
     return elements, connections
+
+
+def qsem_themes(data: dict) -> list[tuple[str, int]]:
+    """Distinct themes of canonical (non-ghost) nodes with counts. Uses the
+    SAME node guard and `theme or ""` normalization as qsem_to_isa so the keys
+    line up exactly with what gets typed. Sorted by count desc, then name."""
+    canvas = data.get("canvas", {}) if isinstance(data, dict) else {}
+    nodes = canvas.get("nodes") if isinstance(canvas.get("nodes"), list) else []
+    counts: Counter[str] = Counter(
+        (n.get("theme") or "")
+        for n in nodes
+        if isinstance(n, dict) and not n.get("isGhost")
+    )
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
 def build_project(
