@@ -61,7 +61,7 @@ def suggest_dapsiwrm_map(themes: Iterable[str]) -> dict[str, str]:
 def resolve_theme_map(
     themes: list[str],
     suggested: dict[str, str],
-    read: "Callable[[int], str | None]",
+    read: Callable[[int], str | None],
 ) -> dict[str, str]:
     """Build theme -> type from per-theme select reads. `read(i)` returns the
     select value for theme index i, or None if it isn't set yet (render not

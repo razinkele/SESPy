@@ -121,3 +121,11 @@ def test_resolve_theme_map_uses_reads_and_falls_back():
     assert out == {"OWFs": "Drivers",      # user override read
                    "Policy": "Responses",  # unset -> suggested fallback
                    "LWB": "Pressures"}     # user override read
+
+
+def test_resolve_theme_map_empty_string_read_is_not_replaced():
+    from sespy.qsem_import import resolve_theme_map
+
+    # "" is "Leave untyped" — a real user choice, must not fall back to suggested
+    out = resolve_theme_map(["OWFs"], {"OWFs": "Activities"}, lambda _: "")
+    assert out == {"OWFs": ""}
