@@ -18,16 +18,18 @@ shared event_bus, lifting the architecture's coupling-count to four.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
+from ..constants import DAPSIWRM_ELEMENTS
 from ..data_structure import Project
 from ..event_bus import EventBus
 from ..excel_import import parse_excel
 from ..i18n import Translator
 from ..persistent_storage import ValidationResult
-from ..qsem_import import parse_qsem
+from ..qsem_import import parse_qsem, qsem_themes, suggest_dapsiwrm_map
 
 
 def parse_upload(name: str, datapath: Path | str) -> ValidationResult:
@@ -75,6 +77,17 @@ def import_data_ui() -> ui.Tag:
                 button_label="Choose a file…",
                 placeholder="No file selected",
             ),
+            ui.input_checkbox(
+                "assign_dapsiwrm",
+                "Assign DAPSIWRM types (QSEM only)",
+                value=False,
+            ),
+            ui.tags.small(
+                "Map each QSEM theme to a DAPSIWRM category so the diagram is "
+                "coloured and levelled. Unmapped themes stay untyped.",
+                class_="text-muted",
+            ),
+            ui.output_ui("dapsiwrm_map"),
             ui.tags.hr(),
             ui.output_ui("preview"),
             ui.tags.div(
@@ -104,6 +117,12 @@ def import_data_server(
     translator: Translator | None = None,
 ) -> None:
     parsed: reactive.Value[ValidationResult | None] = reactive.value(None)
+    raw_qsem: reactive.Value[dict | None] = reactive.value(None)
+    themes: reactive.Value[list[str]] = reactive.value([])
+    seq: reactive.Value[int] = reactive.value(0)
+
+    def _t(key: str, fallback: str) -> str:
+        return translator.t(key) if translator else fallback
 
     @reactive.effect
     @reactive.event(input.xlsx, ignore_init=True)
@@ -115,6 +134,18 @@ def import_data_server(
         info = files[0]
         result = parse_upload(info["name"], info["datapath"])
         parsed.set(result)
+        suffix = Path(info["name"]).suffix.lower()
+        if suffix in (".qsem", ".json") and result.valid:
+            try:
+                data = json.loads(Path(info["datapath"]).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                data = None
+            raw_qsem.set(data)
+            themes.set([t for t, _ in qsem_themes(data)] if data else [])
+            seq.set(seq.get() + 1)
+        else:
+            raw_qsem.set(None)
+            themes.set([])
         # Enable/disable the commit button via JS — `update_action_button`
         # doesn't accept disabled= directly, so we toggle it client-side.
         if result.valid:
@@ -156,6 +187,36 @@ def import_data_server(
             class_="alert alert-success",
             style="padding: 12px;",
         )
+
+    @output
+    @render.ui
+    def dapsiwrm_map():
+        if raw_qsem.get() is None or not input.assign_dapsiwrm():
+            return None
+        th = themes.get()
+        suggested = suggest_dapsiwrm_map(th)
+        choices = {"": _t("import.leave_untyped", "Leave untyped")}
+        choices.update({d: d for d in DAPSIWRM_ELEMENTS})
+        s = seq.get()
+        counts = dict(qsem_themes(raw_qsem.get()))
+        rows = [
+            ui.tags.tr(
+                ui.tags.td(t or _t("import.leave_untyped", "(untyped)")),
+                ui.tags.td(str(counts.get(t, 0)), class_="text-nowrap"),
+                ui.tags.td(ui.input_select(
+                    f"map_{s}_{i}", None, choices=choices, selected=suggested.get(t, ""),
+                    width="240px",
+                )),
+            )
+            for i, t in enumerate(th)
+        ]
+        head = ui.tags.thead(ui.tags.tr(
+            ui.tags.th(_t("import.map_theme", "QSEM theme")),
+            ui.tags.th(_t("import.map_count", "Nodes")),
+            ui.tags.th(_t("import.map_type", "DAPSIWRM type")),
+        ))
+        return ui.tags.table(head, ui.tags.tbody(*rows),
+                             class_="table table-sm sespy-feedback-table mb-0")
 
     @reactive.effect
     @reactive.event(input.commit, ignore_init=True)
