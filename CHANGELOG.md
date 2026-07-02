@@ -3,6 +3,9 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- Import: optional "Assign DAPSIWRM types" for QSEM models — an editable,
+  heuristic-pre-filled per-theme mapping table (opt-in, default off) so imported
+  models render as a coloured, levelled CLD.
 - Fix: imported QSEM / food-web models now render in the CLD. Their nodes use
   non-DAPSIWRM themes (or none), and the DAPSIWRM-only type filter was silently
   dropping every untyped element, so the diagram came up empty. Untyped / custom
