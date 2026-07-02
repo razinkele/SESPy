@@ -109,3 +109,15 @@ def test_suggest_abbrev_is_exact_not_substring():
     m = suggest_dapsiwrm_map(["NiD", "Unidentified stressors"])
     assert m["NiD"] == "Responses"
     assert m["Unidentified stressors"] == ""   # no false substring hit
+
+
+def test_resolve_theme_map_uses_reads_and_falls_back():
+    from sespy.qsem_import import resolve_theme_map
+
+    themes = ["OWFs", "Policy", "LWB"]
+    suggested = {"OWFs": "Activities", "Policy": "Responses", "LWB": ""}
+    reads = {0: "Drivers", 1: None, 2: "Pressures"}   # index 1 not set yet
+    out = resolve_theme_map(themes, suggested, reads.get)
+    assert out == {"OWFs": "Drivers",      # user override read
+                   "Policy": "Responses",  # unset -> suggested fallback
+                   "LWB": "Pressures"}     # user override read

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from .constants import DAPSIWRM_ELEMENTS
@@ -55,6 +55,22 @@ def suggest_dapsiwrm_map(themes: Iterable[str]) -> dict[str, str]:
             if any(k in low for k in keywords):
                 out[theme] = dtype
                 break
+    return out
+
+
+def resolve_theme_map(
+    themes: list[str],
+    suggested: dict[str, str],
+    read: "Callable[[int], str | None]",
+) -> dict[str, str]:
+    """Build theme -> type from per-theme select reads. `read(i)` returns the
+    select value for theme index i, or None if it isn't set yet (render not
+    settled); then fall back to the heuristic `suggested` so commit is always
+    well-defined. Coercion to valid types happens later in qsem_to_isa."""
+    out: dict[str, str] = {}
+    for i, theme in enumerate(themes):
+        val = read(i)
+        out[theme] = suggested.get(theme, "") if val is None else val
     return out
 
 
