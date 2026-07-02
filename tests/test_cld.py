@@ -1,4 +1,12 @@
 """Every full-graph edge builder applies the shared delay cue (dashes)."""
+import pytest
+
+# The analysis_* and cld_visualization modules import the pyvis fork
+# (`pyvis.shiny`) at module load, so skip this whole module when the fork is
+# absent (e.g. the stock-pyvis unit-CI job). It runs for real in the conda
+# full-app/e2e jobs where the fork is installed.
+pytest.importorskip("pyvis.shiny")
+
 from sespy.data_structure import Connection, Element, IsaData, Rating
 from sespy.modules.analysis_intervention import _build_intervention_network
 from sespy.modules.analysis_leverage import _build_leverage_network
