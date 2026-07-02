@@ -9,6 +9,15 @@ MODEL = Path(
     r"\DST\social ecological system map\Social ecological systems map\Food_web_V_01.qsem"
 )
 
+V01_EXPECTED = {
+    "Activities",
+    "Responses",
+    "Pressures",
+    "Marine Processes & Functioning",
+    "Ecosystem Services",
+}
+IMPOSSIBLE = {"Drivers", "Goods & Benefits"}
+
 
 async def main():
     if not MODEL.exists():
@@ -27,24 +36,34 @@ async def main():
         await pg.check("#import-assign_dapsiwrm")
         await pg.wait_for_selector("#import-dapsiwrm_map select", timeout=10000)
         await pg.click("#import-commit")
-        # go to CLD, wait for the network, assert DAPSIWRM groups present
+        # post-commit barrier — notification only fires on successful commit
+        await pg.wait_for_selector(".shiny-notification", timeout=15000)
+        # go to CLD, wait for the network
         await pg.click("#sespy_nav_cld")
         await pg.wait_for_selector("#cld-network", timeout=30000)
-        groups = None
-        for _ in range(30):
-            groups = await pg.evaluate(
+        result = None
+        for _ in range(60):
+            result = await pg.evaluate(
                 "() => { const s=window.pyvisNetworks && window.pyvisNetworks['cld-network'];"
                 " if (!s||!s.nodes) return null;"
-                " return Array.from(new Set(s.nodes.get().map(n => n.group))); }"
+                " const nodes=s.nodes.get();"
+                " return {count: nodes.length,"
+                "         groups: Array.from(new Set(nodes.map(n => n.group)))}; }"
             )
-            if groups and any(g and g != "" for g in groups):
+            if result and result["count"] == 94:
                 break
             await pg.wait_for_timeout(500)
-        print("cld groups:", groups)
-        assert groups is not None, "cld-network not readable"
-        assert any(g in ("Activities", "Pressures", "Marine Processes & Functioning",
-                         "Responses", "Ecosystem Services", "Goods & Benefits", "Drivers")
-                   for g in groups), f"no DAPSIWRM groups after mapping: {groups}"
+        print("cld result:", result)
+        assert result is not None and result["count"] == 94, (
+            f"imported model did not reach CLD (expected 94 nodes): {result}"
+        )
+        groups = set(result["groups"])
+        assert V01_EXPECTED <= groups, (
+            f"expected DAPSIWRM subset missing from CLD: {V01_EXPECTED - groups}"
+        )
+        assert not (IMPOSSIBLE & groups), (
+            f"impossible groups present (still showing default sample?): {IMPOSSIBLE & groups}"
+        )
         print("qsem-map e2e assertions pass")
         await b.close()
 
