@@ -4,6 +4,13 @@ Regression guard: QSEM / food-web imports use their own node themes (or none),
 so their Elements get type="" or a custom theme. The DAPSIWRM-only type filter
 must not silently drop them, or an imported model renders as an empty diagram.
 """
+import pytest
+
+# cld_visualization imports the pyvis fork (`pyvis.shiny`) at module load, so
+# skip this whole module when the fork is absent (stock-pyvis unit-CI job); it
+# runs for real in the conda full-app/e2e jobs.
+pytest.importorskip("pyvis.shiny")
+
 from sespy.constants import DAPSIWRM_ELEMENTS
 from sespy.data_structure import Element, IsaData
 from sespy.modules.cld_visualization import cld_keep_types
