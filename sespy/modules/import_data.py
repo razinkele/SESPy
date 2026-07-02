@@ -228,7 +228,8 @@ def import_data_server(
         data = raw_qsem.get()
         # Checkbox is static (always in DOM) -> input.assign_dapsiwrm() is always
         # safe to read. Non-QSEM uploads have raw_qsem=None -> plain path.
-        if data is not None and input.assign_dapsiwrm():
+        applied = data is not None and input.assign_dapsiwrm()
+        if applied:
             th = themes.get()
             suggested = suggest_dapsiwrm_map(th)
             s = seq.get()
@@ -253,13 +254,20 @@ def import_data_server(
         event_bus.emit_cld_update()
         event_bus.emit_project_loaded()
 
-        typed = sum(1 for e in project.isa_data.elements if e.type)
-        ui.notification_show(
-            _t("import.typed_summary",
-               "Assigned DAPSIWRM types to {typed} of {total} elements.").format(
-                   typed=typed, total=project.isa_data.element_count()),
-            type="message", duration=4,
-        )
+        if applied:
+            typed = sum(1 for e in project.isa_data.elements if e.type)
+            ui.notification_show(
+                _t("import.typed_summary",
+                   "Assigned DAPSIWRM types to {typed} of {total} elements.").format(
+                       typed=typed, total=project.isa_data.element_count()),
+                type="message", duration=4,
+            )
+        else:
+            ui.notification_show(
+                f"Imported {project.isa_data.element_count()} elements "
+                f"and {project.isa_data.connection_count()} connections.",
+                type="message", duration=4,
+            )
 
         # reset all state so the next upload starts clean
         parsed.set(None)
