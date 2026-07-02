@@ -8,11 +8,54 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
 
 from .constants import DAPSIWRM_ELEMENTS
 from .data_structure import Connection, Element
 from .persistent_storage import ValidationResult, validate_project_payload
+
+# (theme_keyword_substring, DAPSIWRM type) — first match wins; Responses before
+# Goods & Benefits so "governance"/"management" aren't shadowed by "good".
+_HEURISTIC_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("driver",), "Drivers"),
+    (("pressure",), "Pressures"),
+    (("activit", "fishing", "farm", "wind", "owf", "shipping", "aquacult", "tourism"), "Activities"),
+    (("service",), "Ecosystem Services"),
+    (
+        ("process", "function", "component", "habitat", "species", "food web", "ecolog"),
+        "Marine Processes & Functioning",
+    ),
+    (("policy", "response", "management", "measure", "governance", "regulation"), "Responses"),
+    (("benefit", "good", "welfare", "value", "econom"), "Goods & Benefits"),
+)
+
+
+# NiD4OCEAN project abbreviations — EXACT (case-insensitive) match, so short
+# codes cannot false-match as substrings (bare "nid" would hit "Unidentified").
+# LWB deliberately omitted -> stays untyped (user-confirmed).
+_ABBREV: dict[str, str] = {"nid": "Responses"}
+
+
+def suggest_dapsiwrm_map(themes: Iterable[str]) -> dict[str, str]:
+    """Heuristic best-guess theme -> DAPSIWRM type (or "" untyped). Precedence:
+    exact DAPSIWRM match → exact project-abbreviation lookup → first
+    keyword-substring rule (case-insensitive)."""
+    out: dict[str, str] = {}
+    for theme in themes:
+        if theme in DAPSIWRM_ELEMENTS:
+            out[theme] = theme
+            continue
+        low = theme.lower()
+        if low in _ABBREV:
+            out[theme] = _ABBREV[low]
+            continue
+        out[theme] = ""
+        for keywords, dtype in _HEURISTIC_RULES:
+            if any(k in low for k in keywords):
+                out[theme] = dtype
+                break
+    return out
 
 
 def qsem_delay_to_level(delay: object) -> str:

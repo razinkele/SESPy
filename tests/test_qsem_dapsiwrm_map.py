@@ -76,3 +76,36 @@ def test_qsem_themes_keyset_matches_qsem_to_isa():
                  if isinstance(n, dict) and not n.get("isGhost")]
         seen = {(n.get("theme") or "") for n in canon}
         assert theme_keys == seen, f.name
+
+
+def test_suggest_known_themes():
+    from sespy.qsem_import import suggest_dapsiwrm_map
+
+    m = suggest_dapsiwrm_map([
+        "OWFs", "Environmental pressures", "Ecosystem components",
+        "Policy", "Food web", "Ecosystem Services", "LWB", "NiD", "",
+    ])
+    assert m["OWFs"] == "Activities"
+    assert m["Environmental pressures"] == "Pressures"
+    assert m["Ecosystem components"] == "Marine Processes & Functioning"
+    assert m["Policy"] == "Responses"
+    assert m["Food web"] == "Marine Processes & Functioning"
+    assert m["Ecosystem Services"] == "Ecosystem Services"  # exact match first
+    assert m["NiD"] == "Responses"      # exact abbreviation lookup (user-confirmed)
+    assert m["LWB"] == "" and m[""] == ""
+
+
+def test_suggest_ordering_responses_before_goods():
+    from sespy.qsem_import import suggest_dapsiwrm_map
+
+    # "governance" must win over the broad "good"
+    assert suggest_dapsiwrm_map(["Good governance"])["Good governance"] == "Responses"
+
+
+def test_suggest_abbrev_is_exact_not_substring():
+    from sespy.qsem_import import suggest_dapsiwrm_map
+
+    # exact 'NiD' -> Responses, but a word merely CONTAINING 'nid' must not match
+    m = suggest_dapsiwrm_map(["NiD", "Unidentified stressors"])
+    assert m["NiD"] == "Responses"
+    assert m["Unidentified stressors"] == ""   # no false substring hit
