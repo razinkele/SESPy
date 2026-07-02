@@ -14,25 +14,20 @@ async def main():
 
         await page.wait_for_selector("#sespy_nav_simulation", timeout=15000)
         await page.click("#sespy_nav_simulation")
-        await page.wait_for_timeout(1500)
+        # Wait for the run button to mount (condition, not a guessed delay).
+        await page.wait_for_selector("#simulation-run_sim", timeout=15000)
 
         # ---- Deterministic simulation ----
         await page.click("#simulation-run_sim")
-        await page.wait_for_timeout(2500)
-
-        traj_visible = await page.evaluate(
-            "() => !!document.querySelector('#simulation-trajectory_plot img')"
-        )
-        print(f"trajectory plot rendered: {traj_visible}")
-        assert traj_visible
+        # Wait for the plot image itself rather than a fixed timeout: the render
+        # can lag the click under full-suite / CI load, which flaked a bare
+        # 2.5s sleep-then-assert.
+        await page.wait_for_selector("#simulation-trajectory_plot img", timeout=30000)
+        print("trajectory plot rendered: True")
 
         # Switch to Final state tab
         await page.click("text=Final state")
-        await page.wait_for_timeout(1000)
-        final_visible = await page.evaluate(
-            "() => !!document.querySelector('#simulation-final_state_plot img')"
-        )
-        assert final_visible, "final state plot did not render"
+        await page.wait_for_selector("#simulation-final_state_plot img", timeout=30000)
 
         # ---- Monte Carlo ----
         # Note: the n_simulations control is an ion-rangeslider, which doesn't
@@ -66,11 +61,8 @@ async def main():
         )
         assert msg_seen, "MC completion message not found"
 
-        # Histogram plot visible
-        hist_visible = await page.evaluate(
-            "() => !!document.querySelector('#simulation-mc_histograms img')"
-        )
-        assert hist_visible, "MC histograms plot did not render"
+        # Histogram plot visible (render can trail the summary table slightly).
+        await page.wait_for_selector("#simulation-mc_histograms img", timeout=15000)
 
         await page.screenshot(path="tests/screenshots/simulation.png")
         print("\nsimulation e2e assertions pass")
