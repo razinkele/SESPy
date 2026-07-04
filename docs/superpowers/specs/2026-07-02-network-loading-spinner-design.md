@@ -83,13 +83,15 @@ for all renders when the network is created/about to draw — the correct, unifo
    only jQuery, not the `Shiny` object, so binding before the first render is
    guaranteed — no first-load race):
    - `$(document).on('shiny:recalculating', …)` → if `e.target` has class
-     `pyvis-network-output`, add `is-loading`, set `dataset.sespyNetShown = '1'`,
-     and arm/re-arm an 8 s `setTimeout` (keyed by `e.target.id`) that removes
-     `is-loading`.
+     `pyvis-network-output`, add `is-loading`, set `data-sespy-net-shown="1"`
+     (sticky), clear any prior `data-sespy-net-hidden`, and arm/re-arm an 8 s
+     `setTimeout` (keyed by `e.target.id`) that removes `is-loading` and sets
+     `data-sespy-net-hidden="fallback"`.
    - `$(document).on('shiny:inputchanged', …)` → if `e.name` ends with `_ready`,
      strip the suffix, and on the matching `#<id>.pyvis-network-output` remove
-     `is-loading` and clear its timer.
-   No MutationObserver, no DOM injection.
+     `is-loading`, set `data-sespy-net-hidden="ready"`, and clear its timer.
+   No MutationObserver, no DOM injection. The `data-sespy-net-hidden` provenance
+   (`ready` vs `fallback`) lets the e2e prove the real hide path works.
 
 ### Why not alternatives
 
@@ -123,9 +125,14 @@ for all renders when the network is created/about to draw — the correct, unifo
      ran (spinner entered loading state); non-racy because the marker is sticky.
   2. poll up to ~12 s until `#cld-network` no longer has class `is-loading` —
      proves the **hide** path ran and nothing is stuck.
+  3. `#cld-network` has `data-sespy-net-hidden === "ready"` — proves it hid via
+     the fork's `_ready` signal, NOT the 8 s fallback. Without this the fallback
+     masks a broken `_ready` hide (the 12 s poll outlasts the 8 s fallback), so
+     the physics-off CLD's core hide path would be unverified.
   End-state only; never races to catch the transient visible spinner (per the
-  condition-based-waiting lesson from the leverage/simulation de-flake). The
-  sticky marker closes the "spinner never showed" vacuous-pass gap.
+  condition-based-waiting lesson from the leverage/simulation de-flake). The two
+  sticky markers (`shown`, `hidden`) close both the "spinner never showed" and
+  the "fallback masked a broken _ready hide" vacuous-pass gaps.
 - **Manual smoke** (both apps): SESPy CLD/Leverage + MosaicSES Topology and a
   large compartment CLD — spinner shows during load, clears when drawn; toolbar
   and node/edge modals still work; check a dark theme; check reduced-motion.

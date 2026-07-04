@@ -66,7 +66,17 @@ The e2e checks the class/attribute contract only (not pixels), so it depends on 
                 break
             await page.wait_for_timeout(500)
         assert not_loading, "#cld-network stuck in .is-loading after the graph rendered"
-        print("network spinner show->hide: OK")
+        # Provenance: the physics-off CLD MUST hide via the fork's _ready signal,
+        # not the 8s fallback. Without this, a broken _ready hide is masked by the
+        # fallback (poll window > fallback) and the test would pass while users see
+        # an 8s frozen spinner.
+        hidden_by = await page.evaluate(
+            "() => { const el = document.getElementById('cld-network');"
+            " return el && el.getAttribute('data-sespy-net-hidden'); }"
+        )
+        assert hidden_by == "ready", \
+            f"CLD hid via {hidden_by!r}, not '_ready' — fallback masked a broken hide path"
+        print("network spinner show->hide (via _ready): OK")
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -94,9 +104,13 @@ Expected: FAIL at `assert shown` — nothing sets `data-sespy-net-shown` yet.
           if (!el || !el.classList || !el.classList.contains('pyvis-network-output')) return;
           el.classList.add('is-loading');
           el.setAttribute('data-sespy-net-shown', '1');   // sticky proof the spinner showed
+          el.removeAttribute('data-sespy-net-hidden');     // reset provenance for this cycle
           if (el.id) {
             clearTimeout(timers[el.id]);
-            timers[el.id] = setTimeout(function () { el.classList.remove('is-loading'); }, FALLBACK_MS);
+            timers[el.id] = setTimeout(function () {
+              el.classList.remove('is-loading');
+              el.setAttribute('data-sespy-net-hidden', 'fallback');   // hid via safety net
+            }, FALLBACK_MS);
           }
         });
 
@@ -109,6 +123,7 @@ Expected: FAIL at `assert shown` — nothing sets `data-sespy-net-shown` yet.
           var el = document.getElementById(id);
           if (el && el.classList.contains('pyvis-network-output')) {
             el.classList.remove('is-loading');
+            el.setAttribute('data-sespy-net-hidden', 'ready');   // hid via the real _ready path
             clearTimeout(timers[id]);
           }
         });
@@ -208,6 +223,7 @@ Then, immediately after the `.pyvis-network-output .pyvis-network-canvas { borde
   align-items: center;
   justify-content: center;
   padding-top: 3.2rem;                 /* leave room for the ring above the text */
+  background: rgba(255, 255, 255, 0.68);   /* fallback for engines without color-mix */
   background: color-mix(in srgb, var(--bs-body-bg, #ffffff) 68%, transparent);
   color: var(--bs-secondary-color, #555);
   font-size: 0.9rem;
@@ -313,6 +329,13 @@ git commit -m "docs: cross-app manual smoke checklist for the network spinner"
   `assert shown`, check that the script is bound before first render.
 - `<id>_ready` suffix is 6 chars (`_ready`); `slice(-6)`/`slice(0,-6)` are correct
   and do not collide with `_stabilized`, `_stabilizationProgress`, etc.
+- `_ready` fires ~1 frame before vis-network commits its first paint, so on a
+  *re-render* there can be a sub-perceptible (~16 ms) blank flash between hiding
+  the veil and the redraw. Cosmetic and acceptable; only revisit (e.g. hide on
+  vis `afterDrawing`) if smoke shows a visible flicker.
+- The e2e asserts `data-sespy-net-hidden === 'ready'`, not just that `is-loading`
+  cleared — because the 8 s fallback would otherwise mask a broken `_ready` hide
+  (the 12 s poll outlasts the 8 s fallback). Keep that assertion.
 - If `#cld-network` is not the CLD output id in the running app, discover it via
   `Object.keys(window.pyvisNetworks)` in the console and update the test. As of
   this plan it is `cld-network`.
