@@ -19,10 +19,12 @@ on every language change once i18n lands — the same path covers both.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
-from htmltools import Tag
+from htmltools import HTMLDependency, Tag
 from shiny import Inputs, Outputs, Session, reactive, render, ui
 
+from . import __version__ as _SESPY_VERSION
 from .i18n import Translator
 
 LANGUAGE_INPUT_ID = "__sespy_language__"
@@ -31,6 +33,20 @@ NAV_INPUT_PREFIX = "sespy_nav_"
 NAV_OUTPUT_ID = "sespy_nav_render"
 STEPPER_OUTPUT_ID = "sespy_stepper_render"
 STEP_INPUT_PREFIX = "sespy_step_"
+
+# Shared shell stylesheets, served from the package so every app that uses the
+# shell gets the identical current file (no per-app www/ copies to drift). Load
+# order matters: skin defines tokens/guards, cld layers on it, themes overrides.
+_SKIN_DEP = HTMLDependency(
+    name="sespy-shell-skin",
+    version=_SESPY_VERSION,
+    source={"subdir": str(Path(__file__).parent / "www")},
+    stylesheet=[
+        {"href": "sespy-skin.css"},
+        {"href": "cld.css"},
+        {"href": "themes.css"},
+    ],
+)
 
 
 @dataclass(frozen=True)
@@ -324,15 +340,12 @@ def dashboard_page(
     """)
 
     return ui.tags.div(
-        # Inject the shell stylesheet at the page level. The skin contains the
-        # design tokens, layout, AND the critical guards (display:block on
-        # pyvis-network-output, transform:none on canvas cards) — landing it
-        # via the shell guarantees those guards are present whenever the shell
-        # is used.
+        # Shared shell stylesheets, shipped as a package HTMLDependency so every
+        # app using the shell gets the identical current file (no per-app www/
+        # drift). The dependency must sit in the UI tree directly (not inside
+        # head_content) for Shiny to collect it and serve its files under lib/.
+        _SKIN_DEP,
         ui.head_content(
-            ui.tags.link(rel="stylesheet", href="sespy-skin.css"),
-            ui.tags.link(rel="stylesheet", href="cld.css"),
-            ui.tags.link(rel="stylesheet", href="themes.css"),
             # Font Awesome — needed for the icons in NavItem entries
             ui.tags.link(
                 rel="stylesheet",

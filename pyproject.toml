@@ -74,4 +74,4 @@ build-backend = "setuptools.build_meta"
 include = ["sespy*"]
 
 [tool.setuptools.package-data]
-sespy = ["*.json", "translations/*.json", "templates/*.json"]
+sespy = ["*.json", "translations/*.json", "templates/*.json", "www/*.css"]
