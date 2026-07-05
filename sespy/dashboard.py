@@ -280,6 +280,49 @@ def dashboard_page(
       });
     """)
 
+    # Network loading spinner: while a pyvis output builds, add `is-loading` (the
+    # skin renders a spinner via ::before/::after pseudo-elements, which — unlike
+    # an injected child — survive the fork's `el.innerHTML=''` on every render).
+    # Hide on the fork's always-sent `<id>_ready` input (NOT `_stabilized`, which
+    # never fires for the physics-off hierarchical CLD), with an 8s fallback.
+    # `data-sespy-net-*` markers are sticky proof for the e2e (show + hide path).
+    network_spinner_js = ui.tags.script("""
+      (function () {
+        var FALLBACK_MS = 8000;
+        var timers = {};
+
+        // Bound at parse time (jQuery only; no Shiny object needed), so the
+        // handlers exist before the first output renders — no first-load race.
+        $(document).on('shiny:recalculating', function (e) {
+          var el = e.target;
+          if (!el || !el.classList || !el.classList.contains('pyvis-network-output')) return;
+          el.classList.add('is-loading');
+          el.setAttribute('data-sespy-net-shown', '1');   // sticky proof the spinner showed
+          el.removeAttribute('data-sespy-net-hidden');     // reset provenance for this cycle
+          if (el.id) {
+            clearTimeout(timers[el.id]);
+            timers[el.id] = setTimeout(function () {
+              el.classList.remove('is-loading');
+              el.setAttribute('data-sespy-net-hidden', 'fallback');   // hid via safety net
+            }, FALLBACK_MS);
+          }
+        });
+
+        // The fork sends <id>_ready when the network is created/drawn — every
+        // render, physics or not. Hide on that.
+        $(document).on('shiny:inputchanged', function (e) {
+          if (!e.name || e.name.slice(-6) !== '_ready') return;
+          var id = e.name.slice(0, -6);
+          var el = document.getElementById(id);
+          if (el && el.classList.contains('pyvis-network-output')) {
+            el.classList.remove('is-loading');
+            el.setAttribute('data-sespy-net-hidden', 'ready');   // hid via the real _ready path
+            clearTimeout(timers[id]);
+          }
+        });
+      })();
+    """)
+
     return ui.tags.div(
         # Inject the shell stylesheet at the page level. The skin contains the
         # design tokens, layout, AND the critical guards (display:block on
@@ -299,6 +342,7 @@ def dashboard_page(
             burger_js,
             bookmark_js,
             theme_js,
+            network_spinner_js,
         ),
         ui.page_sidebar(
             ui.sidebar(*sidebar_children, width=280, class_="sespy-sidebar sespy-nav-shell"),

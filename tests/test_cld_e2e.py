@@ -34,6 +34,38 @@ async def main():
         assert any(flags), "no dashed (delayed) edge in the CLD"
         assert not all(flags), "expected at least one solid (immediate) edge too"
 
+        # --- network loading spinner (shared shell) ---
+        # End-state only (do NOT race the transient visible spinner):
+        #  (1) the sticky marker proves the show path ran (is-loading was added);
+        #  (2) is-loading must clear once the graph is up (via <id>_ready or the
+        #      8s fallback).
+        shown = await page.evaluate(
+            "() => document.getElementById('cld-network')"
+            "  && document.getElementById('cld-network').getAttribute('data-sespy-net-shown') === '1'"
+        )
+        assert shown, "#cld-network never entered loading state (spinner show path dead)"
+        not_loading = False
+        for _ in range(24):  # up to ~12s: covers <id>_ready and the 8s fallback
+            not_loading = await page.evaluate(
+                "() => { const el = document.getElementById('cld-network');"
+                " return !!el && !el.classList.contains('is-loading'); }"
+            )
+            if not_loading:
+                break
+            await page.wait_for_timeout(500)
+        assert not_loading, "#cld-network stuck in .is-loading after the graph rendered"
+        # Provenance: the physics-off CLD MUST hide via the fork's _ready signal,
+        # not the 8s fallback. Without this, a broken _ready hide is masked by the
+        # fallback (poll window > fallback) and the test would pass while users see
+        # an 8s frozen spinner.
+        hidden_by = await page.evaluate(
+            "() => { const el = document.getElementById('cld-network');"
+            " return el && el.getAttribute('data-sespy-net-hidden'); }"
+        )
+        assert hidden_by == "ready", \
+            f"CLD hid via {hidden_by!r}, not '_ready' — fallback masked a broken hide path"
+        print("network spinner show->hide (via _ready): OK")
+
         await page.screenshot(path="tests/screenshots/cld.png")
         print("\ncld e2e assertions pass")
         await browser.close()
