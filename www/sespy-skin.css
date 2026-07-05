@@ -121,6 +121,7 @@ label, .form-label, .control-label {
 /* (1) html-fill-container/contents collapse — see cld.css note */
 .pyvis-network-output {
   display: block !important;
+  position: relative;   /* positioning context for the loading pseudo-elements */
 }
 
 /* (2) Transform on any vis-network ancestor breaks vis.js tooltip
@@ -142,6 +143,46 @@ label, .form-label, .control-label {
 }
 .pyvis-network-output .pyvis-network-canvas {
   border: none !important;
+}
+
+/* (4) Network loading spinner (shared shell). Rendered as pseudo-elements so it
+       survives the pyvis fork's `el.innerHTML=''` on every render (bindings.js:90);
+       toggled by the `is-loading` class from network_spinner_js. ::before is the
+       veil + label, ::after is the ring. z-index stays below the fork's
+       .pyvis-modal-overlay (1000) so node/edge modals sit on top. */
+.pyvis-network-output.is-loading::before {
+  content: "Rendering network\2026";   /* \2026 = U+2026 ellipsis */
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 3.2rem;                 /* leave room for the ring above the text */
+  background: rgba(255, 255, 255, 0.68);   /* fallback for engines without color-mix */
+  background: color-mix(in srgb, var(--bs-body-bg, #ffffff) 68%, transparent);
+  color: var(--bs-secondary-color, #555);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+.pyvis-network-output.is-loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 6;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: -2.4rem 0 0 -1.125rem;       /* center horizontally, sit above the label */
+  border: 3px solid color-mix(in srgb, var(--bs-secondary-color, #555) 25%, transparent);
+  border-top-color: var(--bs-secondary-color, #555);
+  border-radius: 50%;
+  animation: sespy-net-spin 0.8s linear infinite;
+  pointer-events: none;
+}
+@keyframes sespy-net-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pyvis-network-output.is-loading::after { animation: none; }
 }
 
 /* =================================================================
