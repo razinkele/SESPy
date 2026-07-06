@@ -35,6 +35,32 @@ the why.
 
 ---
 
+## What's new in v1.3.0
+
+A round of **usability + shell-consistency** work — surfacing feedback/help in the
+app, making imported models render correctly, and giving the graph views a loading
+cue:
+
+- **Network graph loading spinner.** Every pyvis network view (CLD, Topology,
+  Leverage, Network Metrics, Intervention, Loop Analysis, Simplify) shows a centered
+  "Rendering network…" spinner while the graph builds and clears the instant it draws,
+  so a slow render no longer looks like a blank panel.
+- **Optional DAPSIWRM assignment on QSEM import.** An opt-in, heuristic-pre-filled
+  per-theme mapping table so imported QSEM models render as a coloured, levelled CLD —
+  and untyped / custom-themed elements are no longer silently dropped to an empty diagram.
+- **Title-bar utility cluster.** Feedback, About, Options, and Help modals in the app
+  title bar: a SQLite-backed feedback form (with a recent-feedback listing), an About
+  view rendering this README + changelog, Options (theme, language, autosave), and a
+  workflow Help summary.
+- **Shared-shell CSS consolidation (internal).** The shell stylesheets ship as `sespy`
+  package data via a single `HTMLDependency`, so apps embedding the shell (e.g. MosaicSES)
+  get one always-current source instead of drifting local copies.
+
+Shipped via the brainstorm → spec → multi-agent adversarial review → TDD → review →
+full-e2e cycle.
+
+---
+
 ## What's new in v1.2.0
 
 A round of **multi-rater robustness + responsiveness** improvements — making

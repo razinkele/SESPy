@@ -3,6 +3,11 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+
+## [1.3.0] — 2026-07-06
+- Network graph loading spinner: every pyvis network view (CLD, Topology, Leverage,
+  Network Metrics, Intervention, Loop Analysis, Simplify) shows a centered
+  "Rendering network…" spinner while the graph builds, clearing the moment it draws.
 - Import: optional "Assign DAPSIWRM types" for QSEM models — an editable,
   heuristic-pre-filled per-theme mapping table (opt-in, default off) so imported
   models render as a coloured, levelled CLD.
@@ -22,6 +27,9 @@ All notable changes to SESPy.
 - Options modal: colour theme (Light Marine / Deep Ocean), the language selector
   (relocated here), and autosave controls (enable, clear, last-saved status).
 - Help modal summarising the create → edit → analyze → export workflow.
+- Internal: the shell stylesheets (skin, cld, themes) are now shipped as `sespy`
+  package data and served via a single `HTMLDependency`, so every app embedding the
+  shell gets one source of truth (no per-app CSS copies to drift).
 
 ## [1.2.0] — 2026-06-26
 - Disagreement-aware loops: a loop whose classification hinges on a rater-contested edge shows ⚠.
