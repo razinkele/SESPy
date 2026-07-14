@@ -14,6 +14,21 @@ retained here only for provenance; no longer an open item.
 
 ---
 
+## [Medium] Governance actor influence scores in `sespy/network.py`
+
+**Status:** ✅ Opened as razinkele/SESPy#14 (2026-07-14)
+
+**Source paper:** Unpacking power dynamics and actor interactions across fisheries and marine protected areas governance: a comparative study of Saint Louis and Sangomar, Senegal, *Maritime Studies* (2026). https://doi.org/10.1007/s40152-026-00501-z
+**Alert week:** 2026-07-14
+
+**Motivation.** Governance networks in MPAs show significant power asymmetries — some actors dominate co-management while others are peripheral. `governance_gap()` (#13) detects *whether* governance actors are linked; `governance_actor_influence()` quantifies *how influential* each R/M-typed node is by computing full-graph centrality restricted to governance nodes.
+
+**Proposal.** Add `governance_actor_influence(g)` to `sespy/network.py` returning a DataFrame of betweenness, eigenvector, PageRank, and composite `influence_rank` for all R/M nodes; expose in the Network Metrics module.
+
+**Effort:** Small–Medium. **Labels:** enhancement, analysis, network.
+
+---
+
 ## [Medium] Governance gap detection in `sespy/network.py`
 
 **Status:** ✅ Opened as razinkele/SESPy#13 (2026-07-07)
