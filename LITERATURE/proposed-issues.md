@@ -14,6 +14,21 @@ retained here only for provenance; no longer an open item.
 
 ---
 
+## [Medium] Cascade vulnerability indicator in `sespy/network.py`
+
+**Status:** ✅ Opened as razinkele/SESPy#15 (2026-07-21)
+
+**Source paper:** Network cascading effects reveal thresholds and nonlinearity in ecological vulnerability, *Environmental Research Letters* (2026). https://doi.org/10.1088/1748-9326/ae83cb
+**Alert week:** 2026-07-21
+
+**Motivation.** ERL paper demonstrates that ecological network vulnerability is nonlinear — sequential node removal produces cascade threshold discontinuities invisible to per-node centrality metrics. SESPy's existing `leverage_scores()` ranks nodes independently by linear centrality composite; `cascade_vulnerability(g)` would simulate iterative removal in leverage-rank order and identify the node triggering the largest structural integrity drop.
+
+**Proposal.** Add `cascade_vulnerability(g)` to `sespy/network.py` returning a DataFrame (removal step × `lccf`, `loop_count`, `delta_lccf`) and a `cascade_threshold_node` scalar. Expose in Network Metrics module as a collapsible section.
+
+**Effort:** Medium. **Labels:** enhancement, analysis, network.
+
+---
+
 ## [Medium] Governance actor influence scores in `sespy/network.py`
 
 **Status:** ✅ Opened as razinkele/SESPy#14 (2026-07-14)
