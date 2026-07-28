@@ -4,6 +4,21 @@ Ready-to-paste issue drafts. Review and open manually.
 
 ---
 
+## [Medium] Causal path tracer in `sespy/network.py`
+
+**Status:** ✅ Opened as razinkele/SESPy#16 (2026-07-28)
+
+**Source paper:** A dynamic explainability method for fuzzy cognitive maps based on causal and temporal evolution analysis, *Applied Soft Computing* (2026). https://doi.org/10.1016/j.asoc.2026.115925
+**Alert week:** 2026-07-28
+
+**Motivation.** FCM explainability paper motivates enumerating open directed causal chains between node pairs in a CLD, annotated by compound polarity (sign product along the path). SESPy already covers closed cycles (`find_loops()`) and node-level centrality (`leverage_scores()`), but cannot answer "How does A influence B?" with path-level causal chain enumeration.
+
+**Proposal.** Add `causal_paths(g, source, target, max_length=None)` to `sespy/network.py` returning a DataFrame of all simple directed paths with `path`, `length`, `compound_polarity` columns. Expose in Network Metrics module as a collapsible "Causal Pathways" section with source/target node selectors.
+
+**Effort:** Small–Medium. **Labels:** enhancement, analysis, network.
+
+---
+
 ## ✅ SHIPPED — Uncertainty-aware leverage & loop scoring in `sespy/network.py`
 
 **Shipped 2026-06-24** as the D2D Monte-Carlo feature (`network.uncertainty_scores`,
