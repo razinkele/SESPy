@@ -4,6 +4,21 @@ Ready-to-paste issue drafts. Review and open manually.
 
 ---
 
+## [Medium] Stochastic token diffusion simulation in `sespy/dynamics.py`
+
+**Status:** ✅ Opened as razinkele/SESPy#17 (2026-08-04)
+
+**Source paper:** A systems thinking approach to improve participatory processes in small-scale fisheries management, *Research Square* (preprint, 2026). https://doi.org/10.21203/rs.3.rs-10397797/v1
+**Alert week:** 2026-08-04
+
+**Motivation.** Donlan et al. apply stochastic token diffusion on a participatory CLD to rank candidate interventions by the reach and speed of their effects through the network. SESPy's existing features (`leverage_scores()`, `causal_paths()`, `uncertainty_scores()`) do not simulate dynamic propagation from a chosen intervention node. `token_diffusion(g, source_node, n_steps, n_tokens)` fills this gap by seeding perturbation tokens at a source node and propagating them via random walks along signed edges, flipping polarity at negative edges, and returning a per-node DataFrame of tokens received, net sign, and step of first arrival.
+
+**Proposal.** Add `token_diffusion(g, source_node, n_steps=10, n_tokens=1000, seed=None)` to `sespy/dynamics.py` with the algorithm described in issue #17. Expose as a collapsible "Intervention Simulation" section in the Network Metrics module with source-node selector, step/token sliders, a ranked table, and a colour-coded bar chart.
+
+**Effort:** Medium. **Labels:** enhancement, analysis, network.
+
+---
+
 ## [Medium] Causal path tracer in `sespy/network.py`
 
 **Status:** ✅ Opened as razinkele/SESPy#16 (2026-07-28)
