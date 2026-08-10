@@ -14,9 +14,13 @@ retained here only for provenance; no longer an open item.
 
 ---
 
-## [Medium] Social-ecological "fit" metric in `sespy/network.py`
+## ✅ SHIPPED — Social-ecological "fit" metric in `sespy/network.py`
 
-**Tracked as GitHub issue #1:** https://github.com/razinkele/SESPy/issues/1
+**Shipped 2026-06-25** (merged `030321c`, closes GitHub #1): `social_ecological_fit`
+cross-boundary coupling + `subsystem()` partition, surfaced in the Network Metrics
+module. Draft retained here only for provenance; no longer an open item.
+
+**Was tracked as GitHub issue #1:** https://github.com/razinkele/SESPy/issues/1
 
 **Source paper:** Fang et al., *Assessing social–ecological fit of sustained watershed environmental governance*, Env. Impact Assessment Review (2026). https://doi.org/10.1016/j.eiar.2026.108522
 **Alert week:** 2026-06-22
