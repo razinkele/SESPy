@@ -56,13 +56,19 @@ def _connect(db_path=None) -> sqlite3.Connection:
 
 
 def add(message, rating, category, *, db_path=None) -> int:
-    with closing(_connect(db_path)) as conn, conn:
-        cur = conn.execute(
-            "INSERT INTO feedback (created_at, category, message, rating, status) "
-            "VALUES (?, ?, ?, ?, 'open')",
-            (_now_iso(), category, message, rating),
-        )
-        return int(cur.lastrowid)
+    try:
+        with closing(_connect(db_path)) as conn, conn:
+            cur = conn.execute(
+                "INSERT INTO feedback (created_at, category, message, rating, status) "
+                "VALUES (?, ?, ?, ?, 'open')",
+                (_now_iso(), category, message, rating),
+            )
+            row_id = int(cur.lastrowid)
+            logger.info("feedback_store.add status=ok id=%d category=%s rating=%s", row_id, category, rating)
+            return row_id
+    except Exception as e:
+        logger.error("feedback_store.add status=error reason=%s", type(e).__name__)
+        raise
 
 
 def list_entries(status=None, limit=500, *, db_path=None) -> list[dict]:

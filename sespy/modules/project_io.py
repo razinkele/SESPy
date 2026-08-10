@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+import logging
 
 from shiny import Inputs, Outputs, Session, reactive, render, ui
 
@@ -35,6 +36,8 @@ from ..persistent_storage import (
     project_to_bytes,
 )
 from ..recent_projects import add_recent
+
+logger = logging.getLogger(__name__)
 
 
 def quick_actions_ui(translator: Translator | None = None) -> ui.Tag:
@@ -124,8 +127,13 @@ def quick_actions_server(
             write_autosave(project_data.get())
             from datetime import datetime as _dt
             autosave_time.set(_dt.now().strftime("%H:%M:%S"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("quick_actions.autosave status=error reason=%s", type(e).__name__)
+            ui.notification_show(
+                t("ui.quickactions.autosave_failed", "Autosave failed."),
+                type="warning",
+                duration=4,
+            )
 
     @output
     @render.ui
@@ -183,8 +191,13 @@ def quick_actions_server(
         proj = project_data.get()
         try:
             clear_autosave()
-        except Exception:
-            pass
+        except OSError as e:
+            logger.warning("quick_actions.clear_autosave status=error reason=%s", type(e).__name__)
+            ui.notification_show(
+                t("ui.quickactions.clear_autosave_failed", "Could not clear autosaved data."),
+                type="warning",
+                duration=4,
+            )
         # Emit before yield so the generator's continuation isn't required.
         event_bus.emit_project_saved()
         yield project_to_bytes(proj)
@@ -237,8 +250,8 @@ def quick_actions_server(
                 element_count=proj.isa_data.element_count(),
                 connection_count=proj.isa_data.connection_count(),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("quick_actions.add_recent status=error reason=%s", type(e).__name__)
         ui.notification_show(
             t("ui.quickactions.loaded", "Project loaded.")
             + f"  ({proj.metadata.name})",

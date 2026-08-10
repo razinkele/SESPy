@@ -1111,6 +1111,28 @@
       "no": "Gjenopprettet arbeid satt tilbake.",
       "el": "Η εργασία ανακτήθηκε επιτυχώς."
     },
+    "ui.quickactions.autosave_failed": {
+      "en": "Autosave failed.",
+      "es": "Falló el autoguardado.",
+      "fr": "Échec de la sauvegarde automatique.",
+      "de": "Automatisches Speichern fehlgeschlagen.",
+      "lt": "Nepavyko automatinis įrašymas.",
+      "pt": "A gravação automática falhou.",
+      "it": "Salvataggio automatico non riuscito.",
+      "no": "Autolagring mislyktes.",
+      "el": "Η αυτόματη αποθήκευση απέτυχε."
+    },
+    "ui.quickactions.clear_autosave_failed": {
+      "en": "Could not clear autosaved data.",
+      "es": "No se pudieron borrar los datos autoguardados.",
+      "fr": "Impossible d’effacer les données sauvegardées automatiquement.",
+      "de": "Automatisch gespeicherte Daten konnten nicht gelöscht werden.",
+      "lt": "Nepavyko išvalyti automatiškai įrašytų duomenų.",
+      "pt": "Não foi possível limpar os dados gravados automaticamente.",
+      "it": "Impossibile cancellare i dati salvati automaticamente.",
+      "no": "Kunne ikke tømme autolagrede data.",
+      "el": "Δεν ήταν δυνατή η εκκαθάριση των αυτόματα αποθηκευμένων δεδομένων."
+    },
     "nav.boolean": {
       "en": "Boolean & Laplacian",
       "es": "Boolean & Laplaciano",

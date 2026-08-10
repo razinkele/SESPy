@@ -15,6 +15,7 @@ Why a single sidecar file (not timestamped per-save):
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +25,8 @@ from .persistent_storage import (
     load_project,
     save_project_atomic,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def autosave_dir() -> Path:
@@ -46,7 +49,12 @@ def write_autosave(project_or_isa: Project | IsaData) -> Path:
     if isinstance(project_or_isa, IsaData):
         project_or_isa = Project.from_isa(project_or_isa, name="Autosave")
     path = autosave_path()
-    save_project_atomic(project_or_isa, path)
+    try:
+        save_project_atomic(project_or_isa, path)
+        logger.info("autosave.write status=ok path=%s", path)
+    except Exception as e:
+        logger.error("autosave.write status=error reason=%s", type(e).__name__)
+        raise
     return path
 
 
@@ -78,5 +86,7 @@ def clear_autosave() -> None:
     if path.exists():
         try:
             path.unlink()
-        except OSError:
-            pass
+            logger.info("autosave.clear status=ok")
+        except OSError as e:
+            logger.error("autosave.clear status=error reason=%s", type(e).__name__)
+            raise
