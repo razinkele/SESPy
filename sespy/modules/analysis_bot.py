@@ -209,7 +209,7 @@ def analysis_bot_server(
         confidence = 3
         for el in project_data.get().isa_data.elements:
             if el.id == eid:
-                confidence = el.confidence or 3
+                confidence = el.confidence if el.confidence is not None else 3
                 break
         # Map confidence (1-5) to noise scale: confidence 5 → 0.15, confidence 1 → 0.75.
         noise_scale = (6 - int(confidence)) * 0.15
@@ -353,7 +353,9 @@ def analysis_bot_server(
                     label=t("bot.trend_label"))
 
         if input.show_moving_avg():
-            ma = _moving_average(df["Value"].to_numpy(), int(input.window_size() or 3))
+            window_raw = input.window_size()
+            window = 3 if window_raw in (None, "") else int(window_raw)
+            ma = _moving_average(df["Value"].to_numpy(), window)
             if ma is not None:
                 ax.plot(df["Year"].to_numpy(), ma, color="#2d8b50", linewidth=1.8,
                         label=t("bot.moving_avg_label"))

@@ -232,7 +232,11 @@ def rate_connections_server(
             return
         rating = Rating(rater_id=rater,
                         strength=input.ed_strength() or "medium",
-                        confidence=int(input.ed_confidence() or 3),
+                        confidence=(
+                            3
+                            if input.ed_confidence() in (None, "")
+                            else int(input.ed_confidence())
+                        ),
                         polarity=input.ed_polarity() or "+",
                         delay=input.ed_delay() or "immediate")
         conns = list(project_data.get().isa_data.connections)

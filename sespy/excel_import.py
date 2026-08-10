@@ -121,12 +121,13 @@ def parse_excel(path: Path | str) -> ValidationResult:
         if eid == "":
             errors.append(f"Elements row {i + 2}: missing id")
             continue
+        el_conf = _pick(row, ELEMENT_CONF_COLS, default=3)
         elements.append(Element(
             id=str(eid),
             label=str(_pick(row, ELEMENT_LABEL_COLS, default=eid)),
             type=str(_pick(row, ELEMENT_TYPE_COLS, default="")),
             description=str(_pick(row, ELEMENT_DESC_COLS, default="")),
-            confidence=int(_pick(row, ELEMENT_CONF_COLS, default=3) or 3),
+            confidence=int(el_conf if el_conf is not None and el_conf != "" else 3),
         ))
 
     connections: list[Connection] = []
@@ -143,12 +144,13 @@ def parse_excel(path: Path | str) -> ValidationResult:
         else:                                     # text/empty → categorical (unchanged)
             polarity = str(_pick(row, CONN_POLARITY_COLS, default="+")) or "+"
             strength = str(raw_strength) or "medium"
+        conn_conf = _pick(row, CONN_CONF_COLS, default=3)
         connections.append(Connection(
             source=str(src),
             target=str(tgt),
             polarity=polarity,
             strength=strength,
-            confidence=int(_pick(row, CONN_CONF_COLS, default=3) or 3),
+            confidence=int(conn_conf if conn_conf is not None and conn_conf != "" else 3),
             delay=normalize_delay(_pick(row, CONN_DELAY_COLS, default="immediate")),
         ))
 
