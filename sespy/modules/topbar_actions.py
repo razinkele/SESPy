@@ -5,11 +5,11 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 from shiny import reactive, ui
 
+from .. import __version__ as _sespy_version
 from .. import feedback_store
 from ..autosave import autosave_age_seconds, clear_autosave
 from ..dashboard import language_switcher
@@ -29,10 +29,10 @@ def read_project_doc(name: str) -> str:
 
 
 def _app_version() -> str:
-    try:
-        return _pkg_version("sespy")
-    except Exception:
-        return "1.2.0"
+    # The shipped source's __version__ is authoritative: the app runs from the
+    # app_dir without an installed sespy distribution, so importlib.metadata
+    # would report a stale install (or nothing) rather than the deployed code.
+    return _sespy_version
 
 _CATEGORY_KEYS = ("bug", "suggestion", "question", "other")
 
@@ -254,7 +254,19 @@ def topbar_actions_server(input, output, session, *, translator=None,
     @reactive.effect
     @reactive.event(input.autosave_clear)
     def _clear_autosave():
-        clear_autosave()
+        # clear_autosave() re-raises OSError (it used to swallow it), and an
+        # exception escaping a reactive effect surfaces as a session error.
+        try:
+            clear_autosave()
+        except OSError as e:
+            logging.getLogger(__name__).warning(
+                "topbar.clear_autosave status=error reason=%s", type(e).__name__)
+            ui.notification_show(
+                _t(translator, "ui.quickactions.clear_autosave_failed",
+                   "Could not clear autosaved data."),
+                type="warning", duration=4,
+            )
+            return
         ui.notification_show("Autosaved data cleared.", type="message", duration=3)
 
     @reactive.effect
