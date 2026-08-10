@@ -249,9 +249,9 @@ def render_pdf(project: Project) -> bytes:
     """
     try:
         from weasyprint import HTML
-    except ImportError as e:
+    except (ImportError, OSError) as e:
         raise RuntimeError(
-            "PDF export requires WeasyPrint and its native libraries. "
+            "PDF export requires WeasyPrint and its native libraries (Cairo, Pango). "
             "Install it with: pip install sespy[pdf]. "
             "HTML and Word export work without it."
         ) from e
