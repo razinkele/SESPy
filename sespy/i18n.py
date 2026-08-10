@@ -125,6 +125,9 @@ class Translator:
 # that import `t` get whatever is set at the time their UI is constructed
 # (i.e. the language picked from the URL query, plus any subsequent
 # `T.set_language` calls — which won't re-render statically-built UIs).
+#
+# Multi-user safe: Inside a Shiny session context, get_default() returns a
+# session-specific clone of the default translator, isolating user language.
 # --------------------------------------------------------------------------
 
 _default_translator: Translator | None = None
@@ -136,15 +139,32 @@ def set_default(translator: Translator) -> None:
 
 
 def get_default() -> Translator | None:
+    from shiny.session import get_current_session
+    session = get_current_session()
+    if session is not None:
+        if not hasattr(session, "_translator"):
+            if _default_translator is not None:
+                # Construct a session-isolated clone sharing the same translations reference
+                sess_t = Translator(
+                    translations=_default_translator.translations,
+                    languages=_default_translator.languages,
+                    fallback=_default_translator.fallback,
+                    _lang=_default_translator._lang,
+                )
+                setattr(session, "_translator", sess_t)
+            else:
+                return None
+        return getattr(session, "_translator")
     return _default_translator
 
 
 def t(key: str, **fmt) -> str:
     """Translate via the default translator. Returns the key itself if no
     default has been registered yet (e.g. during early imports)."""
-    if _default_translator is None:
+    default = get_default()
+    if default is None:
         return key
-    return _default_translator.t(key, **fmt)
+    return default.t(key, **fmt)
 
 
 def detect_initial_language(

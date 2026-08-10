@@ -26,7 +26,7 @@ from sespy.dashboard import (
     workflow_stepper_slot,
 )
 from sespy.event_bus import create_event_bus
-from sespy.i18n import Translator, load_translations
+from sespy.i18n import Translator, detect_initial_language, load_translations
 from sespy.modules.ai_isa_wizard import ai_isa_wizard_server, ai_isa_wizard_ui
 from sespy.modules.analysis_boolean import (
     analysis_boolean_server,
@@ -162,6 +162,15 @@ app_ui = dashboard_page(
 
 
 def server(input: Inputs, output: Outputs, session: Session) -> None:
+    translator = _i18n.get_default()
+    if translator is not None:
+        # `clientdata` is a reactive read, so it needs a context — the server
+        # body has none. Isolate rather than defer to an effect: the language
+        # must be set before the module servers below register their outputs.
+        with reactive.isolate():
+            initial_lang = detect_initial_language(session.clientdata.url_search())
+        translator.set_language(initial_lang)
+
     project_data = reactive.value(
         data_structure.Project.from_isa(data_structure.load_sample(SAMPLE))
     )
@@ -175,19 +184,19 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         initial="cld",
         stepper_steps=STEPPER,
         nav_to_step=NAV_TO_STEP,
-        translator=T,
+        translator=translator,
     )
     quick_actions_server(
         input, output, session,
         project_data=project_data,
         event_bus=event_bus,
         sample_path=SAMPLE,
-        translator=T,
+        translator=translator,
         autosave_enabled=autosave_enabled,
     )
     topbar_actions_server(
         input, output, session,
-        translator=T,
+        translator=translator,
         current_theme=current_theme,
         autosave_enabled=autosave_enabled,
     )
@@ -196,38 +205,38 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         "pims",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     pims_stakeholders_server(
         "stakeholders",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
 
     templates_server(
         "templates",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     ai_isa_wizard_server(
         "wizard",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     isa_data_entry_server(
         "entry",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     rate_connections_server(
         "rate",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     cld_viz_server("cld", project_data=project_data, event_bus=event_bus)
     analysis_loops_server("loops", project_data=project_data, event_bus=event_bus)
@@ -235,67 +244,67 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         "metrics",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     analysis_leverage_server(
         "leverage",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     analysis_quadrant_server(
         "quadrant",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     analysis_boolean_server(
         "boolean",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     analysis_simulation_server(
         "simulation",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     analysis_bot_server(
         "bot",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     analysis_intervention_server(
         "intervention",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     analysis_simplify_server(
         "simplify",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     import_data_server(
         "import",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     recent_projects_server(
         "recent",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
     report_export_server(
         "report",
         project_data=project_data,
         event_bus=event_bus,
-        translator=T,
+        translator=translator,
     )
 
 
