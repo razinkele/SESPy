@@ -13,10 +13,7 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright
 
-MODEL = Path(
-    r"C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\NiD4OCEAN"
-    r"\DST\social ecological system map\Social ecological systems map\Food_web_V_01.qsem"
-)
+MODEL = Path(__file__).resolve().parent.parent / "data" / "Food_web_V_01.qsem"
 
 
 async def main():

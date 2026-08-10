@@ -46,10 +46,7 @@ def test_build_project_names_and_validates():
     assert res.project.isa_data.elements[0].type == "Activities"
 
 
-_MODELS_DIR = Path(
-    r"C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\NiD4OCEAN"
-    r"\DST\social ecological system map\Social ecological systems map"
-)
+_MODELS_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def test_qsem_themes_counts_and_untyped_and_ghosts():

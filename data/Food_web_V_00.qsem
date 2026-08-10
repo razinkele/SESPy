@@ -1,0 +1,2806 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "savedAt": "2026-01-08T10:19:05.083Z",
+    "title": "QSEM Model",
+    "nodeCount": 69,
+    "loopCount": 438
+  },
+  "canvas": {
+    "nodes": [
+      {
+        "id": "node-1767096689721",
+        "label": "OWF installation",
+        "position": {
+          "x": 98.53910827636719,
+          "y": 242.03138732910156
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "OWFs",
+        "themeColor": "#f59e0b"
+      },
+      {
+        "id": "node-1767096709059",
+        "label": "OWF operation & maintenance",
+        "position": {
+          "x": 62.73652648925781,
+          "y": 495.63299560546875
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "OWFs",
+        "themeColor": "#f59e0b"
+      },
+      {
+        "id": "node-1767096750697",
+        "label": "OWF decommissioning",
+        "position": {
+          "x": 67.22905731201172,
+          "y": 762.5013732910156
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "OWFs",
+        "themeColor": "#f59e0b"
+      },
+      {
+        "id": "node-1767096925932",
+        "label": "OWFs expansion",
+        "position": {
+          "x": -289.72271728515625,
+          "y": 430.564453125
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Policy",
+        "themeColor": "#ef4444"
+      },
+      {
+        "id": "node-1767097053922",
+        "label": "Acoustic noise (B, F)",
+        "position": {
+          "x": 849.6732788085938,
+          "y": -289.88409423828125
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767097136784",
+        "label": "Habitat loss & disturbance (B, F)",
+        "position": {
+          "x": 859.9708862304688,
+          "y": -170.17489624023438
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767097228771",
+        "label": "EMF (B,F)",
+        "position": {
+          "x": 948.0670776367188,
+          "y": -35.93794250488281
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767097232336",
+        "label": "Chemical pollution (B,F)",
+        "position": {
+          "x": 1264.4091796875,
+          "y": 742.1737060546875
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767097232942",
+        "label": "Displacement effect (B,F)",
+        "position": {
+          "x": 1189.4466552734375,
+          "y": 532.2784423828125
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767097233254",
+        "label": "Barrier effect (B,F)",
+        "position": {
+          "x": 1144.9580078125,
+          "y": 354.5354919433594
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767097233575",
+        "label": "Habitat creation (B, F)",
+        "position": {
+          "x": 1124.978759765625,
+          "y": 200.94383239746094
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767097409620",
+        "label": "Change in Hydrography (B,F)",
+        "position": {
+          "x": 1039.521484375,
+          "y": 1119.985107421875
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767097411585",
+        "label": "Lighting (B,F)",
+        "position": {
+          "x": 1237.4227294921875,
+          "y": 1019.5352783203125
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767097716550",
+        "label": "Heat emission",
+        "position": {
+          "x": 1103.9892578125,
+          "y": 70.50892639160156
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Environmental pressures",
+        "themeColor": "#059669"
+      },
+      {
+        "id": "node-1767098128640",
+        "label": "Fish stock",
+        "position": {
+          "x": 1843.319580078125,
+          "y": -100.0002670288086
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Ecosystem components",
+        "themeColor": "#689df3"
+      },
+      {
+        "id": "node-1767098213155",
+        "label": "Benthic community",
+        "position": {
+          "x": 2060.376220703125,
+          "y": 125.908447265625
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Ecosystem components",
+        "themeColor": "#689df3"
+      },
+      {
+        "id": "node-1767098235190",
+        "label": "Biodiversity",
+        "position": {
+          "x": 1616.8143310546875,
+          "y": 598.390869140625
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Ecosystem components",
+        "themeColor": "#689df3"
+      },
+      {
+        "id": "node-1767098251858",
+        "label": "Water quality",
+        "position": {
+          "x": 1920.5372314453125,
+          "y": 401.0567626953125
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Ecosystem components",
+        "themeColor": "#689df3"
+      },
+      {
+        "id": "node-1767607762656",
+        "label": "Provisioning Services",
+        "position": {
+          "x": 2280.693359375,
+          "y": -145.92523193359375
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Ecosystem Services",
+        "themeColor": "#e3479a"
+      },
+      {
+        "id": "node-1767607764645",
+        "label": "Regulatory Services",
+        "position": {
+          "x": 2329.576904296875,
+          "y": 345.85162353515625
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Ecosystem Services",
+        "themeColor": "#e3479a"
+      },
+      {
+        "id": "node-1767607765289",
+        "label": "Cultural Services",
+        "position": {
+          "x": 2431.889892578125,
+          "y": 721.9391479492188
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "Ecosystem Services",
+        "themeColor": "#e3479a"
+      },
+      {
+        "id": "node-1767611217106",
+        "label": "Job satisfaction",
+        "position": {
+          "x": 3710.643798828125,
+          "y": 1112.0638427734375
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "LWB",
+        "themeColor": "#8b5cf6"
+      },
+      {
+        "id": "node-1767611217746",
+        "label": "Capacity for job migration across sectors",
+        "position": {
+          "x": 4014.0283203125,
+          "y": 1116.731201171875
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "LWB",
+        "themeColor": "#8b5cf6"
+      },
+      {
+        "id": "node-1767611217997",
+        "label": "Local seafood supply from aquaculture",
+        "position": {
+          "x": 1951.0673828125,
+          "y": -394.70416259765625
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "LWB",
+        "themeColor": "#8b5cf6"
+      },
+      {
+        "id": "node-1767611218194",
+        "label": "Cultural attachment to traditional jobs",
+        "position": {
+          "x": 3502.9423828125,
+          "y": 1100.3951416015625
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "LWB",
+        "themeColor": "#8b5cf6"
+      },
+      {
+        "id": "node-1767611218390",
+        "label": "Place based identity",
+        "position": {
+          "x": 3986.023681640625,
+          "y": 990.7100219726562
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "LWB",
+        "themeColor": "#8b5cf6"
+      },
+      {
+        "id": "node-1767611218565",
+        "label": "Energy affordability",
+        "position": {
+          "x": 3621.96240234375,
+          "y": 986.0426025390625
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "LWB",
+        "themeColor": "#8b5cf6"
+      },
+      {
+        "id": "node-1767611218790",
+        "label": "Local seafood supply from fisheries",
+        "position": {
+          "x": 2176.213623046875,
+          "y": -382.17431640625
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "LWB",
+        "themeColor": "#8b5cf6"
+      },
+      {
+        "id": "node-1767701813126",
+        "label": "Artificial reef-type structures",
+        "position": {
+          "x": 517.7276611328125,
+          "y": -24.996185302734375
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "NiD",
+        "themeColor": "#ef4444"
+      },
+      {
+        "id": "node-1767701814743",
+        "label": "Cages",
+        "position": {
+          "x": 806.87060546875,
+          "y": 466.3778076171875
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "NiD",
+        "themeColor": "#ef4444"
+      },
+      {
+        "id": "node-1767701815694",
+        "label": "Water replacement holes or cavities structures",
+        "position": {
+          "x": 728.522216796875,
+          "y": 1306.345947265625
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "NiD",
+        "themeColor": "#ef4444"
+      },
+      {
+        "id": "node-1767701816869",
+        "label": "Aggregated rock structures",
+        "position": {
+          "x": 644.7075805664062,
+          "y": 347.9441223144531
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "NiD",
+        "themeColor": "#ef4444"
+      },
+      {
+        "id": "node-1767701817737",
+        "label": "Mattresses",
+        "position": {
+          "x": 1215.0113525390625,
+          "y": 1344.609130859375
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "NiD",
+        "themeColor": "#ef4444"
+      },
+      {
+        "id": "node-1767701818521",
+        "label": "Textured or bio-enhanced coating/surfaces",
+        "position": {
+          "x": 280.90008544921875,
+          "y": -274.3189697265625
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "NiD",
+        "themeColor": "#ef4444"
+      },
+      {
+        "id": "node-1767701819321",
+        "label": "Seagrass type structures",
+        "position": {
+          "x": 441.64715576171875,
+          "y": 198.76992797851562
+        },
+        "selected": false,
+        "isNewlyCreated": false,
+        "theme": "NiD",
+        "themeColor": "#ef4444"
+      },
+      {
+        "id": "node-1767606975256",
+        "label": "Fish Communication",
+        "position": {
+          "x": 1146.6444091796875,
+          "y": -268.1632385253906
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767607000149",
+        "label": "Foraging efficiency",
+        "position": {
+          "x": 1548.1763916015625,
+          "y": -233.84426879882812
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608052717",
+        "label": "Total employment in energy sector",
+        "position": {
+          "x": 2932.18310546875,
+          "y": 517.9700622558594
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608055288",
+        "label": "Energy production effort",
+        "position": {
+          "x": 3392.200439453125,
+          "y": 639.8896179199219
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608056016",
+        "label": "Number of jobs for locals",
+        "position": {
+          "x": 3315.428466796875,
+          "y": 510.2582092285156
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608056768",
+        "label": "Number of job at each phase",
+        "position": {
+          "x": 3101.988037109375,
+          "y": 560.7664184570312
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608057704",
+        "label": "Energy output",
+        "position": {
+          "x": 2936.32470703125,
+          "y": 664.3060302734375
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608308595",
+        "label": "Energy revenue",
+        "position": {
+          "x": 3409.845703125,
+          "y": 774.748291015625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608309287",
+        "label": "Energy price",
+        "position": {
+          "x": 3217.952392578125,
+          "y": 672.5892333984375
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608413579",
+        "label": "CPUE",
+        "position": {
+          "x": 2700.6015625,
+          "y": 113.28121948242188
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608413941",
+        "label": "Fisheries revenue",
+        "position": {
+          "x": 3075.087158203125,
+          "y": -270.5684814453125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608414137",
+        "label": "Commercial catch",
+        "position": {
+          "x": 3131.22216796875,
+          "y": -61.410465240478516
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608414317",
+        "label": "Traffic on water",
+        "position": {
+          "x": 3132.205322265625,
+          "y": 114.73980712890625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608414521",
+        "label": "Number of jobs for locals",
+        "position": {
+          "x": 2608.908203125,
+          "y": -212.04283905029297
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767608414708",
+        "label": "Total employment in fisheries",
+        "position": {
+          "x": 2796.49755859375,
+          "y": -321.6189270019531
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609291434",
+        "label": "Aquaculture revenue",
+        "position": {
+          "x": 3608.44580078125,
+          "y": -387.2618713378906
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609291995",
+        "label": "Aquaculture production",
+        "position": {
+          "x": 3823.247314453125,
+          "y": -536.89892578125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609292450",
+        "label": "Number of fish farms",
+        "position": {
+          "x": 3592.355712890625,
+          "y": -655.9649658203125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609292818",
+        "label": "Number of jobs for locals",
+        "position": {
+          "x": 3354.2236328125,
+          "y": -314.8568115234375
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609293234",
+        "label": "Total employment in aquaculture",
+        "position": {
+          "x": 3399.275634765625,
+          "y": -520.0044250488281
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609748244",
+        "label": "Number of jobs for locals",
+        "position": {
+          "x": 4463.50537109375,
+          "y": -503.94647216796875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609748552",
+        "label": "Total employment in shipping",
+        "position": {
+          "x": 4132.34619140625,
+          "y": -480.4214782714844
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609748812",
+        "label": "Tourist attractiveness",
+        "position": {
+          "x": 4220.45556640625,
+          "y": 357.1008605957031
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609749072",
+        "label": "Beach quality",
+        "position": {
+          "x": 3818.6279296875,
+          "y": 410.84075927734375
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609749324",
+        "label": "Tourism revenue",
+        "position": {
+          "x": 4264.4248046875,
+          "y": 178.7821044921875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609749532",
+        "label": "Tourism accommodation capacity",
+        "position": {
+          "x": 3808.85693359375,
+          "y": 285.04052734375
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609749828",
+        "label": "Number of jobs for locals",
+        "position": {
+          "x": 3744.124755859375,
+          "y": 93.28680419921875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767609750128",
+        "label": "Total employment in tourism",
+        "position": {
+          "x": 4066.564208984375,
+          "y": 35.882816314697266
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767610939806",
+        "label": "Shipping revenue",
+        "position": {
+          "x": 4477.07763671875,
+          "y": -310.3178253173828
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767617019799",
+        "label": "Conservation support",
+        "position": {
+          "x": 2146.685546875,
+          "y": 535.3400268554688
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767622143965",
+        "label": "Fishing effort",
+        "position": {
+          "x": 2807.078125,
+          "y": -101.13062286376953
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767625505749",
+        "label": "Social acceptance",
+        "position": {
+          "x": 3253.026123046875,
+          "y": 260.2808837890625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767625562646",
+        "label": "Expansion of aquaculture sector",
+        "position": {
+          "x": 3409.23095703125,
+          "y": -138.12696838378906
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1767784814657",
+        "label": "Ground access",
+        "position": {
+          "x": 4131.0595703125,
+          "y": -272.7996520996094
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767097716550-1767607614839",
+        "label": "Heat emission",
+        "position": {
+          "x": 1949.7083740234375,
+          "y": 766.5538330078125
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767097716550",
+        "theme": "Environmental pressures",
+        "themeColor": "#059669",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767607765289-1767616886685",
+        "label": "Cultural Services",
+        "position": {
+          "x": 3789.315185546875,
+          "y": 546.411865234375
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767607765289",
+        "theme": "Ecosystem Services",
+        "themeColor": "#e3479a",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767607762656-1767618877734",
+        "label": "Provisioning Services",
+        "position": {
+          "x": 3470.751708984375,
+          "y": 858.5160827636719
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767607762656",
+        "theme": "Ecosystem Services",
+        "themeColor": "#e3479a",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767607764645-1767618894746",
+        "label": "Regulatory Services",
+        "position": {
+          "x": 3176.702392578125,
+          "y": 811.8415832519531
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767607764645",
+        "theme": "Ecosystem Services",
+        "themeColor": "#e3479a",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767607765289-1767618900430",
+        "label": "Cultural Services",
+        "position": {
+          "x": 2926.99365234375,
+          "y": 818.8427429199219
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767607765289",
+        "theme": "Ecosystem Services",
+        "themeColor": "#e3479a",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767607762656-1767618933329",
+        "label": "Provisioning Services",
+        "position": {
+          "x": 4066.564208984375,
+          "y": 535.4196166992188
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767607762656",
+        "theme": "Ecosystem Services",
+        "themeColor": "#e3479a",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767607764645-1767618937753",
+        "label": "Regulatory Services",
+        "position": {
+          "x": 4241.21875,
+          "y": 525.6487426757812
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767607764645",
+        "theme": "Ecosystem Services",
+        "themeColor": "#e3479a",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767608414317-1767622921170",
+        "label": "Traffic on water",
+        "position": {
+          "x": 640.7367553710938,
+          "y": -397.0482177734375
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767608414317",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767609291995-1767625346343",
+        "label": "Aquaculture production",
+        "position": {
+          "x": 2277.45458984375,
+          "y": 104.1976318359375
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767609291995",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767625505749-1767625735333",
+        "label": "Social acceptance",
+        "position": {
+          "x": -208.3259735107422,
+          "y": 120.63272094726562
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767625505749",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1767608414317-1767784880554",
+        "label": "Traffic on water",
+        "position": {
+          "x": 4240.39453125,
+          "y": -151.3164825439453
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1767608414317",
+        "isNewlyCreated": false
+      }
+    ],
+    "links": [
+      {
+        "id": "link-1767096844115",
+        "sourceNodeId": "node-1767096689721",
+        "targetNodeId": "node-1767096709059",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 1,
+        "controlPoints": [],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1767096846578",
+        "sourceNodeId": "node-1767096709059",
+        "targetNodeId": "node-1767096750697",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 1,
+        "control": 1,
+        "controlPoints": [],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1767096948760",
+        "sourceNodeId": "node-1767096750697",
+        "targetNodeId": "node-1767096925932",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -276.7170492824836,
+            "y": 675.1026326189142
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767096951007",
+        "sourceNodeId": "node-1767096925932",
+        "targetNodeId": "node-1767096689721",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -257.4311441770195,
+            "y": 259.3872602443504
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097635230",
+        "sourceNodeId": "node-1767096689721",
+        "targetNodeId": "node-1767097053922",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 202.3838620930071,
+            "y": -69.54168458418411
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097645331",
+        "sourceNodeId": "node-1767096689721",
+        "targetNodeId": "node-1767097136784",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 224.03660168820602,
+            "y": -34.455203162299256
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097663952",
+        "sourceNodeId": "node-1767096689721",
+        "targetNodeId": "node-1767097232336",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 346.8754391664662,
+            "y": 427.7524384392632
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097668602",
+        "sourceNodeId": "node-1767096689721",
+        "targetNodeId": "node-1767097411585",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767097671234",
+        "sourceNodeId": "node-1767096689721",
+        "targetNodeId": "node-1767097409620",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767097687645",
+        "sourceNodeId": "node-1767096709059",
+        "targetNodeId": "node-1767097233575",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 198.70870879202198,
+            "y": 322.888097823232
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097693016",
+        "sourceNodeId": "node-1767096709059",
+        "targetNodeId": "node-1767097233254",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 199.00547158597658,
+            "y": 469.94454270742824
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097695514",
+        "sourceNodeId": "node-1767096709059",
+        "targetNodeId": "node-1767097232942",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 137.00781465780858,
+            "y": 539.7822648700503
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097699207",
+        "sourceNodeId": "node-1767096709059",
+        "targetNodeId": "node-1767097232336",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767097701698",
+        "sourceNodeId": "node-1767096709059",
+        "targetNodeId": "node-1767097411585",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767097706008",
+        "sourceNodeId": "node-1767096709059",
+        "targetNodeId": "node-1767097409620",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767097713432",
+        "sourceNodeId": "node-1767096709059",
+        "targetNodeId": "node-1767097228771",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 191.05250717846613,
+            "y": 34.762403006505416
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097753687",
+        "sourceNodeId": "node-1767096709059",
+        "targetNodeId": "node-1767097716550",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 267.70702591316706,
+            "y": 240.25245697329729
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097976420",
+        "sourceNodeId": "node-1767096750697",
+        "targetNodeId": "node-1767097232336",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 396.52408790588385,
+            "y": 874.69953472452
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097981189",
+        "sourceNodeId": "node-1767096750697",
+        "targetNodeId": "node-1767097411585",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 386.09656222179683,
+            "y": 932.7342113294955
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767097985390",
+        "sourceNodeId": "node-1767096750697",
+        "targetNodeId": "node-1767097409620",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 318.2166236145328,
+            "y": 980.6919039185395
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607027644",
+        "sourceNodeId": "node-1767097053922",
+        "targetNodeId": "node-1767606975256",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 983.6607718419546,
+            "y": -481.3226833494781
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607032063",
+        "sourceNodeId": "node-1767606975256",
+        "targetNodeId": "node-1767607000149",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1331.8790162982368,
+            "y": -373.58432285044637
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607036085",
+        "sourceNodeId": "node-1767607000149",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1799.3488050377102,
+            "y": -322.0523783365884
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607159878",
+        "sourceNodeId": "node-1767097136784",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1137.9731585570053,
+            "y": -404.1529515003998
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1767607163385",
+        "sourceNodeId": "node-1767097228771",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1231.6153026542277,
+            "y": -290.14423524292187
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1767607166053",
+        "sourceNodeId": "node-1767097716550",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1328.984334309896,
+            "y": -174.87179527670114
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607185953",
+        "sourceNodeId": "node-1767097233575",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1334.4453146083101,
+            "y": -78.72607924962284
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607188389",
+        "sourceNodeId": "node-1767097233254",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1336.1800209179462,
+            "y": 60.500935426866164
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607217331",
+        "sourceNodeId": "node-1767098128640",
+        "targetNodeId": "node-1767098213155",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2140.310513661624,
+            "y": -164.26719648910287
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1767607219918",
+        "sourceNodeId": "node-1767098213155",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1881.5882925153792,
+            "y": 106.776108999445
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607236900",
+        "sourceNodeId": "node-1767098213155",
+        "targetNodeId": "node-1767098251858",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2156.211031272234,
+            "y": 203.25662520437524
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1767607239714",
+        "sourceNodeId": "node-1767098251858",
+        "targetNodeId": "node-1767098213155",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1878.4763700850892,
+            "y": 239.20926338735256
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607252603",
+        "sourceNodeId": "node-1767098251858",
+        "targetNodeId": "node-1767098235190",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1851.0560307174742,
+            "y": 525.1153075863618
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1767607254677",
+        "sourceNodeId": "node-1767098235190",
+        "targetNodeId": "node-1767098251858",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1719.9705312893127,
+            "y": 384.6774706599688
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607262630",
+        "sourceNodeId": "node-1767098235190",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1534.62740642422,
+            "y": 232.10606940828177
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607266352",
+        "sourceNodeId": "node-1767098128640",
+        "targetNodeId": "node-1767098235190",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1783.1145135075194,
+            "y": 56.57759644527624
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607386352",
+        "sourceNodeId": "node-1767097232942",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1306.756600026858,
+            "y": 247.81452681560705
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607436997",
+        "sourceNodeId": "node-1767097233254",
+        "targetNodeId": "node-1767098235190",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1228.61343405035,
+            "y": 426.3041989875562
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607463933",
+        "sourceNodeId": "node-1767097232942",
+        "targetNodeId": "node-1767098235190",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1316.5711907280815,
+            "y": 592.8790405168567
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607475861",
+        "sourceNodeId": "node-1767097232336",
+        "targetNodeId": "node-1767098251858",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1684.888543023002,
+            "y": 880.98726910241
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607495097",
+        "sourceNodeId": "node-1767097411585",
+        "targetNodeId": "node-1767098235190",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1504.713976619219,
+            "y": 1001.2156922958757
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607502058",
+        "sourceNodeId": "node-1767097409620",
+        "targetNodeId": "node-1767098251858",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1671.2459821082284,
+            "y": 1196.2505069308809
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767607620707",
+        "sourceNodeId": "ghost-node-1767097716550-1767607614839",
+        "targetNodeId": "node-1767098251858",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2030.3437491467646,
+            "y": 537.4633668071093
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767614928415",
+        "sourceNodeId": "node-1767096750697",
+        "targetNodeId": "node-1767097053922",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -365.63753846507115,
+            "y": -147.02188711455378
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767615054660",
+        "sourceNodeId": "node-1767098235190",
+        "targetNodeId": "node-1767097233575",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1349.8714975281544,
+            "y": 201.4942584952924
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767615864744",
+        "sourceNodeId": "node-1767098235190",
+        "targetNodeId": "node-1767097136784",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1346.6341764703416,
+            "y": -146.96952064591227
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1767616240479",
+        "sourceNodeId": "node-1767098128640",
+        "targetNodeId": "node-1767607762656",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2014.3230670967482,
+            "y": -187.95749044821272
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767616431610",
+        "sourceNodeId": "node-1767098251858",
+        "targetNodeId": "node-1767607764645",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2243.986471208866,
+            "y": 488.143839749423
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767616434598",
+        "sourceNodeId": "node-1767607764645",
+        "targetNodeId": "node-1767098251858",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2196.368398286874,
+            "y": 268.9731261128127
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767616854700",
+        "sourceNodeId": "node-1767098235190",
+        "targetNodeId": "node-1767607765289",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1930.3862418250574,
+            "y": 623.8893944326072
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1767616902693",
+        "sourceNodeId": "ghost-node-1767607765289-1767616886685",
+        "targetNodeId": "node-1767609749072",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3930.2905573179314,
+            "y": 537.2915925979614
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767616907615",
+        "sourceNodeId": "node-1767609749072",
+        "targetNodeId": "node-1767609748812",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 4046.319143584281,
+            "y": 442.29686510226463
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767616921463",
+        "sourceNodeId": "node-1767609748812",
+        "targetNodeId": "node-1767609749324",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 4303.617441829622,
+            "y": 297.5537483138268
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767617101483",
+        "sourceNodeId": "node-1767607765289",
+        "targetNodeId": "node-1767617019799",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2339.0896832550843,
+            "y": 588.7790521178583
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767617137448",
+        "sourceNodeId": "node-1767617019799",
+        "targetNodeId": "node-1767097136784",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1459.3900421104736,
+            "y": -435.63514663233906
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767617259683",
+        "sourceNodeId": "node-1767607762656",
+        "targetNodeId": "node-1767611217997",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1919.0982311444118,
+            "y": -286.3885957351838
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767617262974",
+        "sourceNodeId": "node-1767607762656",
+        "targetNodeId": "node-1767611218790",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2393.236140816393,
+            "y": -382.9889752937085
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767617629094",
+        "sourceNodeId": "node-1767607764645",
+        "targetNodeId": "node-1767097232336",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2116.425845675999,
+            "y": 1195.4622162120522
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767617837361",
+        "sourceNodeId": "node-1767608413579",
+        "targetNodeId": "node-1767098128640",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2451.41547493983,
+            "y": -83.97376887407412
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767621961846",
+        "sourceNodeId": "node-1767608413941",
+        "targetNodeId": "node-1767608414708",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3030.3154450713087,
+            "y": -425.8079320830528
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622077016",
+        "sourceNodeId": "node-1767608414137",
+        "targetNodeId": "node-1767608413941",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3252.8068941465176,
+            "y": -182.55220427898442
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622115504",
+        "sourceNodeId": "node-1767608414708",
+        "targetNodeId": "node-1767608414521",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2601.594551244325,
+            "y": -376.991587118669
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622167416",
+        "sourceNodeId": "node-1767608414521",
+        "targetNodeId": "node-1767622143965",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2598.5234879963364,
+            "y": -101.63403848204946
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622285709",
+        "sourceNodeId": "node-1767622143965",
+        "targetNodeId": "node-1767608414137",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2994.704557168363,
+            "y": 65.34128903682645
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622354543",
+        "sourceNodeId": "node-1767622143965",
+        "targetNodeId": "node-1767608413579",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2630.223120451821,
+            "y": -11.72848811294088
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622387452",
+        "sourceNodeId": "node-1767608413579",
+        "targetNodeId": "node-1767608414137",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3017.900712323846,
+            "y": 182.07053305886006
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622423301",
+        "sourceNodeId": "node-1767607762656",
+        "targetNodeId": "node-1767608413579",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2425.050895256093,
+            "y": -134.73067736384837
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622448588",
+        "sourceNodeId": "node-1767607764645",
+        "targetNodeId": "node-1767608413579",
+        "polarity": "positive",
+        "delay": 3,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2500.1369900173618,
+            "y": -7.484288121478045
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622497636",
+        "sourceNodeId": "node-1767608414317",
+        "targetNodeId": "node-1767622143965",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3023.5221973918024,
+            "y": -178.8833982679579
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622531888",
+        "sourceNodeId": "node-1767607765289",
+        "targetNodeId": "node-1767608414317",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2757.521160998689,
+            "y": 168.14310170183282
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767622940366",
+        "sourceNodeId": "ghost-node-1767608414317-1767622921170",
+        "targetNodeId": "node-1767097053922",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 804.2594775999761,
+            "y": -450.53566318088104
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625024479",
+        "sourceNodeId": "node-1767609292450",
+        "targetNodeId": "node-1767609291995",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3801.3881100025774,
+            "y": -693.5979082512137
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625048551",
+        "sourceNodeId": "node-1767609291995",
+        "targetNodeId": "node-1767609291434",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3818.659605211949,
+            "y": -419.1373625475952
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625095294",
+        "sourceNodeId": "node-1767609291434",
+        "targetNodeId": "node-1767609293234",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3432.4405385458126,
+            "y": -390.6908982402146
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625102064",
+        "sourceNodeId": "node-1767609293234",
+        "targetNodeId": "node-1767609292450",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3377.53375949927,
+            "y": -662.3844898108279
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625145953",
+        "sourceNodeId": "node-1767609291434",
+        "targetNodeId": "node-1767609292818",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3553.1222981571354,
+            "y": -249.928146516434
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625191997",
+        "sourceNodeId": "node-1767609292818",
+        "targetNodeId": "node-1767609293234",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3252.8385402303134,
+            "y": -430.6518331970832
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625376798",
+        "sourceNodeId": "ghost-node-1767609291995-1767625346343",
+        "targetNodeId": "node-1767607762656",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767625383665",
+        "sourceNodeId": "ghost-node-1767609291995-1767625346343",
+        "targetNodeId": "node-1767607764645",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767625417713",
+        "sourceNodeId": "node-1767607762656",
+        "targetNodeId": "node-1767607765289",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2518.775464599122,
+            "y": 117.82758431482796
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625443571",
+        "sourceNodeId": "node-1767607764645",
+        "targetNodeId": "node-1767607765289",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2421.870357057328,
+            "y": 427.17758379078873
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625551015",
+        "sourceNodeId": "node-1767607765289",
+        "targetNodeId": "node-1767625505749",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2736.9008914081223,
+            "y": 298.87437238596897
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625627679",
+        "sourceNodeId": "node-1767625505749",
+        "targetNodeId": "node-1767625562646",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3270.625099575995,
+            "y": 87.92890348338116
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625670499",
+        "sourceNodeId": "node-1767625562646",
+        "targetNodeId": "node-1767609291995",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3926.8980927132548,
+            "y": -116.59152965352992
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767625749349",
+        "sourceNodeId": "ghost-node-1767625505749-1767625735333",
+        "targetNodeId": "node-1767096925932",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -374.5590372376617,
+            "y": 176.5195997604215
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767704344587",
+        "sourceNodeId": "node-1767097233575",
+        "targetNodeId": "node-1767098235190",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1149.979605144419,
+            "y": 209.1546443207095
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767704395145",
+        "sourceNodeId": "node-1767097053922",
+        "targetNodeId": "node-1767097232942",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 369.58889957866825,
+            "y": 141.23964379050517
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767704417490",
+        "sourceNodeId": "node-1767097136784",
+        "targetNodeId": "node-1767097232942",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 524.6992964353104,
+            "y": 114.59894604153101
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767704687398",
+        "sourceNodeId": "node-1767097233254",
+        "targetNodeId": "node-1767097409620",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 953.9559616730485,
+            "y": 669.8978343925091
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767704717833",
+        "sourceNodeId": "node-1767097228771",
+        "targetNodeId": "node-1767097232942",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 767.7785511040045,
+            "y": 203.43093919754028
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767704768156",
+        "sourceNodeId": "node-1767097716550",
+        "targetNodeId": "node-1767097136784",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1176.8145383581214,
+            "y": -74.72192213270398
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767704794398",
+        "sourceNodeId": "node-1767097411585",
+        "targetNodeId": "node-1767097232942",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1085.7530542757734,
+            "y": 875.4631364610465
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767704829022",
+        "sourceNodeId": "node-1767097232336",
+        "targetNodeId": "node-1767097136784",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 726.0223973501624,
+            "y": 415.32633049319486
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767705540238",
+        "sourceNodeId": "node-1767701813126",
+        "targetNodeId": "node-1767097233575",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 706.6100755171344,
+            "y": -3.0240948516459625
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767705598899",
+        "sourceNodeId": "node-1767701814743",
+        "targetNodeId": "node-1767097232942",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 947.8454267713759,
+            "y": 439.64034981916797
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767705709955",
+        "sourceNodeId": "node-1767701815694",
+        "targetNodeId": "node-1767097409620",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 808.7274263546882,
+            "y": 1158.9135754517836
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767705738592",
+        "sourceNodeId": "node-1767701817737",
+        "targetNodeId": "node-1767097409620",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1238.6724905275732,
+            "y": 1242.8247218276515
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767705763849",
+        "sourceNodeId": "node-1767701816869",
+        "targetNodeId": "node-1767097233575",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 804.1997017908576,
+            "y": 330.3020328738377
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767705767882",
+        "sourceNodeId": "node-1767701816869",
+        "targetNodeId": "node-1767097136784",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767705821840",
+        "sourceNodeId": "node-1767701818521",
+        "targetNodeId": "node-1767097136784",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 461.72537077316133,
+            "y": -318.6073284097074
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767784765766",
+        "sourceNodeId": "node-1767610939806",
+        "targetNodeId": "node-1767609748552",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 4254.240114347396,
+            "y": -216.53481805204137
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767784770215",
+        "sourceNodeId": "node-1767609748552",
+        "targetNodeId": "node-1767609748244",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 4248.791683929134,
+            "y": -550.5822153948824
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767784780897",
+        "sourceNodeId": "node-1767609748244",
+        "targetNodeId": "node-1767610939806",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 4579.276352436259,
+            "y": -437.55564075046107
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767784917679",
+        "sourceNodeId": "ghost-node-1767608414317-1767784880554",
+        "targetNodeId": "node-1767610939806",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 4411.410200639204,
+            "y": -230.01777624531042
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767864597798",
+        "sourceNodeId": "node-1767701819321",
+        "targetNodeId": "node-1767097233575",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767864613789",
+        "sourceNodeId": "node-1767701819321",
+        "targetNodeId": "node-1767097136784",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1767864641446",
+        "sourceNodeId": "node-1767701819321",
+        "targetNodeId": "node-1767097409620",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 669.50595635141,
+            "y": 471.58991962009003
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767867188815",
+        "sourceNodeId": "node-1767609749324",
+        "targetNodeId": "node-1767609750128",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 4306.217103330197,
+            "y": 39.26360840267608
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767867193359",
+        "sourceNodeId": "node-1767609750128",
+        "targetNodeId": "node-1767609749828",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3957.6631925948946,
+            "y": -11.652176417949772
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767867277458",
+        "sourceNodeId": "node-1767609749828",
+        "targetNodeId": "node-1767609749532",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3671.7566498690885,
+            "y": 173.18372791945333
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1767867290327",
+        "sourceNodeId": "node-1767609749532",
+        "targetNodeId": "node-1767609748812",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 3954.3588682232476,
+            "y": 342.80491052201256
+          }
+        ],
+        "selected": false
+      }
+    ],
+    "frames": [
+      {
+        "id": "frame-1767608012848-w1vf4csoi",
+        "name": "Energy",
+        "color": "#dc2626",
+        "x": 2818.4090576171875,
+        "y": 418.1518859863281,
+        "width": 775.05029296875,
+        "height": 496.3349609375,
+        "locked": true,
+        "nodeIds": [
+          "node-1767608052717",
+          "node-1767608055288",
+          "node-1767608056016",
+          "node-1767608056768",
+          "node-1767608057704",
+          "node-1767608308595",
+          "node-1767608309287",
+          "ghost-node-1767607762656-1767618877734",
+          "ghost-node-1767607764645-1767618894746",
+          "ghost-node-1767607765289-1767618900430"
+        ]
+      },
+      {
+        "id": "frame-1767608382666-enfdle7h0",
+        "name": "Fisheries ",
+        "color": "#667eea",
+        "x": 2513.5205078125,
+        "y": -417.97615814208984,
+        "width": 710.82177734375,
+        "height": 592.2465057373047,
+        "locked": true,
+        "nodeIds": [
+          "node-1767608413579",
+          "node-1767608413941",
+          "node-1767608414137",
+          "node-1767608414317",
+          "node-1767608414521",
+          "node-1767608414708",
+          "node-1767622143965"
+        ]
+      },
+      {
+        "id": "frame-1767609106296-h6cs2i8j8",
+        "name": "Tourism ",
+        "color": "#059669",
+        "x": 3623.3806762695312,
+        "y": -33.83747482299805,
+        "width": 746.295654296875,
+        "height": 634.373724937439,
+        "locked": true,
+        "nodeIds": [
+          "node-1767609748812",
+          "node-1767609749072",
+          "node-1767609749324",
+          "node-1767609749532",
+          "node-1767609749828",
+          "node-1767609750128",
+          "ghost-node-1767607765289-1767616886685",
+          "ghost-node-1767607762656-1767618933329",
+          "ghost-node-1767607764645-1767618937753"
+        ]
+      },
+      {
+        "id": "frame-1767609111152-ibvgr1lhp",
+        "name": "Aquaculture",
+        "color": "#0891b2",
+        "x": 3251.8902587890625,
+        "y": -725.9635047912598,
+        "width": 679.5595703125,
+        "height": 669.4752666950226,
+        "locked": true,
+        "nodeIds": [
+          "node-1767609291434",
+          "node-1767609291995",
+          "node-1767609292450",
+          "node-1767609292818",
+          "node-1767609293234",
+          "node-1767625562646"
+        ]
+      },
+      {
+        "id": "frame-1767609153065-a97792kqo",
+        "name": "Shipping industry ",
+        "color": "#c2410c",
+        "x": 4032.6312255859375,
+        "y": -581.3601760864258,
+        "width": 561.0556640625,
+        "height": 526.9597244262695,
+        "locked": true,
+        "nodeIds": [
+          "node-1767609748244",
+          "node-1767609748552",
+          "node-1767610939806",
+          "node-1767784814657",
+          "ghost-node-1767608414317-1767784880554"
+        ]
+      }
+    ],
+    "zoom": 0.48311526794383125,
+    "pan": {
+      "x": -1587.240649343642,
+      "y": 1171.088573456188
+    }
+  },
+  "loops": {
+    "customLabels": {},
+    "signatureLabels": {},
+    "idToSignature": {},
+    "loopLabels": []
+  },
+  "dictionary": {
+    "factorDescriptions": {},
+    "connectionJustifications": {}
+  },
+  "themes": {
+    "definitions": [
+      {
+        "name": "OWFs",
+        "color": "#f59e0b"
+      },
+      {
+        "name": "Policy",
+        "color": "#ef4444"
+      },
+      {
+        "name": "Environmental pressures",
+        "color": "#059669"
+      },
+      {
+        "name": "Ecosystem components",
+        "color": "#689df3"
+      },
+      {
+        "name": "Ecosystem Services",
+        "color": "#e3479a"
+      },
+      {
+        "name": "LWB",
+        "color": "#8b5cf6"
+      },
+      {
+        "name": "NiD",
+        "color": "#ef4444"
+      }
+    ]
+  },
+  "ui": {
+    "themeColorMode": true,
+    "customThemes": [],
+    "showGrid": false,
+    "pinnedLoops": []
+  },
+  "analysis": {
+    "impactWeight": 1,
+    "strengthWeight": 0.4,
+    "speedWeight": 0.3,
+    "independenceWeight": 0.3,
+    "useAdjustedILV": false,
+    "prioritizeSlowLoops": false
+  }
+}

@@ -1,9 +1,9 @@
 """Load real-world .qsem models through SESPy's QSEM importer and assert they
 parse into a valid Project.
 
-The models come from the NiD4OCEAN DST "social ecological system map" set, which
-lives OUTSIDE this repo (a OneDrive research folder). So this test SKIPS when the
-directory is absent (CI, other machines). Point it elsewhere with the
+The models originate from the NiD4OCEAN DST "social ecological system map" set
+and are vendored into this repo's data/ as sample fixtures, so the tests run
+anywhere (CI, other machines). Point at a different model set with the
 QSEM_MODELS_DIR environment variable.
 """
 import json
@@ -14,11 +14,8 @@ import pytest
 
 from sespy.qsem_import import parse_qsem, qsem_to_isa
 
-# Default location on the author's machine; override with QSEM_MODELS_DIR.
-_DEFAULT_DIR = Path(
-    r"C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\NiD4OCEAN"
-    r"\DST\social ecological system map\Social ecological systems map"
-)
+# Repo-local sample models; override with QSEM_MODELS_DIR.
+_DEFAULT_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def _models_dir() -> Path:

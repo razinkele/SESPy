@@ -1,0 +1,2303 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "savedAt": "2026-05-06T12:58:56.923Z",
+    "title": "QSEM Model",
+    "nodeCount": 61,
+    "loopCount": 62
+  },
+  "canvas": {
+    "nodes": [
+      {
+        "id": "node-1776845203219",
+        "label": "OWF Structure Presence",
+        "position": {
+          "x": 804.9894409179688,
+          "y": 198.78346252441406
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845247636",
+        "label": "Vessel Traffic",
+        "position": {
+          "x": 753.8945922851562,
+          "y": 360.1784362792969
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845267003",
+        "label": "Port Utilization",
+        "position": {
+          "x": 594.1216430664062,
+          "y": 486.6990966796875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845293332",
+        "label": "Access to Fishing Ground",
+        "position": {
+          "x": 1101.826416015625,
+          "y": 146.87753295898438
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845311712",
+        "label": "Fishing Activity Patterns",
+        "position": {
+          "x": 1402.7186279296875,
+          "y": 186.2514190673828
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845340860",
+        "label": "Navigation and Safety Risk",
+        "position": {
+          "x": 1101.015380859375,
+          "y": 282.76397705078125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845368860",
+        "label": "Operational Costs",
+        "position": {
+          "x": 1039.3770751953125,
+          "y": 499.3089904785156
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845401529",
+        "label": "Fishing Revenues",
+        "position": {
+          "x": 1354.9456787109375,
+          "y": 497.0186462402344
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845418533",
+        "label": "Employment in Fishing",
+        "position": {
+          "x": 1465.7418212890625,
+          "y": 829.7754516601562
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845472630",
+        "label": "Livelihood Security",
+        "position": {
+          "x": 1131.9407958984375,
+          "y": 789.7888793945312
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845489842",
+        "label": "Fishing Community Wellbeing",
+        "position": {
+          "x": 822.4793701171875,
+          "y": 770.6648559570312
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845508246",
+        "label": "Community Perceptions",
+        "position": {
+          "x": 532.8045654296875,
+          "y": 696.1102905273438
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845527614",
+        "label": "Place Attachment",
+        "position": {
+          "x": 259.5665283203125,
+          "y": 751.08935546875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845548387",
+        "label": "Adaptive Behavior Capacity (SSF)",
+        "position": {
+          "x": 2309.171142578125,
+          "y": -125.53154754638672
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845564235",
+        "label": "Socioeconomic Monitoring",
+        "position": {
+          "x": 429.21063232421875,
+          "y": 1128.2899169921875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845579019",
+        "label": "Adaptive Management",
+        "position": {
+          "x": 1231.2254638671875,
+          "y": 1321.3446044921875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845594151",
+        "label": "Stakeholder Engagement",
+        "position": {
+          "x": 1506.940185546875,
+          "y": 1004.244384765625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776845623152",
+        "label": "OWFs Development",
+        "position": {
+          "x": 426.08795166015625,
+          "y": 177.60287475585938
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776846223118",
+        "label": "Community Acceptance",
+        "position": {
+          "x": 430.9124755859375,
+          "y": 977.9888916015625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776846337637",
+        "label": "Community Opposition",
+        "position": {
+          "x": 671.02587890625,
+          "y": 1008.6206665039062
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776846444207",
+        "label": "Perceived Fairness",
+        "position": {
+          "x": 871.8018798828125,
+          "y": 1123.9342041015625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776846623416",
+        "label": "Institutional Legitimacy",
+        "position": {
+          "x": 890.9767456054688,
+          "y": 1288.8380126953125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776847003556",
+        "label": "Procedural Justice",
+        "position": {
+          "x": 1224.3145751953125,
+          "y": 1109.15625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776847060182",
+        "label": "Quality_of_Planning and Engagemen",
+        "position": {
+          "x": 1530.1143798828125,
+          "y": 1349.5782470703125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776850702270",
+        "label": "Distance from Coast",
+        "position": {
+          "x": -668.404541015625,
+          "y": -795.37939453125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776850724254",
+        "label": "Visual & Spatial Impacts",
+        "position": {
+          "x": -328.21142578125,
+          "y": -586.1392822265625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776850770248",
+        "label": "Tourism Activity",
+        "position": {
+          "x": -1035.6422119140625,
+          "y": -539.1669921875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776850821497",
+        "label": "Real Estate Value",
+        "position": {
+          "x": -539.5794067382812,
+          "y": -255.96328735351562
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776851219927",
+        "label": "Reginal Economic value",
+        "position": {
+          "x": -898.9956665039062,
+          "y": -231.712158203125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776863209749",
+        "label": "Demographic & Population Change",
+        "position": {
+          "x": -907.44921875,
+          "y": 579.6199951171875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776863272106",
+        "label": "Housing & Availability",
+        "position": {
+          "x": -613.634765625,
+          "y": 880.388671875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776863316391",
+        "label": "Local Services Capacity",
+        "position": {
+          "x": -307.65045166015625,
+          "y": 909.9439697265625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776863604787",
+        "label": "Community Wellbeing Including Traffic & Noise",
+        "position": {
+          "x": -271.0646057128906,
+          "y": 1319.069091796875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776863711348",
+        "label": "Community Cohesion Effects",
+        "position": {
+          "x": -695.3464965820312,
+          "y": 1118.5697021484375
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776863953859",
+        "label": "Operation & Miantenance",
+        "position": {
+          "x": 231.5651397705078,
+          "y": -65.72644805908203
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776863975810",
+        "label": "Constraction Phase",
+        "position": {
+          "x": 65.6290512084961,
+          "y": 11.986629486083984
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776864071973",
+        "label": "Temporary Employment",
+        "position": {
+          "x": -202.97544860839844,
+          "y": 30.079160690307617
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776864199345",
+        "label": "Non-Local Employment",
+        "position": {
+          "x": -622.3275146484375,
+          "y": 73.70277404785156
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776864363836",
+        "label": "Local Employment",
+        "position": {
+          "x": -68.98494720458984,
+          "y": 297.44781494140625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776864519482",
+        "label": "Housing Pressure form Temporary Workforce",
+        "position": {
+          "x": -651.8828125,
+          "y": 567.4501953125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776864554070",
+        "label": "Increased Demand on Local Services",
+        "position": {
+          "x": -410.2247314453125,
+          "y": 452.7060852050781
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776864582523",
+        "label": "Community Disruption",
+        "position": {
+          "x": -905.710693359375,
+          "y": 1026.4266357421875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1776866236931",
+        "label": "Community Regeneration Potential",
+        "position": {
+          "x": -147.70411682128906,
+          "y": 565.711669921875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778064494380",
+        "label": "Fishing Effort Density Outside OWFs",
+        "position": {
+          "x": 1609.842041015625,
+          "y": 192.1818084716797
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778064648511",
+        "label": "Fuel Consumption per Trip",
+        "position": {
+          "x": 1647.3045654296875,
+          "y": 526.4557495117188
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778064723040",
+        "label": "SSF Income Stability",
+        "position": {
+          "x": 1843.9423828125,
+          "y": -85.48114776611328
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778064957787",
+        "label": "SSF Spatial Dependence",
+        "position": {
+          "x": 2027.5859375,
+          "y": -383.5203552246094
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778064982771",
+        "label": "SSF Gear Compatibility with OWFs",
+        "position": {
+          "x": 2306.4345703125,
+          "y": 19.916728973388672
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778065188507",
+        "label": "SSF CPUE (conditional)",
+        "position": {
+          "x": 2025.1036376953125,
+          "y": 129.71102905273438
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1776845548387-1778065770433",
+        "label": "Adaptive Behavior Capacity (SSF)",
+        "position": {
+          "x": 1440.153076171875,
+          "y": 1201.3408203125
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1776845548387",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1776851219927-1778067125469",
+        "label": "Reginal Economic value",
+        "position": {
+          "x": -173.3817901611328,
+          "y": 769.3038940429688
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1776851219927",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778067409322",
+        "label": "IF Operating Costs",
+        "position": {
+          "x": 1878.09765625,
+          "y": 365.1372375488281
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778067587830",
+        "label": "IF Fleet Mobility",
+        "position": {
+          "x": 2225.753173828125,
+          "y": 267.6048889160156
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778067609608",
+        "label": "IF Effort Redistribution Capacity",
+        "position": {
+          "x": 2291.823486328125,
+          "y": 613.6874389648438
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778067924486",
+        "label": "IF Profit Margins",
+        "position": {
+          "x": 1906.45703125,
+          "y": 885.9734497070312
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778068770287",
+        "label": "Stakeholders conflicts of interest",
+        "position": {
+          "x": 1870.3704833984375,
+          "y": 1097.8648681640625
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778069645442",
+        "label": "Co-Existence Policies",
+        "position": {
+          "x": 1973.0113525390625,
+          "y": 1426.28466796875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1778069645442-1778069764983",
+        "label": "Co-Existence Policies",
+        "position": {
+          "x": 1306.948486328125,
+          "y": -115.50519561767578
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1778069645442",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778070211563",
+        "label": "Unequal Power Dynamics",
+        "position": {
+          "x": 2235.461669921875,
+          "y": 933.0902709960938
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778070236007",
+        "label": "Scientific Uncertainly",
+        "position": {
+          "x": 2237.2001953125,
+          "y": 1211.2578125
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778070886335",
+        "label": "Aquaculture Co-location Presence",
+        "position": {
+          "x": 933.1901245117188,
+          "y": -176.53585815429688
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778071177925",
+        "label": "Hydrodynamic Modification",
+        "position": {
+          "x": 584.465576171875,
+          "y": -162.40835571289062
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778071199217",
+        "label": "Aquaculture Yield (+/–, context‑dependent)",
+        "position": {
+          "x": 730.3630981445312,
+          "y": -392.38055419921875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "node-1778071455695",
+        "label": "Alternative Livelihood Opportunities",
+        "position": {
+          "x": 1197.378662109375,
+          "y": -376.065185546875
+        },
+        "selected": false,
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1778071455695-1778071489940",
+        "label": "Alternative Livelihood Opportunities",
+        "position": {
+          "x": 1280.120849609375,
+          "y": 731.0486450195312
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1778071455695",
+        "isNewlyCreated": false
+      },
+      {
+        "id": "ghost-node-1778070886335-1778071633131",
+        "label": "Aquaculture Co-location Presence",
+        "position": {
+          "x": 2284.941162109375,
+          "y": 1397.3677978515625
+        },
+        "selected": false,
+        "isGhost": true,
+        "originalNodeId": "node-1778070886335",
+        "isNewlyCreated": false
+      }
+    ],
+    "links": [
+      {
+        "id": "link-1776845658020",
+        "sourceNodeId": "node-1776845623152",
+        "targetNodeId": "node-1776845203219",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 3,
+        "controlPoints": [
+          {
+            "x": 627.8390931760594,
+            "y": 82.70794716229355
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776845687989",
+        "sourceNodeId": "node-1776845623152",
+        "targetNodeId": "node-1776845247636",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 551.1744485728491,
+            "y": 286.2959037780762
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776845724095",
+        "sourceNodeId": "node-1776845623152",
+        "targetNodeId": "node-1776845267003",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 462.89016850277176,
+            "y": 328.89133682250974
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776845751775",
+        "sourceNodeId": "node-1776845203219",
+        "targetNodeId": "node-1776845293332",
+        "polarity": "negative",
+        "delay": 0,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 931.2651428222656,
+            "y": 107.87039348462577
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776845783017",
+        "sourceNodeId": "node-1776845203219",
+        "targetNodeId": "node-1776845340860",
+        "polarity": "positive",
+        "delay": 0,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 914.3552032470703,
+            "y": 293.39521761010695
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776845809566",
+        "sourceNodeId": "node-1776845247636",
+        "targetNodeId": "node-1776845340860",
+        "polarity": "positive",
+        "delay": 0,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 926.3584747314453,
+            "y": 381.766755118815
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776845826017",
+        "sourceNodeId": "node-1776845247636",
+        "targetNodeId": "node-1776845368860",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 851.4429277507376,
+            "y": 468.63674011230466
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776845894735",
+        "sourceNodeId": "node-1776845293332",
+        "targetNodeId": "node-1776845311712",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 1247.4947155300185,
+            "y": 109.1564506620343
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776845923071",
+        "sourceNodeId": "node-1776845340860",
+        "targetNodeId": "node-1776845311712",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 1326.034678241102,
+            "y": 302.4456558227539
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776845967275",
+        "sourceNodeId": "node-1776845368860",
+        "targetNodeId": "node-1776845401529",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 3,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 1209.5263549804688,
+            "y": 574.494586844769
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776846013501",
+        "sourceNodeId": "node-1776845311712",
+        "targetNodeId": "node-1776845401529",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 1462.7504266416909,
+            "y": 334.2738868713379
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776846030632",
+        "sourceNodeId": "node-1776845401529",
+        "targetNodeId": "node-1776845418533",
+        "polarity": "positive",
+        "delay": 2,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 1524.0711335917654,
+            "y": 665.2825997239484
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776846069765",
+        "sourceNodeId": "node-1776845418533",
+        "targetNodeId": "node-1776845472630",
+        "polarity": "positive",
+        "delay": 2,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 1300.1148484766163,
+            "y": 893.690269737777
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776846113746",
+        "sourceNodeId": "node-1776845472630",
+        "targetNodeId": "node-1776845489842",
+        "polarity": "positive",
+        "delay": 2,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 996.0614866056965,
+            "y": 678.7949362011627
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776846134897",
+        "sourceNodeId": "node-1776845489842",
+        "targetNodeId": "node-1776845508246",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 724.2492158525469,
+            "y": 835.4359235774363
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776846175770",
+        "sourceNodeId": "node-1776845527614",
+        "targetNodeId": "node-1776845508246",
+        "polarity": "positive",
+        "delay": 3,
+        "impact": 2,
+        "control": 0,
+        "controlPoints": [
+          {
+            "x": 360.30471891806764,
+            "y": 625.5244470365551
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776846275700",
+        "sourceNodeId": "node-1776845508246",
+        "targetNodeId": "node-1776846223118",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 434.66714359909275,
+            "y": 830.396273803711
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776846359574",
+        "sourceNodeId": "node-1776845508246",
+        "targetNodeId": "node-1776846337637",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 508.1671412646982,
+            "y": 839.2399597167969
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776846557551",
+        "sourceNodeId": "node-1776845564235",
+        "targetNodeId": "node-1776846444207",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 658.2781646728515,
+            "y": 1172.2830431524094
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776846978684",
+        "sourceNodeId": "node-1776845564235",
+        "targetNodeId": "node-1776846623416",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 581.2591491699219,
+            "y": 1261.4111208127856
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776847030072",
+        "sourceNodeId": "node-1776845594151",
+        "targetNodeId": "node-1776847003556",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1382.7402003447885,
+            "y": 963.9737417964072
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776847082685",
+        "sourceNodeId": "node-1776845579019",
+        "targetNodeId": "node-1776847060182",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1373.2414846058784,
+            "y": 1405.7974085855446
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776847099026",
+        "sourceNodeId": "node-1776847060182",
+        "targetNodeId": "node-1776845594151",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1643.4036023622461,
+            "y": 1190.5632530447538
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776847166506",
+        "sourceNodeId": "node-1776846337637",
+        "targetNodeId": "node-1776846623416",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 973.9412514092493,
+            "y": 1020.8909576416015
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776847184480",
+        "sourceNodeId": "node-1776846223118",
+        "targetNodeId": "node-1776846623416",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 329.73038620544935,
+            "y": 1193.235498046875
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776847233536",
+        "sourceNodeId": "node-1776846623416",
+        "targetNodeId": "node-1776845623152",
+        "polarity": "positive",
+        "delay": 3,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 98.22524249203991,
+            "y": 1112.9199085315338
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776848027597",
+        "sourceNodeId": "node-1776845267003",
+        "targetNodeId": "node-1776845368860",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 785.8145294189453,
+            "y": 583.2435151168501
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776849276930",
+        "sourceNodeId": "node-1776846444207",
+        "targetNodeId": "node-1776846223118",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 638.0575317382812,
+            "y": 1102.956502762876
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776850629785",
+        "sourceNodeId": "node-1776847003556",
+        "targetNodeId": "node-1776846444207",
+        "polarity": "positive",
+        "delay": 2,
+        "impact": 2,
+        "control": 3,
+        "controlPoints": [
+          {
+            "x": 1046.0936131152234,
+            "y": 1028.1630367506366
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776850827326",
+        "sourceNodeId": "node-1776850702270",
+        "targetNodeId": "node-1776850724254",
+        "polarity": "negative",
+        "delay": 0,
+        "impact": 3,
+        "control": 3,
+        "controlPoints": [
+          {
+            "x": -465.22374218339075,
+            "y": -781.776328144814
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776850914522",
+        "sourceNodeId": "node-1776850702270",
+        "targetNodeId": "node-1776850770248",
+        "polarity": "negative",
+        "delay": 2,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -914.8810882772849,
+            "y": -758.6035222311245
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776851068736",
+        "sourceNodeId": "node-1776850724254",
+        "targetNodeId": "node-1776850821497",
+        "polarity": "negative",
+        "delay": 3,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": -348.6219470917722,
+            "y": -357.9623611138525
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776851252371",
+        "sourceNodeId": "node-1776850770248",
+        "targetNodeId": "node-1776851219927",
+        "polarity": "positive",
+        "delay": 2,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": -1097.5226736672541,
+            "y": -439.09270603378775
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776851256304",
+        "sourceNodeId": "node-1776850821497",
+        "targetNodeId": "node-1776851219927",
+        "polarity": "positive",
+        "delay": 2,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": -707.4986534051807,
+            "y": -159.29364721056277
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1776864112319",
+        "sourceNodeId": "node-1776845623152",
+        "targetNodeId": "node-1776863975810",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 174.36063813199524,
+            "y": 163.61329833432512
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776864120295",
+        "sourceNodeId": "node-1776845623152",
+        "targetNodeId": "node-1776863953859",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 380.88280050703395,
+            "y": 31.098685245119817
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776864170723",
+        "sourceNodeId": "node-1776863975810",
+        "targetNodeId": "node-1776864071973",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -212.36292781829835,
+            "y": -24.40424769639438
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776864217656",
+        "sourceNodeId": "node-1776864071973",
+        "targetNodeId": "node-1776864199345",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": -402.9834658384678,
+            "y": -28.01618589124203
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776864395242",
+        "sourceNodeId": "node-1776864071973",
+        "targetNodeId": "node-1776864363836",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 1,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -223.6761952385741,
+            "y": 230.5188069345295
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776864411604",
+        "sourceNodeId": "node-1776863953859",
+        "targetNodeId": "node-1776864363836",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 3,
+        "controlPoints": [
+          {
+            "x": 241.72533921301124,
+            "y": 165.7940031504691
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776864662051",
+        "sourceNodeId": "node-1776864199345",
+        "targetNodeId": "node-1776864519482",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -891.3591271037409,
+            "y": 266.34858323341825
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776864671177",
+        "sourceNodeId": "node-1776864199345",
+        "targetNodeId": "node-1776864554070",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -424.4613092619781,
+            "y": 199.213395899719
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776864719692",
+        "sourceNodeId": "node-1776863953859",
+        "targetNodeId": "node-1776864199345",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -130.21461235825234,
+            "y": -302.55336943784783
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776864842309",
+        "sourceNodeId": "node-1776864199345",
+        "targetNodeId": "node-1776863209749",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": -938.9322722964127,
+            "y": 106.62786741875877
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776865183210",
+        "sourceNodeId": "node-1776864554070",
+        "targetNodeId": "node-1776863316391",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -313.864763520486,
+            "y": 623.3943227082967
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776865245533",
+        "sourceNodeId": "node-1776864519482",
+        "targetNodeId": "node-1776863272106",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -801.79093385462,
+            "y": 747.6213539336015
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776865290387",
+        "sourceNodeId": "node-1776863209749",
+        "targetNodeId": "node-1776864582523",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -1088.2448237674885,
+            "y": 758.1907125719777
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776865319193",
+        "sourceNodeId": "node-1776863316391",
+        "targetNodeId": "node-1776863711348",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -452.96803758833414,
+            "y": 1070.2126243740483
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776865323315",
+        "sourceNodeId": "node-1776863272106",
+        "targetNodeId": "node-1776863711348",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -779.8982270057397,
+            "y": 1065.0864532470703
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776865325507",
+        "sourceNodeId": "node-1776864582523",
+        "targetNodeId": "node-1776863711348",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -862.678806892306,
+            "y": 1173.9773481573234
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776865329356",
+        "sourceNodeId": "node-1776863711348",
+        "targetNodeId": "node-1776863604787",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -697.910888233499,
+            "y": 1254.5369567871094
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776865350580",
+        "sourceNodeId": "node-1776863604787",
+        "targetNodeId": "node-1776846223118",
+        "polarity": "negative",
+        "delay": 2,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -28.969476402012504,
+            "y": 1076.340484841693
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776865353696",
+        "sourceNodeId": "node-1776863604787",
+        "targetNodeId": "node-1776846337637",
+        "polarity": "positive",
+        "delay": 2,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 180.37838287353514,
+            "y": 1363.4169131192589
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776866264645",
+        "sourceNodeId": "node-1776864363836",
+        "targetNodeId": "node-1776866236931",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -216.40920070062668,
+            "y": 396.32688903808594
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776866401347",
+        "sourceNodeId": "node-1776866236931",
+        "targetNodeId": "node-1776846223118",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 52.0448103964585,
+            "y": 793.3927937906542
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1776866411879",
+        "sourceNodeId": "node-1776866236931",
+        "targetNodeId": "node-1776846337637",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 374.8607634538105,
+            "y": 465.0135162353515
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778064611900",
+        "sourceNodeId": "node-1776845293332",
+        "targetNodeId": "node-1778064494380",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 3,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 1382.6111381759727,
+            "y": 59.71875731495777
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778064672383",
+        "sourceNodeId": "node-1778064494380",
+        "targetNodeId": "node-1778064648511",
+        "polarity": "positive",
+        "delay": 0,
+        "impact": 2,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 1702.2186514539326,
+            "y": 341.30788189913187
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778064729648",
+        "sourceNodeId": "node-1778064648511",
+        "targetNodeId": "node-1776845368860",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1339.1591686783315,
+            "y": 668.8266642388412
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778064919403",
+        "sourceNodeId": "node-1776845293332",
+        "targetNodeId": "node-1778064723040",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1539.255101320168,
+            "y": -263.9913056582152
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778064991783",
+        "sourceNodeId": "node-1778064957787",
+        "targetNodeId": "node-1778064723040",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1886.5634230728479,
+            "y": -290.1285195615958
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778065302176",
+        "sourceNodeId": "node-1778064982771",
+        "targetNodeId": "node-1778065188507",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 1,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2252.833511685353,
+            "y": 150.99042481022053
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778065395407",
+        "sourceNodeId": "node-1778065188507",
+        "targetNodeId": "node-1778064723040",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1903.4767198278644,
+            "y": 81.27720135686742
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778065435013",
+        "sourceNodeId": "node-1778064723040",
+        "targetNodeId": "node-1776845548387",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2022.21927512247,
+            "y": -244.04080567989098
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778065452208",
+        "sourceNodeId": "node-1778064723040",
+        "targetNodeId": "node-1776845401529",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1721.1943074451067,
+            "y": 239.5208885779543
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778065661939",
+        "sourceNodeId": "node-1778064494380",
+        "targetNodeId": "node-1778064723040",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1612.7136941245378,
+            "y": 8.525377707809767
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778065775368",
+        "sourceNodeId": "ghost-node-1776845548387-1778065770433",
+        "targetNodeId": "node-1776845579019",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1308.0878981216688,
+            "y": 1164.2663597260328
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778066822252",
+        "sourceNodeId": "node-1776845548387",
+        "targetNodeId": "node-1778064957787",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 3,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 2283.1694659709415,
+            "y": -272.85651832941835
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778067000568",
+        "sourceNodeId": "node-1776845623152",
+        "targetNodeId": "node-1776850724254",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 3,
+        "controlPoints": [
+          {
+            "x": 246.14549522172572,
+            "y": -387.6365455848038
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778067129114",
+        "sourceNodeId": "ghost-node-1776851219927-1778067125469",
+        "targetNodeId": "node-1776866236931",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": -147.2775054721216,
+            "y": 666.6469879150391
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778067509768",
+        "sourceNodeId": "node-1776845293332",
+        "targetNodeId": "node-1778067409322",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1473.879718226868,
+            "y": -45.36261971686963
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778067558104",
+        "sourceNodeId": "node-1778067409322",
+        "targetNodeId": "node-1776845368860",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 1510.0418823722798,
+            "y": 717.2695910961479
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778067628909",
+        "sourceNodeId": "node-1778067587830",
+        "targetNodeId": "node-1778067609608",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 1,
+        "controlPoints": [
+          {
+            "x": 2332.953426529442,
+            "y": 375.2528018930171
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778068003355",
+        "sourceNodeId": "node-1778067409322",
+        "targetNodeId": "node-1778067924486",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1869.4611776480222,
+            "y": 603.031756903523
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778068027487",
+        "sourceNodeId": "node-1778067609608",
+        "targetNodeId": "node-1778067924486",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 2201.329733166908,
+            "y": 807.6481229005875
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778068062535",
+        "sourceNodeId": "node-1778067924486",
+        "targetNodeId": "node-1776845401529",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1498.5032943216527,
+            "y": 722.4250488727022
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778068825979",
+        "sourceNodeId": "node-1778068770287",
+        "targetNodeId": "node-1776845594151",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1712.6645796916712,
+            "y": 954.1631701135751
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778069509997",
+        "sourceNodeId": "node-1778068770287",
+        "targetNodeId": "node-1776847060182",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1804.2739748486151,
+            "y": 1273.4309500204774
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778069591576",
+        "sourceNodeId": "node-1776845579019",
+        "targetNodeId": "node-1778068770287",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1621.1450962594429,
+            "y": 1607.8317965076424
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778069681692",
+        "sourceNodeId": "node-1778068770287",
+        "targetNodeId": "node-1778069645442",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 3,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1976.6472544889214,
+            "y": 1221.6480844878151
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778069695019",
+        "sourceNodeId": "node-1778069645442",
+        "targetNodeId": "node-1776847003556",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1366.7306527042645,
+            "y": 1692.966986565611
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778069786479",
+        "sourceNodeId": "ghost-node-1778069645442-1778069764983",
+        "targetNodeId": "node-1776845293332",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 3,
+        "controlPoints": [
+          {
+            "x": 1185.5428277456858,
+            "y": 1.919260540382993
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778070259717",
+        "sourceNodeId": "node-1778070211563",
+        "targetNodeId": "node-1778068770287",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 3,
+        "controlPoints": [],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778070267247",
+        "sourceNodeId": "node-1778070236007",
+        "targetNodeId": "node-1778068770287",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 1,
+        "control": 1,
+        "controlPoints": [],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778070925879",
+        "sourceNodeId": "node-1776845203219",
+        "targetNodeId": "node-1778070886335",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 3,
+        "controlPoints": [
+          {
+            "x": 882.7518872581554,
+            "y": 19.654386307674592
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778071205975",
+        "sourceNodeId": "node-1776845203219",
+        "targetNodeId": "node-1778071177925",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 735.1613168806095,
+            "y": 1.0721087801607503
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778071260975",
+        "sourceNodeId": "node-1778071177925",
+        "targetNodeId": "node-1778071199217",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 607.8126583144326,
+            "y": -291.39269930823673
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778071264024",
+        "sourceNodeId": "node-1778071199217",
+        "targetNodeId": "node-1778070886335",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 871.1380226242824,
+            "y": -327.24644249568263
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778071465044",
+        "sourceNodeId": "node-1778070886335",
+        "targetNodeId": "node-1778071455695",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1020.3530288797151,
+            "y": -293.3768284274762
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778071494523",
+        "sourceNodeId": "ghost-node-1778071455695-1778071489940",
+        "targetNodeId": "node-1776845418533",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1778071518013",
+        "sourceNodeId": "node-1778071455695",
+        "targetNodeId": "node-1778064723040",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [
+          {
+            "x": 1585.9740601994265,
+            "y": -355.88742539365023
+          }
+        ],
+        "selected": false
+      },
+      {
+        "id": "link-1778071652316",
+        "sourceNodeId": "ghost-node-1778070886335-1778071633131",
+        "targetNodeId": "node-1778068770287",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 2,
+        "control": 2,
+        "controlPoints": [],
+        "selected": false
+      },
+      {
+        "id": "link-1778071966435",
+        "sourceNodeId": "node-1778070886335",
+        "targetNodeId": "node-1776845293332",
+        "polarity": "negative",
+        "delay": 1,
+        "impact": 1,
+        "control": 3,
+        "controlPoints": [
+          {
+            "x": 1043.0107590802347,
+            "y": -55.30364227294922
+          }
+        ],
+        "selected": false,
+        "reviewStatus": "reviewed"
+      },
+      {
+        "id": "link-1778072131631",
+        "sourceNodeId": "ghost-node-1778069645442-1778069764983",
+        "targetNodeId": "node-1778070886335",
+        "polarity": "positive",
+        "delay": 1,
+        "impact": 3,
+        "control": 3,
+        "controlPoints": [
+          {
+            "x": 1159.3717590534197,
+            "y": -218.87202024095131
+          }
+        ],
+        "selected": false
+      }
+    ],
+    "frames": [],
+    "zoom": 0.49192062223139055,
+    "pan": {
+      "x": 905.2375495262972,
+      "y": 604.5123025817336
+    },
+    "agents": [],
+    "scoreScale": "1-3"
+  },
+  "loops": {
+    "customLabels": {},
+    "signatureLabels": {},
+    "idToSignature": {},
+    "loopLabels": []
+  },
+  "dictionary": {
+    "factorDescriptions": {
+      "node-1778064957787": "Higher dependence increases vulnerability to access loss (https://marketac.eu/wp-content/uploads/2022/02/Item-7-Overview-study-of-the-effects-of-offshore-wind-on-fisheries-and-aquaculture.pdf)\n",
+      "node-1778065188507": "Passive gears may benefit where access is allowed (https://tethys.pnnl.gov/sites/default/files/publications/Svendsen-et-al-2022.pdf)",
+      "node-1778070886335": "OWF exclusion zones create de facto sheltered areas suitable for aquaculture deployment. (https://www.frontiersin.org/journals/marine-science/articles/10.3389/fmars.2026.1739325/full)\nWave shadowing and reduced extreme exposure influence aquaculture system stability.\nAquaculture Co‑location Presence → Fisheries–Aquaculture Conflict (–)\nOnly when participatory planning and access‑sharing are implemented. (https://tethys.pnnl.gov/publications/offshore-wind-aquaculture-co-location-challenges-opportunities-us-federal-waters)\nAquaculture Co‑location Presence → IF Effort Redistribution Capacity (0)\nLimited interaction; IF rarely integrates with aquaculture operations (https://maritime-spatial-planning.ec.europa.eu/practices/overview-effects-offshore-wind-farms-fisheries-and-aquaculture)\n",
+      "node-1778071199217": "Positive for seaweed and bivalves; uncertain for finfish cages. (https://www.nature.com/articles/s43247-023-01116-6)"
+    },
+    "connectionJustifications": {
+      "link-1776845658020": {
+        "control": "Construction & O&M increase traffic; mitigation possible but not eliminable"
+      }
+    }
+  },
+  "themes": {
+    "definitions": []
+  },
+  "ui": {
+    "themeColorMode": true,
+    "customThemes": [],
+    "showGrid": false,
+    "pinnedLoops": [],
+    "windowStates": {
+      "modelStatistics": {
+        "isOpen": true,
+        "isCollapsed": true,
+        "position": {
+          "x": 50,
+          "y": 125
+        }
+      },
+      "phase1Coding": {
+        "isOpen": true,
+        "isCollapsed": true,
+        "position": {
+          "x": 50,
+          "y": 165
+        }
+      },
+      "agentCoding": {
+        "isOpen": true,
+        "isCollapsed": true,
+        "position": {
+          "x": 50,
+          "y": 205
+        }
+      },
+      "minimap": {
+        "isOpen": true,
+        "isCollapsed": true,
+        "position": {
+          "x": 50,
+          "y": 245
+        }
+      },
+      "zoomControls": {
+        "isOpen": true,
+        "isCollapsed": true,
+        "position": {
+          "x": 50,
+          "y": 285
+        }
+      }
+    },
+    "colorMode": true,
+    "phase2ColorMode": true,
+    "showFrames": true,
+    "hideConnectionDecorations": false,
+    "hideControlPoints": false,
+    "hideTooltips": false,
+    "hideSfcAbbreviations": false,
+    "hidePolaritySymbols": false,
+    "hideTimeDelayDashes": false,
+    "hideFactorBorders": false,
+    "blackConnectionMode": false,
+    "agentColorMode": true
+  },
+  "analysis": {
+    "impactWeight": 0,
+    "strengthWeight": 0,
+    "speedWeight": 0,
+    "independenceWeight": 1,
+    "useAdjustedILV": false,
+    "prioritizeSlowLoops": false
+  }
+}
