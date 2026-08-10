@@ -9,10 +9,13 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import replace
+import logging
 
 import networkx as nx
 
 from .data_structure import Connection, IsaData
+
+logger = logging.getLogger(__name__)
 
 
 def to_digraph(isa: IsaData) -> nx.DiGraph:
@@ -151,26 +154,31 @@ def centrality_metrics(isa: IsaData) -> dict[str, dict[str, float]]:
 
     try:
         betweenness = nx.betweenness_centrality(g, normalized=True)
-    except Exception:
+    except Exception as e:
+        logger.warning("network.centrality metric=betweenness status=fallback reason=%s", type(e).__name__)
         betweenness = {n: 0.0 for n in g.nodes()}
 
     try:
         closeness = nx.closeness_centrality(g)
-    except Exception:
+    except Exception as e:
+        logger.warning("network.centrality metric=closeness status=fallback reason=%s", type(e).__name__)
         closeness = {n: 0.0 for n in g.nodes()}
 
     try:
         eigenvector = nx.eigenvector_centrality_numpy(g, max_iter=200)
-    except Exception:
+    except Exception as e:
+        logger.warning("network.centrality metric=eigenvector_numpy status=fallback reason=%s", type(e).__name__)
         # Fallback for graphs where the numpy solver is unhappy
         try:
             eigenvector = nx.eigenvector_centrality(g, max_iter=500)
-        except Exception:
+        except Exception as e2:
+            logger.warning("network.centrality metric=eigenvector status=fallback_zero reason=%s", type(e2).__name__)
             eigenvector = {n: 0.0 for n in g.nodes()}
 
     try:
         pagerank = nx.pagerank(g, alpha=0.85)
-    except Exception:
+    except Exception as e:
+        logger.warning("network.centrality metric=pagerank status=fallback reason=%s", type(e).__name__)
         pagerank = {n: 0.0 for n in g.nodes()}
 
     return {
