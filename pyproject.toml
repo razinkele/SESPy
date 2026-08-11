@@ -33,12 +33,13 @@ prod = ["python-igraph>=0.11"]
 # libraries (cairo, pango, gdk-pixbuf); install with `pip install sespy[pdf]`.
 # HTML and Word export work without it.
 #
-# Capped below 67: WeasyPrint 67 and 69 import `tinycss2.color5` while declaring
-# only `tinycss2>=1.5.0`, and no released tinycss2 (1.5.1 is the newest on both
-# PyPI and conda-forge) ships that module — so the requirement resolves and then
-# fails at import with ModuleNotFoundError. Lift the cap once tinycss2 >= 1.6 is
-# published.
-pdf = ["weasyprint>=60,<67"]
+# Not capped: WeasyPrint 67+ needs `tinycss2.color5`, which the real tinycss2
+# 1.5.1 wheel on PyPI provides, so pip installs are fine. Conda users beware —
+# conda-forge's "tinycss2 1.5.1" actually packages 1.4.0 code with no color5
+# module, so `weasyprint>=67` in a conda env dies at import with
+# ModuleNotFoundError. Workaround there is `weasyprint=66`, not a version cap
+# here (this extra only governs pip installs).
+pdf = ["weasyprint>=60"]
 test = ["pytest>=8", "pytest-playwright>=0.5", "pytest-asyncio>=0.23", "pytest-cov>=4"]
 lint = ["ruff>=0.6", "mypy>=1.10"]
 
