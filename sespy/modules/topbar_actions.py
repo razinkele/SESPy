@@ -267,7 +267,10 @@ def topbar_actions_server(input, output, session, *, translator=None,
                 type="warning", duration=4,
             )
             return
-        ui.notification_show("Autosaved data cleared.", type="message", duration=3)
+        ui.notification_show(
+            _t(translator, "options.autosave_cleared", "Autosaved data cleared."),
+            type="message", duration=3,
+        )
 
     @reactive.effect
     @reactive.event(input.fb_submit)
@@ -280,7 +283,10 @@ def topbar_actions_server(input, output, session, *, translator=None,
         try:
             feedback_store.add(msg, int(input.fb_rating() or 3), input.fb_category() or "other")
         except Exception:
-            ui.notification_show("Could not record feedback.", type="error", duration=4)
+            ui.notification_show(
+                _t(translator, "feedback.save_failed", "Could not record feedback."),
+                type="error", duration=4,
+            )
             return
         ui.modal_remove()
         ui.notification_show(_t(translator, "feedback.sent",
