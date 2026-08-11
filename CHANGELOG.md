@@ -3,6 +3,30 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- Language is now per session. The translator was a process-wide singleton, so one
+  user switching language changed it for everyone connected to the same server;
+  each session now gets its own translator. The initial language is read from the
+  `?lang=` (or `?language=`) URL query on connect.
+- Autosave, project-save and feedback failures now tell you they failed. These paths
+  previously swallowed every exception, so a locked file or an unwritable database
+  looked identical to success; they now show a notification and log the cause.
+- About box reports the running version instead of a stale installed one (it showed
+  1.2.0 through the 1.3.0 release).
+- PDF export gives an actionable message when WeasyPrint's native libraries
+  (Cairo, Pango) are missing, rather than an unhandled error.
+- Fix: element confidence and moving-average window no longer silently rewrite a
+  legitimate `0` into the default `3`. In Behaviour Over Time this halved the
+  simulated noise on the least certain elements.
+- Fix: clearing autosaved data from the Options modal could raise instead of warning
+  when the file was locked.
+- Two remaining hardcoded English notifications ("Autosaved data cleared.", "Could
+  not record feedback.") are now translated in all nine languages.
+- Internal: network centrality now logs when a metric degrades to zeros, so silent
+  analysis-quality loss is visible.
+- Internal: the QSEM sample models are vendored into `data/`, so the QSEM tests run
+  everywhere instead of skipping off the author's machine.
+- Internal: the e2e suite writes feedback to a throwaway database instead of the
+  real (deploy-preserved) store.
 
 ## [1.3.0] — 2026-07-06
 - Network graph loading spinner: every pyvis network view (CLD, Topology, Leverage,
