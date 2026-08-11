@@ -32,7 +32,13 @@ prod = ["python-igraph>=0.11"]
 # PDF report export. Separate extra because WeasyPrint needs native system
 # libraries (cairo, pango, gdk-pixbuf); install with `pip install sespy[pdf]`.
 # HTML and Word export work without it.
-pdf = ["weasyprint>=60"]
+#
+# Capped below 67: WeasyPrint 67 and 69 import `tinycss2.color5` while declaring
+# only `tinycss2>=1.5.0`, and no released tinycss2 (1.5.1 is the newest on both
+# PyPI and conda-forge) ships that module — so the requirement resolves and then
+# fails at import with ModuleNotFoundError. Lift the cap once tinycss2 >= 1.6 is
+# published.
+pdf = ["weasyprint>=60,<67"]
 test = ["pytest>=8", "pytest-playwright>=0.5", "pytest-asyncio>=0.23", "pytest-cov>=4"]
 lint = ["ruff>=0.6", "mypy>=1.10"]
 

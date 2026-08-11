@@ -27,6 +27,9 @@ All notable changes to SESPy.
   everywhere instead of skipping off the author's machine.
 - Internal: the e2e suite writes feedback to a throwaway database instead of the
   real (deploy-preserved) store.
+- Fix: PDF export works again. The `pdf` extra now caps WeasyPrint below 67 —
+  67 and 69 import `tinycss2.color5`, which no released tinycss2 provides, so
+  installing them silently broke PDF export at import time.
 
 ## [1.3.0] — 2026-07-06
 - Network graph loading spinner: every pyvis network view (CLD, Topology, Leverage,
