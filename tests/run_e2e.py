@@ -25,6 +25,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -33,6 +34,12 @@ ROOT = Path(__file__).resolve().parent.parent
 TESTS = ROOT / "tests"
 SERVER_READY_TIMEOUT = 90      # seconds to wait for shiny run to serve
 SCRIPT_TIMEOUT = 300           # per-script wall-clock cap
+
+# `test_topbar_e2e.py` submits feedback through the UI. Without an override that
+# lands in the real store (`sespy/logs/feedback.db`), which deploy.sh preserves
+# across deploys — so every run buried genuine reports under test rows. Point
+# the whole suite at a throwaway DB instead; `feedback_store` reads this env var.
+E2E_FEEDBACK_DB = Path(tempfile.gettempdir()) / "sespy-e2e-feedback.db"
 
 # Server scripts that don't follow the *_e2e.py naming but still drive a browser.
 _EXTRA_SERVER_SCRIPTS = ("test_burger.py", "test_stepper.py", "test_stepper_click.py")
@@ -51,6 +58,7 @@ def _child_env(extra: dict[str, str]) -> dict[str, str]:
     env.pop("ANTHROPIC_API_KEY", None)   # start from a clean slate every launch
     env.update(extra)
     env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
+    env["SESPY_FEEDBACK_DB"] = str(E2E_FEEDBACK_DB)
     return env
 
 
@@ -96,6 +104,13 @@ def main() -> int:
     ap.add_argument("--port", type=int, default=8000)
     port = ap.parse_args().port
     url = f"http://127.0.0.1:{port}/"
+
+    # Start each run from an empty throwaway store (WAL sidecars included) so the
+    # topbar roundtrip assertion never sees rows left over from an earlier run.
+    for suffix in ("", "-wal", "-shm"):
+        stale = Path(str(E2E_FEEDBACK_DB) + suffix)
+        if stale.exists():
+            stale.unlink()
 
     results: list[tuple[str, bool, subprocess.CompletedProcess]] = []
 
