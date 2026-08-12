@@ -45,6 +45,17 @@ def test_state_no_eco():
     assert _state(isa) == "no_eco"
 
 
+def test_state_no_press_when_ecological_but_no_pressures():
+    # Typed ecological nodes exist but none are Pressures: the headline
+    # "0 of 0 pressure nodes" would be a confident number in a degenerate
+    # state — exactly the failure class the amended design guards against.
+    els = [Element(id="R1", label="r", type="Responses"),
+           Element(id="MPF1", label="m", type="Marine Processes & Functioning")]
+    isa = IsaData(elements=els,
+                  connections=[Connection(source="R1", target="MPF1")])
+    assert _state(isa) == "no_press"
+
+
 def test_state_ok_on_sample():
     root = Path(__file__).resolve().parents[1]
     assert _state(load_sample(root / "data" / "sample_ses.json")) == ""

@@ -98,6 +98,7 @@ def test_governance_gap_keys_present(translations):
         "metrics.gov_gap", "metrics.gov_gap_caption", "metrics.gov_gap_orphans",
         "metrics.gov_gap_none", "metrics.gov_gap_untyped",
         "metrics.gov_gap_no_gov", "metrics.gov_gap_no_eco",
+        "metrics.gov_gap_no_press",
     ):
         assert key in translations
 

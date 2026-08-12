@@ -60,7 +60,10 @@ def governance_gap_state(r: dict, n_elements: int) -> str:
     '' means render the full block. Order matters: untyped-domination
     outranks no-governance because "map your themes first" is the
     actionable message when both hold (e.g. a raw .qsem import where
-    every element is untyped). Pure."""
+    every element is untyped). Pure.
+
+    States: 'none' | 'untyped' | 'no_gov' | 'no_eco' | 'no_press' | ''
+    """
     if r["n_edges_considered"] == 0:
         return "none"
     if n_elements and r["n_unclassified"] / n_elements > 0.5:
@@ -69,6 +72,8 @@ def governance_gap_state(r: dict, n_elements: int) -> str:
         return "no_gov"
     if r["n_ecological"] == 0:
         return "no_eco"
+    if r["gaps_by_type"].get("Pressures", {"n": 0})["n"] == 0:
+        return "no_press"
     return ""
 
 
@@ -260,10 +265,11 @@ def analysis_metrics_server(
                 t("metrics.gov_gap_orphans",
                   n=len(r["governance_orphans"]), ids=shown),
                 class_="text-muted", style="font-size: 0.85rem;")
-        if state == "no_eco":
+        if state in ("no_eco", "no_press"):
+            key = "metrics.gov_gap_no_eco" if state == "no_eco" else "metrics.gov_gap_no_press"
             return ui.div(
                 ui.h5(t("metrics.gov_gap")),
-                ui.p(t("metrics.gov_gap_no_eco"), class_="text-muted"),
+                ui.p(t(key), class_="text-muted"),
                 orphan_line,
             )
         press = r["gaps_by_type"].get("Pressures", {"n": 0, "uncovered": []})
