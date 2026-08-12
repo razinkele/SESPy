@@ -3,6 +3,11 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- New "Governance gap" block on the Network Metrics card (#13): directed
+  coverage of pressure nodes by governance elements (headline fraction),
+  per-layer gap listing, and detection of governance elements with no path
+  into the ecological subsystem. Operationalises the SENA governance-gap
+  concept of Fraga et al. 2026 (Marine Policy, doi:10.1016/j.marpol.2026.107169).
 - Language is now per session. The translator was a process-wide singleton, so one
   user switching language changed it for everyone connected to the same server;
   each session now gets its own translator. The initial language is read from the
