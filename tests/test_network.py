@@ -1072,3 +1072,129 @@ def test_loop_polarity_contested():
         Connection(source="A", target="C", polarity="+", ratings=[rating("+"), rating("-")]),
     ])
     assert network.loop_polarity_contested(["A", "B"], offpath) is False
+
+
+# ---------------------------------------------------------------------------
+# governance_gap (issue #13, amended per the 2026-08-12 design review)
+# ---------------------------------------------------------------------------
+
+
+def _gg(elements, connections=()):
+    return network.governance_gap(
+        IsaData(elements=list(elements), connections=list(connections)))
+
+
+def test_governance_gap_sample_golden():
+    root = Path(__file__).resolve().parents[1]
+    r = network.governance_gap(load_sample(root / "data" / "sample_ses.json"))
+    assert r["gaps_by_type"]["Pressures"] == {"n": 3, "uncovered": ["P003"]}
+    assert round(r["pressure_gap_fraction"], 3) == 0.333
+    assert r["governance_orphans"] == []
+    assert r["n_ecological"] == 8 and r["n_governance"] == 2
+    assert r["n_unclassified"] == 0
+    assert r["n_edges_considered"] == 20
+
+
+def test_governance_gap_coverage_is_directed():
+    els = [Element(id="R1", label="r", type="Responses"),
+           Element(id="P1", label="p", type="Pressures")]
+    # An ecological -> governance edge alone does NOT cover the pressure...
+    r = _gg(els, [Connection(source="P1", target="R1")])
+    assert r["gaps_by_type"]["Pressures"]["uncovered"] == ["P1"]
+    assert r["pressure_gap_fraction"] == 1.0
+    # ...adding the antiparallel governance -> ecological edge does, and the
+    # pair stays two distinct directed edges (no undirected collapse).
+    r = _gg(els, [Connection(source="P1", target="R1"),
+                  Connection(source="R1", target="P1")])
+    assert r["gaps_by_type"]["Pressures"]["uncovered"] == []
+    assert r["pressure_gap_fraction"] == 0.0
+    assert r["n_edges_considered"] == 2
+
+
+def test_governance_gap_intent_chain_is_not_orphan():
+    # R -> Drivers -> Activities -> Pressures reaches ecology only through
+    # the "intent" realm; the Response must NOT be an orphan (consistency
+    # with leverage_realm), while P1 stays uncovered (no DIRECT edge).
+    els = [Element(id="R1", label="r", type="Responses"),
+           Element(id="D1", label="d", type="Drivers"),
+           Element(id="A1", label="a", type="Activities"),
+           Element(id="P1", label="p", type="Pressures")]
+    conns = [Connection(source="R1", target="D1"),
+             Connection(source="D1", target="A1"),
+             Connection(source="A1", target="P1")]
+    r = _gg(els, conns)
+    assert r["governance_orphans"] == []
+    assert r["gaps_by_type"]["Pressures"]["uncovered"] == ["P1"]
+
+
+def test_governance_gap_dead_end_response_is_orphan():
+    els = [Element(id="R1", label="r", type="Responses"),
+           Element(id="D1", label="d", type="Drivers"),
+           Element(id="P1", label="p", type="Pressures")]
+    r = _gg(els, [Connection(source="R1", target="D1")])
+    assert r["governance_orphans"] == ["R1"]
+
+
+def test_governance_gap_no_governance_shape():
+    els = [Element(id="P1", label="p", type="Pressures")]
+    r = _gg(els, [Connection(source="P1", target="P1")])  # self-loop only
+    assert r["n_governance"] == 0
+    assert r["n_edges_considered"] == 0
+    assert r["pressure_gap_fraction"] == 1.0  # UI guards on n_governance
+    assert r["governance_orphans"] == []
+
+
+def test_governance_gap_no_ecological_still_reports_orphans():
+    els = [Element(id="R1", label="r", type="Responses"),
+           Element(id="D1", label="d", type="Drivers")]
+    r = _gg(els, [Connection(source="R1", target="D1")])
+    assert r["n_ecological"] == 0
+    assert r["ecological_gap_fraction"] == 0.0  # never NaN
+    assert r["pressure_gap_fraction"] == 0.0
+    assert r["governance_orphans"] == ["R1"]
+
+
+def test_governance_gap_empty_graph():
+    r = network.governance_gap(IsaData())
+    assert r == {
+        "gaps_by_type": {},
+        "pressure_gap_fraction": 0.0,
+        "ecological_gap_fraction": 0.0,
+        "governance_orphans": [],
+        "n_ecological": 0,
+        "n_governance": 0,
+        "n_unclassified": 0,
+        "n_edges_considered": 0,
+    }
+
+
+def test_governance_gap_edges_considered_definition():
+    # n_edges_considered = unique directed (source, target) pairs after
+    # dropping self-loops and dangling refs. Edges touching an UNTYPED node
+    # still count (they are structure) — deliberately unlike
+    # social_ecological_fit's total_edges, which classifies them away.
+    els = [Element(id="R1", label="r", type="Responses"),
+           Element(id="U1", label="u", type=""),
+           Element(id="P1", label="p", type="Pressures")]
+    conns = [Connection(source="R1", target="U1"),   # touches untyped: counts
+             Connection(source="R1", target="U1"),   # duplicate: deduplicated
+             Connection(source="U1", target="U1"),   # self-loop: skipped
+             Connection(source="R1", target="X9"),   # dangling: skipped
+             Connection(source="R1", target="P1")]   # counts
+    r = _gg(els, conns)
+    assert r["n_edges_considered"] == 2
+    assert r["n_unclassified"] == 1
+
+
+def test_governance_gap_measures_is_governance_forward_compat():
+    # "Measures" is unreachable through every production ingress today
+    # (persistent_storage.py:25 rejects it; no UI offers it). Synthetic-
+    # IsaData precedent: test_fit_excludes_measures_self_loop_and_dangling.
+    # Forward-compat: when the vocabulary widens, Measures must count as
+    # governance, never as unclassified.
+    els = [Element(id="M1", label="m", type="Measures"),
+           Element(id="P1", label="p", type="Pressures")]
+    r = _gg(els, [Connection(source="M1", target="P1")])
+    assert r["n_governance"] == 1
+    assert r["n_unclassified"] == 0
+    assert r["gaps_by_type"]["Pressures"]["uncovered"] == []

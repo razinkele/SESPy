@@ -303,6 +303,100 @@ def social_ecological_fit(isa) -> dict:
     }
 
 
+_GOVERNANCE: frozenset[str] = frozenset({"Responses", "Measures"})
+
+
+def governance_gap(isa: IsaData) -> dict:
+    """SENA governance-gap diagnostic — directed coverage of the ecological
+    subsystem by governance elements.
+
+    Coverage is DIRECTED: an ecological node counts as covered when at least
+    one governance node has an out-edge to it. The headline
+    ``pressure_gap_fraction`` uses Pressures alone as denominator — the only
+    ecological layer the DAPSI(W)R(M) topology (``_CONN_TYPES``) routes a
+    Response into; Marine Processes & Functioning and Ecosystem Services are
+    unreachable at distance 1 by construction, so their coverage is reported
+    per-type in ``gaps_by_type`` rather than pooled into the headline. A
+    governance *orphan* is a governance node with no directed PATH to any
+    ecological node, so a Response acting through Drivers/Activities (the
+    highest-leverage "intent" realm per ``leverage_realm``) is not an orphan.
+
+    Degenerate denominators return 0.0, never NaN; callers discriminate via
+    the ``n_*`` counts (same contract as ``social_ecological_fit`` and
+    ``total_edges``). ``n_edges_considered`` counts unique directed
+    (source, target) pairs after dropping self-loops and dangling refs —
+    edges touching untyped nodes included. "Measures" in the governance set
+    is forward-looking: ``persistent_storage`` rejects it and no UI offers
+    it today. Duplicate element ids (possible only via the validation-free
+    ``load_sample``) can overcount — parity with ``social_ecological_fit``.
+
+    Concept: Fraga et al. 2026, Marine Policy 191:107169
+    (doi:10.1016/j.marpol.2026.107169) diagnose MPA governance gaps
+    interpretively from modularity, participation roles and out-degree
+    centrality on a one-mode network held in both undirected and directed
+    forms; this function operationalises that concept as an explicit
+    directed coverage test over the DAPSI(W)R(M) cascade. Pure.
+    """
+    ids = {el.id for el in isa.elements}
+    out: dict[str, set[str]] = {el.id: set() for el in isa.elements}
+    pairs: set[tuple[str, str]] = set()
+    for c in isa.connections:
+        if c.source == c.target or c.source not in ids or c.target not in ids:
+            continue
+        pairs.add((c.source, c.target))
+        out[c.source].add(c.target)
+
+    governance = [el for el in isa.elements if el.type in _GOVERNANCE]
+    ecological = [el for el in isa.elements if subsystem(el.type) == "ecological"]
+    n_unclassified = sum(
+        1 for el in isa.elements
+        if subsystem(el.type) == "" and el.type not in _GOVERNANCE
+    )
+
+    covered: set[str] = set()
+    for g in governance:
+        covered |= out[g.id]
+
+    gaps_by_type: dict[str, dict] = {}
+    for el in ecological:
+        entry = gaps_by_type.setdefault(el.type, {"n": 0, "uncovered": []})
+        entry["n"] += 1
+        if el.id not in covered:
+            entry["uncovered"].append(el.id)
+
+    eco_ids = {el.id for el in ecological}
+    orphans: list[str] = []
+    for g in governance:
+        seen: set[str] = set()
+        stack = [g.id]
+        found = False
+        while stack and not found:
+            for nxt in out[stack.pop()]:
+                if nxt in eco_ids:
+                    found = True
+                    break
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+        if not found:
+            orphans.append(g.id)
+
+    press = gaps_by_type.get("Pressures", {"n": 0, "uncovered": []})
+    n_eco = len(ecological)
+    n_uncovered = sum(len(v["uncovered"]) for v in gaps_by_type.values())
+    return {
+        "gaps_by_type": gaps_by_type,
+        "pressure_gap_fraction":
+            (len(press["uncovered"]) / press["n"]) if press["n"] else 0.0,
+        "ecological_gap_fraction": (n_uncovered / n_eco) if n_eco else 0.0,
+        "governance_orphans": orphans,
+        "n_ecological": n_eco,
+        "n_governance": len(governance),
+        "n_unclassified": n_unclassified,
+        "n_edges_considered": len(pairs),
+    }
+
+
 def _axis_sums(isa: IsaData) -> tuple[dict[str, float], dict[str, float], dict[tuple[str, str], float]]:
     """Per-node Σ edge weights: (influence, dependence, weight_by_pair).
     Parallel (source,target) edges deduplicated (last-wins); self-loops and

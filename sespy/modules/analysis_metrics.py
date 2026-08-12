@@ -55,6 +55,28 @@ def _scaled_size(value: float, lo: float, hi: float, *, smin: int = 18, smax: in
     return int(smin + frac * (smax - smin))
 
 
+def governance_gap_state(r: dict, n_elements: int) -> str:
+    """Which degenerate UI state applies to a governance_gap() result —
+    '' means render the full block. Order matters: untyped-domination
+    outranks no-governance because "map your themes first" is the
+    actionable message when both hold (e.g. a raw .qsem import where
+    every element is untyped). Pure.
+
+    States: 'none' | 'untyped' | 'no_gov' | 'no_eco' | 'no_press' | ''
+    """
+    if r["n_edges_considered"] == 0:
+        return "none"
+    if n_elements and r["n_unclassified"] / n_elements > 0.5:
+        return "untyped"
+    if r["n_governance"] == 0:
+        return "no_gov"
+    if r["n_ecological"] == 0:
+        return "no_eco"
+    if r["gaps_by_type"].get("Pressures", {"n": 0})["n"] == 0:
+        return "no_press"
+    return ""
+
+
 def _build_metrics_network(
     isa: IsaData,
     metric: str,
@@ -128,6 +150,8 @@ def analysis_metrics_ui() -> ui.Tag:
             ),
             ui.div(
                 ui.output_ui("fit_summary"),
+                ui.tags.hr(),
+                ui.output_ui("governance_gap_summary"),
                 ui.tags.hr(),
                 ui.h4(t("metrics.top_ranked")),
                 ui.output_data_frame("metrics_table"),
@@ -218,6 +242,44 @@ def analysis_metrics_server(
             ui.tags.strong(f"{r['fit']:.2f}"),
             ui.p(t("metrics.fit_caption", cross=r["cross_edges"], total=r["total_edges"]),
                  class_="text-muted", style="font-size: 0.85rem;"),
+        )
+
+    @output
+    @render.ui
+    def governance_gap_summary():
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        r = net_analysis.governance_gap(isa)
+        state = governance_gap_state(r, len(isa.elements))
+        if state in ("none", "untyped", "no_gov"):
+            key = {"none": "metrics.gov_gap_none",
+                   "untyped": "metrics.gov_gap_untyped",
+                   "no_gov": "metrics.gov_gap_no_gov"}[state]
+            return ui.p(t(key), class_="text-muted")
+        orphan_line = None
+        if r["governance_orphans"]:
+            labels = {el.id: el.label for el in isa.elements}
+            shown = ", ".join(f"{i} · {labels.get(i, i)}"
+                              for i in r["governance_orphans"][:5])
+            orphan_line = ui.p(
+                t("metrics.gov_gap_orphans",
+                  n=len(r["governance_orphans"]), ids=shown),
+                class_="text-muted", style="font-size: 0.85rem;")
+        if state in ("no_eco", "no_press"):
+            key = "metrics.gov_gap_no_eco" if state == "no_eco" else "metrics.gov_gap_no_press"
+            return ui.div(
+                ui.h5(t("metrics.gov_gap")),
+                ui.p(t(key), class_="text-muted"),
+                orphan_line,
+            )
+        press = r["gaps_by_type"].get("Pressures", {"n": 0, "uncovered": []})
+        return ui.div(
+            ui.h5(t("metrics.gov_gap")),
+            ui.tags.strong(f"{r['pressure_gap_fraction']:.2f}"),
+            ui.p(t("metrics.gov_gap_caption",
+                   uncovered=len(press["uncovered"]), n=press["n"]),
+                 class_="text-muted", style="font-size: 0.85rem;"),
+            orphan_line,
         )
 
     @output(id="metrics_network")

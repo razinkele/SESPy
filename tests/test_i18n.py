@@ -93,6 +93,16 @@ def test_metrics_fit_keys_present(translations):
         assert key in translations
 
 
+def test_governance_gap_keys_present(translations):
+    for key in (
+        "metrics.gov_gap", "metrics.gov_gap_caption", "metrics.gov_gap_orphans",
+        "metrics.gov_gap_none", "metrics.gov_gap_untyped",
+        "metrics.gov_gap_no_gov", "metrics.gov_gap_no_eco",
+        "metrics.gov_gap_no_press",
+    ):
+        assert key in translations
+
+
 def test_uncertainty_computing_key_present(translations):
     assert "uncertainty.computing" in translations
 
