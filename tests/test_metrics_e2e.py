@@ -94,6 +94,21 @@ async def main():
         assert "0.40" in fit_text, f"expected fit 0.40 in summary, got: {fit_text!r}"
         print(f"metrics fit summary: OK ({fit_text!r})")
 
+        # --- Governance gap summary renders with the golden values ---
+        # Sample: directed coverage leaves 1 of 3 Pressures (P003) uncovered
+        # -> 0.33; no orphans, so no orphan line. Selector is scoped to the
+        # output id — bare text= selectors have shipped broken e2e before.
+        gg_text = ""
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            gg_text = (await page.inner_text("#metrics-governance_gap_summary")).strip()
+            if gg_text:
+                break
+        assert "Governance gap" in gg_text, f"expected heading, got: {gg_text!r}"
+        assert "0.33" in gg_text, f"expected 0.33, got: {gg_text!r}"
+        assert "1 of 3" in gg_text, f"expected '1 of 3' caption, got: {gg_text!r}"
+        print(f"governance gap summary: OK ({gg_text!r})")
+
         await browser.close()
 
 
