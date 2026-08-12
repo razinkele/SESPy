@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Python env: `micromamba run -n shiny python …` — never create venvs, never bare `python` (no global Python on PATH).
-- Unit suite: `micromamba run -n shiny python -m pytest tests -q` (475 tests green on main).
+- Unit suite (CI parity — the bare `pytest tests -q` wrongly collects the e2e scripts, which execute at import): `micromamba run -n shiny python -m pytest tests -q --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` (475 tests green on main). Wherever a later task says "full unit suite", use this command.
 - e2e suite: `micromamba run -n shiny python tests/run_e2e.py` — ALWAYS the full suite, never `-k "not e2e"`. Before running, kill any orphaned server by port: `powershell -Command "Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }"`.
 - Every i18n key must exist in ALL 9 languages (`en es fr de lt pt it no el`) — `tests/test_i18n.py::test_loader_handles_all_supported_languages` enforces this. Keys live in `sespy/translations/core.json`, ONE line per key.
 - No NaN anywhere in return values — degenerate denominators return `0.0` (repo precedent: `social_ecological_fit`, `network.py:302`).
