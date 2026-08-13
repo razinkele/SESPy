@@ -103,6 +103,11 @@ def test_governance_gap_keys_present(translations):
         assert key in translations
 
 
+def test_actor_influence_keys_present(translations):
+    assert "metrics.actor_influence" in translations
+    assert "metrics.actor_influence_caption" in translations
+
+
 def test_uncertainty_computing_key_present(translations):
     assert "uncertainty.computing" in translations
 
