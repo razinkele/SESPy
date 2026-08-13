@@ -211,6 +211,10 @@ def leverage_scores(isa: IsaData) -> dict[str, float]:
     z-score(eigenvector) + z-score(pagerank). Higher = more leverage.
 
     Mirrors functions/network_analysis.R:1390-1392.
+
+    governance_actor_influence() re-derives this same composite per governance
+    actor — if this formula changes, change it there too (a golden test pins
+    their equality on the sample data).
     """
     m = centrality_metrics(isa)
     bz = _zscore(m["betweenness"])

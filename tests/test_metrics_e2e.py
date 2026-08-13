@@ -120,7 +120,7 @@ async def main():
         assert "R002" in ai_text and "R001" in ai_text, f"expected both actors, got: {ai_text!r}"
         # R002 (dominant) must rank above R001 (peripheral).
         assert ai_text.index("R002") < ai_text.index("R001"), f"expected R002 first, got: {ai_text!r}"
-        print(f"actor influence table: OK")
+        print(f"actor influence table: OK ({ai_text!r})")
 
         await browser.close()
 

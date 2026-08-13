@@ -1220,6 +1220,8 @@ def test_actor_influence_sample_golden():
         assert r["influence"] == lv[r["id"]]  # equal by construction
         assert r["type"] == "Responses"
     assert round(rows[0]["betweenness"], 4) == 0.0833
+    assert round(rows[0]["eigenvector"], 4) == 0.3393
+    assert round(rows[0]["pagerank"], 4) == 0.0592
     assert round(rows[1]["influence"], 4) == -4.0938
 
 
