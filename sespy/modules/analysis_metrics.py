@@ -153,6 +153,8 @@ def analysis_metrics_ui() -> ui.Tag:
                 ui.tags.hr(),
                 ui.output_ui("governance_gap_summary"),
                 ui.tags.hr(),
+                ui.output_ui("actor_influence_summary"),
+                ui.tags.hr(),
                 ui.h4(t("metrics.top_ranked")),
                 ui.output_data_frame("metrics_table"),
                 ui.tags.hr(),
@@ -280,6 +282,39 @@ def analysis_metrics_server(
                    uncovered=len(press["uncovered"]), n=press["n"]),
                  class_="text-muted", style="font-size: 0.85rem;"),
             orphan_line,
+        )
+
+    @output
+    @render.ui
+    def actor_influence_summary():
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        if net_analysis.governance_gap(isa)["n_edges_considered"] == 0:
+            return ui.p(t("metrics.gov_gap_none"), class_="text-muted")
+        rows = net_analysis.governance_actor_influence(isa)
+        if not rows:
+            return ui.p(t("metrics.gov_gap_no_gov"), class_="text-muted")
+        header = ui.tags.tr(
+            ui.tags.th(""),
+            ui.tags.th("betweenness"), ui.tags.th("eigenvector"),
+            ui.tags.th("pagerank"), ui.tags.th("influence"),
+        )
+        body = [
+            ui.tags.tr(
+                ui.tags.td(f"{r['id']} · {r['label']}"),
+                ui.tags.td(f"{r['betweenness']:.2f}"),
+                ui.tags.td(f"{r['eigenvector']:.2f}"),
+                ui.tags.td(f"{r['pagerank']:.2f}"),
+                ui.tags.td(ui.tags.strong(f"{r['influence']:.2f}")),
+            )
+            for r in rows
+        ]
+        return ui.div(
+            ui.h5(t("metrics.actor_influence")),
+            ui.tags.table(ui.tags.thead(header), ui.tags.tbody(*body),
+                          class_="table table-sm"),
+            ui.p(t("metrics.actor_influence_caption"),
+                 class_="text-muted", style="font-size: 0.85rem;"),
         )
 
     @output(id="metrics_network")

@@ -3,6 +3,11 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- New "Governance actor influence" table on the Network Metrics card (#14):
+  whole-network centrality ranking (betweenness, eigenvector, PageRank, and a
+  z-score composite equal to the leverage score) restricted to governance
+  elements, revealing dominant vs. peripheral actors (Maritime Studies 2026,
+  doi:10.1007/s40152-026-00501-z).
 - New "Governance gap" block on the Network Metrics card (#13): directed
   coverage of pressure nodes by governance elements (headline fraction),
   per-layer gap data in the analysis API, and detection of governance elements with no path

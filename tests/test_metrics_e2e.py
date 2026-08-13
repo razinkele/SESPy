@@ -109,6 +109,19 @@ async def main():
         assert "1 of 3" in gg_text, f"expected '1 of 3' caption, got: {gg_text!r}"
         print(f"governance gap summary: OK ({gg_text!r})")
 
+        # --- Governance actor influence table renders both actors, ranked ---
+        ai_text = ""
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            ai_text = (await page.inner_text("#metrics-actor_influence_summary")).strip()
+            if ai_text:
+                break
+        assert "Governance actor influence" in ai_text, f"expected heading, got: {ai_text!r}"
+        assert "R002" in ai_text and "R001" in ai_text, f"expected both actors, got: {ai_text!r}"
+        # R002 (dominant) must rank above R001 (peripheral).
+        assert ai_text.index("R002") < ai_text.index("R001"), f"expected R002 first, got: {ai_text!r}"
+        print(f"actor influence table: OK ({ai_text!r})")
+
         await browser.close()
 
 
