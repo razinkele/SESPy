@@ -1198,3 +1198,78 @@ def test_governance_gap_measures_is_governance_forward_compat():
     assert r["n_governance"] == 1
     assert r["n_unclassified"] == 0
     assert r["gaps_by_type"]["Pressures"]["uncovered"] == []
+
+
+# ---------------------------------------------------------------------------
+# governance_actor_influence (issue #14)
+# ---------------------------------------------------------------------------
+
+
+def test_actor_influence_sample_golden():
+    root = Path(__file__).resolve().parents[1]
+    isa = load_sample(root / "data" / "sample_ses.json")
+    rows = network.governance_actor_influence(isa)
+    # R002 dominates; R001 is peripheral (zero betweenness/eigenvector) —
+    # the power-asymmetry pattern the source paper diagnoses.
+    assert [r["id"] for r in rows] == ["R002", "R001"]
+    assert rows[0]["label"] == "Mooring buoy program"
+    assert set(rows[0]) == {"id", "label", "type", "betweenness",
+                            "eigenvector", "pagerank", "influence"}
+    lv = network.leverage_scores(isa)
+    for r in rows:
+        assert r["influence"] == lv[r["id"]]  # equal by construction
+        assert r["type"] == "Responses"
+    assert round(rows[0]["betweenness"], 4) == 0.0833
+    assert round(rows[1]["influence"], 4) == -4.0938
+
+
+def test_actor_influence_no_governance_returns_empty():
+    isa = IsaData(
+        elements=[Element(id="P1", label="p", type="Pressures"),
+                  Element(id="D1", label="d", type="Drivers")],
+        connections=[Connection(source="D1", target="P1")],
+    )
+    assert network.governance_actor_influence(isa) == []
+
+
+def test_actor_influence_empty_graph():
+    assert network.governance_actor_influence(IsaData()) == []
+
+
+def test_actor_influence_measures_forward_compat():
+    # Synthetic-IsaData precedent for the unreachable "Measures" type
+    # (see test_governance_gap_measures_is_governance_forward_compat).
+    isa = IsaData(
+        elements=[Element(id="M1", label="m", type="Measures"),
+                  Element(id="P1", label="p", type="Pressures")],
+        connections=[Connection(source="M1", target="P1")],
+    )
+    rows = network.governance_actor_influence(isa)
+    assert [r["id"] for r in rows] == ["M1"]
+    assert rows[0]["type"] == "Measures"
+
+
+def test_actor_influence_tie_order_deterministic():
+    # Two structurally identical Responses: equal influence, so the sort
+    # must fall back to isa.elements order (R2 listed first wins).
+    els = [Element(id="R2", label="b", type="Responses"),
+           Element(id="R1", label="a", type="Responses"),
+           Element(id="P1", label="p", type="Pressures")]
+    conns = [Connection(source="R2", target="P1"),
+             Connection(source="R1", target="P1")]
+    rows = network.governance_actor_influence(
+        IsaData(elements=els, connections=conns))
+    assert [r["id"] for r in rows] == ["R2", "R1"]
+
+
+def test_actor_influence_disconnected_graph_is_finite():
+    import math
+    els = [Element(id="R1", label="r", type="Responses"),
+           Element(id="P1", label="p", type="Pressures"),
+           Element(id="D1", label="d", type="Drivers")]
+    rows = network.governance_actor_influence(
+        IsaData(elements=els,
+                connections=[Connection(source="D1", target="P1")]))
+    assert len(rows) == 1
+    assert all(math.isfinite(v) for v in rows[0].values()
+               if isinstance(v, float))

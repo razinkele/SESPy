@@ -220,6 +220,48 @@ def leverage_scores(isa: IsaData) -> dict[str, float]:
             for nid in m["betweenness"]}
 
 
+def governance_actor_influence(isa: IsaData) -> list[dict]:
+    """Per-governance-actor influence within the WHOLE network — the
+    power-asymmetry diagnostic of Maritime Studies 2026
+    (doi:10.1007/s40152-026-00501-z): dominant vs. peripheral governance
+    actors in co-management.
+
+    One row per element whose type is in _GOVERNANCE ("Measures" is
+    forward-looking — unreachable through today's ingresses). Rows carry the
+    RAW betweenness/eigenvector/pagerank centralities (readable values) plus
+    `influence`, the whole-network z-score composite — equal by construction
+    to leverage_scores() for the same node: one definition, two views.
+    Centralities are computed on the full graph so cross-boundary influence
+    counts; z-scores are standardised over ALL nodes so an actor's score
+    reads "influence relative to the whole system" and is stable under
+    changes to the governance subset. Sorted by influence descending, ties
+    in isa.elements order (list.sort is stable). Degenerate inputs return
+    []; values are finite (inherited _safe_floats/_zscore guards). Pure.
+    """
+    governance = [el for el in isa.elements if el.type in _GOVERNANCE]
+    if not governance:
+        return []
+    m = centrality_metrics(isa)
+    bz = _zscore(m["betweenness"])
+    ez = _zscore(m["eigenvector"])
+    pz = _zscore(m["pagerank"])
+    rows = [
+        {
+            "id": el.id,
+            "label": el.label,
+            "type": el.type,
+            "betweenness": m["betweenness"].get(el.id, 0.0),
+            "eigenvector": m["eigenvector"].get(el.id, 0.0),
+            "pagerank": m["pagerank"].get(el.id, 0.0),
+            "influence": (bz.get(el.id, 0.0) + ez.get(el.id, 0.0)
+                          + pz.get(el.id, 0.0)),
+        }
+        for el in governance
+    ]
+    rows.sort(key=lambda r: -r["influence"])
+    return rows
+
+
 _DAPSIWRM_REALM: dict[str, str] = {
     "Pressures": "parameters",
     "Ecosystem Services": "parameters",
