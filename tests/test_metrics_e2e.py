@@ -122,6 +122,26 @@ async def main():
         assert ai_text.index("R002") < ai_text.index("R001"), f"expected R002 first, got: {ai_text!r}"
         print(f"actor influence table: OK ({ai_text!r})")
 
+        # --- Cascade vulnerability: idle hint, then button-triggered table ---
+        cs_text = ""
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            cs_text = (await page.inner_text("#metrics-cascade_summary")).strip()
+            if cs_text:
+                break
+        assert "Cascade vulnerability" in cs_text, f"expected heading, got: {cs_text!r}"
+        assert "not computed" in cs_text, f"expected idle hint, got: {cs_text!r}"
+        await page.click("#metrics-run_cascade")
+        for _ in range(30):
+            await page.wait_for_timeout(500)
+            cs_text = (await page.inner_text("#metrics-cascade_summary")).strip()
+            if "MPF1" in cs_text:
+                break
+        # Sample golden: MPF1 (Posidonia meadows) is the threshold node, Δ 0.47.
+        assert "cascade threshold node" in cs_text, f"expected threshold line, got: {cs_text!r}"
+        assert "MPF1" in cs_text and "0.47" in cs_text, f"expected MPF1/0.47, got: {cs_text!r}"
+        print(f"cascade vulnerability block: OK ({cs_text[:120]!r})")
+
         await browser.close()
 
 

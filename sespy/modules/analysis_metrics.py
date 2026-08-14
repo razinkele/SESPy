@@ -155,6 +155,8 @@ def analysis_metrics_ui() -> ui.Tag:
                 ui.tags.hr(),
                 ui.output_ui("actor_influence_summary"),
                 ui.tags.hr(),
+                ui.output_ui("cascade_summary"),
+                ui.tags.hr(),
                 ui.h4(t("metrics.top_ranked")),
                 ui.output_data_frame("metrics_table"),
                 ui.tags.hr(),
@@ -314,6 +316,71 @@ def analysis_metrics_server(
             ui.tags.table(ui.tags.thead(header), ui.tags.tbody(*body),
                           class_="table table-sm"),
             ui.p(t("metrics.actor_influence_caption"),
+                 class_="text-muted", style="font-size: 0.85rem;"),
+        )
+
+    _cascade_result = reactive.value(None)
+
+    @reactive.effect
+    def _reset_cascade():
+        # Any model change invalidates a previously computed cascade —
+        # a stale table must never masquerade as current.
+        event_bus.isa_change.get()
+        _cascade_result.set(None)
+
+    @reactive.effect
+    @reactive.event(input.run_cascade)
+    def _compute_cascade():
+        _cascade_result.set(
+            net_analysis.cascade_vulnerability(project_data.get().isa_data))
+
+    @output
+    @render.ui
+    def cascade_summary():
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        if len(isa.elements) < 3:
+            return ui.p(t("metrics.gov_gap_none"), class_="text-muted")
+        button = ui.input_action_button(
+            "run_cascade", t("metrics.cascade_run"),
+            class_="btn-sm btn-outline-primary")
+        r = _cascade_result.get()
+        if r is None:
+            return ui.div(
+                ui.h5(t("metrics.cascade")),
+                button,
+                ui.p(t("metrics.cascade_hint"), class_="text-muted",
+                     style="font-size: 0.85rem; margin-top: 0.5rem;"),
+            )
+        labels = {el.id: el.label for el in isa.elements}
+        thr = r["cascade_threshold_node"]
+        thr_row = max(r["steps"], key=lambda row: row["delta_lccf"])
+        header = ui.tags.tr(
+            ui.tags.th("step"), ui.tags.th(""), ui.tags.th("lccf"),
+            ui.tags.th("loops"), ui.tags.th("Δ lccf"),
+        )
+        body = [
+            ui.tags.tr(
+                ui.tags.td(str(row["step"])),
+                ui.tags.td(f"{row['removed_id']} · {row['removed_label']}"),
+                ui.tags.td(f"{row['lccf']:.2f}"),
+                ui.tags.td(str(row["loop_count"])),
+                ui.tags.td(f"{row['delta_lccf']:.2f}"),
+            )
+            for row in r["steps"]
+        ]
+        return ui.div(
+            ui.h5(t("metrics.cascade")),
+            button,
+            ui.p(ui.tags.strong(
+                t("metrics.cascade_threshold",
+                  id=f"{thr} · {labels.get(thr, thr)}",
+                  delta=f"{thr_row['delta_lccf']:.2f}")),
+                style="margin-top: 0.5rem;"),
+            ui.tags.table(ui.tags.thead(header), ui.tags.tbody(*body),
+                          class_="table table-sm"),
+            ui.p(t("metrics.cascade_caption",
+                   n=len(r["steps"]), total=r["n_ranked"]),
                  class_="text-muted", style="font-size: 0.85rem;"),
         )
 
