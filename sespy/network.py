@@ -266,6 +266,80 @@ def governance_actor_influence(isa: IsaData) -> list[dict]:
     return rows
 
 
+def cascade_vulnerability(
+    isa: IsaData, *, max_steps: int = 20, max_length: int = 6, max_loops: int = 50
+) -> dict:
+    """Sequential-removal cascade diagnostic — ERL 2026
+    (doi:10.1088/1748-9326/ae83cb): remove nodes in descending
+    leverage_scores() order and track, after each removal, the largest
+    weakly-connected-component fraction (lccf; denominator = ORIGINAL
+    node count) and the surviving feedback-loop count. The cascade
+    threshold node is the removal causing the largest single-step lccf
+    drop (earliest step wins ties) — a nonlinearity that per-node
+    centrality cannot reveal.
+
+    Loop counts reuse feedback_loops() unmodified (same max_length /
+    max_loops caps), which takes IsaData — hence each step builds a
+    reduced IsaData (surviving elements, connections whose both
+    endpoints survive) instead of mutating a graph. The step cap is
+    never silent: n_ranked and max_steps are returned and steps holds
+    exactly min(n_ranked, max_steps) rows. Fewer than 3 elements
+    returns the trivial shape with cascade_threshold_node None (never
+    raises). Pure; deterministic (leverage ties break in isa.elements
+    order); no NaN.
+    """
+    if len(isa.elements) < 3:
+        return {"baseline": {"lccf": 0.0, "loop_count": 0}, "steps": [],
+                "cascade_threshold_node": None, "n_ranked": 0,
+                "max_steps": max_steps}
+
+    n_original = len(isa.elements)
+
+    def _lccf(model: IsaData) -> float:
+        if not model.elements:
+            return 0.0
+        g = to_digraph(model)
+        return max(len(c) for c in nx.weakly_connected_components(g)) / n_original
+
+    lev = leverage_scores(isa)
+    order = {el.id: i for i, el in enumerate(isa.elements)}
+    ranked = sorted(isa.elements, key=lambda el: (-lev[el.id], order[el.id]))
+
+    baseline = {
+        "lccf": _lccf(isa),
+        "loop_count": len(feedback_loops(
+            isa, max_length=max_length, max_loops=max_loops)),
+    }
+
+    steps: list[dict] = []
+    survivors = list(isa.elements)
+    prev = baseline["lccf"]
+    for step, victim in enumerate(ranked[:max_steps], start=1):
+        survivors = [el for el in survivors if el.id != victim.id]
+        ids = {el.id for el in survivors}
+        reduced = IsaData(
+            elements=survivors,
+            connections=[c for c in isa.connections
+                         if c.source in ids and c.target in ids],
+        )
+        cur = _lccf(reduced)
+        steps.append({
+            "step": step,
+            "removed_id": victim.id,
+            "removed_label": victim.label,
+            "lccf": cur,
+            "loop_count": len(feedback_loops(
+                reduced, max_length=max_length, max_loops=max_loops)),
+            "delta_lccf": prev - cur,
+        })
+        prev = cur
+
+    threshold = max(steps, key=lambda r: r["delta_lccf"])["removed_id"]
+    return {"baseline": baseline, "steps": steps,
+            "cascade_threshold_node": threshold,
+            "n_ranked": n_original, "max_steps": max_steps}
+
+
 _DAPSIWRM_REALM: dict[str, str] = {
     "Pressures": "parameters",
     "Ecosystem Services": "parameters",
