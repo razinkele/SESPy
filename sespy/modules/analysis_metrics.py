@@ -329,7 +329,7 @@ def analysis_metrics_server(
         _cascade_result.set(None)
 
     @reactive.effect
-    @reactive.event(input.run_cascade)
+    @reactive.event(input.run_cascade, ignore_init=True)
     def _compute_cascade():
         _cascade_result.set(
             net_analysis.cascade_vulnerability(project_data.get().isa_data))
@@ -345,15 +345,14 @@ def analysis_metrics_server(
             "run_cascade", t("metrics.cascade_run"),
             class_="btn-sm btn-outline-primary")
         r = _cascade_result.get()
-        if r is None:
+        # empty steps = trivial result from a race with a shrinking model — treat as idle
+        if r is None or not r["steps"]:
             return ui.div(
                 ui.h5(t("metrics.cascade")),
                 button,
                 ui.p(t("metrics.cascade_hint"), class_="text-muted",
                      style="font-size: 0.85rem; margin-top: 0.5rem;"),
             )
-        labels = {el.id: el.label for el in isa.elements}
-        thr = r["cascade_threshold_node"]
         thr_row = max(r["steps"], key=lambda row: row["delta_lccf"])
         header = ui.tags.tr(
             ui.tags.th("step"), ui.tags.th(""), ui.tags.th("lccf"),
@@ -374,7 +373,7 @@ def analysis_metrics_server(
             button,
             ui.p(ui.tags.strong(
                 t("metrics.cascade_threshold",
-                  id=f"{thr} · {labels.get(thr, thr)}",
+                  id=f"{thr_row['removed_id']} · {thr_row['removed_label']}",
                   delta=f"{thr_row['delta_lccf']:.2f}")),
                 style="margin-top: 0.5rem;"),
             ui.tags.table(ui.tags.thead(header), ui.tags.tbody(*body),
