@@ -108,6 +108,12 @@ def test_actor_influence_keys_present(translations):
     assert "metrics.actor_influence_caption" in translations
 
 
+def test_cascade_keys_present(translations):
+    for key in ("metrics.cascade", "metrics.cascade_run", "metrics.cascade_hint",
+                "metrics.cascade_threshold", "metrics.cascade_caption"):
+        assert key in translations
+
+
 def test_uncertainty_computing_key_present(translations):
     assert "uncertainty.computing" in translations
 
