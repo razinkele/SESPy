@@ -3,6 +3,11 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- New button-gated "Cascade vulnerability" block on the Network Metrics card
+  (#15): sequential removal of nodes in leverage order tracking connectivity
+  collapse and surviving feedback loops, identifying the cascade threshold
+  node whose loss causes the largest single-step drop (ERL 2026,
+  doi:10.1088/1748-9326/ae83cb).
 - New "Governance actor influence" table on the Network Metrics card (#14):
   whole-network centrality ranking (betweenness, eigenvector, PageRank, and a
   z-score composite equal to the leverage score) restricted to governance
