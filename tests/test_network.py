@@ -1275,3 +1275,86 @@ def test_actor_influence_disconnected_graph_is_finite():
     assert len(rows) == 1
     assert all(math.isfinite(v) for v in rows[0].values()
                if isinstance(v, float))
+
+
+# ---------------------------------------------------------------------------
+# cascade_vulnerability (issue #15)
+# ---------------------------------------------------------------------------
+
+
+def _bridge_isa():
+    """Two 2-cycles joined by a directed bridge: H1<->H2 -> BR -> H3<->H4."""
+    els = [Element(id="H1", label="h1", type="Drivers"),
+           Element(id="H2", label="h2", type="Activities"),
+           Element(id="BR", label="bridge", type="Pressures"),
+           Element(id="H3", label="h3", type="Marine Processes & Functioning"),
+           Element(id="H4", label="h4", type="Ecosystem Services")]
+    conns = [Connection(source="H1", target="H2"),
+             Connection(source="H2", target="H1"),
+             Connection(source="H2", target="BR"),
+             Connection(source="BR", target="H3"),
+             Connection(source="H3", target="H4"),
+             Connection(source="H4", target="H3")]
+    return IsaData(elements=els, connections=conns)
+
+
+def test_cascade_sample_golden():
+    root = Path(__file__).resolve().parents[1]
+    r = network.cascade_vulnerability(load_sample(root / "data" / "sample_ses.json"))
+    assert r["baseline"] == {"lccf": 1.0, "loop_count": 5}
+    assert r["n_ranked"] == 17 and r["max_steps"] == 20
+    assert len(r["steps"]) == 17
+    assert r["cascade_threshold_node"] == "MPF1"
+    first = r["steps"][0]
+    assert first["removed_id"] == "MPF1"
+    assert first["removed_label"] == "Posidonia meadows"
+    assert round(first["lccf"], 4) == 0.5294
+    assert first["loop_count"] == 1
+    assert round(first["delta_lccf"], 4) == 0.4706
+    # Steps 2-6 remove nodes outside the surviving LCC: no further drop.
+    assert all(s["delta_lccf"] == 0.0 for s in r["steps"][1:6])
+
+
+def test_cascade_bridge_collapse():
+    r = network.cascade_vulnerability(_bridge_isa())
+    assert r["baseline"] == {"lccf": 1.0, "loop_count": 2}
+    assert [s["removed_id"] for s in r["steps"]] == ["H3", "BR", "H4", "H2", "H1"]
+    assert r["cascade_threshold_node"] == "H3"
+    assert round(r["steps"][0]["delta_lccf"], 4) == 0.4   # 1.0 -> 0.6
+    assert round(r["steps"][1]["lccf"], 4) == 0.4          # BR removal
+    assert r["steps"][-1]["lccf"] == 0.0                   # everything gone
+    assert r["steps"][-1]["loop_count"] == 0
+
+
+def test_cascade_step_cap_is_honest():
+    r = network.cascade_vulnerability(_bridge_isa(), max_steps=2)
+    assert len(r["steps"]) == 2
+    assert r["n_ranked"] == 5 and r["max_steps"] == 2
+    assert r["cascade_threshold_node"] == "H3"
+
+
+def test_cascade_under_three_elements_trivial():
+    for isa in (IsaData(),
+                IsaData(elements=[Element(id="A", label="a", type="Drivers"),
+                                  Element(id="B", label="b", type="Pressures")],
+                        connections=[Connection(source="A", target="B")])):
+        r = network.cascade_vulnerability(isa)
+        assert r == {"baseline": {"lccf": 0.0, "loop_count": 0}, "steps": [],
+                     "cascade_threshold_node": None, "n_ranked": 0,
+                     "max_steps": 20}
+
+
+def test_cascade_is_deterministic():
+    a = network.cascade_vulnerability(_bridge_isa())
+    b = network.cascade_vulnerability(_bridge_isa())
+    assert a == b
+
+
+def test_cascade_removal_follows_leverage_ranking():
+    isa = _bridge_isa()
+    lev = network.leverage_scores(isa)
+    order = {el.id: i for i, el in enumerate(isa.elements)}
+    expected = [el.id for el in sorted(isa.elements,
+                                       key=lambda el: (-lev[el.id], order[el.id]))]
+    r = network.cascade_vulnerability(isa)
+    assert [s["removed_id"] for s in r["steps"]] == expected
