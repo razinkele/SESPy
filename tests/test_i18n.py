@@ -156,3 +156,10 @@ def test_options_keys_present(translations):
 def test_help_keys_present(translations):
     for k in ("help.title", "help.body"):
         assert k in translations, k
+
+
+def test_causal_paths_keys_present(translations):
+    for key in ("metrics.paths", "metrics.paths_trace", "metrics.paths_source",
+                "metrics.paths_target", "metrics.paths_summary",
+                "metrics.paths_none", "metrics.paths_truncated"):
+        assert key in translations
