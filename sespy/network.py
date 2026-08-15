@@ -47,12 +47,16 @@ def feedback_loops(
 
     Mirrors the adaptive-limit logic in functions/network_analysis.R, which
     limits length+count for large graphs to keep loop enumeration tractable.
+
+    `length_bound` (networkx >= 3.1) makes the ENUMERATION itself respect
+    max_length: the previous filter-after-generate skipped long cycles but
+    still generated them, which is exponential on dense graphs (issue #18 —
+    a 40-node p=0.25 digraph ran >5 min unbounded vs ~10 ms bounded).
+    Verified identical loop sets AND order on every shipped fixture.
     """
     g = to_digraph(isa)
     cycles: list[list[str]] = []
-    for cycle in nx.simple_cycles(g):
-        if len(cycle) > max_length:
-            continue
+    for cycle in nx.simple_cycles(g, length_bound=max_length):
         cycles.append(cycle)
         if len(cycles) >= max_loops:
             break

@@ -25,6 +25,23 @@ from sespy.data_structure import (
 SAMPLE = Path(__file__).resolve().parents[1] / "data" / "sample_ses.json"
 
 
+def test_feedback_loops_enumeration_is_bounded():
+    """Tripwire for issue #18: on a dense digraph, unbounded
+    nx.simple_cycles enumeration ran >5 minutes here (cycles longer than
+    max_length are generated before being filtered); with
+    length_bound the same call returns capped results in milliseconds.
+    A regression to unbounded enumeration hangs this test."""
+    import random
+    rng = random.Random(7)
+    els = [Element(id=f"N{i}", label=f"n{i}", type="Drivers") for i in range(40)]
+    conns = [Connection(source=f"N{i}", target=f"N{j}")
+             for i in range(40) for j in range(40)
+             if i != j and rng.random() < 0.25]
+    loops = network.feedback_loops(IsaData(elements=els, connections=conns))
+    assert len(loops) == 50  # max_loops cap reached
+    assert all(2 <= len(lp) <= 6 for lp in loops)  # max_length honored
+
+
 @pytest.fixture(scope="module")
 def isa():
     return load_sample(SAMPLE)
