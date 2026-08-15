@@ -163,6 +163,13 @@ async def main():
             f"expected summary, got: {pt_text!r}"
         assert "Food provisioning" in pt_text and "Tourism demand" in pt_text, \
             f"expected label chain endpoints, got: {pt_text!r}"
+        # Selects must keep the user's pair across the result re-render —
+        # a snap-back to defaults would make a second Trace compute the
+        # wrong pair silently.
+        src_val = await page.eval_on_selector("#metrics-paths_source", "el => el.value")
+        tgt_val = await page.eval_on_selector("#metrics-paths_target", "el => el.value")
+        assert src_val == "ES02" and tgt_val == "D001", \
+            f"selects reset after trace: {src_val!r} -> {tgt_val!r}"
         print(f"causal pathways block: OK ({pt_text[:120]!r})")
 
         await browser.close()

@@ -383,6 +383,15 @@ def causal_paths(
     g.add_nodes_from(ids)
     g.add_edges_from(pol)
 
+    # Prune to nodes that can lie on a source->target path: every simple
+    # path uses only descendants(source) ∩ ancestors(target). Two BFS,
+    # O(V+E) — makes the no-route case instant and collapses dead-end
+    # exploration on dense models (the #18 hang class). Results identical.
+    relevant = (nx.descendants(g, source) & nx.ancestors(g, target)) | {source, target}
+    if target not in nx.descendants(g, source) | {source}:
+        return empty
+    g = g.subgraph(relevant)
+
     rows: list[dict] = []
     truncated = False
     for p in nx.all_simple_paths(g, source, target, cutoff=max_length):

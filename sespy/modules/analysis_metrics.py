@@ -408,11 +408,25 @@ def analysis_metrics_server(
         if len(isa.elements) < 2:
             return ui.p(t("metrics.gov_gap_none"), class_="text-muted")
         choices = {el.id: f"{el.id} · {el.label}" for el in isa.elements}
+
+        def _current(input_val, fallback: str) -> str:
+            # Keep the user's selection across re-renders (a trace result
+            # re-renders this block); isolate() so typing in the selects
+            # doesn't itself re-render, and fall back when the model changed.
+            with reactive.isolate():
+                try:
+                    v = input_val()
+                except Exception:
+                    v = None
+            return v if v in choices else fallback
+
         controls = ui.div(
-            ui.input_select("paths_source", t("metrics.paths_source"),
-                            choices, selected=isa.elements[0].id),
-            ui.input_select("paths_target", t("metrics.paths_target"),
-                            choices, selected=isa.elements[-1].id),
+            ui.input_select("paths_source", t("metrics.paths_source"), choices,
+                            selected=_current(input.paths_source,
+                                              isa.elements[0].id)),
+            ui.input_select("paths_target", t("metrics.paths_target"), choices,
+                            selected=_current(input.paths_target,
+                                              isa.elements[-1].id)),
             ui.input_action_button("trace_paths", t("metrics.paths_trace"),
                                    class_="btn-sm btn-outline-primary"),
         )
