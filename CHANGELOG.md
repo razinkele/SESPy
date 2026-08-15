@@ -3,6 +3,11 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- New button-gated "Causal pathways" block on the Network Metrics card (#16):
+  enumerate the directed simple paths between any two elements with compound
+  polarity (odd negatives flip the sign), honest truncation, and a
+  positive/negative/ambiguous summary (Applied Soft Computing 2026,
+  doi:10.1016/j.asoc.2026.115925 — static layer only).
 - Fix: feedback-loop enumeration is now bounded during generation (networkx
   length_bound), so dense imported models can no longer hang Loop Analysis,
   uncertainty scoring, or cascade vulnerability (#18); networkx floor is now 3.1.

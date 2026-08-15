@@ -157,6 +157,8 @@ def analysis_metrics_ui() -> ui.Tag:
                 ui.tags.hr(),
                 ui.output_ui("cascade_summary"),
                 ui.tags.hr(),
+                ui.output_ui("paths_summary"),
+                ui.tags.hr(),
                 ui.h4(t("metrics.top_ranked")),
                 ui.output_data_frame("metrics_table"),
                 ui.tags.hr(),
@@ -381,6 +383,92 @@ def analysis_metrics_server(
             ui.p(t("metrics.cascade_caption",
                    n=len(r["steps"]), total=r["n_ranked"]),
                  class_="text-muted", style="font-size: 0.85rem;"),
+        )
+
+    _paths_result = reactive.value(None)
+
+    @reactive.effect
+    def _reset_paths():
+        # A model change invalidates a previously traced result.
+        event_bus.isa_change.get()
+        _paths_result.set(None)
+
+    @reactive.effect
+    @reactive.event(input.trace_paths, ignore_init=True)
+    def _compute_paths():
+        _paths_result.set(net_analysis.causal_paths(
+            project_data.get().isa_data,
+            input.paths_source(), input.paths_target()))
+
+    @output
+    @render.ui
+    def paths_summary():
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        if len(isa.elements) < 2:
+            return ui.p(t("metrics.gov_gap_none"), class_="text-muted")
+        choices = {el.id: f"{el.id} · {el.label}" for el in isa.elements}
+
+        def _current(input_val, fallback: str) -> str:
+            # Keep the user's selection across re-renders (a trace result
+            # re-renders this block); isolate() so typing in the selects
+            # doesn't itself re-render, and fall back when the model changed.
+            with reactive.isolate():
+                try:
+                    v = input_val()
+                except Exception:
+                    v = None
+            return v if v in choices else fallback
+
+        controls = ui.div(
+            ui.input_select("paths_source", t("metrics.paths_source"), choices,
+                            selected=_current(input.paths_source,
+                                              isa.elements[0].id)),
+            ui.input_select("paths_target", t("metrics.paths_target"), choices,
+                            selected=_current(input.paths_target,
+                                              isa.elements[-1].id)),
+            ui.input_action_button("trace_paths", t("metrics.paths_trace"),
+                                   class_="btn-sm btn-outline-primary"),
+        )
+        r = _paths_result.get()
+        if r is None:
+            return ui.div(
+                ui.h5(t("metrics.paths")), controls,
+                ui.p(t("metrics.cascade_hint"), class_="text-muted",
+                     style="font-size: 0.85rem; margin-top: 0.5rem;"),
+            )
+        if not r["paths"]:
+            return ui.div(
+                ui.h5(t("metrics.paths")), controls,
+                ui.p(t("metrics.paths_none"), class_="text-muted",
+                     style="margin-top: 0.5rem;"),
+            )
+        labels = {el.id: el.label for el in isa.elements}
+        header = ui.tags.tr(
+            ui.tags.th(""), ui.tags.th("length"), ui.tags.th("polarity"),
+        )
+        body = [
+            ui.tags.tr(
+                ui.tags.td(" → ".join(labels.get(n, n) for n in row["path"])),
+                ui.tags.td(str(row["length"])),
+                ui.tags.td(ui.tags.strong(row["polarity"])),
+            )
+            for row in r["paths"]
+        ]
+        c = r["counts"]
+        trunc_line = None
+        if r["truncated"]:
+            trunc_line = ui.p(t("metrics.paths_truncated", max=len(r["paths"])),
+                              class_="text-muted", style="font-size: 0.85rem;")
+        return ui.div(
+            ui.h5(t("metrics.paths")), controls,
+            ui.p(ui.tags.strong(
+                t("metrics.paths_summary", n=len(r["paths"]),
+                  pos=c["+"], neg=c["-"], amb=c["0"])),
+                style="margin-top: 0.5rem;"),
+            ui.tags.table(ui.tags.thead(header), ui.tags.tbody(*body),
+                          class_="table table-sm"),
+            trunc_line,
         )
 
     @output(id="metrics_network")

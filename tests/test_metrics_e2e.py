@@ -142,6 +142,36 @@ async def main():
         assert "MPF1" in cs_text and "0.47" in cs_text, f"expected MPF1/0.47, got: {cs_text!r}"
         print(f"cascade vulnerability block: OK ({cs_text[:120]!r})")
 
+        # --- Causal pathways: select ES02 -> D001, trace, assert goldens ---
+        pt_text = ""
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            pt_text = (await page.inner_text("#metrics-paths_summary")).strip()
+            if pt_text:
+                break
+        assert "Causal pathways" in pt_text, f"expected heading, got: {pt_text!r}"
+        await page.select_option("#metrics-paths_source", "ES02")
+        await page.select_option("#metrics-paths_target", "D001")
+        await page.click("#metrics-trace_paths")
+        for _ in range(30):
+            await page.wait_for_timeout(500)
+            pt_text = (await page.inner_text("#metrics-paths_summary")).strip()
+            if "2 paths" in pt_text:
+                break
+        # Sample golden: ES02 -> D001 has exactly two length-8 negative paths.
+        assert "2 paths: 0 positive, 2 negative, 0 ambiguous" in pt_text, \
+            f"expected summary, got: {pt_text!r}"
+        assert "Food provisioning" in pt_text and "Tourism demand" in pt_text, \
+            f"expected label chain endpoints, got: {pt_text!r}"
+        # Selects must keep the user's pair across the result re-render —
+        # a snap-back to defaults would make a second Trace compute the
+        # wrong pair silently.
+        src_val = await page.eval_on_selector("#metrics-paths_source", "el => el.value")
+        tgt_val = await page.eval_on_selector("#metrics-paths_target", "el => el.value")
+        assert src_val == "ES02" and tgt_val == "D001", \
+            f"selects reset after trace: {src_val!r} -> {tgt_val!r}"
+        print(f"causal pathways block: OK ({pt_text[:120]!r})")
+
         await browser.close()
 
 
