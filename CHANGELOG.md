@@ -3,6 +3,9 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- Fix: feedback-loop enumeration is now bounded during generation (networkx
+  length_bound), so dense imported models can no longer hang Loop Analysis,
+  uncertainty scoring, or cascade vulnerability (#18); networkx floor is now 3.1.
 - New button-gated "Cascade vulnerability" block on the Network Metrics card
   (#15): sequential removal of nodes in leverage order tracking connectivity
   collapse and surviving feedback loops, identifying the cascade threshold
