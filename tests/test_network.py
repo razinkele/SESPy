@@ -1375,3 +1375,105 @@ def test_cascade_removal_follows_leverage_ranking():
                                        key=lambda el: (-lev[el.id], order[el.id]))]
     r = network.cascade_vulnerability(isa)
     assert [s["removed_id"] for s in r["steps"]] == expected
+
+
+# ---------------------------------------------------------------------------
+# causal_paths (issue #16)
+# ---------------------------------------------------------------------------
+
+_EMPTY_PATHS = {"paths": [], "counts": {"+": 0, "-": 0, "0": 0}, "truncated": False}
+
+
+def test_causal_paths_sample_single_positive():
+    root = Path(__file__).resolve().parents[1]
+    isa = load_sample(root / "data" / "sample_ses.json")
+    r = network.causal_paths(isa, "D001", "P001")
+    assert r["paths"] == [{"path": ["D001", "A001", "P001"],
+                           "length": 2, "polarity": "+"}]
+    assert r["counts"] == {"+": 1, "-": 0, "0": 0}
+    assert r["truncated"] is False
+
+
+def test_causal_paths_sample_two_negative_sorted():
+    root = Path(__file__).resolve().parents[1]
+    isa = load_sample(root / "data" / "sample_ses.json")
+    r = network.causal_paths(isa, "ES02", "D001")
+    assert [p["path"] for p in r["paths"]] == [
+        ["ES02", "GB02", "D002", "A003", "P003", "MPF1", "ES01", "GB01", "D001"],
+        ["ES02", "GB02", "D002", "A003", "P003", "MPF1", "ES03", "GB01", "D001"],
+    ]
+    assert all(p["polarity"] == "-" and p["length"] == 8 for p in r["paths"])
+    assert r["counts"] == {"+": 0, "-": 2, "0": 0}
+
+
+def test_causal_paths_sample_no_route():
+    root = Path(__file__).resolve().parents[1]
+    isa = load_sample(root / "data" / "sample_ses.json")
+    assert network.causal_paths(isa, "D001", "ES02") == _EMPTY_PATHS
+
+
+def test_causal_paths_truncation_is_honest():
+    root = Path(__file__).resolve().parents[1]
+    isa = load_sample(root / "data" / "sample_ses.json")
+    r = network.causal_paths(isa, "ES02", "D001", max_paths=1)
+    assert len(r["paths"]) == 1
+    assert r["truncated"] is True
+
+
+def test_causal_paths_diamond_polarity():
+    # A->B->D (one negative hop) and A->C->D (all positive): the compound
+    # sign differs per route, and counts reflect both.
+    els = [Element(id=i, label=i.lower(), type="Drivers") for i in "ABCD"]
+    conns = [Connection(source="A", target="B", polarity="-"),
+             Connection(source="B", target="D", polarity="+"),
+             Connection(source="A", target="C", polarity="+"),
+             Connection(source="C", target="D", polarity="+")]
+    r = network.causal_paths(IsaData(elements=els, connections=conns), "A", "D")
+    by_route = {tuple(p["path"]): p["polarity"] for p in r["paths"]}
+    assert by_route == {("A", "B", "D"): "-", ("A", "C", "D"): "+"}
+    assert r["counts"] == {"+": 1, "-": 1, "0": 0}
+
+
+def test_causal_paths_even_negatives_are_positive():
+    els = [Element(id=i, label=i.lower(), type="Drivers") for i in "ABC"]
+    conns = [Connection(source="A", target="B", polarity="-"),
+             Connection(source="B", target="C", polarity="-")]
+    r = network.causal_paths(IsaData(elements=els, connections=conns), "A", "C")
+    assert r["paths"][0]["polarity"] == "+"  # two negatives multiply out
+
+
+def test_causal_paths_unsigned_hop_is_ambiguous():
+    # Forward-looking: no current ingress emits a polarity outside {+,-},
+    # but the sign arithmetic must not silently misread one.
+    els = [Element(id=i, label=i.lower(), type="Drivers") for i in "ABC"]
+    conns = [Connection(source="A", target="B", polarity=""),
+             Connection(source="B", target="C", polarity="-")]
+    r = network.causal_paths(IsaData(elements=els, connections=conns), "A", "C")
+    assert r["paths"][0]["polarity"] == "0"
+    assert r["counts"] == {"+": 0, "-": 0, "0": 1}
+
+
+def test_causal_paths_degenerate_inputs():
+    root = Path(__file__).resolve().parents[1]
+    isa = load_sample(root / "data" / "sample_ses.json")
+    assert network.causal_paths(isa, "NOPE", "D001") == _EMPTY_PATHS
+    assert network.causal_paths(isa, "D001", "NOPE") == _EMPTY_PATHS
+    assert network.causal_paths(isa, "D001", "D001") == _EMPTY_PATHS
+    assert network.causal_paths(IsaData(), "A", "B") == _EMPTY_PATHS
+
+
+def test_causal_paths_cycles_yield_simple_paths_only():
+    # A->B->A cycle plus B->C: only the simple path A->B->C may appear.
+    els = [Element(id=i, label=i.lower(), type="Drivers") for i in "ABC"]
+    conns = [Connection(source="A", target="B"),
+             Connection(source="B", target="A"),
+             Connection(source="B", target="C")]
+    r = network.causal_paths(IsaData(elements=els, connections=conns), "A", "C")
+    assert [p["path"] for p in r["paths"]] == [["A", "B", "C"]]
+
+
+def test_causal_paths_deterministic():
+    root = Path(__file__).resolve().parents[1]
+    isa = load_sample(root / "data" / "sample_ses.json")
+    assert network.causal_paths(isa, "ES02", "D001") == \
+        network.causal_paths(isa, "ES02", "D001")

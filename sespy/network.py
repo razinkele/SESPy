@@ -348,6 +348,68 @@ def cascade_vulnerability(
             "n_ranked": n_original, "max_steps": max_steps}
 
 
+def causal_paths(
+    isa: IsaData, source: str, target: str,
+    *, max_length: int = 8, max_paths: int = 100,
+) -> dict:
+    """Directed causal-chain enumeration with compound-polarity sign
+    arithmetic — the static explainability layer of Applied Soft Computing
+    2026 (doi:10.1016/j.asoc.2026.115925): "how does A influence B?".
+
+    Enumerates simple directed paths source→target (nx.all_simple_paths;
+    cutoff counts EDGES, so max_length bounds path length and prevents
+    combinatorial explosion on dense CLDs). Each row carries the node-id
+    path, its edge count, and the compound polarity: "-" for an odd number
+    of "-" hops, "+" otherwise, and "0" when any hop's polarity is neither
+    "+" nor "-" (forward-looking — every current ingress emits only +/-).
+    Parallel (source, target) edges deduplicate last-wins, matching
+    _axis_sums; self-loops and dangling refs are skipped. Collection stops
+    at max_paths with an honest truncated flag (never a silent cap). Rows
+    sort (length, path) — deterministic. Unknown endpoints, source ==
+    target, or no route return the empty shape; never raises. Pure.
+    """
+    empty = {"paths": [], "counts": {"+": 0, "-": 0, "0": 0},
+             "truncated": False}
+    ids = {el.id for el in isa.elements}
+    if source not in ids or target not in ids or source == target:
+        return empty
+
+    pol: dict[tuple[str, str], str] = {}
+    for c in isa.connections:
+        if c.source == c.target or c.source not in ids or c.target not in ids:
+            continue
+        pol[(c.source, c.target)] = c.polarity
+    g = nx.DiGraph()
+    g.add_nodes_from(ids)
+    g.add_edges_from(pol)
+
+    rows: list[dict] = []
+    truncated = False
+    for p in nx.all_simple_paths(g, source, target, cutoff=max_length):
+        if len(rows) >= max_paths:
+            truncated = True
+            break
+        negatives = 0
+        ambiguous = False
+        for a, b in zip(p, p[1:]):
+            sign = pol[(a, b)]
+            if sign == "-":
+                negatives += 1
+            elif sign != "+":
+                ambiguous = True
+        rows.append({
+            "path": list(p),
+            "length": len(p) - 1,
+            "polarity": "0" if ambiguous else ("-" if negatives % 2 else "+"),
+        })
+    rows.sort(key=lambda r: (r["length"], r["path"]))
+
+    counts = {"+": 0, "-": 0, "0": 0}
+    for r in rows:
+        counts[r["polarity"]] += 1
+    return {"paths": rows, "counts": counts, "truncated": truncated}
+
+
 _DAPSIWRM_REALM: dict[str, str] = {
     "Pressures": "parameters",
     "Ecosystem Services": "parameters",
