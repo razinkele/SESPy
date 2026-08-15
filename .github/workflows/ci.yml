@@ -40,6 +40,7 @@ jobs:
   unit-tests:
     name: Unit tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -93,6 +94,7 @@ jobs:
   full-app:
     name: Full app (conda env + razinka pyvis fork)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # Validates environment.yml end-to-end on a clean machine: the env solves
     # and creates, the full app imports (exercising the pyvis.shiny fork from
     # the razinka channel), and the complete unit suite runs — the pyvis-loop
