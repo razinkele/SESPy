@@ -163,3 +163,10 @@ def test_causal_paths_keys_present(translations):
                 "metrics.paths_target", "metrics.paths_summary",
                 "metrics.paths_none", "metrics.paths_truncated"):
         assert key in translations
+
+
+def test_token_diffusion_keys_present(translations):
+    for key in ("diffusion.title", "diffusion.source", "diffusion.steps",
+                "diffusion.tokens", "diffusion.run", "diffusion.hint",
+                "diffusion.none", "diffusion.summary", "diffusion.caption"):
+        assert key in translations
