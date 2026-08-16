@@ -504,3 +504,101 @@ def state_shift_monte_carlo(
         n_simulations=n_simulations,
         n_failed=n_failed,
     )
+
+
+def token_diffusion(
+    isa: IsaData, source: str, *,
+    n_steps: int = 10, n_tokens: int = 1000, seed: int | None = None,
+) -> dict:
+    """Stochastic token diffusion from an intervention node — step 2 of the
+    Donlan et al. 2026 participatory framework (doi:10.21203/rs.3.rs-10397797/v1).
+
+    n_tokens positive tokens start at `source`. Each step, every token whose
+    node has outgoing edges hops to ONE uniformly-random out-neighbour;
+    traversing a "-" edge flips the token's polarity. Tokens reaching a sink
+    stay there and stop contributing arrivals. Per node (excluding the
+    source) we accumulate arrivals across all steps, the polarity split on
+    arrival, and the 1-based step of first arrival — a reach-and-speed
+    profile that ranks which parts of the system an intervention at `source`
+    actually touches, how fast, and with what net sign.
+
+    net_sign is "+"/"-" by majority, or "~" when the split is within 5%
+    (contested). Nodes never reached are omitted. Rows sort by
+    tokens_received descending, ties in isa.elements order. Parallel edges
+    deduplicate last-wins (the _axis_sums convention); self-loops and
+    dangling refs are skipped; only "-" flips a token.
+
+    Vectorised: one rng draw per STEP over the live tokens, not per token,
+    so 5000 tokens x 30 steps is 30 numpy ops. Identical (isa, source,
+    n_steps, n_tokens, seed) reproduce exactly. Unknown source, empty model,
+    non-positive n_steps/n_tokens, or a source with no outgoing edges return
+    the empty shape; never raises. Pure apart from the seeded RNG.
+    """
+    empty = {"rows": [], "source": source, "n_tokens": n_tokens,
+             "n_steps": n_steps, "n_reached": 0}
+    order = {el.id: i for i, el in enumerate(isa.elements)}
+    if source not in order or n_tokens <= 0 or n_steps <= 0:
+        return empty
+
+    n = len(isa.elements)
+    pairs: dict[tuple[str, str], str] = {}
+    for c in isa.connections:
+        if c.source == c.target or c.source not in order or c.target not in order:
+            continue
+        pairs[(c.source, c.target)] = c.polarity
+    neighbours: list[list[tuple[int, bool]]] = [[] for _ in range(n)]
+    for (src, tgt), polarity in pairs.items():
+        neighbours[order[src]].append((order[tgt], polarity == "-"))
+
+    indptr = np.zeros(n + 1, dtype=np.int64)
+    for i, lst in enumerate(neighbours):
+        indptr[i + 1] = indptr[i] + len(lst)
+    flat = [x for lst in neighbours for x in lst]
+    indices = np.array([t for t, _ in flat], dtype=np.int64) if flat \
+        else np.zeros(0, dtype=np.int64)
+    flips = np.array([f for _, f in flat], dtype=bool) if flat \
+        else np.zeros(0, dtype=bool)
+    outdeg = np.diff(indptr)
+    if outdeg[order[source]] == 0:
+        return empty
+
+    rng = np.random.default_rng(seed)
+    pos = np.full(n_tokens, order[source], dtype=np.int64)
+    sign = np.ones(n_tokens, dtype=np.int8)
+    pos_count = np.zeros(n, dtype=np.int64)
+    neg_count = np.zeros(n, dtype=np.int64)
+    first = np.full(n, -1, dtype=np.int64)
+
+    for step in range(1, n_steps + 1):
+        live = np.nonzero(outdeg[pos] > 0)[0]
+        if live.size == 0:
+            break
+        here = pos[live]
+        slot = indptr[here] + (rng.random(live.size) * outdeg[here]).astype(np.int64)
+        pos[live] = indices[slot]
+        sign[live] = sign[live] * np.where(flips[slot], -1, 1).astype(np.int8)
+        landed, landed_sign = pos[live], sign[live]
+        np.add.at(pos_count, landed[landed_sign > 0], 1)
+        np.add.at(neg_count, landed[landed_sign < 0], 1)
+        arrived = np.unique(landed)
+        first[arrived[first[arrived] < 0]] = step
+
+    rows: list[dict] = []
+    src_index = order[source]
+    for el in isa.elements:
+        i = order[el.id]
+        if i == src_index:
+            continue
+        pos_i, neg_i = int(pos_count[i]), int(neg_count[i])
+        total = pos_i + neg_i
+        if total == 0:
+            continue
+        if abs(pos_i - neg_i) / total <= 0.05:
+            net = "~"
+        else:
+            net = "+" if pos_i > neg_i else "-"
+        rows.append({"id": el.id, "label": el.label, "tokens_received": total,
+                     "net_sign": net, "first_arrival_step": int(first[i])})
+    rows.sort(key=lambda r: -r["tokens_received"])
+    return {"rows": rows, "source": source, "n_tokens": n_tokens,
+            "n_steps": n_steps, "n_reached": len(rows)}
