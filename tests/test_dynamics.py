@@ -469,7 +469,12 @@ def test_boolean_attractors_state_encoding_bit_zero_is_node_zero():
         f"got fixed states {fixed_states}"
     )
 
-
+# NOTE: test_token_diffusion_contested_sign and _sample_golden pin numpy's
+# PCG64 stream (seeded draws). numpy's stream-stability guarantee for
+# default_rng is softer than RandomState's, so a numpy upgrade could change
+# these numbers without any bug in token_diffusion — re-derive the goldens
+# rather than hunting a phantom regression. The chain and sink tests are
+# stream-independent (out-degree 1 everywhere) and remain valid.
 # ============================================================
 # token_diffusion (issue #17)
 # ============================================================

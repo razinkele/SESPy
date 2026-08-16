@@ -296,6 +296,18 @@ def analysis_intervention_server(
         _diffusion_result.set(None)
 
     @reactive.effect
+    def _invalidate_diffusion():
+        # Changing the source or the sliders invalidates a previous run —
+        # a table computed for another intervention point must never be
+        # read as the current one's.
+        for read in (input.diffusion_source, input.n_steps, input.n_tokens):
+            try:
+                read()
+            except Exception:
+                pass
+        _diffusion_result.set(None)
+
+    @reactive.effect
     @reactive.event(input.run_diffusion, ignore_init=True)
     def _run_diffusion():
         try:
@@ -327,7 +339,7 @@ def analysis_intervention_server(
         if not r["rows"]:
             return ui.p(t("diffusion.none"), class_="text-muted")
         header = ui.tags.tr(
-            ui.tags.th(""), ui.tags.th("tokens"),
+            ui.tags.th(""), ui.tags.th("arrivals"),
             ui.tags.th("net sign"), ui.tags.th("first step"),
         )
         body = [
@@ -368,7 +380,7 @@ def analysis_intervention_server(
             ax.set_xticks(range(len(rows)))
             ax.set_xticklabels([row["label"] for row in rows],
                                rotation=30, ha="right", fontsize=8)
-            ax.set_ylabel("tokens")
+            ax.set_ylabel("arrivals")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         fig.tight_layout()
