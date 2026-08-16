@@ -53,6 +53,50 @@ async def main():
         assert ablated_opacity is not None and ablated_opacity < 1.0
 
         await page.screenshot(path="tests/screenshots/intervention.png")
+
+        # --- Intervention simulation (token diffusion), fixed seed 0 ---
+        await page.wait_for_selector("#intervention-diffusion_summary", timeout=15000)
+        hint = (await page.inner_text("#intervention-diffusion_summary")).strip()
+        assert "not simulated" in hint, f"expected idle hint, got: {hint!r}"
+        await page.select_option("#intervention-diffusion_source", "D001")
+        await page.click("#intervention-run_diffusion")
+        diff_text = ""
+        for _ in range(30):
+            await page.wait_for_timeout(500)
+            diff_text = (await page.inner_text("#intervention-diffusion_summary")).strip()
+            if "elements reached" in diff_text:
+                break
+        # Sample golden at seed 0: D001 reaches 7 of 17 elements; the top
+        # row is P001 with 2000 tokens.
+        assert "7 of 17 elements reached by 1000 tokens in 10 steps" in diff_text, \
+            f"expected summary, got: {diff_text!r}"
+        assert "Anchor damage" in diff_text and "2000" in diff_text, \
+            f"expected top row, got: {diff_text!r}"
+        # The bar chart must render as an <img> once results exist.
+        chart_ok = await page.evaluate(
+            "() => { const el = document.getElementById('intervention-diffusion_chart');"
+            " return !!el && !!el.querySelector('img'); }"
+        )
+        assert chart_ok, "diffusion chart did not render an image"
+        # Changing the source must invalidate the previous run (no stale
+        # table) and a re-run must reflect the NEW source: P002 reaches 13
+        # of 17 elements at seed 0, vs D001's 7.
+        await page.select_option("#intervention-diffusion_source", "P002")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not simulated" in (await page.inner_text("#intervention-diffusion_summary")):
+                break
+        stale = (await page.inner_text("#intervention-diffusion_summary")).strip()
+        assert "not simulated" in stale, f"stale result survived a source change: {stale!r}"
+        await page.click("#intervention-run_diffusion")
+        for _ in range(30):
+            await page.wait_for_timeout(500)
+            diff_text = (await page.inner_text("#intervention-diffusion_summary")).strip()
+            if "elements reached" in diff_text:
+                break
+        assert "13 of 17 elements reached by 1000 tokens in 10 steps" in diff_text, \
+            f"expected P002 summary, got: {diff_text!r}"
+        print(f"intervention simulation: OK ({diff_text[:90]!r})")
         print("\nintervention e2e assertions pass")
         await browser.close()
 

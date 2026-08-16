@@ -468,3 +468,122 @@ def test_boolean_attractors_state_encoding_bit_zero_is_node_zero():
         f"expected state=2 (bit 1 = on) to be fixed when only node 1 has self-loop; "
         f"got fixed states {fixed_states}"
     )
+
+# NOTE: test_token_diffusion_contested_sign and _sample_golden pin numpy's
+# PCG64 stream (seeded draws). numpy's stream-stability guarantee for
+# default_rng is softer than RandomState's, so a numpy upgrade could change
+# these numbers without any bug in token_diffusion — re-derive the goldens
+# rather than hunting a phantom regression. The chain and sink tests are
+# stream-independent (out-degree 1 everywhere) and remain valid.
+# ============================================================
+# token_diffusion (issue #17)
+# ============================================================
+
+
+def _chain_isa():
+    """A -> B -(-)-> C -> D: a single route, so every token's itinerary is
+    known in advance and the whole result is hand-checkable."""
+    els = [Element(id=i, label=i.lower(), type="Drivers") for i in "ABCD"]
+    conns = [Connection(source="A", target="B", polarity="+"),
+             Connection(source="B", target="C", polarity="-"),
+             Connection(source="C", target="D", polarity="+")]
+    return _isa(els, conns)
+
+
+def test_token_diffusion_matches_manual_trace():
+    r = dynamics.token_diffusion(_chain_isa(), "A",
+                                 n_steps=5, n_tokens=100, seed=0)
+    assert r["source"] == "A" and r["n_reached"] == 3
+    assert r["rows"] == [
+        {"id": "B", "label": "b", "tokens_received": 100,
+         "net_sign": "+", "first_arrival_step": 1},
+        {"id": "C", "label": "c", "tokens_received": 100,
+         "net_sign": "-", "first_arrival_step": 2},
+        {"id": "D", "label": "d", "tokens_received": 100,
+         "net_sign": "-", "first_arrival_step": 3},
+    ]
+
+
+def test_token_diffusion_sink_tokens_stop():
+    # T has no outgoing edges: its 50 tokens arrive once at step 2 and are
+    # NOT re-counted on steps 3-6. A regression that keeps sinks "live"
+    # would credit T four more times.
+    els = [Element(id=i, label=i.lower(), type="Drivers") for i in ("A", "B", "T")]
+    conns = [Connection(source="A", target="B", polarity="+"),
+             Connection(source="B", target="T", polarity="+")]
+    r = dynamics.token_diffusion(_isa(els, conns), "A",
+                                 n_steps=6, n_tokens=50, seed=0)
+    assert [(x["id"], x["tokens_received"], x["first_arrival_step"])
+            for x in r["rows"]] == [("B", 50, 1), ("T", 50, 2)]
+
+
+def test_token_diffusion_contested_sign():
+    # Equal-probability +/- routes converge on T: the split lands inside
+    # the 5% margin at this seed, so T is contested rather than signed.
+    els = [Element(id=i, label=i.lower(), type="Drivers")
+           for i in ("A", "X", "Y", "T")]
+    conns = [Connection(source="A", target="X", polarity="+"),
+             Connection(source="A", target="Y", polarity="-"),
+             Connection(source="X", target="T", polarity="+"),
+             Connection(source="Y", target="T", polarity="+")]
+    r = dynamics.token_diffusion(_isa(els, conns), "A",
+                                 n_steps=3, n_tokens=1000, seed=1)
+    by_id = {x["id"]: x for x in r["rows"]}
+    assert by_id["T"]["net_sign"] == "~"
+    assert by_id["T"]["tokens_received"] == 1000
+    assert by_id["X"]["net_sign"] == "+" and by_id["Y"]["net_sign"] == "-"
+    assert by_id["X"]["tokens_received"] + by_id["Y"]["tokens_received"] == 1000
+
+
+def test_token_diffusion_seed_reproducible_and_distinct():
+    isa = _isa([Element(id=i, label=i.lower(), type="Drivers")
+                for i in ("A", "X", "Y", "T")],
+               [Connection(source="A", target="X"),
+                Connection(source="A", target="Y"),
+                Connection(source="X", target="T"),
+                Connection(source="Y", target="T")])
+    a = dynamics.token_diffusion(isa, "A", n_tokens=500, seed=3)
+    b = dynamics.token_diffusion(isa, "A", n_tokens=500, seed=3)
+    c = dynamics.token_diffusion(isa, "A", n_tokens=500, seed=4)
+    assert a == b
+    assert a != c
+
+
+def test_token_diffusion_sample_golden():
+    from pathlib import Path
+
+    from sespy.data_structure import load_sample
+
+    root = Path(__file__).resolve().parents[1]
+    r = dynamics.token_diffusion(load_sample(root / "data" / "sample_ses.json"),
+                                 "D001", seed=0)
+    assert r["n_reached"] == 7
+    assert r["n_steps"] == 10 and r["n_tokens"] == 1000
+    assert [(x["id"], x["tokens_received"], x["net_sign"],
+             x["first_arrival_step"]) for x in r["rows"]] == [
+        ("P001", 2000, "+", 2),
+        ("MPF1", 2000, "-", 3),
+        ("GB01", 1501, "-", 5),
+        ("A001", 1499, "+", 1),
+        ("ES03", 1002, "-", 4),
+        ("ES01", 998, "-", 4),
+        ("R002", 501, "-", 6),
+    ]
+    assert all(x["id"] != "D001" for x in r["rows"])  # source excluded
+
+
+def test_token_diffusion_degenerate_shapes():
+    chain = _chain_isa()
+    for kwargs in ({"n_tokens": 0}, {"n_steps": 0}):
+        r = dynamics.token_diffusion(chain, "A", seed=0, **kwargs)
+        assert r["rows"] == [] and r["n_reached"] == 0
+    # unknown source
+    assert dynamics.token_diffusion(chain, "NOPE", seed=0)["rows"] == []
+    # empty model
+    assert dynamics.token_diffusion(IsaData(), "A", seed=0)["rows"] == []
+    # sink SOURCE: nothing can leave, so nothing is ever received
+    els = [Element(id=i, label=i.lower(), type="Drivers") for i in ("A", "B")]
+    r = dynamics.token_diffusion(_isa(els, [Connection(source="B", target="A")]),
+                                 "A", n_steps=5, n_tokens=10, seed=0)
+    assert r == {"rows": [], "source": "A", "n_tokens": 10,
+                 "n_steps": 5, "n_reached": 0}

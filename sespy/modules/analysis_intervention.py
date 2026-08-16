@@ -14,6 +14,7 @@ from pyvis.network import Network
 from pyvis.shiny import output_pyvis_network, render_pyvis_network
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
+from .. import dynamics as dyn
 from .. import network as net_analysis
 from ..constants import (
     DEFAULT_GROUP_COLOR,
@@ -140,6 +141,17 @@ def analysis_intervention_ui() -> ui.Tag:
                     "reset", t("intervention.reset"),
                     class_="btn btn-sm btn-outline-secondary",
                 ),
+                ui.tags.hr(),
+                ui.h5(t("diffusion.title")),
+                ui.output_ui("diffusion_controls"),
+                ui.input_slider("n_steps", t("diffusion.steps"),
+                                min=3, max=30, value=10, step=1),
+                ui.input_slider("n_tokens", t("diffusion.tokens"),
+                                min=100, max=5000, value=1000, step=100),
+                ui.input_action_button(
+                    "run_diffusion", t("diffusion.run"),
+                    class_="btn btn-sm btn-outline-primary",
+                ),
                 width=280,
             ),
             ui.div(
@@ -154,6 +166,10 @@ def analysis_intervention_ui() -> ui.Tag:
                     show_layout_switcher=False, show_export=False,
                     show_status=False,
                 ),
+                ui.tags.hr(),
+                ui.h4(t("diffusion.title")),
+                ui.output_ui("diffusion_summary"),
+                ui.output_plot("diffusion_chart", height="260px"),
             ),
         ),
         class_="sespy-card sespy-card-canvas",
@@ -250,3 +266,122 @@ def analysis_intervention_server(
         return _build_intervention_network(
             project_data.get().isa_data, impact(), chosen_ids(),
         )
+
+    _diffusion_result = reactive.value(None)
+
+    @output
+    @render.ui
+    def diffusion_controls():
+        event_bus.isa_change.get()
+        els = project_data.get().isa_data.elements
+        if not els:
+            return ui.div()
+        choices = {el.id: f"{el.id} · {el.label}" for el in els}
+        # Keep the user's pick across re-renders (isolate so choosing a
+        # source doesn't itself re-render this block), falling back when
+        # the model no longer has that element.
+        with reactive.isolate():
+            try:
+                current = input.diffusion_source()
+            except Exception:
+                current = None
+        return ui.input_select(
+            "diffusion_source", t("diffusion.source"), choices,
+            selected=current if current in choices else els[0].id,
+        )
+
+    @reactive.effect
+    def _reset_diffusion():
+        event_bus.isa_change.get()
+        _diffusion_result.set(None)
+
+    @reactive.effect
+    def _invalidate_diffusion():
+        # Changing the source or the sliders invalidates a previous run —
+        # a table computed for another intervention point must never be
+        # read as the current one's.
+        for read in (input.diffusion_source, input.n_steps, input.n_tokens):
+            try:
+                read()
+            except Exception:
+                pass
+        _diffusion_result.set(None)
+
+    @reactive.effect
+    @reactive.event(input.run_diffusion, ignore_init=True)
+    def _run_diffusion():
+        try:
+            src = input.diffusion_source()
+        except Exception:
+            src = None
+        if not src:
+            return
+        # Fixed seed: two intervention points then differ by structure
+        # rather than by chance, which is the point of comparing them.
+        _diffusion_result.set(dyn.token_diffusion(
+            project_data.get().isa_data, src,
+            n_steps=int(input.n_steps() or 10),
+            n_tokens=int(input.n_tokens() or 1000),
+            seed=0,
+        ))
+
+    @output
+    @render.ui
+    def diffusion_summary():
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        if len(isa.elements) < 2:
+            return ui.p(t("metrics.gov_gap_none"), class_="text-muted")
+        r = _diffusion_result.get()
+        if r is None:
+            return ui.p(t("diffusion.hint"), class_="text-muted",
+                        style="font-size: 0.85rem;")
+        if not r["rows"]:
+            return ui.p(t("diffusion.none"), class_="text-muted")
+        header = ui.tags.tr(
+            ui.tags.th(""), ui.tags.th("arrivals"),
+            ui.tags.th("net sign"), ui.tags.th("first step"),
+        )
+        body = [
+            ui.tags.tr(
+                ui.tags.td(f"{row['id']} · {row['label']}"),
+                ui.tags.td(str(row["tokens_received"])),
+                ui.tags.td(ui.tags.strong(row["net_sign"])),
+                ui.tags.td(str(row["first_arrival_step"])),
+            )
+            for row in r["rows"]
+        ]
+        return ui.div(
+            ui.p(ui.tags.strong(t(
+                "diffusion.summary", reached=r["n_reached"],
+                total=len(isa.elements), tokens=r["n_tokens"],
+                steps=r["n_steps"]))),
+            ui.tags.table(ui.tags.thead(header), ui.tags.tbody(*body),
+                          class_="table table-sm"),
+            ui.p(t("diffusion.caption"), class_="text-muted",
+                 style="font-size: 0.85rem;"),
+        )
+
+    @output
+    @render.plot
+    def diffusion_chart():
+        import matplotlib.pyplot as plt
+
+        r = _diffusion_result.get()
+        rows = (r or {}).get("rows", [])[:12]
+        fig, ax = plt.subplots(figsize=(8, 2.6))
+        if rows:
+            colours = {"+": "#2e7d32", "-": "#c62828", "~": "#757575"}
+            ax.bar(
+                range(len(rows)),
+                [row["tokens_received"] for row in rows],
+                color=[colours[row["net_sign"]] for row in rows],
+            )
+            ax.set_xticks(range(len(rows)))
+            ax.set_xticklabels([row["label"] for row in rows],
+                               rotation=30, ha="right", fontsize=8)
+            ax.set_ylabel("arrivals")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        fig.tight_layout()
+        return fig
