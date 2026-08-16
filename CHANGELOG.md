@@ -3,6 +3,12 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- New "Intervention simulation" block on the Intervention card (#17): seed
+  tokens at any element and watch them diffuse along the causal links —
+  negative links flip a token's sign — giving a ranked reach, net sign and
+  first-arrival step per element, with a colour-coded chart. Lets two
+  candidate intervention points be compared directly (Donlan et al. 2026,
+  doi:10.21203/rs.3.rs-10397797/v1).
 - New button-gated "Causal pathways" block on the Network Metrics card (#16):
   enumerate the directed simple paths between any two elements with compound
   polarity (odd negatives flip the sign), honest truncation, and a
