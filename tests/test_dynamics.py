@@ -494,13 +494,14 @@ def test_token_diffusion_matches_manual_trace():
     r = dynamics.token_diffusion(_chain_isa(), "A",
                                  n_steps=5, n_tokens=100, seed=0)
     assert r["source"] == "A" and r["n_reached"] == 3
+    assert r["n_batches"] == 20
     assert r["rows"] == [
-        {"id": "B", "label": "b", "tokens_received": 100,
-         "net_sign": "+", "first_arrival_step": 1},
-        {"id": "C", "label": "c", "tokens_received": 100,
-         "net_sign": "-", "first_arrival_step": 2},
-        {"id": "D", "label": "d", "tokens_received": 100,
-         "net_sign": "-", "first_arrival_step": 3},
+        {"id": "B", "label": "b", "tokens_received": 100, "margin": 0,
+         "net_sign": "+", "first_arrival_step": 1, "rank": 1},
+        {"id": "C", "label": "c", "tokens_received": 100, "margin": 0,
+         "net_sign": "-", "first_arrival_step": 2, "rank": 1},
+        {"id": "D", "label": "d", "tokens_received": 100, "margin": 0,
+         "net_sign": "-", "first_arrival_step": 3, "rank": 1},
     ]
 
 
@@ -559,15 +560,15 @@ def test_token_diffusion_sample_golden():
                                  "D001", seed=0)
     assert r["n_reached"] == 7
     assert r["n_steps"] == 10 and r["n_tokens"] == 1000
-    assert [(x["id"], x["tokens_received"], x["net_sign"],
-             x["first_arrival_step"]) for x in r["rows"]] == [
-        ("P001", 2000, "+", 2),
-        ("MPF1", 2000, "-", 3),
-        ("GB01", 1501, "-", 5),
-        ("A001", 1499, "+", 1),
-        ("ES03", 1002, "-", 4),
-        ("ES01", 998, "-", 4),
-        ("R002", 501, "-", 6),
+    assert [(x["rank"], x["id"], x["tokens_received"], x["margin"],
+             x["net_sign"], x["first_arrival_step"]) for x in r["rows"]] == [
+        (1, "P001", 2000, 0, "+", 2),
+        (1, "MPF1", 2000, 0, "-", 3),
+        (3, "GB01", 1501, 32, "-", 5),
+        (3, "A001", 1499, 32, "+", 1),
+        (5, "ES03", 1002, 44, "-", 4),
+        (5, "ES01", 998, 44, "-", 4),
+        (7, "R002", 501, 32, "-", 6),
     ]
     assert all(x["id"] != "D001" for x in r["rows"])  # source excluded
 
@@ -586,4 +587,68 @@ def test_token_diffusion_degenerate_shapes():
     r = dynamics.token_diffusion(_isa(els, [Connection(source="B", target="A")]),
                                  "A", n_steps=5, n_tokens=10, seed=0)
     assert r == {"rows": [], "source": "A", "n_tokens": 10,
-                 "n_steps": 5, "n_reached": 0}
+                 "n_steps": 5, "n_reached": 0, "n_batches": 0}
+
+
+def test_token_diffusion_balanced_node_is_contested_at_both_seeds():
+    # THE regression test for issue #19: the old fixed 5% margin called
+    # this structurally balanced node "-" at seed 0 (a 473/527 split is
+    # well inside sampling error at n=1000). The t-test must say "~" at
+    # both seeds.
+    els = [Element(id=i, label=i.lower(), type="Drivers")
+           for i in ("A", "X", "Y", "T")]
+    conns = [Connection(source="A", target="X", polarity="+"),
+             Connection(source="A", target="Y", polarity="-"),
+             Connection(source="X", target="T", polarity="+"),
+             Connection(source="Y", target="T", polarity="+")]
+    isa = _isa(els, conns)
+    for seed in (0, 1):
+        r = dynamics.token_diffusion(isa, "A", n_steps=3, n_tokens=1000,
+                                     seed=seed)
+        t_row = next(x for x in r["rows"] if x["id"] == "T")
+        assert t_row["net_sign"] == "~", f"seed {seed} misread a tie as signed"
+        assert t_row["tokens_received"] == 1000 and t_row["margin"] == 0
+        # X and Y are genuinely signed and tie with each other on count.
+        x_row = next(x for x in r["rows"] if x["id"] == "X")
+        y_row = next(x for x in r["rows"] if x["id"] == "Y")
+        assert x_row["net_sign"] == "+" and y_row["net_sign"] == "-"
+        assert x_row["rank"] == y_row["rank"]
+
+
+def test_token_diffusion_ties_share_a_rank():
+    # GB01 1501 +/-32 and A001 1499 +/-32 overlap almost entirely: the
+    # review measured that ordering flipping in 20 of 50 seeds, so they
+    # must not be presented as distinct ranks.
+    from pathlib import Path
+
+    from sespy.data_structure import load_sample
+
+    root = Path(__file__).resolve().parents[1]
+    r = dynamics.token_diffusion(load_sample(root / "data" / "sample_ses.json"),
+                                 "D001", seed=0)
+    by_id = {x["id"]: x for x in r["rows"]}
+    assert by_id["GB01"]["rank"] == by_id["A001"]["rank"] == 3
+    assert by_id["ES03"]["rank"] == by_id["ES01"]["rank"] == 5
+    assert by_id["R002"]["rank"] == 7  # clear of the pair above it
+    # A margin must never be negative, and a deterministic count has none.
+    assert all(x["margin"] >= 0 for x in r["rows"])
+    assert by_id["P001"]["margin"] == 0
+
+
+def test_token_diffusion_batches_adapt_to_small_token_counts():
+    r = dynamics.token_diffusion(_chain_isa(), "A", n_steps=3, n_tokens=5,
+                                 seed=0)
+    assert r["n_batches"] == 5           # fewer tokens than the 20 default
+    assert all(x["margin"] == 0 for x in r["rows"])
+
+
+def test_token_diffusion_single_token_claims_no_certainty():
+    # One token = one batch = no spread to estimate. Reporting a firm sign
+    # or a distinct rank off a single sample is the failure this feature
+    # exists to prevent.
+    r = dynamics.token_diffusion(_chain_isa(), "A", n_steps=3, n_tokens=1,
+                                 seed=0)
+    assert r["n_batches"] == 1
+    assert all(x["net_sign"] == "~" for x in r["rows"])
+    assert all(x["rank"] == 1 for x in r["rows"])
+    assert all(x["margin"] == 0 for x in r["rows"])
