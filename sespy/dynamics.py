@@ -540,6 +540,10 @@ def token_diffusion(
     ties chain down the list, matching how the column is read. A
     deterministic count has margin 0.
 
+    With only one batch (n_tokens == 1) there is no spread to estimate, so
+    every net_sign is "~" and every rank is 1 rather than claiming certainty
+    the sample cannot support; the empty shape reports n_batches 0.
+
     Nodes never reached are omitted. Rows sort by tokens_received
     descending, ties in isa.elements order. Parallel edges deduplicate
     last-wins (the _axis_sums convention); self-loops and dangling refs are
@@ -612,10 +616,14 @@ def token_diffusion(
         crit = float(stats.t.ppf(0.975, n_batches - 1))
         se_total = np.sqrt(n_batches * arrivals.var(axis=0, ddof=1))
         se_net = np.sqrt(n_batches * signed.var(axis=0, ddof=1))
+        quantified = True
     else:
+        # A single batch gives no spread to estimate: report the counts but
+        # never claim a sign or a distinct rank from them.
         crit = 0.0
         se_total = np.zeros(n)
         se_net = np.zeros(n)
+        quantified = False
     total = arrivals.sum(axis=0)
     net = signed.sum(axis=0)
 
@@ -625,7 +633,7 @@ def token_diffusion(
         i = order[el.id]
         if i == src_index or total[i] == 0:
             continue
-        if net[i] == 0 or abs(net[i]) <= crit * se_net[i]:
+        if not quantified or abs(net[i]) <= crit * se_net[i]:
             net_sign = "~"
         else:
             net_sign = "+" if net[i] > 0 else "-"
@@ -640,8 +648,9 @@ def token_diffusion(
             row["rank"] = 1
             continue
         prev = rows[idx - 1]
-        overlaps = (row["tokens_received"] + row["margin"]
-                    >= prev["tokens_received"] - prev["margin"])
+        overlaps = not quantified or (
+            row["tokens_received"] + row["margin"]
+            >= prev["tokens_received"] - prev["margin"])
         row["rank"] = prev["rank"] if overlaps else idx + 1
     return {"rows": rows, "source": source, "n_tokens": n_tokens,
             "n_steps": n_steps, "n_reached": len(rows),

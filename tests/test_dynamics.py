@@ -640,3 +640,15 @@ def test_token_diffusion_batches_adapt_to_small_token_counts():
                                  seed=0)
     assert r["n_batches"] == 5           # fewer tokens than the 20 default
     assert all(x["margin"] == 0 for x in r["rows"])
+
+
+def test_token_diffusion_single_token_claims_no_certainty():
+    # One token = one batch = no spread to estimate. Reporting a firm sign
+    # or a distinct rank off a single sample is the failure this feature
+    # exists to prevent.
+    r = dynamics.token_diffusion(_chain_isa(), "A", n_steps=3, n_tokens=1,
+                                 seed=0)
+    assert r["n_batches"] == 1
+    assert all(x["net_sign"] == "~" for x in r["rows"])
+    assert all(x["rank"] == 1 for x in r["rows"])
+    assert all(x["margin"] == 0 for x in r["rows"])

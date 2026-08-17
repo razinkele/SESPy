@@ -78,6 +78,7 @@ async def main():
         assert "±32" in diff_text, f"expected a 95% margin column, got: {diff_text!r}"
         assert "1501 ±32" in diff_text and "1499 ±32" in diff_text, \
             f"expected margins on the near-tied pair, got: {diff_text!r}"
+        assert "rank" in diff_text, f"expected a rank column, got: {diff_text!r}"
         # The bar chart must render as an <img> once results exist.
         chart_ok = await page.evaluate(
             "() => { const el = document.getElementById('intervention-diffusion_chart');"
