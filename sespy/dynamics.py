@@ -506,6 +506,11 @@ def state_shift_monte_carlo(
     )
 
 
+# Batch count for token_diffusion's standard errors. 20 gives 19 degrees of
+# freedom (t = 2.093 at 95%) while keeping batches large enough for the CLT.
+_DIFFUSION_BATCHES = 20
+
+
 def token_diffusion(
     isa: IsaData, source: str, *,
     n_steps: int = 10, n_tokens: int = 1000, seed: int | None = None,
@@ -522,11 +527,23 @@ def token_diffusion(
     profile that ranks which parts of the system an intervention at `source`
     actually touches, how fast, and with what net sign.
 
-    net_sign is "+"/"-" by majority, or "~" when the split is within 5%
-    (contested). Nodes never reached are omitted. Rows sort by
-    tokens_received descending, ties in isa.elements order. Parallel edges
-    deduplicate last-wins (the _axis_sums convention); self-loops and
-    dangling refs are skipped; only "-" flips a token.
+    net_sign is "+"/"-" only when the polarity imbalance is distinguishable
+    from zero at 95% (Student's t over the batch means); otherwise "~".
+    This replaces a fixed 5% band, which mislabelled structurally balanced
+    nodes in ~12% of seeds because 5% of n_tokens is comparable to the
+    sampling error itself (issue #19).
+
+    Counts are one Monte-Carlo sample, so each row carries `margin`, the
+    95% half-width on tokens_received from a batch-means estimate (tokens
+    are i.i.d., so Var(total) = B * Var(batch totals)), and `rank`, in
+    which a row shares the rank above it when their intervals overlap —
+    ties chain down the list, matching how the column is read. A
+    deterministic count has margin 0.
+
+    Nodes never reached are omitted. Rows sort by tokens_received
+    descending, ties in isa.elements order. Parallel edges deduplicate
+    last-wins (the _axis_sums convention); self-loops and dangling refs are
+    skipped; only "-" flips a token.
 
     Vectorised: one rng draw per STEP over the live tokens, not per token,
     so 5000 tokens x 30 steps is 30 numpy ops. Identical (isa, source,
@@ -535,7 +552,7 @@ def token_diffusion(
     the empty shape; never raises. Pure apart from the seeded RNG.
     """
     empty = {"rows": [], "source": source, "n_tokens": n_tokens,
-             "n_steps": n_steps, "n_reached": 0}
+             "n_steps": n_steps, "n_reached": 0, "n_batches": 0}
     order = {el.id: i for i, el in enumerate(isa.elements)}
     if source not in order or n_tokens <= 0 or n_steps <= 0:
         return empty
@@ -562,11 +579,17 @@ def token_diffusion(
     if outdeg[order[source]] == 0:
         return empty
 
+    # Batch means: tokens are i.i.d., so B independent batches give an
+    # honest standard error with no distributional assumption and
+    # O(B x elements) memory. The RNG draw order is unchanged.
+    n_batches = min(_DIFFUSION_BATCHES, n_tokens)
+    batch_of = (np.arange(n_tokens) * n_batches) // n_tokens
+
     rng = np.random.default_rng(seed)
     pos = np.full(n_tokens, order[source], dtype=np.int64)
     sign = np.ones(n_tokens, dtype=np.int8)
-    pos_count = np.zeros(n, dtype=np.int64)
-    neg_count = np.zeros(n, dtype=np.int64)
+    arrivals = np.zeros((n_batches, n), dtype=np.int64)
+    signed = np.zeros((n_batches, n), dtype=np.int64)
     first = np.full(n, -1, dtype=np.int64)
 
     for step in range(1, n_steps + 1):
@@ -578,27 +601,48 @@ def token_diffusion(
         pos[live] = indices[slot]
         sign[live] = sign[live] * np.where(flips[slot], -1, 1).astype(np.int8)
         landed, landed_sign = pos[live], sign[live]
-        np.add.at(pos_count, landed[landed_sign > 0], 1)
-        np.add.at(neg_count, landed[landed_sign < 0], 1)
+        np.add.at(arrivals, (batch_of[live], landed), 1)
+        np.add.at(signed, (batch_of[live], landed), landed_sign.astype(np.int64))
         arrived = np.unique(landed)
         first[arrived[first[arrived] < 0]] = step
+
+    if n_batches > 1:
+        from scipy import stats  # lazy: scipy is a hard dep but a heavy import
+
+        crit = float(stats.t.ppf(0.975, n_batches - 1))
+        se_total = np.sqrt(n_batches * arrivals.var(axis=0, ddof=1))
+        se_net = np.sqrt(n_batches * signed.var(axis=0, ddof=1))
+    else:
+        crit = 0.0
+        se_total = np.zeros(n)
+        se_net = np.zeros(n)
+    total = arrivals.sum(axis=0)
+    net = signed.sum(axis=0)
 
     rows: list[dict] = []
     src_index = order[source]
     for el in isa.elements:
         i = order[el.id]
-        if i == src_index:
+        if i == src_index or total[i] == 0:
             continue
-        pos_i, neg_i = int(pos_count[i]), int(neg_count[i])
-        total = pos_i + neg_i
-        if total == 0:
-            continue
-        if abs(pos_i - neg_i) / total <= 0.05:
-            net = "~"
+        if net[i] == 0 or abs(net[i]) <= crit * se_net[i]:
+            net_sign = "~"
         else:
-            net = "+" if pos_i > neg_i else "-"
-        rows.append({"id": el.id, "label": el.label, "tokens_received": total,
-                     "net_sign": net, "first_arrival_step": int(first[i])})
+            net_sign = "+" if net[i] > 0 else "-"
+        rows.append({"id": el.id, "label": el.label,
+                     "tokens_received": int(total[i]),
+                     "margin": int(round(crit * se_total[i])),
+                     "net_sign": net_sign,
+                     "first_arrival_step": int(first[i])})
     rows.sort(key=lambda r: -r["tokens_received"])
+    for idx, row in enumerate(rows):
+        if idx == 0:
+            row["rank"] = 1
+            continue
+        prev = rows[idx - 1]
+        overlaps = (row["tokens_received"] + row["margin"]
+                    >= prev["tokens_received"] - prev["margin"])
+        row["rank"] = prev["rank"] if overlaps else idx + 1
     return {"rows": rows, "source": source, "n_tokens": n_tokens,
-            "n_steps": n_steps, "n_reached": len(rows)}
+            "n_steps": n_steps, "n_reached": len(rows),
+            "n_batches": n_batches}
