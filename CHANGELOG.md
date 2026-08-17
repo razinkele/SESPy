@@ -3,6 +3,12 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- Intervention simulation now reports its own sampling error (#19): each
+  element carries a 95% margin (`1501 ±32`) and a rank that statistically
+  tied elements share, so a near-tie is no longer displayed as a firm
+  ranking, and a net sign of `~` now means "within sampling error" rather
+  than "inside an arbitrary 5% band" — the old rule mislabelled balanced
+  elements in about 12% of runs.
 - New "Intervention simulation" block on the Intervention card (#17): seed
   tokens at any element and watch them diffuse along the causal links —
   negative links flip a token's sign — giving a ranked reach, net sign and
