@@ -72,6 +72,12 @@ async def main():
             f"expected summary, got: {diff_text!r}"
         assert "Anchor damage" in diff_text and "2000" in diff_text, \
             f"expected top row, got: {diff_text!r}"
+        # Sampling error is now visible: GB01 and A001 differ by 2 arrivals
+        # with a +/-32 margin, so they must share a rank rather than being
+        # ranked 3 and 4 (issue #19).
+        assert "±32" in diff_text, f"expected a 95% margin column, got: {diff_text!r}"
+        assert "1501 ±32" in diff_text and "1499 ±32" in diff_text, \
+            f"expected margins on the near-tied pair, got: {diff_text!r}"
         # The bar chart must render as an <img> once results exist.
         chart_ok = await page.evaluate(
             "() => { const el = document.getElementById('intervention-diffusion_chart');"

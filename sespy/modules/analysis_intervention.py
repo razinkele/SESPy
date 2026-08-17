@@ -339,13 +339,14 @@ def analysis_intervention_server(
         if not r["rows"]:
             return ui.p(t("diffusion.none"), class_="text-muted")
         header = ui.tags.tr(
-            ui.tags.th(""), ui.tags.th("arrivals"),
+            ui.tags.th("rank"), ui.tags.th(""), ui.tags.th("arrivals"),
             ui.tags.th("net sign"), ui.tags.th("first step"),
         )
         body = [
             ui.tags.tr(
+                ui.tags.td(str(row["rank"])),
                 ui.tags.td(f"{row['id']} · {row['label']}"),
-                ui.tags.td(str(row["tokens_received"])),
+                ui.tags.td(f"{row['tokens_received']} ±{row['margin']}"),
                 ui.tags.td(ui.tags.strong(row["net_sign"])),
                 ui.tags.td(str(row["first_arrival_step"])),
             )
