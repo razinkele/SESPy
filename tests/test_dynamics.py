@@ -635,6 +635,34 @@ def test_token_diffusion_ties_share_a_rank():
     assert by_id["P001"]["margin"] == 0
 
 
+def test_assign_ranks_does_not_chain_overlap_transitively():
+    # Overlap is not transitive: A can overlap B and B overlap C while A and
+    # C are cleanly separated. Comparing each row only against its immediate
+    # predecessor merged them anyway, so a long gently-decreasing list
+    # collapsed to a single rank -- the ranking degraded to noise exactly
+    # where it mattered most (issue #21).
+    #
+    # 100 +/-5 -> [95, 105]   leader
+    #  92 +/-5 -> [87,  97]   overlaps the leader (97 >= 95): shares rank 1
+    #  84 +/-5 -> [79,  89]   overlaps 92 but NOT the leader (89 < 95): rank 3
+    rows = [{"tokens_received": v, "margin": 5} for v in (100, 92, 84)]
+    dynamics._assign_ranks(rows, quantified=True)
+    assert [r["rank"] for r in rows] == [1, 1, 3]
+
+
+def test_assign_ranks_unquantified_claims_no_distinct_rank():
+    # A single batch has no spread to estimate; every row must stay rank 1.
+    rows = [{"tokens_received": v, "margin": 0} for v in (9, 5, 1)]
+    dynamics._assign_ranks(rows, quantified=False)
+    assert [r["rank"] for r in rows] == [1, 1, 1]
+
+
+def test_assign_ranks_separates_cleanly_disjoint_rows():
+    rows = [{"tokens_received": v, "margin": 1} for v in (100, 50, 10)]
+    dynamics._assign_ranks(rows, quantified=True)
+    assert [r["rank"] for r in rows] == [1, 2, 3]
+
+
 def test_token_diffusion_batches_adapt_to_small_token_counts():
     r = dynamics.token_diffusion(_chain_isa(), "A", n_steps=3, n_tokens=5,
                                  seed=0)

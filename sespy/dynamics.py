@@ -511,6 +511,29 @@ def state_shift_monte_carlo(
 _DIFFUSION_BATCHES = 20
 
 
+def _assign_ranks(rows: list[dict], quantified: bool) -> None:
+    """Assign `rank` in place over rows already sorted by tokens_received desc.
+
+    A row shares its group's rank while its interval overlaps the group
+    LEADER's. Comparing against the immediate predecessor instead would
+    chain overlap transitively and merge cleanly separated groups (#21).
+    """
+    leader = None
+    for idx, row in enumerate(rows):
+        if leader is None:
+            row["rank"] = 1
+            leader = row
+            continue
+        overlaps = not quantified or (
+            row["tokens_received"] + row["margin"]
+            >= leader["tokens_received"] - leader["margin"])
+        if overlaps:
+            row["rank"] = leader["rank"]
+        else:
+            row["rank"] = idx + 1
+            leader = row
+
+
 def token_diffusion(
     isa: IsaData, source: str, *,
     n_steps: int = 10, n_tokens: int = 1000, seed: int | None = None,
@@ -536,9 +559,12 @@ def token_diffusion(
     Counts are one Monte-Carlo sample, so each row carries `margin`, the
     95% half-width on tokens_received from a batch-means estimate (tokens
     are i.i.d., so Var(total) = B * Var(batch totals)), and `rank`, in
-    which a row shares the rank above it when their intervals overlap —
-    ties chain down the list, matching how the column is read. A
-    deterministic count has margin 0.
+    which a row shares a group's rank while its interval overlaps that of
+    the group LEADER — the highest-counted member. Overlap is deliberately
+    not chained from row to row: it is not transitive, so comparing each
+    row only with its predecessor merged groups that are cleanly separated
+    end to end, collapsing a gently-decreasing list toward a single rank
+    (issue #21). A deterministic count has margin 0.
 
     With only one batch (n_tokens == 1) there is no spread to estimate, so
     every net_sign is "~" and every rank is 1 rather than claiming certainty
@@ -643,15 +669,7 @@ def token_diffusion(
                      "net_sign": net_sign,
                      "first_arrival_step": int(first[i])})
     rows.sort(key=lambda r: -r["tokens_received"])
-    for idx, row in enumerate(rows):
-        if idx == 0:
-            row["rank"] = 1
-            continue
-        prev = rows[idx - 1]
-        overlaps = not quantified or (
-            row["tokens_received"] + row["margin"]
-            >= prev["tokens_received"] - prev["margin"])
-        row["rank"] = prev["rank"] if overlaps else idx + 1
+    _assign_ranks(rows, quantified)
     return {"rows": rows, "source": source, "n_tokens": n_tokens,
             "n_steps": n_steps, "n_reached": len(rows),
             "n_batches": n_batches}

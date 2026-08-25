@@ -3,6 +3,12 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- Intervention-simulation ranks no longer chain ties down the list (#21).
+  A row now shares a rank while it overlaps the group *leader* rather than
+  merely its predecessor; because interval overlap is not transitive, the
+  old rule merged elements that were cleanly separated end to end and could
+  collapse a gently-decreasing list toward a single rank. Ranks on the
+  sample model are unchanged.
 - The intervention-simulation bar chart now draws the 95% margin as error
   bars (#20), so the chart no longer implies a precision the table already
   disclaims. Deterministic and single-batch runs carry no margin and draw
