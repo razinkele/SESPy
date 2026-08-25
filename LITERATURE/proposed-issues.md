@@ -105,3 +105,50 @@ module. Draft retained here only for provenance; no longer an open item.
 **Proposal.** Add a `social_ecological_fit(isa_data)` function operating on the DAPSI(W)R(M) node typing (social vs. ecological partition) and report mismatch/alignment scores. Expose as a new metric in the Network Metrics module.
 
 **Effort:** moderate. **Labels:** enhancement, analysis, network.
+
+---
+
+## [High] Loop dominance over time in `sespy/network.py`
+
+**Source papers:** Nguyen, Dinh & Tran, *Scaling Regenerative Supply Chains in Agriculture*, Systems Research and Behavioral Science (2026). https://doi.org/10.1002/sres.70145 ; Imtihan, Edinov & Suhaemi, *Analysis of 5R Waste Management on Green Economy using Causal Loop Diagram Model in West Sumatera*, Indonesian J. Urban & Environmental Technology 9(2) (2026). https://doi.org/10.25105/urbanenvirotech.v9i2.22457
+**Alert week:** 2026-08-25
+
+**Motivation.** Nguyen et al. build a CLD with five reinforcing loops (R1–R5) and one balancing loop (B1), and their central result is not the loop inventory but the *shift in loop dominance*: B1 dominates the early transition phase, creating a temporal trap, before reinforcing loops take over. Imtihan et al. likewise report a balancing loop (low public awareness) acting as the operative barrier. SESPy's `find_loops()` returns loops with reinforcing/balancing polarity as a flat, time-invariant list. It cannot answer "which loop is governing behaviour at step t?", even though the linear-matrix iteration and Behaviour-Over-Time machinery needed to compute this already exist.
+
+**Proposal.** Add `loop_dominance(g, timesteps, weights=None)` to `sespy/network.py`:
+- For each loop returned by `find_loops()`, compute loop gain as the product of signed edge weights around the cycle.
+- Re-evaluate loop gain at each timestep of the existing linear-matrix iteration (using the current node-state-scaled edge contributions).
+- Return a DataFrame indexed by (timestep × loop_id) with `gain`, `polarity`, `dominance_rank`.
+- Expose in the Loop Analysis module as an optional overlay annotating the Behaviour-Over-Time plot with the dominant loop per phase.
+
+**Acceptance criteria.**
+- Function returns per-timestep dominance ranking for a test network with a known B→R dominance shift.
+- Reuses existing loop detection and simulation code; no new dependency.
+- Off by default; degrades gracefully when no simulation has been run.
+
+**Related metric — ALC.** *Adjusted Loop Centrality* (Environmental Science & Policy 167:103996, 2026, https://doi.org/10.1016/j.envsci.2025.103996) weights a node by the loops it participates in — loop strength, and whether the node initiates or reinforces — instead of scoring nodes independently as the current `z(betweenness)+z(eigenvector)+z(PageRank)` composite does. It is the node-side view of the same blind spot this issue addresses from the loop side, and it needs the same inputs (the `find_loops()` set plus per-node loop membership and a gain measure). Tracked here deliberately rather than as a second issue: if `loop_dominance()` lands, emitting an ALC column alongside the per-timestep ranking is nearly free. Surfaced by the scheduled 2026-08-25 alert run, which had deferred it pending #20–21.
+
+**Effort:** Moderate. **Labels:** enhancement, analysis, network, loops.
+
+---
+
+## [High] Leverage-point depth classification alongside the leverage composite
+
+**Source papers:** Geekiyanage, Fernando & Teixeira Fernando, *Revealing leverage points of anticipatory action for fisheries through a systems thinking lens in developing island states*, Climate Risk Management 53:100843 (2026). https://doi.org/10.1016/j.crm.2026.100843 ; Brons, Mathijs & Kiel, *Leveraging change: a soft systems approach to transforming the EU food system*, Sustainability Science (2026). https://doi.org/10.1007/s11625-026-01872-2
+**Alert week:** 2026-08-25
+
+**Motivation.** Both papers identify leverage points by *intervention depth* (parameter → feedback structure → rules → goals/paradigm), not by structural prominence. SESPy's leverage composite `z(betweenness)+z(eigenvector)+z(PageRank)` says a node is well-positioned but not how deep an intervention on it would reach, so two nodes with identical scores can imply very different policy asks. Note: the Geekiyanage abstract was not returned by the literature API — this draft is motivated by the paper's stated framing, and the depth scheme should be checked against the full text before implementation.
+
+**Proposal.** Extend the leverage output with a categorical `leverage_depth` column derived from (a) the node's DAPSI(W)R(M) type and (b) whether it participates in a detected feedback loop:
+- Pressure / Marine Process and Function → *parameter*
+- Activity inside a loop → *feedback structure*
+- Measure / response node → *rules*
+- Driver → *goals / paradigm*
+Report depth next to the z-score composite in the Leverage module and allow sorting by it.
+
+**Acceptance criteria.**
+- `leverage_scores()` output gains a `leverage_depth` column with the four classes above.
+- Depth assignment documented and configurable (mapping table, not hard-coded).
+- Existing composite ranking unchanged; depth is additive.
+
+**Effort:** Moderate. **Labels:** enhancement, analysis, leverage, decision-support.
