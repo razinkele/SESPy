@@ -511,12 +511,29 @@ def state_shift_monte_carlo(
 _DIFFUSION_BATCHES = 20
 
 
-def _assign_ranks(rows: list[dict], quantified: bool) -> None:
+def _assign_ranks(rows: list[dict], quantified: bool,
+                  crit: float, n_batches: int) -> None:
     """Assign `rank` in place over rows already sorted by tokens_received desc.
 
-    A row shares its group's rank while its interval overlaps the group
-    LEADER's. Comparing against the immediate predecessor instead would
-    chain overlap transitively and merge cleanly separated groups (#21).
+    A row shares its group's rank until it separates from the group LEADER.
+    Two things matter here, and they are independent:
+
+    * Grouping is against the LEADER, never the immediate predecessor.
+      Separation is not transitive, so chaining it merged groups that are
+      cleanly apart end to end, collapsing a gently-decreasing list toward
+      a single rank (#21).
+    * Separation is a PAIRED test on the per-batch difference, not a
+      comparison of the two display intervals. Both elements are fed by the
+      same token draws, so their batch totals are correlated and the paired
+      difference carries the correct variance where two independent margins
+      do not: competing sinks are negatively correlated (the honest verdict
+      is MORE ties than the intervals suggest), while elements on a shared
+      upstream path are positively correlated (fewer ties). Comparing whether
+      two 95% intervals overlap is a different and weaker question.
+
+    Var(sum of differences) = B * Var(per-batch difference), the same
+    batch-means structure the `margin` column uses. Zero variance falls out
+    correctly: identical deterministic counts tie, unequal ones separate.
     """
     leader = None
     for idx, row in enumerate(rows):
@@ -524,10 +541,12 @@ def _assign_ranks(rows: list[dict], quantified: bool) -> None:
             row["rank"] = 1
             leader = row
             continue
-        overlaps = not quantified or (
-            row["tokens_received"] + row["margin"]
-            >= leader["tokens_received"] - leader["margin"])
-        if overlaps:
+        if not quantified:
+            row["rank"] = leader["rank"]
+            continue
+        d = row["_batches"] - leader["_batches"]
+        se_diff = float(np.sqrt(n_batches * d.var(ddof=1)))
+        if abs(float(d.sum())) <= crit * se_diff:
             row["rank"] = leader["rank"]
         else:
             row["rank"] = idx + 1
@@ -559,12 +578,16 @@ def token_diffusion(
     Counts are one Monte-Carlo sample, so each row carries `margin`, the
     95% half-width on tokens_received from a batch-means estimate (tokens
     are i.i.d., so Var(total) = B * Var(batch totals)), and `rank`, in
-    which a row shares a group's rank while its interval overlaps that of
-    the group LEADER — the highest-counted member. Overlap is deliberately
-    not chained from row to row: it is not transitive, so comparing each
+    which a row shares a group's rank until it separates from the group
+    LEADER — the highest-counted member. `margin` describes each element's
+    own total and is what the table displays; grouping does NOT compare the
+    two margins, because both elements are fed by the same token draws and
+    a paired test on their per-batch difference carries the right variance
+    where two independent intervals do not (issue #21). Separation is also
+    never chained from row to row: it is not transitive, so comparing each
     row only with its predecessor merged groups that are cleanly separated
-    end to end, collapsing a gently-decreasing list toward a single rank
-    (issue #21). A deterministic count has margin 0.
+    end to end, collapsing a gently-decreasing list toward a single rank.
+    A deterministic count has margin 0.
 
     With only one batch (n_tokens == 1) there is no spread to estimate, so
     every net_sign is "~" and every rank is 1 rather than claiming certainty
@@ -667,9 +690,16 @@ def token_diffusion(
                      "tokens_received": int(total[i]),
                      "margin": int(round(crit * se_total[i])),
                      "net_sign": net_sign,
-                     "first_arrival_step": int(first[i])})
+                     "first_arrival_step": int(first[i]),
+                     # Transient: the element's own per-batch arrivals, used
+                     # for the paired rank comparison and popped before
+                     # return. Carried ON the row so the sort below cannot
+                     # silently desync it from its element.
+                     "_batches": arrivals[:, i]})
     rows.sort(key=lambda r: -r["tokens_received"])
-    _assign_ranks(rows, quantified)
+    _assign_ranks(rows, quantified, crit, n_batches)
+    for row in rows:
+        row.pop("_batches", None)
     return {"rows": rows, "source": source, "n_tokens": n_tokens,
             "n_steps": n_steps, "n_reached": len(rows),
             "n_batches": n_batches}

@@ -635,32 +635,80 @@ def test_token_diffusion_ties_share_a_rank():
     assert by_id["P001"]["margin"] == 0
 
 
-def test_assign_ranks_does_not_chain_overlap_transitively():
-    # Overlap is not transitive: A can overlap B and B overlap C while A and
-    # C are cleanly separated. Comparing each row only against its immediate
-    # predecessor merged them anyway, so a long gently-decreasing list
-    # collapsed to a single rank -- the ranking degraded to noise exactly
-    # where it mattered most (issue #21).
+def _rows(*batch_vectors):
+    """Build rank-rule input rows from per-batch arrival vectors."""
+    import numpy as _np
+
+    rows = [{"tokens_received": int(sum(v)), "margin": 0,
+             "_batches": _np.array(v, dtype=float)} for v in batch_vectors]
+    rows.sort(key=lambda r: -r["tokens_received"])
+    return rows
+
+
+_CRIT4 = 3.182  # t(0.975, df=3) for the 4-batch fixtures below
+
+
+def test_assign_ranks_does_not_chain_separation_transitively():
+    # Separation is not transitive: A can tie B and B tie C while A and C
+    # are cleanly apart. Comparing each row only with its immediate
+    # predecessor chained the tie down the list, so a gently-decreasing
+    # profile collapsed toward a single rank (issue #21).
     #
-    # 100 +/-5 -> [95, 105]   leader
-    #  92 +/-5 -> [87,  97]   overlaps the leader (97 >= 95): shares rank 1
-    #  84 +/-5 -> [79,  89]   overlaps 92 but NOT the leader (89 < 95): rank 3
-    rows = [{"tokens_received": v, "margin": 5} for v in (100, 92, 84)]
-    dynamics._assign_ranks(rows, quantified=True)
+    # Totals 400 / 368 / 336. Each adjacent difference averages 8 but swings
+    # between 2 and 14, so neither pair separates. The two swings are
+    # anticorrelated, so they cancel: the leader-to-third difference is a
+    # rock-steady 16 every batch and separates decisively. Chaining would
+    # return 1,1,1 here; comparing against the leader returns 1,1,3.
+    rows = _rows([100, 100, 100, 100], [98, 86, 98, 86], [84, 84, 84, 84])
+    dynamics._assign_ranks(rows, True, _CRIT4, 4)
     assert [r["rank"] for r in rows] == [1, 1, 3]
 
 
 def test_assign_ranks_unquantified_claims_no_distinct_rank():
     # A single batch has no spread to estimate; every row must stay rank 1.
-    rows = [{"tokens_received": v, "margin": 0} for v in (9, 5, 1)]
-    dynamics._assign_ranks(rows, quantified=False)
+    rows = _rows([9], [5], [1])
+    dynamics._assign_ranks(rows, False, 0.0, 1)
     assert [r["rank"] for r in rows] == [1, 1, 1]
 
 
 def test_assign_ranks_separates_cleanly_disjoint_rows():
-    rows = [{"tokens_received": v, "margin": 1} for v in (100, 50, 10)]
-    dynamics._assign_ranks(rows, quantified=True)
+    rows = _rows([100, 100, 100, 100], [50, 50, 50, 50], [10, 10, 10, 10])
+    dynamics._assign_ranks(rows, True, _CRIT4, 4)
     assert [r["rank"] for r in rows] == [1, 2, 3]
+
+
+def test_assign_ranks_identical_deterministic_counts_tie():
+    # Zero variance, zero difference: a tie, not a spurious separation.
+    rows = _rows([50, 50, 50, 50], [50, 50, 50, 50])
+    dynamics._assign_ranks(rows, True, _CRIT4, 4)
+    assert [r["rank"] for r in rows] == [1, 1]
+
+
+def test_assign_ranks_pairing_beats_independent_margins():
+    # The point of pairing. Both fixtures have the SAME totals and the same
+    # per-element spread, so any rule reading only the two display intervals
+    # must return the same answer for both. The paired difference does not,
+    # because the correlation between the columns differs.
+    #
+    # Positively correlated (elements share an upstream path): the batches
+    # move together, so the difference is rock steady at 20 -> separated.
+    together = _rows([100, 120, 80, 100], [80, 100, 60, 80])
+    dynamics._assign_ranks(together, True, _CRIT4, 4)
+    assert [r["rank"] for r in together] == [1, 2]
+
+    # Negatively correlated (competing sinks: a token reaching one did not
+    # reach the other). Same totals, same per-element variance, but the
+    # difference now swings wildly -> honestly a tie.
+    competing = _rows([100, 120, 80, 100], [80, 60, 100, 80])
+    dynamics._assign_ranks(competing, True, _CRIT4, 4)
+    assert [r["rank"] for r in competing] == [1, 1]
+
+    # Guard the premise: the two fixtures really are indistinguishable to a
+    # rule that only reads totals and per-element spread.
+    assert ([r["tokens_received"] for r in together]
+            == [r["tokens_received"] for r in competing])
+    assert ([round(float(r["_batches"].var(ddof=1)), 6) for r in together]
+            == [round(float(r["_batches"].var(ddof=1)), 6) for r in competing])
 
 
 def test_token_diffusion_batches_adapt_to_small_token_counts():
