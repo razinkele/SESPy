@@ -3,6 +3,10 @@
 All notable changes to SESPy.
 
 ## [Unreleased]
+- The intervention-simulation bar chart now draws the 95% margin as error
+  bars (#20), so the chart no longer implies a precision the table already
+  disclaims. Deterministic and single-batch runs carry no margin and draw
+  no caps.
 - Intervention simulation now reports its own sampling error (#19): each
   element carries a 95% margin (`1501 ±32`) and a rank that statistically
   tied elements share, so a near-tie is no longer displayed as a firm

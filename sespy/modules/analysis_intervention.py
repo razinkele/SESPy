@@ -373,10 +373,17 @@ def analysis_intervention_server(
         fig, ax = plt.subplots(figsize=(8, 2.6))
         if rows:
             colours = {"+": "#2e7d32", "-": "#c62828", "~": "#757575"}
+            # The table already carries the 95% margin; without it here the
+            # chart implies a precision the Monte-Carlo sample does not have
+            # (issue #20). A deterministic or single-batch run has margin 0
+            # throughout, where caps would be noise rather than information.
+            margins = [row["margin"] for row in rows]
             ax.bar(
                 range(len(rows)),
                 [row["tokens_received"] for row in rows],
                 color=[colours[row["net_sign"]] for row in rows],
+                yerr=margins if any(margins) else None,
+                capsize=3, ecolor="#333333",
             )
             ax.set_xticks(range(len(rows)))
             ax.set_xticklabels([row["label"] for row in rows],
