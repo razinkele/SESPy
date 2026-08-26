@@ -110,6 +110,8 @@ module. Draft retained here only for provenance; no longer an open item.
 
 ## [High] Loop dominance over time in `sespy/network.py`
 
+**Filed as [#22](https://github.com/razinkele/SESPy/issues/22) on 2026-08-26.** Covers ALC (see below) rather than filing it separately.
+
 **Source papers:** Nguyen, Dinh & Tran, *Scaling Regenerative Supply Chains in Agriculture*, Systems Research and Behavioral Science (2026). https://doi.org/10.1002/sres.70145 ; Imtihan, Edinov & Suhaemi, *Analysis of 5R Waste Management on Green Economy using Causal Loop Diagram Model in West Sumatera*, Indonesian J. Urban & Environmental Technology 9(2) (2026). https://doi.org/10.25105/urbanenvirotech.v9i2.22457
 **Alert week:** 2026-08-25
 
@@ -133,6 +135,8 @@ module. Draft retained here only for provenance; no longer an open item.
 ---
 
 ## [High] Leverage-point depth classification alongside the leverage composite
+
+**Filed as [#23](https://github.com/razinkele/SESPy/issues/23) on 2026-08-26**, carrying the unverified-source warning below.
 
 **Source papers:** Geekiyanage, Fernando & Teixeira Fernando, *Revealing leverage points of anticipatory action for fisheries through a systems thinking lens in developing island states*, Climate Risk Management 53:100843 (2026). https://doi.org/10.1016/j.crm.2026.100843 ; Brons, Mathijs & Kiel, *Leveraging change: a soft systems approach to transforming the EU food system*, Sustainability Science (2026). https://doi.org/10.1007/s11625-026-01872-2
 **Alert week:** 2026-08-25
