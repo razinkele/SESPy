@@ -1,6 +1,6 @@
 # MosaicSES Scenario Studio — Sidecar Load/Save + Drift Banner (Chunk 2) Design
 
-**Status:** Draft — Chunk 2 of the Scenario Studio deferred follow-ups (hardening ✓ → **sidecar load/save** → sign engine). Pending user review.
+**Status:** Reviewed 2026-08-27 against the code as it then stood — every load-bearing claim re-verified (see §14). Chunk 2 of the Scenario Studio deferred follow-ups (hardening ✓ → **sidecar load/save** → sign engine). Ready for an implementation plan; two decisions are flagged in §14.
 
 **Parent:** `2026-06-13-mosaicses-scenario-studio-design.md` (structural core) + `2026-06-14-mosaicses-scenario-studio-hardening-design.md` (Chunk 1, shipped `f7a2237`).
 
@@ -22,7 +22,7 @@ Out of scope (later): accumulating multiple authored scenarios into one file bef
 
 `save_scenario_set` writes to a path, but the browser download flow needs the JSON *bytes*. Mirror `MultiSES.to_json` / `MultiSES.save`:
 - Add `scenario_set_to_json(scenario_set: ScenarioSet) -> str` returning `json.dumps(asdict(scenario_set), indent=2, ensure_ascii=False)`.
-- Refactor `save_scenario_set` to `_atomic_write_bytes(path, scenario_set_to_json(scenario_set).encode("utf-8"))` — behaviour-preserving.
+- `save_scenario_set` already delegates to `_atomic_write_bytes`; the only change is lifting its `json.dumps(...)` line into `scenario_set_to_json` and calling that instead — behaviour-preserving, and smaller than a first reading of this section suggests.
 - Upload reuses the shipped `load_scenario_set(path)` directly (an uploaded file is a datapath). Reconstruction runs each `Intervention.__post_init__`, so a tampered/invalid uploaded scenario raises `ScenarioError` (incl. Chunk 1's `S004`) at load — caught by the UI boundary (§5).
 
 Re-export `scenario_set_to_json` from `multises/__init__.py` alongside the existing scenario API.
@@ -40,7 +40,7 @@ For drift detection to mean anything, an authored scenario must remember which b
 **File:** `multises_app/modules/scenario_view.py` (sidebar), mirroring `project_setup.py`.
 
 - **Sidebar additions:** `ui.download_button("download_scenarios", "Save (download .json)")` and `ui.input_file("upload_scenarios", "Open .scenarios.json", accept=[".json"], multiple=False)`.
-- **Download** (`@render.download(filename=lambda: f"…-{ts}.scenarios.json")`): build `ScenarioSet(metadata=ScenarioSetMetadata(name=<active name>), scenarios=[active_scenario])` from the current `active_scenario`; `yield scenario_set_to_json(ss).encode("utf-8")`. If `active_scenario` is None, yield an empty-set JSON (nothing authored yet). Timestamp passed in (no `datetime.now()` in pure code — use the module's existing `datetime` import as `project_setup` does).
+- **Download** (`@render.download(filename=lambda: f"…-{ts}.scenarios.json")`): build `ScenarioSet(metadata=ScenarioSetMetadata(name=<active scenario's name>), scenarios=[active_scenario])` from the current `active_scenario`. Note this deliberately borrows the scenario's name for the *set* — with a single-scenario download the distinction is cosmetic, but once multi-scenario sets are authored (explicitly out of scope here) the set needs its own name rather than inheriting a member's; `yield scenario_set_to_json(ss).encode("utf-8")`. If `active_scenario` is None, yield an empty-set JSON (nothing authored yet). Timestamp read in the render function, not in a pure helper: the `filename=` lambda may call `datetime.now()` directly, exactly as `project_setup.py:256` does. The rule is that pure/testable helpers take a timestamp as an argument — it does not forbid the renderer from reading the clock.
 - **Upload** (`@reactive.effect` on `input.upload_scenarios`): read `finfo[0]["datapath"]`, call `load_scenario_set(path)` inside a broad `try` (mirrors `project_setup._apply_open` — untrusted-file boundary: on any exception, `_log.exception` + `friendly_error` toast, leave state untouched). On success: `state.scenario_set.set(loaded)`; if `loaded.scenarios`, `state.active_scenario.set(loaded.scenarios[0])` and `state.dirty.set(True)`.
 
 ## 6. Component ④ — Scenario selector
@@ -75,7 +75,7 @@ Author → `_add` stamps `baseline_name` → `active_scenario`. **Save:** downlo
 ## 11. Testing
 
 - **Unit** (`test_scenario.py`): `scenario_set_to_json` round-trips through `load_scenario_set`; an uploaded set with a bad channel_type raises `ScenarioError` at load.
-- **Module** (`test_scenario_view_logic.py` or a small reactive test): the upload→activate selection logic and the drift predicate (a helper `_baseline_drift(active, current_name) -> str|None` extracted pure for testability).
+- **Module** (`test_scenario_view_logic.py` — the file exists; use it): the upload→activate selection logic and the drift predicate (a helper `_baseline_drift(active, current_name) -> str|None` extracted pure for testability).
 - **E2e** (`test_scenario_e2e.py`): the Save download button is present and the Open file input renders; (drift banner visibility is covered at the module/pure-helper level, since driving a file upload + project swap in Playwright is high-cost — note the carve-out).
 
 ## 12. Build order
@@ -88,3 +88,48 @@ Author → `_add` stamps `baseline_name` → `active_scenario`. **Save:** downlo
 - **Upload of a foreign/old scenario file:** handled by the untrusted-boundary except + per-intervention validation at load.
 - **Selector churn:** only render it for ≥2 scenarios; guard the effect against re-activating the already-active id.
 - **E2e cost of file flows:** covered by pure-helper/module tests for the logic; the e2e asserts only the controls render.
+
+---
+
+## 14. Review findings (2026-08-27)
+
+Re-verified against the code: `state.scenario_set` / `active_scenario` / `dirty`
+(`state.py:48-50`), `Intervention.__post_init__` validation incl. S004
+(`scenario.py:66-99`), `load_scenario_set` field round-trip (`scenario.py:169-189`),
+the `project_setup.py` download/upload pattern (`:107, :111, :256, :272, :283`),
+`friendly_error`, and the Chunk-1 `drift_banner`. Nothing had drifted; §§3, 5, 11
+were corrected for accuracy rather than design.
+
+### Decision A — `created_at` / `modified_at` (must resolve before building)
+
+`Scenario` declares both (`scenario.py:111-112`) and `load_scenario_set` round-trips
+them, but **nothing in the codebase ever writes either one** — they are always `""`.
+This chunk is where that starts to show: the fields ship inside every downloaded
+file, so today's design would emit scenario files with empty timestamps. §7's rename
+also does `replace(sc, name=…)` without touching `modified_at`, so a renamed scenario
+would misreport when it changed even if the field were populated.
+
+**Recommended (assumed unless overridden): stamp them.** Set `created_at` in `_add`
+when the first `Scenario` is constructed, and `modified_at` in `_add` and in the
+rename effect, using `datetime.now(timezone.utc).isoformat(timespec="seconds")` —
+the same call and format `project_setup.py:52` already uses for project metadata.
+Stamping is additive and reversible; the alternative (dropping the fields) is a
+schema change requiring a `SCENARIO_SCHEMA_VERSION` bump and a migration path for
+any file already written, which is strictly more invasive for a field that costs
+one line to populate.
+
+### Decision F — `state.dirty` is becoming overloaded (flagged, not solved here)
+
+`dirty` gates the "Discard unsaved changes?" prompt (`project_setup.py:307, 331`)
+and is cleared when the **project** is saved (`:267`). `_add` already sets it for
+scenario authoring, and §5 has upload set it too — so this chunk is consistent with
+shipped behaviour rather than introducing the problem.
+
+The problem it *does* make consequential: one flag now means both "the project has
+unsaved edits" and "scenario work is unpersisted". A user can save the project, watch
+the warning clear, and still lose an unsaved scenario. Before this chunk that could
+not happen, because scenarios could not be persisted at all.
+
+The clean fix is a separate `scenario_dirty` flag with its own prompt, which is its
+own change and explicitly **not** in scope here. Implementers should keep the current
+behaviour and not extend `dirty`'s meaning further.
