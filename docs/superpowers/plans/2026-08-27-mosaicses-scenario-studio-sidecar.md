@@ -387,7 +387,7 @@ In the `_add` effect, replace these two lines:
             state.active_scenario.set(add_intervention(base, iv))
 ```
 
-with:
+with (the existing `state.dirty.set(True)` line below stays as it is — do not add a second one):
 
 ```python
             # Record the baseline at creation so Task 6's drift check has
@@ -401,7 +401,6 @@ with:
             # Keep a loaded set in sync, or _pick_scenario resurrects the
             # pre-edit member and silently discards these interventions.
             state.scenario_set.set(_replace_in_set(state.scenario_set.get(), edited))
-            state.dirty.set(True)
 ```
 
 - [ ] **Step 6: Run the scenario tests**
