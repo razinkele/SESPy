@@ -45,7 +45,10 @@ def test_scenario_set_to_json_round_trips(tmp_path):
     from multises.scenario import (Intervention, Scenario, ScenarioSet,
                                    ScenarioSetMetadata, scenario_set_to_json,
                                    load_scenario_set)
-    iv = Intervention(id="i1", kind="remove_node", target={"element_id": "E1"})
+    # remove_node is in _NEEDS_COMPARTMENT (scenario.py:49), so omitting
+    # compartment_id raises S002 at construction - not a serialiser bug.
+    iv = Intervention(id="i1", kind="remove_node", compartment_id="c1",
+                      target={"element_id": "E1"})
     sc = Scenario(id="s1", name="Depolder", baseline_name="Curonian",
                   interventions=(iv,))
     ss = ScenarioSet(metadata=ScenarioSetMetadata(name="Depolder"), scenarios=[sc])
@@ -60,6 +63,7 @@ def test_scenario_set_to_json_round_trips(tmp_path):
     assert back.scenarios[0].name == "Depolder"
     assert back.scenarios[0].baseline_name == "Curonian"
     assert back.scenarios[0].interventions[0].target == {"element_id": "E1"}
+    assert back.scenarios[0].interventions[0].compartment_id == "c1"
 
 
 def test_scenario_set_to_json_is_indented_utf8():
@@ -303,11 +307,29 @@ def test_utc_now_is_second_precision_utc_iso():
     assert len(s) == len("2026-08-27T10:00:00+00:00")
     from datetime import datetime
     datetime.fromisoformat(s)   # parses
+
+
+def test_replace_in_set_substitutes_by_id_with_a_new_object():
+    from multises.scenario import Scenario, ScenarioSet, ScenarioSetMetadata
+    from multises_app.modules.scenario_view import _replace_in_set
+    a, b = Scenario(id="s1", name="A"), Scenario(id="s2", name="B")
+    ss = ScenarioSet(metadata=ScenarioSetMetadata(name="Set"), scenarios=[a, b])
+    out = _replace_in_set(ss, Scenario(id="s1", name="A renamed"))
+    assert out is not ss                      # identity must change to invalidate
+    assert [s.name for s in out.scenarios] == ["A renamed", "B"]
+    assert ss.scenarios[0].name == "A"        # input not mutated
+
+
+def test_replace_in_set_is_a_no_op_for_a_non_member():
+    from multises.scenario import Scenario, ScenarioSet, ScenarioSetMetadata
+    from multises_app.modules.scenario_view import _replace_in_set
+    ss = ScenarioSet(metadata=ScenarioSetMetadata(), scenarios=[])
+    assert _replace_in_set(ss, Scenario(id="s1", name="Fresh")) is ss
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_scenario_view_logic.py -q -k utc_now`
+Run: `micromamba run -n shiny python -m pytest tests/test_scenario_view_logic.py -q -k "utc_now or replace_in_set"`
 Expected: FAIL with `ImportError: cannot import name '_utc_now'`
 
 - [ ] **Step 3: Add the imports and the clock helper**
@@ -322,7 +344,7 @@ and extend the existing scenario import to include `stamp_scenario`:
 
 ```python
 from multises.scenario import (Intervention, Scenario, add_intervention, ScenarioError,
-                                ScenarioErrorCode, stamp_scenario)
+                                ScenarioErrorCode, stamp_scenario, ScenarioSet)
 ```
 
 Then add above `_baseline_drift`:
@@ -331,11 +353,29 @@ Then add above `_baseline_drift`:
 def _utc_now() -> str:
     """Second-precision UTC ISO timestamp, matching project_setup.py:52."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _replace_in_set(ss: ScenarioSet, sc: Scenario) -> ScenarioSet:
+    """Return `ss` with the member sharing `sc.id` replaced by `sc`.
+
+    Returns `ss` unchanged when the id is absent (a freshly authored scenario
+    belongs to no loaded set — state.py:118 seeds an empty one). Builds a NEW
+    ScenarioSet rather than mutating the list: reactive.Value.set()
+    short-circuits on identity, so re-setting the same object would never
+    invalidate the picker. Without this, edits and renames live only in
+    active_scenario — the selector label goes stale, and _pick_scenario
+    resurrects the pre-edit member, silently discarding them.
+    """
+    members = list(getattr(ss, "scenarios", None) or [])
+    if not any(s.id == sc.id for s in members):
+        return ss
+    return ScenarioSet(metadata=ss.metadata,
+                       scenarios=[sc if s.id == sc.id else s for s in members])
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_scenario_view_logic.py -q -k utc_now`
+Run: `micromamba run -n shiny python -m pytest tests/test_scenario_view_logic.py -q -k "utc_now or replace_in_set"`
 Expected: PASS
 
 - [ ] **Step 5: Wire creation stamping into `_add`**
@@ -356,8 +396,12 @@ with:
             base = sc or Scenario(
                 id="s1", name=input.scenario_name(),
                 baseline_name=state.active_multises.get().metadata.name)
-            state.active_scenario.set(
-                stamp_scenario(add_intervention(base, iv), _utc_now()))
+            edited = stamp_scenario(add_intervention(base, iv), _utc_now())
+            state.active_scenario.set(edited)
+            # Keep a loaded set in sync, or _pick_scenario resurrects the
+            # pre-edit member and silently discards these interventions.
+            state.scenario_set.set(_replace_in_set(state.scenario_set.get(), edited))
+            state.dirty.set(True)
 ```
 
 - [ ] **Step 6: Run the scenario tests**
@@ -454,15 +498,46 @@ Then add this effect inside `scenario_view_server`, directly after `_add`:
         if not _should_rename(sc, input.scenario_name()):
             return
         renamed = replace(sc, name=input.scenario_name().strip())
-        state.active_scenario.set(stamp_scenario(renamed, _utc_now()))
+        stamped = stamp_scenario(renamed, _utc_now())
+        state.active_scenario.set(stamped)
+        # Keep a loaded set in sync, or the picker label goes stale and
+        # _pick_scenario discards the rename.
+        state.scenario_set.set(_replace_in_set(state.scenario_set.get(), stamped))
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+**No retrigger loop.** `_add` and `_rename` are both `@reactive.event`-gated on inputs, which isolates their bodies, so reading and writing `scenario_set` here cannot re-fire them. The re-rendered `input_select` may re-emit `input.pick_scenario` with the same value; `_pick_scenario`'s `if active is not None and active.id == chosen: return` guard terminates that.
+
+- [ ] **Step 4: Retitle the input and move it off per-keystroke updates**
+
+`ui.input_text` defaults to `update_on="change"`, i.e. debounced keystroke
+updates. Left alone, every intermediate name ("D", "De", "Dep"...) re-sets
+`active_scenario`, invalidating `_comparison()` — a full `compare_scenario`
+materialise plus five analyses — and re-rendering five diff cards.
+`_should_rename` only suppresses *identical* names, so it does not help here.
+
+The label also needs correcting: Chunk 1's "New scenario name" was honest when
+the field only named a scenario yet to be created, but after this task it
+renames the *active* scenario.
+
+Change `multises_app/modules/scenario_view.py:54`:
+
+```python
+            ui.input_text("scenario_name", "Scenario name",
+                          value="New scenario", update_on="blur"),
+```
+
+Safe to rename the label: `"New scenario name"` appears nowhere else in the
+repo, `test_scenario_view_module.py` asserts on ids and the disclaimer, and
+`test_scenario_e2e.py` uses `#scenario-*` ids. If `update_on="blur"` turns out
+to interfere with the `ui.update_text` echo in Tasks 8 and 9, fall back to
+`update_on="change"` plus a debounce in the effect.
+
+- [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_scenario_view_logic.py -q`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add multises_app/modules/scenario_view.py tests/test_scenario_view_logic.py
@@ -562,13 +637,13 @@ Expected: FAIL with `ImportError: cannot import name '_active_scenario_set'`
 
 - [ ] **Step 3: Write the payload builder**
 
-Extend the scenario import in `scenario_view.py` to add the three names:
+Extend the scenario import in `scenario_view.py` to add three names (`ScenarioSet` was already added in Task 4). **`load_scenario_set` is unused in this task on purpose** — it is imported here so Task 8's upload effect has it. Do not strip it as an unused import: Task 8 calls it inside a broad `except Exception`, so the resulting `NameError` would be swallowed into a friendly toast and the Open button would silently never work.
 
 ```python
 from multises.scenario import (Intervention, Scenario, add_intervention, ScenarioError,
                                 ScenarioErrorCode, stamp_scenario, ScenarioSet,
                                 ScenarioSetMetadata, scenario_set_to_json,
-                                load_scenario_set)
+                                load_scenario_set)   # ScenarioSet added in Task 4
 ```
 
 Add beside `_baseline_drift`:
@@ -632,12 +707,12 @@ git commit -m "feat(scenario-view): save the active scenario as a .scenarios.jso
 ### Task 8: Open — upload a scenario set
 
 **Files:**
-- Modify: `multises_app/modules/scenario_view.py` (sidebar UI; new effect)
-- Test: `tests/test_scenario.py`
+- Modify: `multises_app/modules/scenario_view.py` (sidebar UI; `_first_scenario`; new effect)
+- Test: `tests/test_scenario.py` (load boundary) + `tests/test_scenario_view_logic.py` (`_first_scenario`)
 
 **Interfaces:**
 - Consumes: `load_scenario_set` (already in the library; imported in Task 7)
-- Produces: upload control id `#scenario-upload_scenarios`. Populates `state.scenario_set`, which Task 9 reads.
+- Produces: `_first_scenario(scenarios: list) -> Scenario | None` — the upload's activation policy. Upload control id `#scenario-upload_scenarios`. Populates `state.scenario_set`, which Task 9 reads.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -668,12 +743,43 @@ def test_load_scenario_set_rejects_a_bad_channel_type(tmp_path):
         load_scenario_set(path)
 ```
 
+And append to `tests/test_scenario_view_logic.py` — spec §11 names the
+upload-activate policy as a module-level test, so it must not stay untested
+inside a Shiny effect:
+
+```python
+def test_first_scenario_none_on_empty_set():
+    from multises_app.modules.scenario_view import _first_scenario
+    assert _first_scenario([]) is None
+
+
+def test_first_scenario_activates_the_first_member():
+    from multises.scenario import Scenario
+    from multises_app.modules.scenario_view import _first_scenario
+    a = Scenario(id="s1", name="A")
+    assert _first_scenario([a, Scenario(id="s2", name="B")]) is a
+```
+
 - [ ] **Step 2: Run the test**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_scenario.py -q -k rejects_a_bad_channel_type`
 Expected: PASS immediately — `Intervention.__post_init__` already raises S004. If it FAILS, stop: the untrusted-file boundary in Step 4 is unsound and the spec's §10 assumption is wrong.
 
-- [ ] **Step 3: Add the sidebar control**
+- [ ] **Step 3: Add the activation-policy helper**
+
+Beside `_baseline_drift`:
+
+```python
+def _first_scenario(scenarios: list):
+    """The scenario an upload activates: the first member, or None for an
+    empty set. Kept separate from Task 9's _scenario_by_id because the
+    policies genuinely differ - upload falls back to the first member, the
+    picker must not fall back at all.
+    """
+    return scenarios[0] if scenarios else None
+```
+
+- [ ] **Step 4: Add the sidebar control**
 
 Directly after the `download_scenarios` button added in Task 7:
 
@@ -682,7 +788,7 @@ Directly after the `download_scenarios` button added in Task 7:
                           accept=[".json"], multiple=False),
 ```
 
-- [ ] **Step 4: Add the upload effect**
+- [ ] **Step 5: Add the upload effect**
 
 Inside `scenario_view_server`, after `download_scenarios`:
 
@@ -706,22 +812,22 @@ Inside `scenario_view_server`, after `download_scenarios`:
                 duration=6, type="warning")
             return
         state.scenario_set.set(loaded)
-        if loaded.scenarios:
-            first = loaded.scenarios[0]
+        first = _first_scenario(list(getattr(loaded, "scenarios", None) or []))
+        if first is not None:
             state.active_scenario.set(first)
             ui.update_text("scenario_name", value=first.name)
             state.dirty.set(True)
 ```
 
-- [ ] **Step 5: Verify the module imports and the suite still passes**
+- [ ] **Step 6: Verify the module imports and the suite still passes**
 
 Run: `micromamba run -n shiny python -m pytest tests/test_scenario.py tests/test_scenario_view_logic.py tests/test_scenario_view_module.py -q`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add multises_app/modules/scenario_view.py tests/test_scenario.py
+git add multises_app/modules/scenario_view.py tests/test_scenario.py tests/test_scenario_view_logic.py
 git commit -m "feat(scenario-view): open a .scenarios.json sidecar"
 ```
 
@@ -735,7 +841,7 @@ git commit -m "feat(scenario-view): open a .scenarios.json sidecar"
 
 **Interfaces:**
 - Consumes: `state.scenario_set` (populated by Task 8)
-- Produces: selector id `#scenario-pick_scenario`, rendered only when the set holds 2+ scenarios.
+- Produces: `_picker_choices(scenarios: list) -> dict` and `_scenario_by_id(scenarios: list, chosen: str) -> Scenario | None`. Selector id `#scenario-pick_scenario`, rendered only when the set holds 2+ scenarios.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -755,11 +861,21 @@ def test_picker_choices_maps_id_to_name():
     out = _picker_choices([Scenario(id="s1", name="A"),
                            Scenario(id="s2", name="B")])
     assert out == {"s1": "A", "s2": "B"}
+
+
+def test_scenario_by_id_matches_id_not_name():
+    from multises.scenario import Scenario
+    from multises_app.modules.scenario_view import _scenario_by_id
+    # Names cross-wired to the OTHER scenario's id, so a name-matcher returns
+    # `a` where `b` is correct.
+    a, b = Scenario(id="s1", name="s2"), Scenario(id="s2", name="s1")
+    assert _scenario_by_id([a, b], "s2") is b
+    assert _scenario_by_id([a, b], "nope") is None
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_scenario_view_logic.py -q -k picker_choices`
+Run: `micromamba run -n shiny python -m pytest tests/test_scenario_view_logic.py -q -k "picker_choices or scenario_by_id"`
 Expected: FAIL with `ImportError: cannot import name '_picker_choices'`
 
 - [ ] **Step 3: Write the pure helper**
@@ -776,11 +892,22 @@ def _picker_choices(scenarios: list) -> dict:
     if len(scenarios) < 2:
         return {}
     return {s.id: s.name for s in scenarios}
+
+
+def _scenario_by_id(scenarios: list, chosen: str):
+    """The scenario whose id is `chosen`, or None. No fallback on purpose:
+    after an upload swaps the set, input.pick_scenario can still hold a stale
+    id, and activating an arbitrary member then is worse than doing nothing.
+    """
+    for s in scenarios:
+        if s.id == chosen:
+            return s
+    return None
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_scenario_view_logic.py -q -k picker_choices`
+Run: `micromamba run -n shiny python -m pytest tests/test_scenario_view_logic.py -q -k "picker_choices or scenario_by_id"`
 Expected: PASS
 
 - [ ] **Step 5: Add the selector slot to the sidebar**
@@ -818,11 +945,11 @@ Inside `scenario_view_server`, after `_open_scenarios`:
             active = state.active_scenario.get()
         if active is not None and active.id == chosen:
             return          # already active: no churn
-        for s in list(getattr(ss, "scenarios", None) or []):
-            if s.id == chosen:
-                state.active_scenario.set(s)
-                ui.update_text("scenario_name", value=s.name)
-                return
+        picked = _scenario_by_id(list(getattr(ss, "scenarios", None) or []), chosen)
+        if picked is None:
+            return          # stale id after a set swap: do nothing
+        state.active_scenario.set(picked)
+        ui.update_text("scenario_name", value=picked.name)
 ```
 
 - [ ] **Step 7: Run the scenario tests**
@@ -841,7 +968,7 @@ git commit -m "feat(scenario-view): scenario selector for multi-scenario loads"
 
 ### Task 10: E2e — the file controls render
 
-Per spec §11, the e2e asserts only that the controls exist. Driving a real file upload plus a project swap in Playwright is high-cost, and the logic it would exercise is already covered by the pure helpers in Tasks 3, 5, 7 and 9. **This is a declared coverage limit, not an oversight.**
+Per spec §11, the e2e asserts only that the controls exist. Driving a real file upload plus a project swap in Playwright is high-cost, and the logic it would exercise is already covered by the pure helpers in Tasks 3, 5, 7, 8 and 9 — `_baseline_drift` (drift), `_first_scenario` (upload→activate), `_scenario_by_id` (pick→activate), `_picker_choices` (when the selector appears) and `_replace_in_set` (edit write-back). **This is a declared coverage limit, not an oversight.**
 
 **Files:**
 - Modify: `tests/test_scenario_e2e.py`
@@ -889,7 +1016,7 @@ Expected: PASS (3 tests)
 - [ ] **Step 4: Run the FULL suite — the merge gate**
 
 Run: `micromamba run -n shiny python -m pytest tests/ -q`
-Expected: PASS, 490 tests (487 today + Task 10's e2e + no net change from unit additions; the exact number will differ — what matters is **0 failed**).
+Expected: PASS, ~512 tests (487 today + 24 new unit tests from Tasks 1-9 + Task 10's e2e). The exact number will differ if you split or merge cases — what matters is **0 failed**.
 
 Never gate on `-k "not e2e"`. A cross-panel regression reached `main` twice in this repo because a green subset felt like a green suite.
 
