@@ -60,6 +60,34 @@ def isa_to_numeric_matrix(isa: IsaData) -> tuple[np.ndarray, list[str]]:
     return M, node_ids
 
 
+def isa_to_dynamics_matrix(isa: IsaData) -> tuple[np.ndarray, list[str]]:
+    """Build the matrix used for state iteration (``x_{t+1} = A @ x_t``).
+
+    ``isa_to_numeric_matrix`` documents ``M[i, j]`` as the edge i->j
+    (row=source, col=target) — that orientation is what ``create_boolean_rules``
+    reads (input to node j = sum_i M[i, j] * x_i) and must not change.
+
+    But ``simulate_dynamics`` computes ``x_{t+1} = A @ x_t``, i.e.
+    ``x_{t+1}[i] = sum_j A[i, j] * x_t[j]`` — node i's next state depends on
+    column j. To make that sum run over i's IN-edges (the nodes that
+    influence i) rather than i's out-edges, ``A`` must be ``M`` transposed:
+    entry ``A[i, j]`` is the influence of j on i (row=target, col=source).
+
+    This function is exactly ``isa_to_numeric_matrix(isa)[0].T`` — it
+    delegates rather than duplicating the build loop.
+
+    Returns
+    -------
+    A
+        ``np.ndarray`` of shape ``(n, n)``, the transpose of
+        ``isa_to_numeric_matrix``'s matrix.
+    node_ids
+        Same ordered list of element ids as ``isa_to_numeric_matrix`` returns.
+    """
+    M, node_ids = isa_to_numeric_matrix(isa)
+    return M.T, node_ids
+
+
 # =============================================================================
 # Laplacian spectral analysis
 # =============================================================================

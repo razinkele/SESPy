@@ -114,7 +114,7 @@ def analysis_simulation_server(
         isa = project_data.get().isa_data
         if not isa.elements:
             return None
-        return dynamics.isa_to_numeric_matrix(isa)
+        return dynamics.isa_to_dynamics_matrix(isa)
 
     @reactive.effect
     @reactive.event(input.run_sim, ignore_init=True)
