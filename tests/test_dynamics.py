@@ -95,6 +95,72 @@ def test_isa_to_numeric_matrix_unknown_strength_falls_back_to_medium():
 
 
 # ============================================================
+# isa_to_dynamics_matrix
+# ============================================================
+
+def test_isa_to_dynamics_matrix_propagates_along_edge_direction():
+    """A -> B (+): seeding A only must move B, not A, at t=1.
+
+    This is the direction bug: simulate_dynamics computes
+    x_{t+1} = M @ x_t, which needs row=target/col=source to propagate
+    forward. isa_to_numeric_matrix is row=source/col=target, so the raw
+    matrix must be transposed before iteration. isa_to_dynamics_matrix is
+    that transpose.
+    """
+    isa = _isa(
+        [Element(id="A", label="A", type="D"), Element(id="B", label="B", type="P")],
+        [Connection(source="A", target="B", polarity="+", strength="medium")],
+    )
+    A, ids = dynamics.isa_to_dynamics_matrix(isa)
+    assert ids == ["A", "B"]
+    x0 = np.array([1.0, 0.0])
+    traj = dynamics.simulate_dynamics(A, n_iter=1, initial_state=x0)
+    assert traj[1, 1] != 0.0, "B (the target) must receive influence from A at t=1"
+    assert traj[1, 0] == 0.0, "A (the source) must not move from a one-way edge"
+
+
+def test_isa_to_dynamics_matrix_is_transpose_of_numeric_matrix():
+    """isa_to_dynamics_matrix is exactly isa_to_numeric_matrix's matrix, transposed."""
+    isa = _isa(
+        [Element(id="A", label="A", type="D"), Element(id="B", label="B", type="P")],
+        [
+            Connection(source="A", target="B", polarity="+", strength="medium"),
+            Connection(source="B", target="A", polarity="-", strength="strong"),
+        ],
+    )
+    M, ids_m = dynamics.isa_to_numeric_matrix(isa)
+    A, ids_a = dynamics.isa_to_dynamics_matrix(isa)
+    assert ids_a == ids_m
+    assert np.array_equal(A, M.T)
+
+
+def test_create_boolean_rules_reads_numeric_matrix_orientation_unchanged():
+    """Pin create_boolean_rules' current (correct) reading of
+    isa_to_numeric_matrix's row=source/col=target orientation, so a future
+    'consistency' refactor cannot flip it onto the dynamics-matrix transpose."""
+    isa = _isa(
+        [Element(id="A", label="A", type="D"), Element(id="B", label="B", type="P")],
+        [
+            Connection(source="A", target="B", polarity="+", strength="medium"),
+            Connection(source="B", target="A", polarity="-", strength="strong"),
+        ],
+    )
+    M, _ = dynamics.isa_to_numeric_matrix(isa)
+    rules = dynamics.create_boolean_rules(M)
+    assert len(rules) == 2
+
+    rule_a = rules[0]
+    assert rule_a["node_id"] == 0
+    assert rule_a["activators"] == []
+    assert rule_a["inhibitors"] == [(1, -3.0)]
+
+    rule_b = rules[1]
+    assert rule_b["node_id"] == 1
+    assert rule_b["activators"] == [(0, 2.0)]
+    assert rule_b["inhibitors"] == []
+
+
+# ============================================================
 # laplacian_eigenvalues / laplacian_stability
 # ============================================================
 
