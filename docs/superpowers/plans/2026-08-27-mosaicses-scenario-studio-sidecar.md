@@ -1039,3 +1039,25 @@ git commit -m "test(e2e): scenario file controls render"
 ## Explicitly out of scope
 
 Accumulating several authored scenarios into one file before download; rename/delete of saved scenarios; a separate `scenario_dirty` flag (spec §14 Decision F); and the Chunk 3 sign-propagation engine.
+
+---
+
+## Outcome (2026-08-29)
+
+**Shipped.** Merged to MosaicSES `main` as `6a9c158` (`--no-ff`, 11 commits, 6 files, +468/-12). Full suite **511 passed, 0 failed** on the merged result; baseline before the work was 487.
+
+Executed via subagent-driven development: a fresh implementer per task, an independent review after each, and a whole-branch review on the most capable tier. **Zero fix rounds** — every task review came back clean first time. The final whole-branch review returned 0 Critical, 0 Important and a merge-as-is verdict.
+
+### Follow-ups — all Minor, none blocking
+
+1. **Lossy multi-scenario save.** Open a 3-scenario file, edit, Save → a 1-scenario file; the other members are silently dropped. Spec-conformant (§5 prescribes `scenarios=[active_scenario]`, §2 says download saves the active scenario), so this is arguably a *spec* question rather than a bug. Bounded: the timestamped `filename=` means the browser writes a new file, so the original survives unless deliberately overwritten. Cheap fix — `state.scenario_set` is already kept current by `_replace_in_set`, so `_active_scenario_set` could return the whole set when the active scenario is a member (~3 lines + a test). **No per-task review could have caught this**: Task 7 built the download before Tasks 8-9 existed to load a multi-scenario set into it.
+2. **Rename/pick ordering race.** With 2+ scenarios loaded, typing a new name and then clicking the picker directly can deliver both in one flush; if `_pick_scenario` runs first, the pending rename lands on the newly-selected scenario. Benign under py-shiny's FIFO flush of invalidated contexts, but that is a convention, not a contract. Guard: have `_pick_scenario` stash the id it activated and have `_rename` skip when the active scenario changed identity in the same flush.
+3. **`created_at` backfill on rename.** Renaming a scenario loaded from a pre-Chunk-2 file stamps `created_at` with today. Defensible as "first known timestamp"; wants a docstring line so nobody reads it as authoritative provenance.
+4. **Empty upload is silent.** A valid file containing `"scenarios": []` produces no toast and no visible change. A one-line notification would be kinder.
+5. **Picker re-render churn.** `scenario_picker` reads `active_scenario` unisolated, so every intervention add and rename recreates the `<select>`. Cosmetic flicker only; the `active.id == chosen` guard absorbs any re-emit.
+6. **Helper migration.** `_replace_in_set`, `_scenario_by_id`, `_first_scenario` and `_active_scenario_set` are entirely Shiny-free and would sit naturally in `multises/scenario.py`. A migration, not a defect.
+
+### Spec §14 decisions as shipped
+
+- **Decision A (stamp timestamps): implemented.** `_add` and `_rename` are the only paths that construct or mutate a `Scenario`, and both route through `stamp_scenario`. No path produces an in-app scenario with empty timestamps.
+- **Decision F (`state.dirty` overload): confirmed not extended.** The branch adds exactly one new `dirty.set(True)` (the upload) and **zero** new clearers; `download_scenarios` deliberately does not clear it, which would have been the natural mistake. The spec-accepted consequence is live: saving the *project* clears a warning that is partly about unpersisted *scenario* work. A separate `scenario_dirty` flag remains the tracked follow-up.
