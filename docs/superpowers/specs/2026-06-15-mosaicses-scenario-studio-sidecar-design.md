@@ -8,7 +8,9 @@
 
 The Scenario Studio authors scenarios in-session but cannot persist them — close the tab and the work is gone. The library persistence shipped in the core (`save_scenario_set` / `load_scenario_set`), but no UI reaches it, the `drift_banner` only surfaces dangling-target warnings (Chunk 1), and `scenario_name` is one-shot. This chunk adds the in-app save/load file flow, finishes the live name edit, and makes the banner also flag *baseline drift* (a scenario loaded onto a different project than it was authored against).
 
-Scope decision (approved): **minimal save/load + a selector for multi-scenario loads** — not a full "scenario library" with accumulate/rename/delete (deferred). Download saves the *active* scenario; upload loads a set and activates it.
+Scope decision (approved): **minimal save/load + a selector for multi-scenario loads** — not a full "scenario library" with accumulate/rename/delete (deferred). Upload loads a set and activates its first member.
+
+**Amended 2026-08-29 (finding M1).** Download originally saved *only* the active scenario. Shipping the feature showed that to be lossy in the one case the selector exists for: open a 3-scenario file, edit, save, and the other two members are silently gone. Download now preserves the whole loaded set, substituting the active scenario's edited version for its stored one. A freshly authored scenario, which belongs to no loaded set, still downloads as a one-member set. This does not reopen the deferred "scenario library" scope — there is still no accumulate, rename or delete of *saved* scenarios; it only stops save from destroying what open just read.
 
 ## 2. Scope
 
@@ -40,7 +42,7 @@ For drift detection to mean anything, an authored scenario must remember which b
 **File:** `multises_app/modules/scenario_view.py` (sidebar), mirroring `project_setup.py`.
 
 - **Sidebar additions:** `ui.download_button("download_scenarios", "Save (download .json)")` and `ui.input_file("upload_scenarios", "Open .scenarios.json", accept=[".json"], multiple=False)`.
-- **Download** (`@render.download(filename=lambda: f"…-{ts}.scenarios.json")`): build `ScenarioSet(metadata=ScenarioSetMetadata(name=<active scenario's name>), scenarios=[active_scenario])` from the current `active_scenario`. Note this deliberately borrows the scenario's name for the *set* — with a single-scenario download the distinction is cosmetic, but once multi-scenario sets are authored (explicitly out of scope here) the set needs its own name rather than inheriting a member's; `yield scenario_set_to_json(ss).encode("utf-8")`. If `active_scenario` is None, yield an empty-set JSON (nothing authored yet). Timestamp read in the render function, not in a pure helper: the `filename=` lambda may call `datetime.now()` directly, exactly as `project_setup.py:256` does. The rule is that pure/testable helpers take a timestamp as an argument — it does not forbid the renderer from reading the clock.
+- **Download** (`@render.download(filename=lambda: f"…-{ts}.scenarios.json")`): build the payload with the pure helper `_active_scenario_set(active, ss)`, passing `state.scenario_set.get()` as `ss`. **When the active scenario is a member of `ss`, the payload is the WHOLE set** with the active member replaced by its current edited version, order preserved, keeping the set's own `metadata.name`. When it is not a member (a freshly authored scenario) or `ss` is absent, fall back to the one-member wrap named after the active scenario. The member substitution is exactly what `_replace_in_set` already does — and its returning the input object unchanged is the "not a member" signal. This works because `state.scenario_set` is kept current: `_add` and `_rename` both write edits back through `_replace_in_set`, so no new syncing is needed. The borrowed set-name in the fallback stays cosmetic, since a one-member set has no other name to carry; `yield scenario_set_to_json(ss).encode("utf-8")`. If `active_scenario` is None, yield an empty-set JSON (nothing authored yet). Timestamp read in the render function, not in a pure helper: the `filename=` lambda may call `datetime.now()` directly, exactly as `project_setup.py:256` does. The rule is that pure/testable helpers take a timestamp as an argument — it does not forbid the renderer from reading the clock.
 - **Upload** (`@reactive.effect` on `input.upload_scenarios`): read `finfo[0]["datapath"]`, call `load_scenario_set(path)` inside a broad `try` (mirrors `project_setup._apply_open` — untrusted-file boundary: on any exception, `_log.exception` + `friendly_error` toast, leave state untouched). On success: `state.scenario_set.set(loaded)`; if `loaded.scenarios`, `state.active_scenario.set(loaded.scenarios[0])` and `state.dirty.set(True)`.
 
 ## 6. Component ④ — Scenario selector
@@ -92,6 +94,8 @@ Author → `_add` stamps `baseline_name` → `active_scenario`. **Save:** downlo
 ---
 
 ## 14. Review findings (2026-08-27)
+
+**Superseded in part on 2026-08-29:** §2 and §5 were amended after implementation — download now preserves the whole loaded set (finding M1 from the final whole-branch review). See those sections. The two decisions below stand as recorded.
 
 Re-verified against the code: `state.scenario_set` / `active_scenario` / `dirty`
 (`state.py:48-50`), `Intervention.__post_init__` validation incl. S004
