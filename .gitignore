@@ -51,3 +51,11 @@ deploy/config.env
 
 # Shiny Server reload trigger (runtime artifact, created by deploy)
 restart.txt
+
+# Subagent scratch reports written into the repo root during
+# subagent-driven development. The durable record is the commit history
+# and docs/superpowers/. A leading dot does not stop `git add` sweeping
+# them up, so ignore the pattern explicitly.
+/*-report.md
+/.*-report.md
+/*.diff
