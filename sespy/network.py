@@ -282,6 +282,80 @@ def loop_dominance(
     }
 
 
+class Shift(TypedDict):
+    """One confirmed change of governing loop.
+
+    `step` is where the new leader FIRST took the lead, not where its dwell
+    completed. `polarity_changed` is separate on purpose: a change of
+    governing loop within one polarity is a weaker event than a B<->R regime
+    change, and conflating them would report a "B->R shift" that never
+    happened.
+    """
+    step: int
+    from_loop: str
+    to_loop: str
+    from_nodes: list[str]
+    to_nodes: list[str]
+    from_polarity: str
+    to_polarity: str
+    margin_pct: float
+    held_steps: int
+    polarity_changed: bool
+
+
+def dominance_shifts(
+    result: DominanceResult, *, margin: float = 0.05, dwell: int = 5
+) -> list[Shift]:
+    """Confirmed changes of governing loop.
+
+    A shift is recorded only when the new leader's share exceeds the
+    incumbent's by a RELATIVE `margin` and it holds the lead for `dwell`
+    consecutive steps. Near-ties never register; they are in
+    `result["contested_steps"]`.
+
+    NOTE: the step is a property of the run, not a model prediction — shift
+    timing depends on the initial condition (see the spec's risks section).
+    """
+    rows = result.get("rows") or []
+    n = result.get("n_steps") or 0
+    if not result.get("active") or len(rows) < 2 or n < 2:
+        return []
+
+    leaders = [max(range(len(rows)), key=lambda i: rows[i]["shares"][t])
+               for t in range(n)]
+
+    shifts: list[Shift] = []
+    incumbent = leaders[0]
+    for t in range(1, n):
+        cand = leaders[t]
+        if cand == incumbent:
+            continue
+        new_share = rows[cand]["shares"][t]
+        old_share = rows[incumbent]["shares"][t]
+        if old_share > 0 and new_share <= old_share * (1.0 + margin):
+            continue
+        held = 0
+        for u in range(t, n):
+            if leaders[u] != cand:
+                break
+            held += 1
+        if held < dwell:
+            continue
+        a, b = rows[incumbent], rows[cand]
+        shifts.append({
+            "step": t,
+            "from_loop": a["loop_id"], "to_loop": b["loop_id"],
+            "from_nodes": a["nodes"], "to_nodes": b["nodes"],
+            "from_polarity": a["polarity"], "to_polarity": b["polarity"],
+            "margin_pct": ((new_share / old_share) - 1.0) * 100.0
+                          if old_share > 0 else float("inf"),
+            "held_steps": held,
+            "polarity_changed": a["polarity"] != b["polarity"],
+        })
+        incumbent = cand
+    return shifts
+
+
 # ---------------------------------------------------------------------------
 # Centrality metrics — port of functions/network_analysis.R::calculate_metrics
 # (seven per-node centrality measures used in modules/analysis_metrics.R).

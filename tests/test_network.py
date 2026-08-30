@@ -1663,3 +1663,76 @@ def test_loop_dominance_rejects_mismatched_node_ids():
     isa = _two_loop_isa()
     with pytest.raises(ValueError):
         loop_dominance(isa, np.ones((3, 4)), ["A", "B"])  # wrong length
+
+
+def _result_from_shares(share_lists, polarities=("Balancing", "Reinforcing")):
+    """Build a minimal DominanceResult from explicit share series."""
+    n = len(share_lists[0])
+    rows = []
+    for i, s in enumerate(share_lists, start=1):
+        rows.append({
+            "loop_id": f"L{i:03d}", "nodes": [f"N{i}a", f"N{i}b"],
+            "polarity": polarities[(i - 1) % len(polarities)],
+            "structural_gain": 1.0, "shares": list(s),
+            "peak_share": max(s), "peak_step": s.index(max(s)),
+        })
+    return {"rows": rows, "n_steps": n, "truncated_at": None,
+            "contested_steps": [], "active": True, "note": "ok"}
+
+
+def test_dominance_shifts_clear_lead_held_produces_one_shift():
+    from sespy.network import dominance_shifts
+    # L1 leads for 5 steps, then L2 takes a decisive lead and holds it.
+    res = _result_from_shares([
+        [0.9, 0.9, 0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+    ])
+    shifts = dominance_shifts(res, margin=0.05, dwell=5)
+    assert len(shifts) == 1
+    assert shifts[0]["step"] == 5
+    assert shifts[0]["to_loop"] == "L002"
+    assert tuple(shifts[0]["to_nodes"]) == ("N2a", "N2b")
+
+
+def test_dominance_shifts_lead_not_held_long_enough_produces_none():
+    from sespy.network import dominance_shifts
+    # L2 leads for only 3 steps, below dwell=5.
+    res = _result_from_shares([
+        [0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.9, 0.9, 0.9, 0.9, 0.9],
+        [0.1, 0.1, 0.1, 0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1],
+    ])
+    assert dominance_shifts(res, margin=0.05, dwell=5) == []
+
+
+def test_dominance_shifts_near_tie_below_margin_produces_none():
+    from sespy.network import dominance_shifts
+    # L2 edges ahead by 2%, under a 5% margin - not a shift.
+    res = _result_from_shares([
+        [0.51, 0.51, 0.51, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49],
+        [0.49, 0.49, 0.49, 0.51, 0.51, 0.51, 0.51, 0.51, 0.51, 0.51],
+    ])
+    assert dominance_shifts(res, margin=0.05, dwell=5) == []
+
+
+def test_dominance_shifts_polarity_changed_only_on_real_b_to_r():
+    from sespy.network import dominance_shifts
+    both_balancing = _result_from_shares(
+        [[0.9] * 5 + [0.1] * 6, [0.1] * 5 + [0.9] * 6],
+        polarities=("Balancing", "Balancing"),
+    )
+    s = dominance_shifts(both_balancing, margin=0.05, dwell=5)
+    assert len(s) == 1 and s[0]["polarity_changed"] is False
+
+    b_to_r = _result_from_shares(
+        [[0.9] * 5 + [0.1] * 6, [0.1] * 5 + [0.9] * 6],
+        polarities=("Balancing", "Reinforcing"),
+    )
+    s2 = dominance_shifts(b_to_r, margin=0.05, dwell=5)
+    assert len(s2) == 1 and s2[0]["polarity_changed"] is True
+
+
+def test_dominance_shifts_inactive_result_gives_no_shifts():
+    from sespy.network import dominance_shifts
+    inactive = {"rows": [], "n_steps": 0, "truncated_at": None,
+                "contested_steps": [], "active": False, "note": "no_cycles"}
+    assert dominance_shifts(inactive) == []
