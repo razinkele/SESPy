@@ -1606,6 +1606,105 @@
       "no": "Simulations completed: {ok} of {n} ({failed} diverged)",
       "el": "Simulations completed: {ok} of {n} ({failed} diverged)"
     },
+    "simulation.dominance_show": {
+      "en": "Show loop dominance",
+      "es": "Mostrar dominancia de bucles",
+      "fr": "Afficher la dominance des boucles",
+      "de": "Schleifendominanz anzeigen",
+      "lt": "Rodyti kilpos dominavimą",
+      "pt": "Mostrar dominância de ciclos",
+      "it": "Mostra dominanza dei cicli",
+      "no": "Vis løkkedominans",
+      "el": "Εμφάνιση κυριαρχίας βρόχου"
+    },
+    "simulation.dominance_shifts": {
+      "en": "Dominance shifts in this run",
+      "es": "Cambios de dominancia en esta ejecución",
+      "fr": "Changements de dominance dans cette exécution",
+      "de": "Dominanzwechsel in diesem Lauf",
+      "lt": "Dominavimo pokyčiai šiame paleidime",
+      "pt": "Mudanças de dominância nesta execução",
+      "it": "Cambi di dominanza in questa esecuzione",
+      "no": "Dominansskifter i denne kjøringen",
+      "el": "Αλλαγές κυριαρχίας σε αυτήν την εκτέλεση"
+    },
+    "simulation.dominance_none": {
+      "en": "No dominance shift detected in this run.",
+      "es": "No se detectó ningún cambio de dominancia en esta ejecución.",
+      "fr": "Aucun changement de dominance détecté dans cette exécution.",
+      "de": "Kein Dominanzwechsel in diesem Lauf erkannt.",
+      "lt": "Šiame paleidime dominavimo pokyčių neaptikta.",
+      "pt": "Nenhuma mudança de dominância detetada nesta execução.",
+      "it": "Nessun cambio di dominanza rilevato in questa esecuzione.",
+      "no": "Ingen dominansskifte oppdaget i denne kjøringen.",
+      "el": "Δεν εντοπίστηκε αλλαγή κυριαρχίας σε αυτήν την εκτέλεση."
+    },
+    "simulation.dominance_caption": {
+      "en": "Which feedback loop carries most of the activity at each step. Timing describes this run, not a prediction: it depends on the initial state. A share is an attribution, not proof that a loop causes the behaviour.",
+      "es": "Qué bucle de retroalimentación concentra la mayor parte de la actividad en cada paso. El momento describe esta ejecución, no es una predicción: depende del estado inicial. Una proporción es una atribución, no una prueba de que un bucle causa el comportamiento.",
+      "fr": "Quelle boucle de rétroaction porte la majeure partie de l'activité à chaque étape. Le moment décrit cette exécution, pas une prédiction : il dépend de l'état initial. Une part est une attribution, non une preuve qu'une boucle cause le comportement.",
+      "de": "Welche Rückkopplungsschleife an jedem Schritt den größten Anteil der Aktivität trägt. Der Zeitverlauf beschreibt diesen Lauf, keine Vorhersage: Er hängt vom Anfangszustand ab. Ein Anteil ist eine Zuordnung, kein Beweis, dass eine Schleife das Verhalten verursacht.",
+      "lt": "Kuri grįžtamojo ryšio kilpa kiekviename žingsnyje sudaro didžiąją dalį aktyvumo. Laikas apibūdina šį paleidimą, o ne prognozę: jis priklauso nuo pradinės būsenos. Dalis yra priskyrimas, o ne įrodymas, kad kilpa sukelia elgseną.",
+      "pt": "Qual ciclo de retroalimentação concentra a maior parte da atividade em cada passo. O momento descreve esta execução, não é uma previsão: depende do estado inicial. Uma proporção é uma atribuição, não prova de que um ciclo causa o comportamento.",
+      "it": "Quale ciclo di retroazione porta la maggior parte dell'attività a ogni passo. Il momento descrive questa esecuzione, non è una previsione: dipende dallo stato iniziale. Una quota è un'attribuzione, non una prova che un ciclo causi il comportamento.",
+      "no": "Hvilken tilbakekoblingsløkke som bærer mesteparten av aktiviteten ved hvert steg. Tidspunktet beskriver denne kjøringen, ikke en prediksjon: det avhenger av starttilstanden. En andel er en tilskrivning, ikke bevis på at en løkke forårsaker atferden.",
+      "el": "Ποιος βρόχος ανατροφοδότησης συγκεντρώνει το μεγαλύτερο μέρος της δραστηριότητας σε κάθε βήμα. Ο χρονισμός περιγράφει αυτήν την εκτέλεση, όχι πρόβλεψη: εξαρτάται από την αρχική κατάσταση. Ένα ποσοστό είναι απόδοση, όχι απόδειξη ότι ένας βρόχος προκαλεί τη συμπεριφορά."
+    },
+    "simulation.dominance_zero_trajectory": {
+      "en": "No loop activity — the trajectory is identically zero. Choose a non-zero initial state.",
+      "es": "Sin actividad de bucle — la trayectoria es idénticamente cero. Elija un estado inicial distinto de cero.",
+      "fr": "Aucune activité de boucle — la trajectoire est identiquement nulle. Choisissez un état initial non nul.",
+      "de": "Keine Schleifenaktivität — die Trajektorie ist durchgehend null. Wählen Sie einen von null verschiedenen Anfangszustand.",
+      "lt": "Jokio kilpos aktyvumo — trajektorija yra tapatingai lygi nuliui. Pasirinkite nenulinę pradinę būseną.",
+      "pt": "Sem atividade de ciclo — a trajetória é identicamente zero. Escolha um estado inicial diferente de zero.",
+      "it": "Nessuna attività di ciclo — la traiettoria è identicamente zero. Scegliere uno stato iniziale diverso da zero.",
+      "no": "Ingen løkkeaktivitet — banen er identisk null. Velg en starttilstand som ikke er null.",
+      "el": "Καμία δραστηριότητα βρόχου — η τροχιά είναι ταυτοτικά μηδενική. Επιλέξτε μη μηδενική αρχική κατάσταση."
+    },
+    "simulation.dominance_no_cycles": {
+      "en": "No feedback loops found in this model.",
+      "es": "No se encontraron bucles de retroalimentación en este modelo.",
+      "fr": "Aucune boucle de rétroaction trouvée dans ce modèle.",
+      "de": "Keine Rückkopplungsschleifen in diesem Modell gefunden.",
+      "lt": "Šiame modelyje grįžtamojo ryšio kilpų nerasta.",
+      "pt": "Nenhum ciclo de retroalimentação encontrado neste modelo.",
+      "it": "Nessun ciclo di retroazione trovato in questo modello.",
+      "no": "Ingen tilbakekoblingsløkker funnet i denne modellen.",
+      "el": "Δεν βρέθηκαν βρόχοι ανατροφοδότησης σε αυτό το μοντέλο."
+    },
+    "simulation.dominance_zero_gain": {
+      "en": "No loop activity — all loops have zero strength.",
+      "es": "Sin actividad de bucle — todos los bucles tienen fuerza cero.",
+      "fr": "Aucune activité de boucle — toutes les boucles ont une force nulle.",
+      "de": "Keine Schleifenaktivität — alle Schleifen haben die Stärke null.",
+      "lt": "Jokio kilpos aktyvumo — visų kilpų stiprumas lygus nuliui.",
+      "pt": "Sem atividade de ciclo — todos os ciclos têm força zero.",
+      "it": "Nessuna attività di ciclo — tutti i cicli hanno forza zero.",
+      "no": "Ingen løkkeaktivitet — alle løkker har null styrke.",
+      "el": "Καμία δραστηριότητα βρόχου — όλοι οι βρόχοι έχουν μηδενική ισχύ."
+    },
+    "simulation.dominance_truncated_overflow": {
+      "en": "Values grew beyond floating-point range; showing the first {n} steps.",
+      "es": "Los valores superaron el rango de coma flotante; se muestran los primeros {n} pasos.",
+      "fr": "Les valeurs ont dépassé la plage en virgule flottante ; affichage des {n} premiers pas.",
+      "de": "Werte überschritten den Gleitkommabereich; die ersten {n} Schritte werden angezeigt.",
+      "lt": "Reikšmės viršijo slankiojo kablelio ribas; rodomi pirmieji {n} žingsniai.",
+      "pt": "Os valores excederam o intervalo de vírgula flutuante; a mostrar os primeiros {n} passos.",
+      "it": "I valori hanno superato l'intervallo in virgola mobile; vengono mostrati i primi {n} passi.",
+      "no": "Verdiene vokste utover flyttallsområdet; viser de første {n} trinnene.",
+      "el": "Οι τιμές ξεπέρασαν το εύρος κινητής υποδιαστολής· εμφανίζονται τα πρώτα {n} βήματα."
+    },
+    "simulation.dominance_truncated_underflow": {
+      "en": "Values decayed to zero; showing the first {n} steps.",
+      "es": "Los valores decayeron a cero; se muestran los primeros {n} pasos.",
+      "fr": "Les valeurs ont décru jusqu'à zéro ; affichage des {n} premiers pas.",
+      "de": "Werte fielen auf null ab; die ersten {n} Schritte werden angezeigt.",
+      "lt": "Reikšmės sumažėjo iki nulio; rodomi pirmieji {n} žingsniai.",
+      "pt": "Os valores decaíram para zero; a mostrar os primeiros {n} passos.",
+      "it": "I valori sono decaduti a zero; vengono mostrati i primi {n} passi.",
+      "no": "Verdiene falt til null; viser de første {n} trinnene.",
+      "el": "Οι τιμές μειώθηκαν στο μηδέν· εμφανίζονται τα πρώτα {n} βήματα."
+    },
     "nav.bot": {
       "en": "Behaviour Over Time",
       "es": "Behaviour Over Time",
