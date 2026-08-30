@@ -308,9 +308,14 @@ def dominance_shifts(
 ) -> list[Shift]:
     """Confirmed changes of governing loop.
 
-    A shift is recorded only when the new leader's share exceeds the
-    incumbent's by a RELATIVE `margin` and it holds the lead for `dwell`
-    consecutive steps. Near-ties never register; they are in
+    A shift is recorded only when a maximal run of the raw (per-step argmax)
+    leader is at least `dwell` steps long AND, measured at the END of that
+    dwell window, the candidate's share exceeds the incumbent's by a RELATIVE
+    `margin`. `step` is the FIRST step of the run — the crossing — not the
+    step the dwell window closed or the margin cleared; on smooth data those
+    can differ from the crossing, and conflating them would misreport when a
+    user actually saw the new loop take the lead. `held_steps` is the full
+    run length. Near-ties never register; they are in
     `result["contested_steps"]`.
 
     NOTE: the step is a property of the run, not a model prediction — shift
@@ -324,32 +329,35 @@ def dominance_shifts(
     leaders = [max(range(len(rows)), key=lambda i: rows[i]["shares"][t])
                for t in range(n)]
 
+    # Maximal runs of a constant raw leader: (leader_id, run_start, run_length).
+    runs: list[tuple[int, int, int]] = []
+    t0 = 0
+    for t in range(1, n + 1):
+        if t == n or leaders[t] != leaders[t0]:
+            runs.append((leaders[t0], t0, t - t0))
+            t0 = t
+
     shifts: list[Shift] = []
     incumbent = leaders[0]
-    for t in range(1, n):
-        cand = leaders[t]
+    for cand, t0, length in runs:
         if cand == incumbent:
             continue
-        new_share = rows[cand]["shares"][t]
-        old_share = rows[incumbent]["shares"][t]
-        if old_share > 0 and new_share <= old_share * (1.0 + margin):
+        if length < dwell:
             continue
-        held = 0
-        for u in range(t, n):
-            if leaders[u] != cand:
-                break
-            held += 1
-        if held < dwell:
+        check_idx = t0 + dwell - 1
+        new_share = rows[cand]["shares"][check_idx]
+        old_share = rows[incumbent]["shares"][check_idx]
+        if old_share > 0 and new_share <= old_share * (1.0 + margin):
             continue
         a, b = rows[incumbent], rows[cand]
         shifts.append({
-            "step": t,
+            "step": t0,
             "from_loop": a["loop_id"], "to_loop": b["loop_id"],
             "from_nodes": a["nodes"], "to_nodes": b["nodes"],
             "from_polarity": a["polarity"], "to_polarity": b["polarity"],
             "margin_pct": ((new_share / old_share) - 1.0) * 100.0
                           if old_share > 0 else float("inf"),
-            "held_steps": held,
+            "held_steps": length,
             "polarity_changed": a["polarity"] != b["polarity"],
         })
         incumbent = cand

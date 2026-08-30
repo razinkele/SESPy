@@ -1736,3 +1736,22 @@ def test_dominance_shifts_inactive_result_gives_no_shifts():
     inactive = {"rows": [], "n_steps": 0, "truncated_at": None,
                 "contested_steps": [], "active": False, "note": "no_cycles"}
     assert dominance_shifts(inactive) == []
+
+
+def test_dominance_shifts_step_is_the_crossing_not_the_margin_clear():
+    """The crossing and the margin-clear are different steps on smooth data.
+
+    L2 takes the lead at t=2 while nearly tied, and only pulls clearly ahead
+    later. The reported step must be 2 - the step a user sees the crossing -
+    not the step the margin finally cleared.
+    """
+    from sespy.network import dominance_shifts
+    res = _result_from_shares([
+        [0.60, 0.55, 0.49, 0.45, 0.40, 0.35, 0.30, 0.25, 0.20, 0.15],
+        [0.40, 0.45, 0.51, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85],
+    ])
+    shifts = dominance_shifts(res, margin=0.05, dwell=5)
+    assert len(shifts) == 1
+    assert shifts[0]["step"] == 2, "step must be the crossing, not the margin-clear"
+    assert shifts[0]["to_loop"] == "L002"
+    assert shifts[0]["held_steps"] == 8
