@@ -7,7 +7,7 @@
 A Shiny-for-Python port of the [MarineSABRES SES Toolbox](https://marinesabres.eu)
 that lives next door at `../SESToolbox/MarineSABRES_SES_Shiny`. The R app is
 ~90 KLOC across 46 modules with bs4Dash; this is the strategic-core port —
-**17 modules** covering the create→edit→analyze→export workflow with
+**19 modules** covering the create→edit→analyze→export workflow with
 production-shaped infrastructure, now extended with multi-rater elicitation,
 Monte-Carlo uncertainty, and FCM import (see [What's new in v1.0.0](#whats-new-in-v100)).
 
@@ -32,6 +32,47 @@ the why.
 | ![Simulation](docs/screenshots/simulation.png) | ![Stakeholders](docs/screenshots/stakeholders.png) |
 | **Import** — Excel workbook or native `.qsem` model file | **Full app** — workflow stepper + nav |
 | ![QSEM import](docs/screenshots/qsem_import.png) | ![Full app](docs/screenshots/full_app.png) |
+
+---
+
+## What's new in v1.4.0
+
+A **network-analysis depth** release — nine literature-driven analyses added to the
+Network Metrics, Intervention and Simulation panels — carrying one correctness fix
+that changes shipped output:
+
+- **Fix: Dynamic Simulation propagated influence backwards.** The ISA matrix stores
+  `M[i,j]` as the edge i→j, but the iterator computes `x_{t+1} = M @ x_t`, so a
+  node's next state depended on the nodes it points *at* rather than those pointing
+  *into* it — on a two-node A→B graph seeded at A, nothing propagated at all.
+  **Run Simulation and Monte Carlo results differ from previous versions**; anything
+  published from those panels was computed with influence flowing the wrong way.
+  The direction had never been tested: every prior test used identity or 1×1
+  matrices, which are transpose-invariant.
+- **Loop dominance over time (#22).** An opt-in overlay on the Simulation panel
+  showing which feedback loop governs each phase of a run, with shifts named by
+  their nodes, margin- and dwell-gated. Timing describes the run, not a prediction.
+- **Governance analyses (#13, #14).** Directed coverage of pressure nodes by
+  governance elements, and a centrality ranking restricted to governance actors that
+  separates dominant from peripheral ones.
+- **Cascade vulnerability (#15) and causal pathways (#16).** Sequential removal in
+  leverage order tracking connectivity collapse and the cascade-threshold node; and
+  a signed path tracer between any two elements with compound polarity and honest
+  truncation.
+- **Intervention simulation (#17, #19, #20, #21).** Seed tokens at an element and
+  watch them diffuse along causal links — negative links flip a token's sign —
+  giving a ranked reach, net sign and first-arrival step. It reports its own
+  sampling error: a 95% margin per element, error bars on the chart, and ranks that
+  statistically tied elements share, so a near-tie is never displayed as a firm
+  ranking.
+- **Fix: bounded loop enumeration (#18).** Feedback loops are now length-bounded
+  during generation, so dense imported models can no longer hang Loop Analysis,
+  uncertainty scoring or cascade vulnerability.
+- **Per-session language.** The translator was a process-wide singleton, so one user
+  switching language changed it for everyone on the server.
+
+Shipped via the brainstorm → spec → multi-agent adversarial review → TDD → review →
+full-e2e cycle.
 
 ---
 
@@ -127,21 +168,23 @@ review → TDD → review → full-e2e cycle. All 9 UI languages stay in sync.
 
 ## What's in this port
 
-### Modules (16)
+### Modules (19)
 
 | Module | Source | Behaviour |
 |---|---|---|
 | **PIMS Project Setup** (`sespy/modules/pims_project.py`) | `modules/pims_module.R` (PROJECT SETUP) | Two-column form for project context: name, demonstration area, focal issue, definition statement, temporal/spatial scale, system in focus. Persists to project metadata via a parallel `project_metadata` reactive. |
+| **PIMS Stakeholders** (`sespy/modules/pims_stakeholders.py`) | `modules/pims_module.R` (STAKEHOLDERS) | Stakeholder register — name, organisation, role, interest/influence — feeding the multi-rater panel in Rate Connections. |
 | **Templates** (`sespy/modules/templates.py`) | `modules/template_ses_module.R` | Picker for built-in starter projects (Offshore Wind, Coastal Tourism, Small-scale Fisheries). |
 | **SES Wizard** (`sespy/modules/ai_isa_wizard.py`) | `modules/ai_isa_assistant_module.R` (and `ai_isa/`) | 12-step DAPSI(W)R(M) wizard with confirmation modal, live writes per step, and a stub `suggest_connections()` ready for SP3/SP4 scoring backends. |
 | **Edit Data** (`sespy/modules/isa_data_entry.py`) | `modules/isa_data_entry_module.R` | Add/remove elements & connections live; auto-IDs by DAPSIWRM type; cascading delete keeps the data validator-clean. |
 | **Rate Connections** (`sespy/modules/rate_connections.py`) | *new (QSEM multi-rater)* | Stakeholders from the PIMS register each rate a connection; a materialized-consensus model derives the scalars every analysis reads, plus a contested-edges column/filter. |
 | **CLD Visualization** (`sespy/modules/cld_visualization.py`) | `modules/cld_visualization_module.R` | Hierarchical/physics layouts with DAPSI-ordered rows, live size + spacing sliders, vis.js via `pyvis.shiny`. |
 | **Loop Analysis** (`sespy/modules/analysis_loops.py`) | `modules/analysis_loops.R` | Feedback loop detection (max length / max loops sliders), classification (Reinforcing / Balancing — even-negatives rule from R), per-loop pyvis canvas. |
-| **Network Metrics** (`sespy/modules/analysis_metrics.py`) | `modules/analysis_metrics.R` | Seven centrality measures (degree/in/out, betweenness, closeness, eigenvector, PageRank), top-N table, distribution histogram, pyvis network sized by metric. |
+| **Network Metrics** (`sespy/modules/analysis_metrics.py`) | `modules/analysis_metrics.R` | Seven centrality measures (degree/in/out, betweenness, closeness, eigenvector, PageRank), top-N table, distribution histogram, pyvis network sized by metric. Plus four literature-driven blocks: governance gap (#13), governance actor influence (#14), cascade vulnerability (#15) and causal pathways (#16). |
 | **Leverage Points** (`sespy/modules/analysis_leverage.py`) | `modules/analysis_leverage.R` | Composite leverage = z(betweenness) + z(eigenvector) + z(PageRank). Same formula R uses. |
+| **Factor Quadrant** (`sespy/modules/analysis_quadrant.py`) | *new (QSEM parity)* | Vester influence×dependence scatter classifying every element as active, critical, reactive or buffering. |
 | **Boolean / Laplacian** (`sespy/modules/analysis_boolean.py`) | `modules/analysis_boolean.R` | Laplacian eigenvalue spectrum + Boolean attractor enumeration via exhaustive 2^N state-space search (capped at 12 nodes). |
-| **Dynamic Simulation** (`sespy/modules/analysis_simulation.py`) | `modules/analysis_simulation.R` | Deterministic linear-matrix iteration + Monte Carlo state-shift analysis with finite-aware divergence accounting. |
+| **Dynamic Simulation** (`sespy/modules/analysis_simulation.py`) | `modules/analysis_simulation.R` | Deterministic linear-matrix iteration + Monte Carlo state-shift analysis with finite-aware divergence accounting, and an opt-in loop-dominance overlay shading each phase of a run by its governing feedback loop (#22). |
 | **Behaviour Over Time** (`sespy/modules/analysis_bot.py`) | `modules/analysis_bot.R` | Per-element time-series view with three input modes (manual entry, CSV upload, ISA-derived synthetic), trend + moving-average overlays, summary statistics. |
 | **Intervention** (`sespy/modules/analysis_intervention.py`) | `modules/analysis_intervention.R` | "Ablate node X" scenarios — pick nodes to remove, see before/after centrality shifts, network with greyed-out ablated nodes. |
 | **Simplify Network** (`sespy/modules/analysis_simplify.py`) | `modules/analysis_simplify.R` | Network reduction by minimum strength OR top-N edges by composite weight. Optional drop-isolated. |
@@ -258,12 +301,13 @@ micromamba run -n shiny pytest tests/ -q \
   --ignore-glob='*e2e*' --ignore=tests/test_burger.py \
   --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py
 
-# Full Playwright e2e — one command boots the server, runs all 22 browser
+# Full Playwright e2e — one command boots the server, runs all 31 browser
 # scripts, and handles the wizard's ANTHROPIC_API_KEY two-pass:
 micromamba run -n shiny python tests/run_e2e.py
 ```
 
-258 unit tests + 22 standalone Playwright scripts. `tests/run_e2e.py`
+558 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
 against a server already on `localhost:8000`. Both layers run in CI on every

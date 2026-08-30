@@ -2,7 +2,32 @@
 
 All notable changes to SESPy.
 
-## [Unreleased]
+## [1.4.0] — 2026-08-30
+
+- **Fix — changes shipped output. Dynamic Simulation propagated influence
+  backwards.** `isa_to_numeric_matrix` documents `M[i,j]` as the edge i→j
+  (row = source, col = target), but the iterator computes `x_{t+1} = M @ x_t`,
+  so a node's next state depended on the nodes it points *at* rather than
+  those pointing *into* it. On a two-node A→B graph seeded at A, nothing
+  propagated at all. A new `isa_to_dynamics_matrix` (the transpose, oriented
+  for iteration) fixes Run Simulation and Monte Carlo in one change. Results
+  from those two panels will differ from previous versions: anything
+  published from them was computed with influence flowing the wrong way.
+  The direction had never been tested — every prior test used identity or
+  1×1 matrices, which are transpose-invariant — and now is.
+- New opt-in "Show loop dominance" overlay on the Dynamic Simulation panel
+  (#22): which feedback loop governs the system changes over a run, so the
+  trajectory is shaded by its governing loop and each shift is named by its
+  nodes. Loop identity is rotation-invariant and direction-preserving; shifts
+  are margin- and dwell-gated, and the step reported is the raw-leader
+  crossing rather than the later margin-clear. Timing describes the run, not
+  a prediction — it depends on the initial state, and a share is an
+  attribution rather than proof of causation.
+- i18n: reviewed the Norwegian, Greek and Lithuanian loop-dominance strings.
+  Greek called the loop's share a ποσοστό (percentage) beside a summary
+  rendering a literal `%`, inviting the share to be read as that number; it
+  is now μερίδιο. Lithuanian rendered "timing" as `Laikas` (time), now
+  `Pokyčių laikas`.
 - Intervention-simulation ranks are now decided by a paired test and no
   longer chain ties down the list (#21). A row shares a rank until it
   separates from the group *leader* rather than merely from its
