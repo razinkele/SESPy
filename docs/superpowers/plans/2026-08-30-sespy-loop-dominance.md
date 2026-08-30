@@ -935,8 +935,22 @@ Deliberately **do not** assert overlay pixel content. That logic is covered by T
 
 - [ ] **Step 3: Run**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_simulation_e2e.py -q`
-Expected: PASS
+`tests/test_simulation_e2e.py` is a **standalone asyncio Playwright script**, not a pytest module — it defines no `test_*` functions and ends in `asyncio.run(main())`. `pytest tests/test_simulation_e2e.py` collects nothing and exits 5 ("no tests ran"); that is not a pass and not a failure, it simply does not run the script. It also expects a live server on `http://127.0.0.1:8000`.
+
+Run it the way the suite does — boot a server, then execute the script:
+
+```bash
+# terminal 1 (or background it):
+micromamba run -n shiny shiny run --port 8000 app.py
+# terminal 2, once the server is serving:
+micromamba run -n shiny python tests/test_simulation_e2e.py
+```
+
+Expected: the script prints its assertion lines and ends with `simulation e2e assertions pass`, exit 0. Any `AssertionError` is a real failure.
+
+Alternatively run the whole harness, which boots the server itself: `micromamba run -n shiny python tests/run_e2e.py` — slower (~10 min, all 32 scripts) but it is what the merge gate uses.
+
+If the script fails on a **nav timeout** rather than an assertion, that is this repo's known cold-server flake — re-run once before treating it as a defect.
 
 - [ ] **Step 4: Commit**
 
