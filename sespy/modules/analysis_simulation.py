@@ -18,6 +18,32 @@ from ..event_bus import EventBus
 from ..i18n import Translator, t
 
 
+def _dominance_segments(res: dict, shifts: list[dict]) -> list[tuple[int, int, str]]:
+    """(start, end, loop_id) bands from the CONFIRMED shifts, not per-step argmax.
+
+    Per-step argmax flickers on near-ties; the spec's deliverable is the shift,
+    so the shading uses the dwell/margin-filtered segments.
+    """
+    if not res.get("rows"):
+        return []
+    first = max(res["rows"], key=lambda r: r["shares"][0])["loop_id"]
+    bounds = [(0, first)] + [(sh["step"], sh["to_loop"]) for sh in shifts]
+    segs = []
+    for i, (start, loop_id) in enumerate(bounds):
+        end = bounds[i + 1][0] if i + 1 < len(bounds) else res["n_steps"]
+        segs.append((start, end, loop_id))
+    return segs
+
+
+def _shade_dominance(ax, res: dict, shifts: list[dict]) -> None:
+    """Shade the plot background by governing loop; leave contested steps clear."""
+    palette = ["#e8f0fe", "#fdf0e8", "#e8fae8", "#f6e8fa", "#fafae8"]
+    order = {r["loop_id"]: i for i, r in enumerate(res["rows"])}
+    for start, end, loop_id in _dominance_segments(res, shifts):
+        ax.axvspan(start, end, color=palette[order.get(loop_id, 0) % len(palette)],
+                   zorder=0, alpha=0.6)
+
+
 @module.ui
 def analysis_simulation_ui() -> ui.Tag:
     return ui.card(
@@ -38,6 +64,7 @@ def analysis_simulation_ui() -> ui.Tag:
                     },
                     selected="random",
                 ),
+                ui.input_checkbox("dominance_show", t("simulation.dominance_show"), value=False),
                 ui.input_numeric(
                     "sim_seed", t("simulation.seed"), value=42, min=0,
                 ),
@@ -73,6 +100,7 @@ def analysis_simulation_ui() -> ui.Tag:
                 ui.nav_panel(
                     t("simulation.tab_trajectories"),
                     ui.output_plot("trajectory_plot", height="400px"),
+                    ui.output_ui("dominance_summary"),
                 ),
                 ui.nav_panel(
                     t("simulation.tab_final_state"),
@@ -123,17 +151,20 @@ def analysis_simulation_server(
             built = _build_matrix()
             if built is None:
                 sim_store.set({"error": t("simulation.no_data"), "traj": None,
-                               "node_ids": []})
+                               "node_ids": [], "isa": None})
                 return
             M, node_ids = built
+            isa = project_data.get().isa_data
             traj = dynamics.simulate_dynamics(
                 M, n_iter=int(input.n_iter() or 200),
                 initial_state=input.initial_state() or "random",
                 seed=int(input.sim_seed() or 42),
             )
-            sim_store.set({"error": None, "traj": traj, "node_ids": node_ids})
+            sim_store.set({"error": None, "traj": traj, "node_ids": node_ids,
+                           "isa": isa})
         except (ValueError, np.linalg.LinAlgError) as exc:
-            sim_store.set({"error": str(exc), "traj": None, "node_ids": []})
+            sim_store.set({"error": str(exc), "traj": None, "node_ids": [],
+                           "isa": None})
 
     @reactive.effect
     @reactive.event(input.run_mc, ignore_init=True)
@@ -205,8 +236,45 @@ def analysis_simulation_server(
                       fontsize=8, frameon=False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
+        if input.dominance_show() and s.get("isa") is not None:
+            from sespy import network as _net
+            res = _net.loop_dominance(s["isa"], s["traj"], s["node_ids"])
+            if res["active"]:
+                shifts = _net.dominance_shifts(res)
+                _shade_dominance(ax, res, shifts)
         fig.tight_layout()
         return fig
+
+    @output
+    @render.ui
+    def dominance_summary():
+        s = sim_store.get()
+        if not input.dominance_show() or not s or s.get("isa") is None:
+            return ui.tags.span("")
+        from sespy import network as _net
+        res = _net.loop_dominance(s["isa"], s["traj"], s["node_ids"])
+        if not res["active"]:
+            # note is a machine token; map it to its translated key.
+            return ui.p(t(f"simulation.dominance_{res['note']}"),
+                        class_="text-muted", style="font-size: 0.85rem;")
+        items = []
+        for sh in _net.dominance_shifts(res):
+            frm = " → ".join(sh["from_nodes"])
+            to = " → ".join(sh["to_nodes"])
+            flag = " (polarity regime change)" if sh["polarity_changed"] else ""
+            items.append(ui.tags.li(
+                f"step {sh['step']}: {frm}  ⇒  {to}"
+                f"  [{sh['from_polarity']} → {sh['to_polarity']}]"
+                f"  +{sh['margin_pct']:.0f}%, held {sh['held_steps']}{flag}"))
+        body = (ui.tags.ul(*items) if items
+                else ui.p(t("simulation.dominance_none"), class_="text-muted"))
+        parts = [ui.tags.strong(t("simulation.dominance_shifts")), body]
+        if res["truncated_at"] is not None:
+            parts.append(ui.p(t(f"simulation.dominance_{res['note']}").format(
+                n=res["n_steps"]), class_="text-muted"))
+        parts.append(ui.p(t("simulation.dominance_caption"),
+                          class_="text-muted", style="font-size: 0.85rem;"))
+        return ui.div(*parts)
 
     # ---- Final-state bar chart ----
 
