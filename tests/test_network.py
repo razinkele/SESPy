@@ -1755,3 +1755,79 @@ def test_dominance_shifts_step_is_the_crossing_not_the_margin_clear():
     assert shifts[0]["step"] == 2, "step must be the crossing, not the margin-clear"
     assert shifts[0]["to_loop"] == "L002"
     assert shifts[0]["held_steps"] == 8
+
+
+def test_loop_dominance_detects_a_balancing_to_reinforcing_shift():
+    """#22's acceptance criterion.
+
+    Two disconnected components: a BALANCING 2-cycle (one negative edge) that
+    is initially large but decays, and a REINFORCING 2-cycle (no negative
+    edges) that starts small and grows. Timescale separation guarantees the
+    crossing; a single-SCC graph gives no such guarantee.
+    """
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy import dynamics
+    from sespy.network import loop_dominance, dominance_shifts
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("B1", "B2", "R1", "R2")]
+    cons = [
+        # Balancing: exactly one negative edge, weak weights -> decays.
+        # NOTE lowercase: _STRENGTH_RANK is {"weak":1,"medium":2,"strong":3}
+        # and .get(s, 2) defaults, so "Weak"/"Strong" would BOTH silently
+        # become rank 2 - equal gains, no timescale separation, no crossing.
+        Connection(source="B1", target="B2", polarity="+", strength="weak"),
+        Connection(source="B2", target="B1", polarity="-", strength="weak"),
+        # Reinforcing: no negative edges, strong weights -> grows.
+        Connection(source="R1", target="R2", polarity="+", strength="strong"),
+        Connection(source="R2", target="R1", polarity="+", strength="strong"),
+    ]
+    isa = IsaData(elements=els, connections=cons)
+    A, node_ids = dynamics.isa_to_dynamics_matrix(isa)
+
+    # Seed the balancing pair large and the reinforcing pair small, so the
+    # balancing loop leads first and is overtaken as the growing mode wins.
+    x0 = np.array([100.0 if n.startswith("B") else 1.0 for n in node_ids])
+    traj = dynamics.simulate_dynamics(A, n_iter=40, initial_state=x0)
+
+    res = loop_dominance(isa, traj, node_ids)
+    assert res["active"] is True
+
+    by_pol = {r["polarity"]: r for r in res["rows"]}
+    assert set(by_pol) == {"Balancing", "Reinforcing"}
+    assert by_pol["Balancing"]["shares"][0] > by_pol["Reinforcing"]["shares"][0]
+    assert by_pol["Reinforcing"]["shares"][-1] > by_pol["Balancing"]["shares"][-1]
+
+    shifts = dominance_shifts(res, margin=0.05, dwell=5)
+    assert len(shifts) == 1
+    assert shifts[0]["from_polarity"] == "Balancing"
+    assert shifts[0]["to_polarity"] == "Reinforcing"
+    assert shifts[0]["polarity_changed"] is True
+
+
+def test_loop_dominance_shares_are_not_constant():
+    """Regression guard for the whole design.
+
+    If gain is ever 'simplified' back to the bare product of edge weights, it
+    becomes time-invariant and every share is constant. This fails loudly
+    instead of silently emitting a constant column.
+    """
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy import dynamics
+    from sespy.network import loop_dominance
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("B1", "B2", "R1", "R2")]
+    cons = [
+        Connection(source="B1", target="B2", polarity="+", strength="weak"),
+        Connection(source="B2", target="B1", polarity="-", strength="weak"),
+        Connection(source="R1", target="R2", polarity="+", strength="strong"),
+        Connection(source="R2", target="R1", polarity="+", strength="strong"),
+    ]
+    isa = IsaData(elements=els, connections=cons)
+    A, node_ids = dynamics.isa_to_dynamics_matrix(isa)
+    x0 = np.array([100.0 if n.startswith("B") else 1.0 for n in node_ids])
+    traj = dynamics.simulate_dynamics(A, n_iter=40, initial_state=x0)
+    res = loop_dominance(isa, traj, node_ids)
+    spread = max(abs(r["shares"][0] - r["shares"][-1]) for r in res["rows"])
+    assert spread > 0.1, f"shares barely moved ({spread:.4f}) - gain may be constant"
