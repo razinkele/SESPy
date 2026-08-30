@@ -1494,3 +1494,340 @@ def test_causal_paths_unreachable_on_dense_graph_is_fast():
     r = network.causal_paths(IsaData(elements=els, connections=conns),
                              "N0", "ISOLATED")
     assert r == _EMPTY_PATHS
+
+
+def test_canonical_cycles_rotation_is_stable():
+    from sespy.network import _canonical_cycles
+    # Same cycle, three rotations - all must canonicalise identically.
+    a = _canonical_cycles([["B", "C", "A"]])
+    b = _canonical_cycles([["C", "A", "B"]])
+    c = _canonical_cycles([["A", "B", "C"]])
+    assert a == b == c == [["A", "B", "C"]]
+
+
+def test_canonical_cycles_order_is_stable():
+    from sespy.network import _canonical_cycles
+    one = _canonical_cycles([["B", "C"], ["A", "D"]])
+    two = _canonical_cycles([["A", "D"], ["B", "C"]])
+    assert one == two == [["A", "D"], ["B", "C"]]
+
+
+def test_canonical_cycles_drops_self_loops():
+    from sespy.network import _canonical_cycles
+    # A self-loop is not a feedback loop for dominance: feedback_loops
+    # returns them, and left in the denominator a self-growing node was
+    # measured governing 86% of a test system.
+    assert _canonical_cycles([["X"], ["A", "B"]]) == [["A", "B"]]
+    assert _canonical_cycles([["X"]]) == []
+
+
+def test_canonical_cycles_preserves_direction():
+    from sespy.network import _canonical_cycles
+    # Rotation must not reverse the cycle - A->B->C is not A->C->B.
+    assert _canonical_cycles([["B", "C", "A"]]) == [["A", "B", "C"]]
+    assert _canonical_cycles([["C", "B", "A"]]) == [["A", "C", "B"]]
+
+
+def _two_loop_isa():
+    """Two disjoint 2-cycles with different strengths, so shares are unequal."""
+    from sespy.data_structure import IsaData, Element, Connection
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C", "D")]
+    cons = [
+        Connection(source="A", target="B", polarity="+", strength="strong"),
+        Connection(source="B", target="A", polarity="+", strength="strong"),
+        Connection(source="C", target="D", polarity="+", strength="weak"),
+        Connection(source="D", target="C", polarity="+", strength="weak"),
+    ]
+    return IsaData(elements=els, connections=cons)
+
+
+def test_loop_dominance_shares_sum_to_one():
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    traj = np.ones((5, 4))
+    res = loop_dominance(isa, traj, node_ids)
+    assert res["active"] is True
+    for t in range(res["n_steps"]):
+        assert abs(sum(r["shares"][t] for r in res["rows"]) - 1.0) < 1e-9
+
+
+def test_loop_dominance_rows_keyed_by_nodes_not_position():
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    res = loop_dominance(isa, np.ones((3, 4)), node_ids)
+    by_nodes = {tuple(r["nodes"]): r for r in res["rows"]}
+    assert ("A", "B") in by_nodes and ("C", "D") in by_nodes
+    # The stronger loop carries the larger share.
+    assert by_nodes[("A", "B")]["shares"][0] > by_nodes[("C", "D")]["shares"][0]
+
+
+def test_loop_dominance_length_comparability():
+    """A longer loop is not penalised for its length beyond its structural
+    gain. Activity is a MEAN over the loop's nodes - an intensive quantity -
+    so a 3-cycle and a 2-cycle are comparable; only their gains differ."""
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import loop_dominance
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C", "D", "E")]
+    cons = [
+        Connection(source="A", target="B", polarity="+", strength="Medium"),
+        Connection(source="B", target="A", polarity="+", strength="Medium"),
+        Connection(source="C", target="D", polarity="+", strength="Medium"),
+        Connection(source="D", target="E", polarity="+", strength="Medium"),
+        Connection(source="E", target="C", polarity="+", strength="Medium"),
+    ]
+    isa = IsaData(elements=els, connections=cons)
+    node_ids = [e.id for e in isa.elements]
+    res = loop_dominance(isa, np.ones((2, 5)), node_ids)
+    by_len = {len(r["nodes"]): r["shares"][0] for r in res["rows"]}
+    # gains differ (2^2 vs 2^3) so shares differ, but neither is zero and the
+    # 3-cycle is not penalised for its length beyond its structural gain.
+    assert by_len[2] > 0 and by_len[3] > 0
+
+
+def test_loop_dominance_zero_trajectory_is_inactive():
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    res = loop_dominance(isa, np.zeros((10, 4)), node_ids)
+    assert res["active"] is False
+    assert res["note"] == "zero_trajectory"
+    assert res["rows"] == []
+
+
+def test_loop_dominance_no_cycles_is_inactive():
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import loop_dominance
+    isa = IsaData(
+        elements=[Element(id=n, label=n, type="Drivers") for n in ("A", "B")],
+        connections=[Connection(source="A", target="B", polarity="+", strength="medium")],
+    )
+    res = loop_dominance(isa, np.ones((3, 2)), ["A", "B"])
+    assert res["active"] is False and res["note"] == "no_cycles"
+
+
+def test_loop_dominance_truncates_on_overflow_keeping_the_prefix():
+    """A late non-finite step must truncate, NOT void the whole run."""
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    traj = np.ones((10, 4))
+    traj[7:] = np.inf
+    res = loop_dominance(isa, traj, node_ids)
+    assert res["active"] is True
+    assert res["truncated_at"] == 7
+    assert res["n_steps"] == 7
+    assert res["note"] == "truncated_overflow"
+
+
+def test_loop_dominance_truncates_on_underflow():
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    traj = np.ones((10, 4))
+    traj[6:] = 0.0
+    res = loop_dominance(isa, traj, node_ids)
+    assert res["active"] is True
+    assert res["truncated_at"] == 6
+    assert res["note"] == "truncated_underflow"
+
+
+def test_loop_dominance_self_loop_excluded_from_denominator():
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import loop_dominance
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "S")]
+    cons = [
+        Connection(source="A", target="B", polarity="+", strength="medium"),
+        Connection(source="B", target="A", polarity="+", strength="medium"),
+        Connection(source="S", target="S", polarity="+", strength="strong"),
+    ]
+    isa = IsaData(elements=els, connections=cons)
+    res = loop_dominance(isa, np.ones((3, 3)), ["A", "B", "S"])
+    assert all(len(r["nodes"]) >= 2 for r in res["rows"])
+    assert all(("S",) != tuple(r["nodes"]) for r in res["rows"])
+
+
+def test_loop_dominance_rejects_mismatched_node_ids():
+    import numpy as np
+    import pytest
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    with pytest.raises(ValueError):
+        loop_dominance(isa, np.ones((3, 4)), ["A", "B"])  # wrong length
+
+
+def _result_from_shares(share_lists, polarities=("Balancing", "Reinforcing")):
+    """Build a minimal DominanceResult from explicit share series."""
+    n = len(share_lists[0])
+    rows = []
+    for i, s in enumerate(share_lists, start=1):
+        rows.append({
+            "loop_id": f"L{i:03d}", "nodes": [f"N{i}a", f"N{i}b"],
+            "polarity": polarities[(i - 1) % len(polarities)],
+            "structural_gain": 1.0, "shares": list(s),
+            "peak_share": max(s), "peak_step": s.index(max(s)),
+        })
+    return {"rows": rows, "n_steps": n, "truncated_at": None,
+            "contested_steps": [], "active": True, "note": "ok"}
+
+
+def test_dominance_shifts_clear_lead_held_produces_one_shift():
+    from sespy.network import dominance_shifts
+    # L1 leads for 5 steps, then L2 takes a decisive lead and holds it.
+    res = _result_from_shares([
+        [0.9, 0.9, 0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+    ])
+    shifts = dominance_shifts(res, margin=0.05, dwell=5)
+    assert len(shifts) == 1
+    assert shifts[0]["step"] == 5
+    assert shifts[0]["to_loop"] == "L002"
+    assert tuple(shifts[0]["to_nodes"]) == ("N2a", "N2b")
+
+
+def test_dominance_shifts_lead_not_held_long_enough_produces_none():
+    from sespy.network import dominance_shifts
+    # L2 leads for only 3 steps, below dwell=5.
+    res = _result_from_shares([
+        [0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.9, 0.9, 0.9, 0.9, 0.9],
+        [0.1, 0.1, 0.1, 0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1],
+    ])
+    assert dominance_shifts(res, margin=0.05, dwell=5) == []
+
+
+def test_dominance_shifts_near_tie_below_margin_produces_none():
+    from sespy.network import dominance_shifts
+    # L2 edges ahead by 2%, under a 5% margin - not a shift.
+    res = _result_from_shares([
+        [0.51, 0.51, 0.51, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49],
+        [0.49, 0.49, 0.49, 0.51, 0.51, 0.51, 0.51, 0.51, 0.51, 0.51],
+    ])
+    assert dominance_shifts(res, margin=0.05, dwell=5) == []
+
+
+def test_dominance_shifts_polarity_changed_only_on_real_b_to_r():
+    from sespy.network import dominance_shifts
+    both_balancing = _result_from_shares(
+        [[0.9] * 5 + [0.1] * 6, [0.1] * 5 + [0.9] * 6],
+        polarities=("Balancing", "Balancing"),
+    )
+    s = dominance_shifts(both_balancing, margin=0.05, dwell=5)
+    assert len(s) == 1 and s[0]["polarity_changed"] is False
+
+    b_to_r = _result_from_shares(
+        [[0.9] * 5 + [0.1] * 6, [0.1] * 5 + [0.9] * 6],
+        polarities=("Balancing", "Reinforcing"),
+    )
+    s2 = dominance_shifts(b_to_r, margin=0.05, dwell=5)
+    assert len(s2) == 1 and s2[0]["polarity_changed"] is True
+
+
+def test_dominance_shifts_inactive_result_gives_no_shifts():
+    from sespy.network import dominance_shifts
+    inactive = {"rows": [], "n_steps": 0, "truncated_at": None,
+                "contested_steps": [], "active": False, "note": "no_cycles"}
+    assert dominance_shifts(inactive) == []
+
+
+def test_dominance_shifts_step_is_the_crossing_not_the_margin_clear():
+    """The crossing and the margin-clear are different steps on smooth data.
+
+    L2 takes the lead at t=2 while nearly tied, and only pulls clearly ahead
+    later. The reported step must be 2 - the step a user sees the crossing -
+    not the step the margin finally cleared.
+    """
+    from sespy.network import dominance_shifts
+    res = _result_from_shares([
+        [0.60, 0.55, 0.49, 0.45, 0.40, 0.35, 0.30, 0.25, 0.20, 0.15],
+        [0.40, 0.45, 0.51, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85],
+    ])
+    shifts = dominance_shifts(res, margin=0.05, dwell=5)
+    assert len(shifts) == 1
+    assert shifts[0]["step"] == 2, "step must be the crossing, not the margin-clear"
+    assert shifts[0]["to_loop"] == "L002"
+    assert shifts[0]["held_steps"] == 8
+
+
+def test_loop_dominance_detects_a_balancing_to_reinforcing_shift():
+    """#22's acceptance criterion.
+
+    Two disconnected components: a BALANCING 2-cycle (one negative edge) that
+    is initially large but decays, and a REINFORCING 2-cycle (no negative
+    edges) that starts small and grows. Timescale separation guarantees the
+    crossing; a single-SCC graph gives no such guarantee.
+    """
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy import dynamics
+    from sespy.network import loop_dominance, dominance_shifts
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("B1", "B2", "R1", "R2")]
+    cons = [
+        # Balancing: exactly one negative edge, weak weights -> decays.
+        # NOTE lowercase: _STRENGTH_RANK is {"weak":1,"medium":2,"strong":3}
+        # and .get(s, 2) defaults, so "Weak"/"Strong" would BOTH silently
+        # become rank 2 - equal gains, no timescale separation, no crossing.
+        Connection(source="B1", target="B2", polarity="+", strength="weak"),
+        Connection(source="B2", target="B1", polarity="-", strength="weak"),
+        # Reinforcing: no negative edges, strong weights -> grows.
+        Connection(source="R1", target="R2", polarity="+", strength="strong"),
+        Connection(source="R2", target="R1", polarity="+", strength="strong"),
+    ]
+    isa = IsaData(elements=els, connections=cons)
+    A, node_ids = dynamics.isa_to_dynamics_matrix(isa)
+
+    # Seed the balancing pair large and the reinforcing pair small, so the
+    # balancing loop leads first and is overtaken as the growing mode wins.
+    x0 = np.array([100.0 if n.startswith("B") else 1.0 for n in node_ids])
+    traj = dynamics.simulate_dynamics(A, n_iter=40, initial_state=x0)
+
+    res = loop_dominance(isa, traj, node_ids)
+    assert res["active"] is True
+
+    by_pol = {r["polarity"]: r for r in res["rows"]}
+    assert set(by_pol) == {"Balancing", "Reinforcing"}
+    assert by_pol["Balancing"]["shares"][0] > by_pol["Reinforcing"]["shares"][0]
+    assert by_pol["Reinforcing"]["shares"][-1] > by_pol["Balancing"]["shares"][-1]
+
+    shifts = dominance_shifts(res, margin=0.05, dwell=5)
+    assert len(shifts) == 1
+    assert shifts[0]["from_polarity"] == "Balancing"
+    assert shifts[0]["to_polarity"] == "Reinforcing"
+    assert shifts[0]["polarity_changed"] is True
+
+
+def test_loop_dominance_shares_are_not_constant():
+    """Regression guard for the whole design.
+
+    If gain is ever 'simplified' back to the bare product of edge weights, it
+    becomes time-invariant and every share is constant. This fails loudly
+    instead of silently emitting a constant column.
+    """
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy import dynamics
+    from sespy.network import loop_dominance
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("B1", "B2", "R1", "R2")]
+    cons = [
+        Connection(source="B1", target="B2", polarity="+", strength="weak"),
+        Connection(source="B2", target="B1", polarity="-", strength="weak"),
+        Connection(source="R1", target="R2", polarity="+", strength="strong"),
+        Connection(source="R2", target="R1", polarity="+", strength="strong"),
+    ]
+    isa = IsaData(elements=els, connections=cons)
+    A, node_ids = dynamics.isa_to_dynamics_matrix(isa)
+    x0 = np.array([100.0 if n.startswith("B") else 1.0 for n in node_ids])
+    traj = dynamics.simulate_dynamics(A, n_iter=40, initial_state=x0)
+    res = loop_dominance(isa, traj, node_ids)
+    spread = max(abs(r["shares"][0] - r["shares"][-1]) for r in res["rows"])
+    assert spread > 0.1, f"shares barely moved ({spread:.4f}) - gain may be constant"

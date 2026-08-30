@@ -144,10 +144,10 @@ def _two_loop_isa():
     from sespy.data_structure import IsaData, Element, Connection
     els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C", "D")]
     cons = [
-        Connection(source="A", target="B", polarity="+", strength="Strong"),
-        Connection(source="B", target="A", polarity="+", strength="Strong"),
-        Connection(source="C", target="D", polarity="+", strength="Weak"),
-        Connection(source="D", target="C", polarity="+", strength="Weak"),
+        Connection(source="A", target="B", polarity="+", strength="strong"),
+        Connection(source="B", target="A", polarity="+", strength="strong"),
+        Connection(source="C", target="D", polarity="+", strength="weak"),
+        Connection(source="D", target="C", polarity="+", strength="weak"),
     ]
     return IsaData(elements=els, connections=cons)
 
@@ -184,11 +184,11 @@ def test_loop_dominance_length_comparability():
     from sespy.network import loop_dominance
     els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C", "D", "E")]
     cons = [
-        Connection(source="A", target="B", polarity="+", strength="Medium"),
-        Connection(source="B", target="A", polarity="+", strength="Medium"),
-        Connection(source="C", target="D", polarity="+", strength="Medium"),
-        Connection(source="D", target="E", polarity="+", strength="Medium"),
-        Connection(source="E", target="C", polarity="+", strength="Medium"),
+        Connection(source="A", target="B", polarity="+", strength="medium"),
+        Connection(source="B", target="A", polarity="+", strength="medium"),
+        Connection(source="C", target="D", polarity="+", strength="medium"),
+        Connection(source="D", target="E", polarity="+", strength="medium"),
+        Connection(source="E", target="C", polarity="+", strength="medium"),
     ]
     isa = IsaData(elements=els, connections=cons)
     node_ids = [e.id for e in isa.elements]
@@ -216,7 +216,7 @@ def test_loop_dominance_no_cycles_is_inactive():
     from sespy.network import loop_dominance
     isa = IsaData(
         elements=[Element(id=n, label=n, type="Drivers") for n in ("A", "B")],
-        connections=[Connection(source="A", target="B", polarity="+", strength="Medium")],
+        connections=[Connection(source="A", target="B", polarity="+", strength="medium")],
     )
     res = loop_dominance(isa, np.ones((3, 2)), ["A", "B"])
     assert res["active"] is False and res["note"] == "no_cycles"
@@ -256,9 +256,9 @@ def test_loop_dominance_self_loop_excluded_from_denominator():
     from sespy.network import loop_dominance
     els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "S")]
     cons = [
-        Connection(source="A", target="B", polarity="+", strength="Medium"),
-        Connection(source="B", target="A", polarity="+", strength="Medium"),
-        Connection(source="S", target="S", polarity="+", strength="Strong"),
+        Connection(source="A", target="B", polarity="+", strength="medium"),
+        Connection(source="B", target="A", polarity="+", strength="medium"),
+        Connection(source="S", target="S", polarity="+", strength="strong"),
     ]
     isa = IsaData(elements=els, connections=cons)
     res = loop_dominance(isa, np.ones((3, 3)), ["A", "B", "S"])
@@ -655,11 +655,14 @@ def test_loop_dominance_detects_a_balancing_to_reinforcing_shift():
     els = [Element(id=n, label=n, type="Drivers") for n in ("B1", "B2", "R1", "R2")]
     cons = [
         # Balancing: exactly one negative edge, weak weights -> decays.
-        Connection(source="B1", target="B2", polarity="+", strength="Weak"),
-        Connection(source="B2", target="B1", polarity="-", strength="Weak"),
+        # NOTE lowercase: _STRENGTH_RANK is {"weak":1,"medium":2,"strong":3}
+        # and .get(s, 2) defaults, so "Weak"/"Strong" would BOTH silently
+        # become rank 2 - equal gains, no timescale separation, no crossing.
+        Connection(source="B1", target="B2", polarity="+", strength="weak"),
+        Connection(source="B2", target="B1", polarity="-", strength="weak"),
         # Reinforcing: no negative edges, strong weights -> grows.
-        Connection(source="R1", target="R2", polarity="+", strength="Strong"),
-        Connection(source="R2", target="R1", polarity="+", strength="Strong"),
+        Connection(source="R1", target="R2", polarity="+", strength="strong"),
+        Connection(source="R2", target="R1", polarity="+", strength="strong"),
     ]
     isa = IsaData(elements=els, connections=cons)
     A, node_ids = dynamics.isa_to_dynamics_matrix(isa)
@@ -698,10 +701,10 @@ def test_loop_dominance_shares_are_not_constant():
 
     els = [Element(id=n, label=n, type="Drivers") for n in ("B1", "B2", "R1", "R2")]
     cons = [
-        Connection(source="B1", target="B2", polarity="+", strength="Weak"),
-        Connection(source="B2", target="B1", polarity="-", strength="Weak"),
-        Connection(source="R1", target="R2", polarity="+", strength="Strong"),
-        Connection(source="R2", target="R1", polarity="+", strength="Strong"),
+        Connection(source="B1", target="B2", polarity="+", strength="weak"),
+        Connection(source="B2", target="B1", polarity="-", strength="weak"),
+        Connection(source="R1", target="R2", polarity="+", strength="strong"),
+        Connection(source="R2", target="R1", polarity="+", strength="strong"),
     ]
     isa = IsaData(elements=els, connections=cons)
     A, node_ids = dynamics.isa_to_dynamics_matrix(isa)
@@ -932,8 +935,22 @@ Deliberately **do not** assert overlay pixel content. That logic is covered by T
 
 - [ ] **Step 3: Run**
 
-Run: `micromamba run -n shiny python -m pytest tests/test_simulation_e2e.py -q`
-Expected: PASS
+`tests/test_simulation_e2e.py` is a **standalone asyncio Playwright script**, not a pytest module — it defines no `test_*` functions and ends in `asyncio.run(main())`. `pytest tests/test_simulation_e2e.py` collects nothing and exits 5 ("no tests ran"); that is not a pass and not a failure, it simply does not run the script. It also expects a live server on `http://127.0.0.1:8000`.
+
+Run it the way the suite does — boot a server, then execute the script:
+
+```bash
+# terminal 1 (or background it):
+micromamba run -n shiny shiny run --port 8000 app.py
+# terminal 2, once the server is serving:
+micromamba run -n shiny python tests/test_simulation_e2e.py
+```
+
+Expected: the script prints its assertion lines and ends with `simulation e2e assertions pass`, exit 0. Any `AssertionError` is a real failure.
+
+Alternatively run the whole harness, which boots the server itself: `micromamba run -n shiny python tests/run_e2e.py` — slower (~10 min, all 32 scripts) but it is what the merge gate uses.
+
+If the script fails on a **nav timeout** rather than an assertion, that is this repo's known cold-server flake — re-run once before treating it as a defect.
 
 - [ ] **Step 4: Commit**
 

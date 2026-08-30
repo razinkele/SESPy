@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import replace
 import logging
+from typing import TypedDict
 
 import networkx as nx
 
@@ -67,6 +68,35 @@ def feedback_loops(
     return cycles
 
 
+def _canonical_cycles(cycles: list[list[str]]) -> list[list[str]]:
+    """Canonicalise a cycle set so loop ids are stable across processes.
+
+    `feedback_loops` returns cycles whose ORDER and whose ROTATION both vary
+    between runs (`nx.simple_cycles` iterates sets, so hash seeding changes
+    both). Positional ids would therefore name a different loop on every app
+    start, and tests asserting on position would flake. Rotating each cycle to
+    its lexicographically-least start and sorting the set fixes both.
+
+    Self-loops (length 1) are dropped: `feedback_loops` returns them and
+    `isa_to_numeric_matrix` sums them onto the diagonal, but a self-loop is not
+    a feedback loop for dominance — left in the denominator, a self-growing
+    node was measured governing 86% of a test system.
+
+    Runs on the set `feedback_loops` ALREADY returned. Do not sort before the
+    `max_loops` cap: that would require enumerating every eligible cycle and
+    defeat the `length_bound` tractability fix (#18 — >5 min unbounded vs
+    ~10 ms bounded).
+    """
+    out: list[list[str]] = []
+    for cycle in cycles:
+        if len(cycle) < 2:
+            continue
+        start = min(range(len(cycle)), key=lambda i: cycle[i])
+        out.append(cycle[start:] + cycle[:start])
+    out.sort()
+    return out
+
+
 def _edge_polarity_lookup(isa: IsaData) -> dict[tuple[str, str], str]:
     return {(c.source, c.target): c.polarity for c in isa.connections}
 
@@ -118,6 +148,220 @@ def loop_polarity_contested(cycle: list[str], isa: IsaData) -> bool:
         if c is not None and connection_disagreement(c)["polarity_contested"]:
             return True
     return False
+
+
+class DominanceRow(TypedDict):
+    """One loop's dominance series. Key on `nodes`, never on list position."""
+    loop_id: str
+    nodes: list[str]
+    polarity: str
+    structural_gain: float
+    shares: list[float]
+    peak_share: float
+    peak_step: int
+
+
+class DominanceResult(TypedDict):
+    """Per-loop dominance shares over a trajectory.
+
+    `note` is a MACHINE TOKEN, never prose — the UI maps it to a translated
+    key. One of: "ok", "zero_trajectory", "no_cycles", "zero_gain",
+    "truncated_overflow", "truncated_underflow".
+    """
+    rows: list[DominanceRow]
+    n_steps: int
+    truncated_at: int | None
+    contested_steps: list[int]
+    active: bool
+    note: str
+
+
+def loop_dominance(
+    isa: IsaData,
+    trajectory: "np.ndarray",
+    node_ids: list[str],
+    *,
+    cycles: list[list[str]] | None = None,
+    margin: float = 0.05,
+) -> DominanceResult:
+    """Per-loop dominance share over a simulated trajectory.
+
+    share_L(t) = |structural gain| * mean(|x_t[n]| for n in L), normalised
+    across loops so shares sum to 1 at each step. Structure is constant; what
+    changes over time is which loops carry activity.
+
+    The trajectory is passed IN, never simulated here: the function stays pure
+    and testable without `dynamics`, and the caller guarantees the ranking
+    describes the run actually on screen.
+
+    `cycles` is for test injection and for a caller's own snapshot. It is NOT a
+    hand-off from the Loop Detection panel, whose `detected` set is a
+    module-local reactive that other modules cannot read.
+
+    Interpretation limits are real and documented in the spec: shares are
+    scale-free, so they carry information during the TRANSIENT only, and
+    late-run dominance is a structural (dominant-eigenvector) fact.
+    """
+    import numpy as np
+    from .dynamics import isa_to_numeric_matrix  # local: dynamics imports network
+
+    empty: DominanceResult = {
+        "rows": [], "n_steps": 0, "truncated_at": None,
+        "contested_steps": [], "active": False, "note": "no_cycles",
+    }
+
+    cyc = _canonical_cycles(
+        cycles if cycles is not None else feedback_loops(isa))
+    if not cyc:
+        return empty
+
+    M, mat_ids = isa_to_numeric_matrix(isa)
+    if len(node_ids) != trajectory.shape[1] or set(node_ids) != set(mat_ids):
+        raise ValueError(
+            "node_ids must match the trajectory's columns and the ISA's "
+            f"elements; got {len(node_ids)} ids for "
+            f"{trajectory.shape[1]} columns")
+
+    mpos = {n: i for i, n in enumerate(mat_ids)}
+    structural: list[float] = []
+    for c in cyc:
+        g = 1.0
+        for i in range(len(c)):
+            g *= float(M[mpos[c[i]], mpos[c[(i + 1) % len(c)]]])
+        structural.append(abs(g))
+    if not any(structural):
+        return {**empty, "note": "zero_gain"}
+
+    tpos = {n: i for i, n in enumerate(node_ids)}
+    series: list[list[float]] = [[] for _ in cyc]
+    truncated_at: int | None = None
+    note = "ok"
+    for t in range(trajectory.shape[0]):
+        x = np.abs(trajectory[t])
+        raw = [structural[i] * float(np.mean([x[tpos[n]] for n in c]))
+               for i, c in enumerate(cyc)]
+        total = float(np.sum(raw))
+        if not np.isfinite(total):
+            truncated_at, note = t, "truncated_overflow"
+            break
+        if total <= 0.0:
+            truncated_at = t
+            note = "zero_trajectory" if t == 0 else "truncated_underflow"
+            break
+        for i in range(len(cyc)):
+            series[i].append(raw[i] / total)
+
+    n_steps = len(series[0])
+    if n_steps < 2:
+        # No usable prefix: active=False is reserved for exactly this.
+        return {**empty, "note": note, "truncated_at": truncated_at}
+
+    rows: list[DominanceRow] = []
+    for idx, c in enumerate(cyc, start=1):
+        s = series[idx - 1]
+        peak = max(range(len(s)), key=lambda k: s[k])
+        rows.append({
+            "loop_id": f"L{idx:03d}",
+            "nodes": c,
+            "polarity": loop_polarity(c, isa),
+            "structural_gain": structural[idx - 1],
+            "shares": s,
+            "peak_share": s[peak],
+            "peak_step": peak,
+        })
+
+    contested: list[int] = []
+    for t in range(n_steps):
+        ordered = sorted((r["shares"][t] for r in rows), reverse=True)
+        if len(ordered) >= 2 and ordered[0] <= ordered[1] * (1.0 + margin):
+            contested.append(t)
+
+    return {
+        "rows": rows, "n_steps": n_steps, "truncated_at": truncated_at,
+        "contested_steps": contested, "active": True, "note": note,
+    }
+
+
+class Shift(TypedDict):
+    """One confirmed change of governing loop.
+
+    `step` is where the new leader FIRST took the lead, not where its dwell
+    completed. `polarity_changed` is separate on purpose: a change of
+    governing loop within one polarity is a weaker event than a B<->R regime
+    change, and conflating them would report a "B->R shift" that never
+    happened.
+    """
+    step: int
+    from_loop: str
+    to_loop: str
+    from_nodes: list[str]
+    to_nodes: list[str]
+    from_polarity: str
+    to_polarity: str
+    margin_pct: float
+    held_steps: int
+    polarity_changed: bool
+
+
+def dominance_shifts(
+    result: DominanceResult, *, margin: float = 0.05, dwell: int = 5
+) -> list[Shift]:
+    """Confirmed changes of governing loop.
+
+    A shift is recorded only when a maximal run of the raw (per-step argmax)
+    leader is at least `dwell` steps long AND, measured at the END of that
+    dwell window, the candidate's share exceeds the incumbent's by a RELATIVE
+    `margin`. `step` is the FIRST step of the run — the crossing — not the
+    step the dwell window closed or the margin cleared; on smooth data those
+    can differ from the crossing, and conflating them would misreport when a
+    user actually saw the new loop take the lead. `held_steps` is the full
+    run length. Near-ties never register; they are in
+    `result["contested_steps"]`.
+
+    NOTE: the step is a property of the run, not a model prediction — shift
+    timing depends on the initial condition (see the spec's risks section).
+    """
+    rows = result.get("rows") or []
+    n = result.get("n_steps") or 0
+    if not result.get("active") or len(rows) < 2 or n < 2:
+        return []
+
+    leaders = [max(range(len(rows)), key=lambda i: rows[i]["shares"][t])
+               for t in range(n)]
+
+    # Maximal runs of a constant raw leader: (leader_id, run_start, run_length).
+    runs: list[tuple[int, int, int]] = []
+    t0 = 0
+    for t in range(1, n + 1):
+        if t == n or leaders[t] != leaders[t0]:
+            runs.append((leaders[t0], t0, t - t0))
+            t0 = t
+
+    shifts: list[Shift] = []
+    incumbent = leaders[0]
+    for cand, t0, length in runs:
+        if cand == incumbent:
+            continue
+        if length < dwell:
+            continue
+        check_idx = t0 + dwell - 1
+        new_share = rows[cand]["shares"][check_idx]
+        old_share = rows[incumbent]["shares"][check_idx]
+        if old_share > 0 and new_share <= old_share * (1.0 + margin):
+            continue
+        a, b = rows[incumbent], rows[cand]
+        shifts.append({
+            "step": t0,
+            "from_loop": a["loop_id"], "to_loop": b["loop_id"],
+            "from_nodes": a["nodes"], "to_nodes": b["nodes"],
+            "from_polarity": a["polarity"], "to_polarity": b["polarity"],
+            "margin_pct": ((new_share / old_share) - 1.0) * 100.0
+                          if old_share > 0 else float("inf"),
+            "held_steps": length,
+            "polarity_changed": a["polarity"] != b["polarity"],
+        })
+        incumbent = cand
+    return shifts
 
 
 # ---------------------------------------------------------------------------
