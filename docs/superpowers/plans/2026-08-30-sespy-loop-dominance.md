@@ -144,10 +144,10 @@ def _two_loop_isa():
     from sespy.data_structure import IsaData, Element, Connection
     els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C", "D")]
     cons = [
-        Connection(source="A", target="B", polarity="+", strength="Strong"),
-        Connection(source="B", target="A", polarity="+", strength="Strong"),
-        Connection(source="C", target="D", polarity="+", strength="Weak"),
-        Connection(source="D", target="C", polarity="+", strength="Weak"),
+        Connection(source="A", target="B", polarity="+", strength="strong"),
+        Connection(source="B", target="A", polarity="+", strength="strong"),
+        Connection(source="C", target="D", polarity="+", strength="weak"),
+        Connection(source="D", target="C", polarity="+", strength="weak"),
     ]
     return IsaData(elements=els, connections=cons)
 
@@ -184,11 +184,11 @@ def test_loop_dominance_length_comparability():
     from sespy.network import loop_dominance
     els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C", "D", "E")]
     cons = [
-        Connection(source="A", target="B", polarity="+", strength="Medium"),
-        Connection(source="B", target="A", polarity="+", strength="Medium"),
-        Connection(source="C", target="D", polarity="+", strength="Medium"),
-        Connection(source="D", target="E", polarity="+", strength="Medium"),
-        Connection(source="E", target="C", polarity="+", strength="Medium"),
+        Connection(source="A", target="B", polarity="+", strength="medium"),
+        Connection(source="B", target="A", polarity="+", strength="medium"),
+        Connection(source="C", target="D", polarity="+", strength="medium"),
+        Connection(source="D", target="E", polarity="+", strength="medium"),
+        Connection(source="E", target="C", polarity="+", strength="medium"),
     ]
     isa = IsaData(elements=els, connections=cons)
     node_ids = [e.id for e in isa.elements]
@@ -216,7 +216,7 @@ def test_loop_dominance_no_cycles_is_inactive():
     from sespy.network import loop_dominance
     isa = IsaData(
         elements=[Element(id=n, label=n, type="Drivers") for n in ("A", "B")],
-        connections=[Connection(source="A", target="B", polarity="+", strength="Medium")],
+        connections=[Connection(source="A", target="B", polarity="+", strength="medium")],
     )
     res = loop_dominance(isa, np.ones((3, 2)), ["A", "B"])
     assert res["active"] is False and res["note"] == "no_cycles"
@@ -256,9 +256,9 @@ def test_loop_dominance_self_loop_excluded_from_denominator():
     from sespy.network import loop_dominance
     els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "S")]
     cons = [
-        Connection(source="A", target="B", polarity="+", strength="Medium"),
-        Connection(source="B", target="A", polarity="+", strength="Medium"),
-        Connection(source="S", target="S", polarity="+", strength="Strong"),
+        Connection(source="A", target="B", polarity="+", strength="medium"),
+        Connection(source="B", target="A", polarity="+", strength="medium"),
+        Connection(source="S", target="S", polarity="+", strength="strong"),
     ]
     isa = IsaData(elements=els, connections=cons)
     res = loop_dominance(isa, np.ones((3, 3)), ["A", "B", "S"])
@@ -655,11 +655,14 @@ def test_loop_dominance_detects_a_balancing_to_reinforcing_shift():
     els = [Element(id=n, label=n, type="Drivers") for n in ("B1", "B2", "R1", "R2")]
     cons = [
         # Balancing: exactly one negative edge, weak weights -> decays.
-        Connection(source="B1", target="B2", polarity="+", strength="Weak"),
-        Connection(source="B2", target="B1", polarity="-", strength="Weak"),
+        # NOTE lowercase: _STRENGTH_RANK is {"weak":1,"medium":2,"strong":3}
+        # and .get(s, 2) defaults, so "Weak"/"Strong" would BOTH silently
+        # become rank 2 - equal gains, no timescale separation, no crossing.
+        Connection(source="B1", target="B2", polarity="+", strength="weak"),
+        Connection(source="B2", target="B1", polarity="-", strength="weak"),
         # Reinforcing: no negative edges, strong weights -> grows.
-        Connection(source="R1", target="R2", polarity="+", strength="Strong"),
-        Connection(source="R2", target="R1", polarity="+", strength="Strong"),
+        Connection(source="R1", target="R2", polarity="+", strength="strong"),
+        Connection(source="R2", target="R1", polarity="+", strength="strong"),
     ]
     isa = IsaData(elements=els, connections=cons)
     A, node_ids = dynamics.isa_to_dynamics_matrix(isa)
@@ -698,10 +701,10 @@ def test_loop_dominance_shares_are_not_constant():
 
     els = [Element(id=n, label=n, type="Drivers") for n in ("B1", "B2", "R1", "R2")]
     cons = [
-        Connection(source="B1", target="B2", polarity="+", strength="Weak"),
-        Connection(source="B2", target="B1", polarity="-", strength="Weak"),
-        Connection(source="R1", target="R2", polarity="+", strength="Strong"),
-        Connection(source="R2", target="R1", polarity="+", strength="Strong"),
+        Connection(source="B1", target="B2", polarity="+", strength="weak"),
+        Connection(source="B2", target="B1", polarity="-", strength="weak"),
+        Connection(source="R1", target="R2", polarity="+", strength="strong"),
+        Connection(source="R2", target="R1", polarity="+", strength="strong"),
     ]
     isa = IsaData(elements=els, connections=cons)
     A, node_ids = dynamics.isa_to_dynamics_matrix(isa)
