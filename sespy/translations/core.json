@@ -1644,21 +1644,21 @@
       "es": "Qué bucle de retroalimentación concentra la mayor parte de la actividad en cada paso. El momento describe esta ejecución, no es una predicción: depende del estado inicial. Una proporción es una atribución, no una prueba de que un bucle causa el comportamiento.",
       "fr": "Quelle boucle de rétroaction porte la majeure partie de l'activité à chaque étape. Le moment décrit cette exécution, pas une prédiction : il dépend de l'état initial. Une part est une attribution, non une preuve qu'une boucle cause le comportement.",
       "de": "Welche Rückkopplungsschleife an jedem Schritt den größten Anteil der Aktivität trägt. Der Zeitverlauf beschreibt diesen Lauf, keine Vorhersage: Er hängt vom Anfangszustand ab. Ein Anteil ist eine Zuordnung, kein Beweis, dass eine Schleife das Verhalten verursacht.",
-      "lt": "Kuri grįžtamojo ryšio kilpa kiekviename žingsnyje sudaro didžiąją dalį aktyvumo. Laikas apibūdina šį paleidimą, o ne prognozę: jis priklauso nuo pradinės būsenos. Dalis yra priskyrimas, o ne įrodymas, kad kilpa sukelia elgseną.",
+      "lt": "Kuri grįžtamojo ryšio kilpa kiekviename žingsnyje sudaro didžiąją dalį aktyvumo. Pokyčių laikas apibūdina šį paleidimą, o ne prognozę: jis priklauso nuo pradinės būsenos. Dalis yra priskyrimas, o ne įrodymas, kad kilpa sukelia elgseną.",
       "pt": "Qual ciclo de retroalimentação concentra a maior parte da atividade em cada passo. O momento descreve esta execução, não é uma previsão: depende do estado inicial. Uma proporção é uma atribuição, não prova de que um ciclo causa o comportamento.",
       "it": "Quale ciclo di retroazione porta la maggior parte dell'attività a ogni passo. Il momento descrive questa esecuzione, non è una previsione: dipende dallo stato iniziale. Una quota è un'attribuzione, non una prova che un ciclo causi il comportamento.",
       "no": "Hvilken tilbakekoblingsløkke som bærer mesteparten av aktiviteten ved hvert steg. Tidspunktet beskriver denne kjøringen, ikke en prediksjon: det avhenger av starttilstanden. En andel er en tilskrivning, ikke bevis på at en løkke forårsaker atferden.",
-      "el": "Ποιος βρόχος ανατροφοδότησης συγκεντρώνει το μεγαλύτερο μέρος της δραστηριότητας σε κάθε βήμα. Ο χρονισμός περιγράφει αυτήν την εκτέλεση, όχι πρόβλεψη: εξαρτάται από την αρχική κατάσταση. Ένα ποσοστό είναι απόδοση, όχι απόδειξη ότι ένας βρόχος προκαλεί τη συμπεριφορά."
+      "el": "Ποιος βρόχος ανατροφοδότησης συγκεντρώνει το μεγαλύτερο μέρος της δραστηριότητας σε κάθε βήμα. Ο χρονισμός περιγράφει αυτήν την εκτέλεση, όχι πρόβλεψη: εξαρτάται από την αρχική κατάσταση. Ένα μερίδιο είναι απόδοση, όχι απόδειξη ότι ένας βρόχος προκαλεί τη συμπεριφορά."
     },
     "simulation.dominance_zero_trajectory": {
       "en": "No loop activity — the trajectory is identically zero. Choose a non-zero initial state.",
       "es": "Sin actividad de bucle — la trayectoria es idénticamente cero. Elija un estado inicial distinto de cero.",
       "fr": "Aucune activité de boucle — la trajectoire est identiquement nulle. Choisissez un état initial non nul.",
       "de": "Keine Schleifenaktivität — die Trajektorie ist durchgehend null. Wählen Sie einen von null verschiedenen Anfangszustand.",
-      "lt": "Jokio kilpos aktyvumo — trajektorija yra tapatingai lygi nuliui. Pasirinkite nenulinę pradinę būseną.",
+      "lt": "Jokio kilpos aktyvumo — trajektorija yra identiškai lygi nuliui. Pasirinkite nenulinę pradinę būseną.",
       "pt": "Sem atividade de ciclo — a trajetória é identicamente zero. Escolha um estado inicial diferente de zero.",
       "it": "Nessuna attività di ciclo — la traiettoria è identicamente zero. Scegliere uno stato iniziale diverso da zero.",
-      "no": "Ingen løkkeaktivitet — banen er identisk null. Velg en starttilstand som ikke er null.",
+      "no": "Ingen løkkeaktivitet — banen er identisk lik null. Velg en starttilstand som ikke er null.",
       "el": "Καμία δραστηριότητα βρόχου — η τροχιά είναι ταυτοτικά μηδενική. Επιλέξτε μη μηδενική αρχική κατάσταση."
     },
     "simulation.dominance_no_cycles": {
