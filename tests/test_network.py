@@ -1494,3 +1494,35 @@ def test_causal_paths_unreachable_on_dense_graph_is_fast():
     r = network.causal_paths(IsaData(elements=els, connections=conns),
                              "N0", "ISOLATED")
     assert r == _EMPTY_PATHS
+
+
+def test_canonical_cycles_rotation_is_stable():
+    from sespy.network import _canonical_cycles
+    # Same cycle, three rotations - all must canonicalise identically.
+    a = _canonical_cycles([["B", "C", "A"]])
+    b = _canonical_cycles([["C", "A", "B"]])
+    c = _canonical_cycles([["A", "B", "C"]])
+    assert a == b == c == [["A", "B", "C"]]
+
+
+def test_canonical_cycles_order_is_stable():
+    from sespy.network import _canonical_cycles
+    one = _canonical_cycles([["B", "C"], ["A", "D"]])
+    two = _canonical_cycles([["A", "D"], ["B", "C"]])
+    assert one == two == [["A", "D"], ["B", "C"]]
+
+
+def test_canonical_cycles_drops_self_loops():
+    from sespy.network import _canonical_cycles
+    # A self-loop is not a feedback loop for dominance: feedback_loops
+    # returns them, and left in the denominator a self-growing node was
+    # measured governing 86% of a test system.
+    assert _canonical_cycles([["X"], ["A", "B"]]) == [["A", "B"]]
+    assert _canonical_cycles([["X"]]) == []
+
+
+def test_canonical_cycles_preserves_direction():
+    from sespy.network import _canonical_cycles
+    # Rotation must not reverse the cycle - A->B->C is not A->C->B.
+    assert _canonical_cycles([["B", "C", "A"]]) == [["A", "B", "C"]]
+    assert _canonical_cycles([["C", "B", "A"]]) == [["A", "C", "B"]]

@@ -67,6 +67,35 @@ def feedback_loops(
     return cycles
 
 
+def _canonical_cycles(cycles: list[list[str]]) -> list[list[str]]:
+    """Canonicalise a cycle set so loop ids are stable across processes.
+
+    `feedback_loops` returns cycles whose ORDER and whose ROTATION both vary
+    between runs (`nx.simple_cycles` iterates sets, so hash seeding changes
+    both). Positional ids would therefore name a different loop on every app
+    start, and tests asserting on position would flake. Rotating each cycle to
+    its lexicographically-least start and sorting the set fixes both.
+
+    Self-loops (length 1) are dropped: `feedback_loops` returns them and
+    `isa_to_numeric_matrix` sums them onto the diagonal, but a self-loop is not
+    a feedback loop for dominance — left in the denominator, a self-growing
+    node was measured governing 86% of a test system.
+
+    Runs on the set `feedback_loops` ALREADY returned. Do not sort before the
+    `max_loops` cap: that would require enumerating every eligible cycle and
+    defeat the `length_bound` tractability fix (#18 — >5 min unbounded vs
+    ~10 ms bounded).
+    """
+    out: list[list[str]] = []
+    for cycle in cycles:
+        if len(cycle) < 2:
+            continue
+        start = min(range(len(cycle)), key=lambda i: cycle[i])
+        out.append(cycle[start:] + cycle[:start])
+    out.sort()
+    return out
+
+
 def _edge_polarity_lookup(isa: IsaData) -> dict[tuple[str, str], str]:
     return {(c.source, c.target): c.polarity for c in isa.connections}
 
