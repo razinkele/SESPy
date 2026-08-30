@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import replace
 import logging
+from typing import TypedDict
 
 import networkx as nx
 
@@ -147,6 +148,138 @@ def loop_polarity_contested(cycle: list[str], isa: IsaData) -> bool:
         if c is not None and connection_disagreement(c)["polarity_contested"]:
             return True
     return False
+
+
+class DominanceRow(TypedDict):
+    """One loop's dominance series. Key on `nodes`, never on list position."""
+    loop_id: str
+    nodes: list[str]
+    polarity: str
+    structural_gain: float
+    shares: list[float]
+    peak_share: float
+    peak_step: int
+
+
+class DominanceResult(TypedDict):
+    """Per-loop dominance shares over a trajectory.
+
+    `note` is a MACHINE TOKEN, never prose — the UI maps it to a translated
+    key. One of: "ok", "zero_trajectory", "no_cycles", "zero_gain",
+    "truncated_overflow", "truncated_underflow".
+    """
+    rows: list[DominanceRow]
+    n_steps: int
+    truncated_at: int | None
+    contested_steps: list[int]
+    active: bool
+    note: str
+
+
+def loop_dominance(
+    isa: IsaData,
+    trajectory: "np.ndarray",
+    node_ids: list[str],
+    *,
+    cycles: list[list[str]] | None = None,
+    margin: float = 0.05,
+) -> DominanceResult:
+    """Per-loop dominance share over a simulated trajectory.
+
+    share_L(t) = |structural gain| * mean(|x_t[n]| for n in L), normalised
+    across loops so shares sum to 1 at each step. Structure is constant; what
+    changes over time is which loops carry activity.
+
+    The trajectory is passed IN, never simulated here: the function stays pure
+    and testable without `dynamics`, and the caller guarantees the ranking
+    describes the run actually on screen.
+
+    `cycles` is for test injection and for a caller's own snapshot. It is NOT a
+    hand-off from the Loop Detection panel, whose `detected` set is a
+    module-local reactive that other modules cannot read.
+
+    Interpretation limits are real and documented in the spec: shares are
+    scale-free, so they carry information during the TRANSIENT only, and
+    late-run dominance is a structural (dominant-eigenvector) fact.
+    """
+    import numpy as np
+    from .dynamics import isa_to_numeric_matrix  # local: dynamics imports network
+
+    empty: DominanceResult = {
+        "rows": [], "n_steps": 0, "truncated_at": None,
+        "contested_steps": [], "active": False, "note": "no_cycles",
+    }
+
+    cyc = _canonical_cycles(
+        cycles if cycles is not None else feedback_loops(isa))
+    if not cyc:
+        return empty
+
+    M, mat_ids = isa_to_numeric_matrix(isa)
+    if len(node_ids) != trajectory.shape[1] or set(node_ids) != set(mat_ids):
+        raise ValueError(
+            "node_ids must match the trajectory's columns and the ISA's "
+            f"elements; got {len(node_ids)} ids for "
+            f"{trajectory.shape[1]} columns")
+
+    mpos = {n: i for i, n in enumerate(mat_ids)}
+    structural: list[float] = []
+    for c in cyc:
+        g = 1.0
+        for i in range(len(c)):
+            g *= float(M[mpos[c[i]], mpos[c[(i + 1) % len(c)]]])
+        structural.append(abs(g))
+    if not any(structural):
+        return {**empty, "note": "zero_gain"}
+
+    tpos = {n: i for i, n in enumerate(node_ids)}
+    series: list[list[float]] = [[] for _ in cyc]
+    truncated_at: int | None = None
+    note = "ok"
+    for t in range(trajectory.shape[0]):
+        x = np.abs(trajectory[t])
+        raw = [structural[i] * float(np.mean([x[tpos[n]] for n in c]))
+               for i, c in enumerate(cyc)]
+        total = float(np.sum(raw))
+        if not np.isfinite(total):
+            truncated_at, note = t, "truncated_overflow"
+            break
+        if total <= 0.0:
+            truncated_at = t
+            note = "zero_trajectory" if t == 0 else "truncated_underflow"
+            break
+        for i in range(len(cyc)):
+            series[i].append(raw[i] / total)
+
+    n_steps = len(series[0])
+    if n_steps < 2:
+        # No usable prefix: active=False is reserved for exactly this.
+        return {**empty, "note": note, "truncated_at": truncated_at}
+
+    rows: list[DominanceRow] = []
+    for idx, c in enumerate(cyc, start=1):
+        s = series[idx - 1]
+        peak = max(range(len(s)), key=lambda k: s[k])
+        rows.append({
+            "loop_id": f"L{idx:03d}",
+            "nodes": c,
+            "polarity": loop_polarity(c, isa),
+            "structural_gain": structural[idx - 1],
+            "shares": s,
+            "peak_share": s[peak],
+            "peak_step": peak,
+        })
+
+    contested: list[int] = []
+    for t in range(n_steps):
+        ordered = sorted((r["shares"][t] for r in rows), reverse=True)
+        if len(ordered) >= 2 and ordered[0] <= ordered[1] * (1.0 + margin):
+            contested.append(t)
+
+    return {
+        "rows": rows, "n_steps": n_steps, "truncated_at": truncated_at,
+        "contested_steps": contested, "active": True, "note": note,
+    }
 
 
 # ---------------------------------------------------------------------------

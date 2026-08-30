@@ -1526,3 +1526,140 @@ def test_canonical_cycles_preserves_direction():
     # Rotation must not reverse the cycle - A->B->C is not A->C->B.
     assert _canonical_cycles([["B", "C", "A"]]) == [["A", "B", "C"]]
     assert _canonical_cycles([["C", "B", "A"]]) == [["A", "C", "B"]]
+
+
+def _two_loop_isa():
+    """Two disjoint 2-cycles with different strengths, so shares are unequal."""
+    from sespy.data_structure import IsaData, Element, Connection
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C", "D")]
+    cons = [
+        Connection(source="A", target="B", polarity="+", strength="strong"),
+        Connection(source="B", target="A", polarity="+", strength="strong"),
+        Connection(source="C", target="D", polarity="+", strength="weak"),
+        Connection(source="D", target="C", polarity="+", strength="weak"),
+    ]
+    return IsaData(elements=els, connections=cons)
+
+
+def test_loop_dominance_shares_sum_to_one():
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    traj = np.ones((5, 4))
+    res = loop_dominance(isa, traj, node_ids)
+    assert res["active"] is True
+    for t in range(res["n_steps"]):
+        assert abs(sum(r["shares"][t] for r in res["rows"]) - 1.0) < 1e-9
+
+
+def test_loop_dominance_rows_keyed_by_nodes_not_position():
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    res = loop_dominance(isa, np.ones((3, 4)), node_ids)
+    by_nodes = {tuple(r["nodes"]): r for r in res["rows"]}
+    assert ("A", "B") in by_nodes and ("C", "D") in by_nodes
+    # The stronger loop carries the larger share.
+    assert by_nodes[("A", "B")]["shares"][0] > by_nodes[("C", "D")]["shares"][0]
+
+
+def test_loop_dominance_length_comparability():
+    """A longer loop is not penalised for its length beyond its structural
+    gain. Activity is a MEAN over the loop's nodes - an intensive quantity -
+    so a 3-cycle and a 2-cycle are comparable; only their gains differ."""
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import loop_dominance
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C", "D", "E")]
+    cons = [
+        Connection(source="A", target="B", polarity="+", strength="Medium"),
+        Connection(source="B", target="A", polarity="+", strength="Medium"),
+        Connection(source="C", target="D", polarity="+", strength="Medium"),
+        Connection(source="D", target="E", polarity="+", strength="Medium"),
+        Connection(source="E", target="C", polarity="+", strength="Medium"),
+    ]
+    isa = IsaData(elements=els, connections=cons)
+    node_ids = [e.id for e in isa.elements]
+    res = loop_dominance(isa, np.ones((2, 5)), node_ids)
+    by_len = {len(r["nodes"]): r["shares"][0] for r in res["rows"]}
+    # gains differ (2^2 vs 2^3) so shares differ, but neither is zero and the
+    # 3-cycle is not penalised for its length beyond its structural gain.
+    assert by_len[2] > 0 and by_len[3] > 0
+
+
+def test_loop_dominance_zero_trajectory_is_inactive():
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    res = loop_dominance(isa, np.zeros((10, 4)), node_ids)
+    assert res["active"] is False
+    assert res["note"] == "zero_trajectory"
+    assert res["rows"] == []
+
+
+def test_loop_dominance_no_cycles_is_inactive():
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import loop_dominance
+    isa = IsaData(
+        elements=[Element(id=n, label=n, type="Drivers") for n in ("A", "B")],
+        connections=[Connection(source="A", target="B", polarity="+", strength="medium")],
+    )
+    res = loop_dominance(isa, np.ones((3, 2)), ["A", "B"])
+    assert res["active"] is False and res["note"] == "no_cycles"
+
+
+def test_loop_dominance_truncates_on_overflow_keeping_the_prefix():
+    """A late non-finite step must truncate, NOT void the whole run."""
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    traj = np.ones((10, 4))
+    traj[7:] = np.inf
+    res = loop_dominance(isa, traj, node_ids)
+    assert res["active"] is True
+    assert res["truncated_at"] == 7
+    assert res["n_steps"] == 7
+    assert res["note"] == "truncated_overflow"
+
+
+def test_loop_dominance_truncates_on_underflow():
+    import numpy as np
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    node_ids = [e.id for e in isa.elements]
+    traj = np.ones((10, 4))
+    traj[6:] = 0.0
+    res = loop_dominance(isa, traj, node_ids)
+    assert res["active"] is True
+    assert res["truncated_at"] == 6
+    assert res["note"] == "truncated_underflow"
+
+
+def test_loop_dominance_self_loop_excluded_from_denominator():
+    import numpy as np
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import loop_dominance
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "S")]
+    cons = [
+        Connection(source="A", target="B", polarity="+", strength="medium"),
+        Connection(source="B", target="A", polarity="+", strength="medium"),
+        Connection(source="S", target="S", polarity="+", strength="strong"),
+    ]
+    isa = IsaData(elements=els, connections=cons)
+    res = loop_dominance(isa, np.ones((3, 3)), ["A", "B", "S"])
+    assert all(len(r["nodes"]) >= 2 for r in res["rows"])
+    assert all(("S",) != tuple(r["nodes"]) for r in res["rows"])
+
+
+def test_loop_dominance_rejects_mismatched_node_ids():
+    import numpy as np
+    import pytest
+    from sespy.network import loop_dominance
+    isa = _two_loop_isa()
+    with pytest.raises(ValueError):
+        loop_dominance(isa, np.ones((3, 4)), ["A", "B"])  # wrong length
