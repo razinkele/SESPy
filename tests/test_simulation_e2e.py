@@ -1,5 +1,6 @@
 """E2E for the Dynamic Simulation module: navigate, click Run Simulation
-and Run Monte Carlo, verify both result panels populate."""
+and Run Monte Carlo, verify both result panels populate, and toggle the
+loop-dominance overlay on the trajectory plot."""
 import asyncio
 
 from playwright.async_api import async_playwright
@@ -24,6 +25,56 @@ async def main():
         # 2.5s sleep-then-assert.
         await page.wait_for_selector("#simulation-trajectory_plot img", timeout=30000)
         print("trajectory plot rendered: True")
+
+        # ---- Loop-dominance overlay (#22) ----
+        # Asserted here, while the Trajectories panel is still the active tab:
+        # dominance_summary is an output_ui on that panel and Shiny suspends
+        # outputs on inactive nav panels, so this must precede the tab switches
+        # below. Deliberately no pixel assertions on the shading -- the numbers
+        # are covered by tests/test_network.py; this is a declared coverage
+        # limit. What it does prove is that ticking the box drives the server
+        # through loop_dominance()/dominance_shifts() without erroring.
+        assert await page.is_visible("#simulation-dominance_show")
+        assert not await page.is_checked("#simulation-dominance_show"), \
+            "loop-dominance toggle should default to off"
+        summary_len = await page.eval_on_selector(
+            "#simulation-dominance_summary", "el => el.innerText.trim().length"
+        )
+        assert summary_len == 0, "dominance summary should be empty when off"
+
+        await page.check("#simulation-dominance_show")
+        # Condition, not a guessed delay: the summary goes from empty to a
+        # shift list (or a translated "no cycles"/"zero gain" note), which only
+        # happens once the server has actually run the dominance code.
+        await page.wait_for_function(
+            "() => { const el = document.querySelector('#simulation-dominance_summary');"
+            "        return el && el.innerText.trim().length > 0; }",
+            timeout=30000,
+        )
+        assert await page.is_checked("#simulation-dominance_show")
+        # The plot is invalidated by the same input; it must survive the
+        # overlay, not vanish behind a render exception.
+        await page.wait_for_selector("#simulation-trajectory_plot img", timeout=30000)
+        errored = await page.evaluate(
+            "() => Array.from(document.querySelectorAll("
+            "    '#simulation-trajectory_plot, #simulation-dominance_summary'))"
+            "  .filter(el => el.classList.contains('shiny-output-error')"
+            "             || el.querySelector('.shiny-output-error'))"
+            "  .map(el => el.id)"
+        )
+        assert errored == [], f"loop-dominance outputs errored: {errored}"
+        print("loop-dominance overlay rendered: True")
+
+        # Toggle back off so the Final state / Monte Carlo sections below run
+        # against exactly the state they did before this block existed.
+        await page.uncheck("#simulation-dominance_show")
+        await page.wait_for_function(
+            "() => { const el = document.querySelector('#simulation-dominance_summary');"
+            "        return el && el.innerText.trim().length === 0; }",
+            timeout=30000,
+        )
+        print("loop-dominance overlay cleared: True")
+
 
         # Switch to Final state tab
         await page.click("text=Final state")
