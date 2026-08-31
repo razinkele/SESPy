@@ -17,7 +17,7 @@ channels:
 dependencies:
   - python>=3.11
   - pyvis>=4.0       # razinka channel (PyPI/conda-forge pyvis 0.3.x lacks .shiny)
-  - networkx>=3.0
+  - networkx>=3.1     # simple_cycles(length_bound=...) in feedback_loops
   - scipy>=1.10      # networkx pagerank / eigenvector centrality
   - pandas>=2.0
   - numpy>=1.24
