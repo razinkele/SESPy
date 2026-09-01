@@ -108,6 +108,21 @@ module. Draft retained here only for provenance; no longer an open item.
 
 ---
 
+## [Medium] Cross-tier hypermodule detection in `sespy/network.py`
+
+**Status:** ✅ Opened as razinkele/SESPy#24 (2026-09-01)
+
+**Source paper:** Pinheiro, Peralta & Lewinsohn, *The hypermodular structure of tripartite ecological networks*, Proceedings of the Royal Society B 293:2077 (2026). https://doi.org/10.1098/rspb.2026.1348
+**Alert week:** 2026-09-01
+
+**Motivation.** SES networks are multipartite: ecological tier (S/I/P nodes), social tier (D/A nodes), governance tier (R/M nodes) under DAPSI(W)R(M) typing. Current SESPy metrics assess cross-tier coupling density (`social_ecological_fit`) or gaps (`governance_gap`). HyperMod asks a different question: which nodes across all tiers form cohesive multi-tier modules — SES subsystems where ecological processes, social activities, and governance actors are all densely interconnected? These are the SES analogue of the hypermodules Pinheiro et al. identify in plant–herbivore–parasitoid chains.
+
+**Proposal.** Add `hypermodule_detection(g)` to `sespy/network.py`: using the DAPSI(W)R(M) tier partition, build per-tier-pair bipartite projections, detect community modules within each bipartite sub-graph, and report cross-tier module congruence — nodes that co-occur in the same module across at least two tier projections (the SES-network hypermodule). Return a DataFrame of `{node, tier, hypermodule_id, within_tier_degree, cross_tier_degree}` and a hypermodularity score. Expose in the Network Metrics module as a collapsible "SES Subsystem Modules" section.
+
+**Effort:** Moderate. **Labels:** enhancement, analysis, network.
+
+---
+
 ## [High] Loop dominance over time in `sespy/network.py`
 
 **Filed as [#22](https://github.com/razinkele/SESPy/issues/22) on 2026-08-26.** Covers ALC (see below) rather than filing it separately.
