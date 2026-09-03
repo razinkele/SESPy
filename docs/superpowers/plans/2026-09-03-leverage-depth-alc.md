@@ -670,7 +670,7 @@ In `sespy/modules/analysis_leverage.py`, replace the whole of `ranked()` (`:146-
 - [ ] **Step 4: Add the shared cycles reactive and the truncation flag**
 
 Insert these two reactives **above** `ranked()` (a `@reactive.calc` must be
-defined before the one that calls it), directly after `scores()` (`:141-144`):
+defined before the one that calls it), directly after `scores()` (`:140-143`):
 
 ```python
     @reactive.calc
