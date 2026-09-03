@@ -419,8 +419,15 @@ def centrality_metrics(isa: IsaData) -> dict[str, dict[str, float]]:
     try:
         eigenvector = nx.eigenvector_centrality_numpy(g, max_iter=200)
     except Exception as e:
-        logger.warning("network.centrality metric=eigenvector_numpy status=fallback reason=%s", type(e).__name__)
-        # Fallback for graphs where the numpy solver is unhappy
+        # DEBUG, not WARNING: networkx raises AmbiguousSolution from the numpy
+        # solver for any digraph that is not STRONGLY connected, and a causal
+        # SES diagram essentially never is — a 3-node ring qualifies, a
+        # two-edge chain does not. So this fired on virtually every model
+        # (5x per report render on the sample project), and a warning that is
+        # always on is a warning nobody reads. The iterative solver below
+        # handles these graphs and its result is what ships; the genuine
+        # quality loss is the all-zeros path, which stays at WARNING.
+        logger.debug("network.centrality metric=eigenvector_numpy status=fallback reason=%s", type(e).__name__)
         try:
             eigenvector = nx.eigenvector_centrality(g, max_iter=500)
         except Exception as e2:
