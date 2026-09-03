@@ -47,3 +47,32 @@ def test_alc_translation_keys_exist_in_every_language():
         assert key in tr, f"{key} does not resolve through load_translations"
         assert langs.issubset(set(tr[key])), f"{key} is missing languages"
         assert all(tr[key][l].strip() for l in langs), f"{key} has an empty value"
+
+
+def test_promotion_actually_fires_on_the_sample_project():
+    """The structural rule must be pinned on real data, not only on a 2-node
+    synthetic fixture. An Activity inside a detected loop must resolve to
+    'feedbacks' where the type-only mapping would have said 'design'."""
+    from pathlib import Path
+    from sespy.data_structure import load_sample
+    from sespy.network import leverage_realms, leverage_realm
+
+    isa = load_sample(
+        Path(__file__).resolve().parents[1] / "data" / "sample_ses.json")
+    realms = leverage_realms(isa)
+    by_id = {el.id: el for el in isa.elements}
+
+    activities = [nid for nid, el in by_id.items() if el.type == "Activities"]
+    assert activities, "sample must contain Activities or this pins nothing"
+
+    promoted = [nid for nid in activities if realms[nid] == "feedbacks"]
+    assert promoted, (
+        "no Activity was promoted on the sample project — the structural rule "
+        "is not firing on real data")
+    # Every promoted node is one the type-only mapping would have called
+    # 'design', which is exactly what promotion means.
+    for nid in promoted:
+        assert leverage_realm(by_id[nid].type) == "design"
+    # And an unpromoted Activity still falls back to the type mapping.
+    for nid in set(activities) - set(promoted):
+        assert realms[nid] == "design"
