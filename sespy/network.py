@@ -592,7 +592,8 @@ def governance_actor_influence(isa: IsaData) -> list[dict]:
 
 
 def cascade_vulnerability(
-    isa: IsaData, *, max_steps: int = 20, max_length: int = 6, max_loops: int = 50
+    isa: IsaData, *, max_steps: int = 20, max_length: int = 6,
+    max_loops: int = LOOP_ENUMERATION_CAP,
 ) -> dict:
     """Sequential-removal cascade diagnostic — ERL 2026
     (doi:10.1088/1748-9326/ae83cb): remove nodes in descending
@@ -1310,7 +1311,7 @@ def uncertainty_scores(
     seed: int | None = None,
     base: float = 0.5,
     max_length: int = 6,
-    max_loops: int = 50,
+    max_loops: int = LOOP_ENUMERATION_CAP,
     contested_band: tuple[float, float] = (0.2, 0.8),
 ) -> dict:
     """Monte-Carlo leverage & loop uncertainty under edge drop + sign-flip.
