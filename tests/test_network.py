@@ -137,6 +137,31 @@ def test_loop_polarity_rule(isa):
     assert all(row["id"].startswith("L") for row in annotated)
 
 
+def test_eigenvector_fallback_is_quiet_and_still_scores(isa, caplog):
+    """The numpy eigenvector solver raises AmbiguousSolution on any digraph
+    that is not STRONGLY connected, which a causal SES diagram essentially
+    never is (the sample has 5 strong components). That routine fallback must
+    not log at WARNING — it fired on every model and drowned out the one
+    eigenvector message that does matter, the all-zeros path — and the
+    iterative solver's scores must still be real, not zeros.
+    """
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="sespy.network"):
+        m = network.centrality_metrics(isa)
+
+    eigen_warnings = [r for r in caplog.records if "eigenvector" in r.getMessage()]
+    assert eigen_warnings == [], (
+        "the numpy->iterative fallback is expected on normal input and must be "
+        f"DEBUG, not WARNING; got: {[r.getMessage() for r in eigen_warnings]}"
+    )
+
+    ev = m["eigenvector"]
+    assert len(ev) == isa.element_count()
+    assert any(v > 0 for v in ev.values()), "fallback must produce real scores"
+    assert len({round(v, 9) for v in ev.values()}) > 1, "scores must discriminate"
+
+
 def test_centrality_metrics_seven_keys(isa):
     """All seven centrality measures should be present and cover every node."""
     m = network.centrality_metrics(isa)
