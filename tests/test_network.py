@@ -1856,3 +1856,90 @@ def test_loop_dominance_shares_are_not_constant():
     res = loop_dominance(isa, traj, node_ids)
     spread = max(abs(r["shares"][0] - r["shares"][-1]) for r in res["rows"])
     assert spread > 0.1, f"shares barely moved ({spread:.4f}) - gain may be constant"
+
+
+def _three_cycle_isa():
+    """A 3-cycle with one negative edge -> Balancing, and asymmetric enough
+    that the numeric matrix and its transpose give DIFFERENT products.
+    A 2-cycle cannot catch a transpose error; this can."""
+    from sespy.data_structure import IsaData, Element, Connection
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C")]
+    cons = [
+        Connection(source="A", target="B", polarity="+", strength="strong"),
+        Connection(source="B", target="C", polarity="+", strength="medium"),
+        Connection(source="C", target="A", polarity="-", strength="weak"),
+    ]
+    return IsaData(elements=els, connections=cons)
+
+
+def _shipped_isas():
+    """Every fixture shipped in data/. The spec asks the polarity property to
+    hold on all of them, not only on synthetic in-file graphs."""
+    import json
+    from pathlib import Path
+    from sespy.data_structure import IsaData, load_sample
+    from sespy.qsem_import import qsem_to_isa
+
+    root = Path(__file__).resolve().parents[1] / "data"
+    out = [("sample_ses.json", load_sample(root / "sample_ses.json"))]
+    for qs in sorted(root.glob("*.qsem")):
+        els, cons = qsem_to_isa(json.loads(qs.read_text(encoding="utf-8")))
+        out.append((qs.name, IsaData(elements=els, connections=cons)))
+    return out
+
+
+def _has_parallel_edges(isa) -> bool:
+    seen = set()
+    for c in isa.connections:
+        if (c.source, c.target) in seen:
+            return True
+        seen.add((c.source, c.target))
+    return False
+
+
+def test_loop_gain_sign_matches_loop_polarity():
+    """The sign IS the polarity — on every shipped fixture plus the synthetics.
+
+    Skips a fixture with parallel edges: the numeric matrix SUMS connections
+    sharing a (source, target) pair while loop_polarity reads a last-wins
+    dict, so the two legitimately disagree there. No shipped fixture has them
+    today; the guard keeps the test honest if one ever gains some. A zero gain
+    carries no polarity and is skipped too.
+    """
+    from sespy.dynamics import isa_to_numeric_matrix
+    from sespy.network import loop_gain, loop_polarity, feedback_loops
+
+    cases = [("_two_loop_isa", _two_loop_isa()),
+             ("_three_cycle_isa", _three_cycle_isa())] + _shipped_isas()
+    checked = 0
+    for name, isa in cases:
+        if _has_parallel_edges(isa):
+            continue
+        M, mat_ids = isa_to_numeric_matrix(isa)
+        pos = {n: i for i, n in enumerate(mat_ids)}
+        for c in feedback_loops(isa):
+            g = loop_gain(c, M, pos)
+            if g == 0.0:
+                continue
+            expected = "Reinforcing" if g > 0 else "Balancing"
+            assert loop_polarity(c, isa) == expected, (name, c, g)
+            checked += 1
+    assert checked > 0, "the property was never actually exercised"
+
+
+def test_loop_gain_is_orientation_sensitive_on_a_three_cycle():
+    """Guards the transpose hazard: loop_gain must use isa_to_numeric_matrix.
+    On a 2-cycle both orientations give the same product, so only a 3-cycle
+    can detect the error."""
+    from sespy.dynamics import isa_to_numeric_matrix
+    from sespy.network import loop_gain, feedback_loops
+
+    isa = _three_cycle_isa()
+    M, mat_ids = isa_to_numeric_matrix(isa)
+    pos = {n: i for i, n in enumerate(mat_ids)}
+    c = feedback_loops(isa)[0]
+    forward = loop_gain(c, M, pos)
+    transposed = loop_gain(c, M.T, pos)
+    assert forward != transposed, (
+        "fixture is transpose-invariant and cannot guard the orientation")
+    assert forward < 0, "one negative edge -> Balancing -> negative product"

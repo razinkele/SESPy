@@ -176,6 +176,29 @@ class DominanceResult(TypedDict):
     note: str
 
 
+def loop_gain(cycle: list[str], M, pos: dict[str, int]) -> float:
+    """Signed product of the edge weights around `cycle`.
+
+    The SIGN is the polarity: an even number of negative edges gives a
+    positive product, which is the rule loop_polarity() applies. That
+    correspondence holds only where no two connections share a
+    (source, target) pair — the matrix SUMS parallel edges while
+    loop_polarity() reads a last-wins dict — and a zero product (cancelling
+    parallel edges) carries no polarity at all.
+
+    Takes the PREPARED matrix and its id->index mapping rather than an
+    IsaData, so one matrix is shared across every cycle at a call site.
+
+    `M` must come from isa_to_numeric_matrix, NOT isa_to_dynamics_matrix:
+    v1.4.0 established that the latter is its transpose, and passing it here
+    would silently change every gain.
+    """
+    g = 1.0
+    for i in range(len(cycle)):
+        g *= float(M[pos[cycle[i]], pos[cycle[(i + 1) % len(cycle)]]])
+    return g
+
+
 def loop_dominance(
     isa: IsaData,
     trajectory: "np.ndarray",
@@ -223,12 +246,9 @@ def loop_dominance(
             f"{trajectory.shape[1]} columns")
 
     mpos = {n: i for i, n in enumerate(mat_ids)}
-    structural: list[float] = []
-    for c in cyc:
-        g = 1.0
-        for i in range(len(c)):
-            g *= float(M[mpos[c[i]], mpos[c[(i + 1) % len(c)]]])
-        structural.append(abs(g))
+    # abs(): loop_dominance ranks by magnitude. The sign is the polarity and
+    # is what adjusted_loop_centrality uses instead.
+    structural: list[float] = [abs(loop_gain(c, M, mpos)) for c in cyc]
     if not any(structural):
         return {**empty, "note": "zero_gain"}
 
