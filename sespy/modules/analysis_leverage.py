@@ -109,6 +109,7 @@ def analysis_leverage_ui() -> ui.Tag:
             ui.div(
                 ui.h4(t("leverage.highest")),
                 ui.output_data_frame("leverage_table"),
+                ui.output_ui("leverage_caption"),
                 ui.output_ui("uncertainty_status"),
                 ui.tags.hr(),
                 ui.h4(t("leverage.network_sized")),
@@ -143,23 +144,53 @@ def analysis_leverage_server(
         return net_analysis.leverage_scores(project_data.get().isa_data)
 
     @reactive.calc
+    def cycles_calc() -> list[list[str]]:
+        """ONE loop enumeration per ISA change, shared by every consumer.
+
+        `event_bus.isa_change.get()` matches scores() — every isa-derived
+        reactive in this module takes that dependency, or it serves a stale
+        result after an edit.
+        """
+        event_bus.isa_change.get()
+        return net_analysis.feedback_loops(project_data.get().isa_data)
+
+    @reactive.calc
+    def alc_truncated() -> bool:
+        # Passes the SHARED list. Calling alc_is_truncated(isa) without it
+        # would re-run feedback_loops a second time per render.
+        return net_analysis.alc_is_truncated(
+            project_data.get().isa_data, cycles=cycles_calc())
+
+    @reactive.calc
     def ranked() -> list[dict]:
         isa = project_data.get().isa_data
         s = scores()
+        # The shared enumeration — see cycles_calc() below. feedback_loops is
+        # bounded but not free, and it must run ONCE per ISA change, not once
+        # per consumer.
+        cycles = cycles_calc()
+        realms = net_analysis.leverage_realms(isa, cycles=cycles)
+        alc = net_analysis.adjusted_loop_centrality(isa, cycles=cycles)
+        truncated = alc_truncated()
         by_id = {el.id: el for el in isa.elements}
         rows = sorted(s.items(), key=lambda kv: kv[1], reverse=True)
         out: list[dict] = []
         for rank, (nid, value) in enumerate(rows, start=1):
             el = by_id.get(nid)
-            token = net_analysis.leverage_realm(el.type if el else "")
-            out.append({
+            token = realms.get(nid, "")
+            row = {
                 "rank": rank,
                 "id": nid,
                 "label": el.label if el else nid,
                 "type":  el.type if el else "",
                 "realm": t(f"leverage.realm.{token}") if token else "—",
                 "leverage": round(value, 3),
-            })
+            }
+            # Suppressed entirely when truncated: above the cap the SIGN is
+            # not reproducible across processes, and the sign is the meaning.
+            if not truncated:
+                row["alc"] = round(alc.get(nid, 0.0), 3)
+            out.append(row)
         return out[: int(input.top_n() or 8)]
 
     unc_state = reactive.value(None)            # None | _COMPUTING | <result dict>
@@ -206,6 +237,8 @@ def analysis_leverage_server(
 
         rows = ranked()
         base_cols = ["rank", "id", "label", "type", "realm", "leverage"]
+        if not alc_truncated():
+            base_cols.insert(5, "alc")
         if not rows:
             return pd.DataFrame(columns=base_cols)
 
@@ -225,6 +258,16 @@ def analysis_leverage_server(
                              t("uncertainty.unstable"): unstable})
         cols = base_cols + [t("uncertainty.ci"), t("uncertainty.unstable")]
         return pd.DataFrame(enriched, columns=cols)
+
+    @output
+    @render.ui
+    def leverage_caption():
+        parts = [ui.p(t("leverage.caption"), class_="text-muted",
+                      style="font-size: 0.85rem;")]
+        if alc_truncated():
+            parts.append(ui.p(t("leverage.alc_truncated"), class_="text-muted",
+                              style="font-size: 0.85rem;"))
+        return ui.div(*parts)
 
     @output
     @render.ui

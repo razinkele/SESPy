@@ -41,8 +41,14 @@ def basic_metrics(isa: IsaData) -> dict[str, int | float]:
     }
 
 
+#: Ceiling on enumerated cycles. Above it the detected subset is not
+#: reproducible across processes (see _canonical_cycles' note on hash
+#: seeding), which is why adjusted_loop_centrality reports truncation.
+LOOP_ENUMERATION_CAP = 50
+
+
 def feedback_loops(
-    isa: IsaData, *, max_length: int = 6, max_loops: int = 50
+    isa: IsaData, *, max_length: int = 6, max_loops: int = LOOP_ENUMERATION_CAP
 ) -> list[list[str]]:
     """Return up to `max_loops` simple cycles, capped at `max_length` nodes.
 
@@ -176,6 +182,69 @@ class DominanceResult(TypedDict):
     note: str
 
 
+def loop_gain(cycle: list[str], M, pos: dict[str, int]) -> float:
+    """Signed product of the edge weights around `cycle`.
+
+    The SIGN is the polarity: an even number of negative edges gives a
+    positive product, which is the rule loop_polarity() applies. That
+    correspondence holds only where no two connections share a
+    (source, target) pair — the matrix SUMS parallel edges while
+    loop_polarity() reads a last-wins dict — and a zero product (cancelling
+    parallel edges) carries no polarity at all.
+
+    Takes the PREPARED matrix and its id->index mapping rather than an
+    IsaData, so one matrix is shared across every cycle at a call site.
+
+    `M` must come from isa_to_numeric_matrix, NOT isa_to_dynamics_matrix:
+    v1.4.0 established that the latter is its transpose, and passing it here
+    would silently change every gain.
+    """
+    g = 1.0
+    for i in range(len(cycle)):
+        g *= float(M[pos[cycle[i]], pos[cycle[(i + 1) % len(cycle)]]])
+    return g
+
+
+def adjusted_loop_centrality(
+    isa: IsaData, *, cycles: list[list[str]] | None = None
+) -> dict[str, float]:
+    """Per-node sum of the SIGNED gains of every detected loop it is in.
+
+    Positive: the node sits in amplifying structure. Negative: damping.
+    0.0: in no detected loop, OR its loop gains cancel.
+
+    Only meaningful when the loop set is complete — see alc_is_truncated().
+    """
+    from .dynamics import isa_to_numeric_matrix  # local: dynamics imports network
+
+    alc: dict[str, float] = {el.id: 0.0 for el in isa.elements}
+    cyc = _canonical_cycles(
+        cycles if cycles is not None else feedback_loops(isa))
+    if not cyc or not alc:
+        return alc
+
+    M, mat_ids = isa_to_numeric_matrix(isa)
+    pos = {n: i for i, n in enumerate(mat_ids)}
+    for c in cyc:
+        if any(n not in pos for n in c):
+            continue        # a caller-injected cycle naming unknown nodes
+        g = loop_gain(c, M, pos)
+        for n in set(c):    # set(): never count a node twice for one loop
+            if n in alc:
+                alc[n] += g
+    return alc
+
+
+def alc_is_truncated(
+    isa: IsaData, *, cycles: list[list[str]] | None = None
+) -> bool:
+    """True when loop enumeration hit LOOP_ENUMERATION_CAP, so an ALC sum over
+    the detected subset is not reproducible across processes and must not be
+    shown as a signed number."""
+    cyc = cycles if cycles is not None else feedback_loops(isa)
+    return len(cyc) >= LOOP_ENUMERATION_CAP
+
+
 def loop_dominance(
     isa: IsaData,
     trajectory: "np.ndarray",
@@ -223,12 +292,9 @@ def loop_dominance(
             f"{trajectory.shape[1]} columns")
 
     mpos = {n: i for i, n in enumerate(mat_ids)}
-    structural: list[float] = []
-    for c in cyc:
-        g = 1.0
-        for i in range(len(c)):
-            g *= float(M[mpos[c[i]], mpos[c[(i + 1) % len(c)]]])
-        structural.append(abs(g))
+    # abs(): loop_dominance ranks by magnitude. The sign is the polarity and
+    # is what adjusted_loop_centrality uses instead.
+    structural: list[float] = [abs(loop_gain(c, M, mpos)) for c in cyc]
     if not any(structural):
         return {**empty, "note": "zero_gain"}
 
@@ -686,6 +752,32 @@ def leverage_realm(element_type: str) -> str:
     'parameters' | 'feedbacks' | 'design' | 'intent', or '' for an unknown type
     (incl. 'Measures', an accepted gap). Pure; translation-free."""
     return _DAPSIWRM_REALM.get(element_type, "")
+
+
+def leverage_realms(
+    isa: IsaData, *, cycles: list[list[str]] | None = None
+) -> dict[str, str]:
+    """Meadows realm per element id, with ONE structural refinement over the
+    type-only leverage_realm(): an Activity that participates in a detected
+    feedback loop reports 'feedbacks' instead of 'design'.
+
+    Everything else — every other type, and an Activity in no loop — is
+    exactly leverage_realm(el.type).
+
+    "Detected" is bounded by feedback_loops(): an Activity in a loop longer
+    than max_length, or beyond LOOP_ENUMERATION_CAP, is not promoted. The
+    realm is therefore a statement about the detected structure, not about
+    the graph in the abstract.
+    """
+    cyc = _canonical_cycles(
+        cycles if cycles is not None else feedback_loops(isa))
+    in_loop = {n for c in cyc for n in c}
+    return {
+        el.id: ("feedbacks"
+                if el.type == "Activities" and el.id in in_loop
+                else leverage_realm(el.type))
+        for el in isa.elements
+    }
 
 
 _SUBSYSTEM: dict[str, str] = {

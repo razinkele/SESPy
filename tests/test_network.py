@@ -1856,3 +1856,235 @@ def test_loop_dominance_shares_are_not_constant():
     res = loop_dominance(isa, traj, node_ids)
     spread = max(abs(r["shares"][0] - r["shares"][-1]) for r in res["rows"])
     assert spread > 0.1, f"shares barely moved ({spread:.4f}) - gain may be constant"
+
+
+def _three_cycle_isa():
+    """A 3-cycle with one negative edge -> Balancing, and asymmetric enough
+    that the numeric matrix and its transpose give DIFFERENT products.
+    A 2-cycle cannot catch a transpose error; this can."""
+    from sespy.data_structure import IsaData, Element, Connection
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B", "C")]
+    cons = [
+        Connection(source="A", target="B", polarity="+", strength="strong"),
+        Connection(source="B", target="C", polarity="+", strength="medium"),
+        Connection(source="C", target="A", polarity="-", strength="weak"),
+    ]
+    return IsaData(elements=els, connections=cons)
+
+
+def _shipped_isas():
+    """Every fixture shipped in data/. The spec asks the polarity property to
+    hold on all of them, not only on synthetic in-file graphs."""
+    import json
+    from pathlib import Path
+    from sespy.data_structure import IsaData, load_sample
+    from sespy.qsem_import import qsem_to_isa
+
+    root = Path(__file__).resolve().parents[1] / "data"
+    out = [("sample_ses.json", load_sample(root / "sample_ses.json"))]
+    for qs in sorted(root.glob("*.qsem")):
+        els, cons = qsem_to_isa(json.loads(qs.read_text(encoding="utf-8")))
+        out.append((qs.name, IsaData(elements=els, connections=cons)))
+    return out
+
+
+def _has_parallel_edges(isa) -> bool:
+    seen = set()
+    for c in isa.connections:
+        if (c.source, c.target) in seen:
+            return True
+        seen.add((c.source, c.target))
+    return False
+
+
+def test_loop_gain_sign_matches_loop_polarity():
+    """The sign IS the polarity — on every shipped fixture plus the synthetics.
+
+    Skips a fixture with parallel edges: the numeric matrix SUMS connections
+    sharing a (source, target) pair while loop_polarity reads a last-wins
+    dict, so the two legitimately disagree there. No shipped fixture has them
+    today; the guard keeps the test honest if one ever gains some. A zero gain
+    carries no polarity and is skipped too.
+    """
+    from sespy.dynamics import isa_to_numeric_matrix
+    from sespy.network import loop_gain, loop_polarity, feedback_loops
+
+    cases = [("_two_loop_isa", _two_loop_isa()),
+             ("_three_cycle_isa", _three_cycle_isa())] + _shipped_isas()
+    checked = 0
+    for name, isa in cases:
+        if _has_parallel_edges(isa):
+            continue
+        M, mat_ids = isa_to_numeric_matrix(isa)
+        pos = {n: i for i, n in enumerate(mat_ids)}
+        for c in feedback_loops(isa):
+            g = loop_gain(c, M, pos)
+            if g == 0.0:
+                continue
+            expected = "Reinforcing" if g > 0 else "Balancing"
+            assert loop_polarity(c, isa) == expected, (name, c, g)
+            checked += 1
+    assert checked > 0, "the property was never actually exercised"
+
+
+def test_loop_gain_is_orientation_sensitive_on_a_three_cycle():
+    """Guards the transpose hazard: loop_gain must use isa_to_numeric_matrix.
+    On a 2-cycle both orientations give the same product, so only a 3-cycle
+    can detect the error."""
+    from sespy.dynamics import isa_to_numeric_matrix
+    from sespy.network import loop_gain, feedback_loops
+
+    isa = _three_cycle_isa()
+    M, mat_ids = isa_to_numeric_matrix(isa)
+    pos = {n: i for i, n in enumerate(mat_ids)}
+    c = feedback_loops(isa)[0]
+    forward = loop_gain(c, M, pos)
+    transposed = loop_gain(c, M.T, pos)
+    assert forward != transposed, (
+        "fixture is transpose-invariant and cannot guard the orientation")
+    assert forward < 0, "one negative edge -> Balancing -> negative product"
+
+
+def _reinforcing_and_balancing_isa():
+    """X is in a Reinforcing 2-cycle; Y is in a Balancing 2-cycle; Z is in
+    neither."""
+    from sespy.data_structure import IsaData, Element, Connection
+    els = [Element(id=n, label=n, type="Drivers")
+           for n in ("X1", "X2", "Y1", "Y2", "Z")]
+    cons = [
+        Connection(source="X1", target="X2", polarity="+", strength="strong"),
+        Connection(source="X2", target="X1", polarity="+", strength="strong"),
+        Connection(source="Y1", target="Y2", polarity="+", strength="strong"),
+        Connection(source="Y2", target="Y1", polarity="-", strength="strong"),
+    ]
+    return IsaData(elements=els, connections=cons)
+
+
+def test_alc_signs_follow_loop_polarity():
+    from sespy.network import adjusted_loop_centrality
+
+    alc = adjusted_loop_centrality(_reinforcing_and_balancing_isa())
+    assert alc["X1"] > 0 and alc["X2"] > 0, "reinforcing -> positive"
+    assert alc["Y1"] < 0 and alc["Y2"] < 0, "balancing -> negative"
+    assert alc["Z"] == 0.0, "in no loop -> exactly zero"
+
+
+def test_alc_covers_every_element_and_handles_no_loops():
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import adjusted_loop_centrality
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B")]
+    isa = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", polarity="+", strength="strong")])
+    alc = adjusted_loop_centrality(isa)
+    assert set(alc) == {"A", "B"}
+    assert all(v == 0.0 for v in alc.values())
+    assert adjusted_loop_centrality(IsaData(elements=[], connections=[])) == {}
+
+
+def test_alc_sums_over_every_loop_a_node_is_in():
+    """A node in two reinforcing loops scores more than in one."""
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import adjusted_loop_centrality
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("H", "P", "Q")]
+    isa = IsaData(elements=els, connections=[
+        Connection(source="H", target="P", polarity="+", strength="strong"),
+        Connection(source="P", target="H", polarity="+", strength="strong"),
+        Connection(source="H", target="Q", polarity="+", strength="strong"),
+        Connection(source="Q", target="H", polarity="+", strength="strong"),
+    ])
+    alc = adjusted_loop_centrality(isa)
+    assert alc["H"] > alc["P"] > 0
+    assert alc["P"] == alc["Q"]
+
+
+def test_alc_is_zero_when_parallel_edges_cancel():
+    """The spec's fourth degenerate case. Two connections share (A,B) with
+    opposite polarity and equal strength, so the summed matrix entry — and
+    the loop's gain — is exactly 0.0 and contributes nothing."""
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.dynamics import isa_to_numeric_matrix
+    from sespy.network import adjusted_loop_centrality, loop_gain, feedback_loops
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B")]
+    isa = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", polarity="+", strength="strong"),
+        Connection(source="A", target="B", polarity="-", strength="strong"),
+        Connection(source="B", target="A", polarity="+", strength="strong"),
+    ])
+    M, mat_ids = isa_to_numeric_matrix(isa)
+    pos = {n: i for i, n in enumerate(mat_ids)}
+    for c in feedback_loops(isa):
+        assert loop_gain(c, M, pos) == 0.0
+    assert adjusted_loop_centrality(isa) == {"A": 0.0, "B": 0.0}
+
+
+def test_alc_truncation_flag_tracks_the_enumeration_cap():
+    """Above the cap the detected subset varies between processes, so the ALC
+    sign is not reproducible. The flag is what suppresses the column."""
+    from sespy.network import alc_is_truncated, LOOP_ENUMERATION_CAP
+    from sespy.data_structure import IsaData
+
+    isa = IsaData(elements=[], connections=[])
+    assert alc_is_truncated(isa, cycles=[]) is False
+    under = [["A", "B"]] * (LOOP_ENUMERATION_CAP - 1)
+    assert alc_is_truncated(isa, cycles=under) is False
+    at_cap = [["A", "B"]] * LOOP_ENUMERATION_CAP
+    assert alc_is_truncated(isa, cycles=at_cap) is True
+
+
+def test_loop_enumeration_cap_matches_feedback_loops_default():
+    """Two literals would drift, and the failure mode is a wrongly-signed
+    column shown to the user."""
+    import inspect
+    from sespy.network import feedback_loops, LOOP_ENUMERATION_CAP
+
+    default = inspect.signature(feedback_loops).parameters["max_loops"].default
+    assert default == LOOP_ENUMERATION_CAP
+
+
+def test_leverage_realms_promotes_an_activity_inside_a_loop():
+    """The one structural rule: an Activity in a detected loop acts at the
+    feedback level, not the design level."""
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import leverage_realms, leverage_realm
+
+    els = [Element(id="ACT", label="ACT", type="Activities"),
+           Element(id="PR", label="PR", type="Pressures")]
+    looped = IsaData(elements=els, connections=[
+        Connection(source="ACT", target="PR", polarity="+", strength="strong"),
+        Connection(source="PR", target="ACT", polarity="+", strength="strong"),
+    ])
+    assert leverage_realms(looped)["ACT"] == "feedbacks"
+
+    # Same Activity, loop broken -> falls back to the type-based mapping.
+    unlooped = IsaData(elements=els, connections=[
+        Connection(source="ACT", target="PR", polarity="+", strength="strong"),
+    ])
+    assert leverage_realms(unlooped)["ACT"] == "design"
+    assert leverage_realm("Activities") == "design", "the pure fn is untouched"
+
+
+def test_leverage_realms_agrees_with_leverage_realm_for_every_other_type():
+    from sespy.network import leverage_realms, leverage_realm
+    from sespy.data_structure import load_sample
+    from pathlib import Path
+
+    isa = load_sample(Path(__file__).resolve().parents[1] / "data" / "sample_ses.json")
+    realms = leverage_realms(isa)
+    by_id = {el.id: el for el in isa.elements}
+    assert set(realms) == set(by_id)
+    for nid, realm in realms.items():
+        if by_id[nid].type != "Activities":
+            assert realm == leverage_realm(by_id[nid].type), nid
+
+
+def test_leverage_realms_handles_no_loops_and_unknown_types():
+    from sespy.data_structure import IsaData, Element
+    from sespy.network import leverage_realms
+
+    isa = IsaData(elements=[Element(id="M", label="M", type="Measures")],
+                  connections=[])
+    assert leverage_realms(isa) == {"M": ""}
+    assert leverage_realms(IsaData(elements=[], connections=[])) == {}
