@@ -781,7 +781,9 @@ sign is not reproducible over a partial loop set."
 
 Run in this order, never concurrently:
 
-1. `micromamba run -n shiny python -m pytest tests -q --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — expect **573 passed** (559 + 14).
+1. `micromamba run -n shiny python -m pytest tests -q --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — expect **574 passed** (559 + 15: the
+   14 planned, plus one added in a fix round to pin the realm promotion on the
+   sample project).
 2. Kill anything on port 8000, then `micromamba run -n shiny python tests/run_e2e.py` — expect **32/32**. Launch it detached; it takes ~10 minutes. `tests/test_leverage_e2e.py` already drives this panel, so a regression in the table shows up here.
 3. MosaicSES must be unaffected — it consumes `leverage_scores()`, which this plan does not touch:
    ```bash
@@ -794,7 +796,7 @@ Run in this order, never concurrently:
 - The Leverage table shows a Realm that distinguishes an Activity inside a feedback loop from one outside it, and an ALC column whose sign says whether a node sits in amplifying or damping structure.
 - On a model past the loop-detection cap the ALC column is absent and a note says why, rather than a number whose sign changes between restarts.
 - `leverage_scores()` and `leverage_realm()` are byte-for-byte unchanged.
-- 573 unit, 32/32 e2e, MosaicSES 526.
+- 574 unit, 32/32 e2e, MosaicSES 526.
 
 ## Explicitly out of scope
 
