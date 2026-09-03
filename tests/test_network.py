@@ -1943,3 +1943,102 @@ def test_loop_gain_is_orientation_sensitive_on_a_three_cycle():
     assert forward != transposed, (
         "fixture is transpose-invariant and cannot guard the orientation")
     assert forward < 0, "one negative edge -> Balancing -> negative product"
+
+
+def _reinforcing_and_balancing_isa():
+    """X is in a Reinforcing 2-cycle; Y is in a Balancing 2-cycle; Z is in
+    neither."""
+    from sespy.data_structure import IsaData, Element, Connection
+    els = [Element(id=n, label=n, type="Drivers")
+           for n in ("X1", "X2", "Y1", "Y2", "Z")]
+    cons = [
+        Connection(source="X1", target="X2", polarity="+", strength="strong"),
+        Connection(source="X2", target="X1", polarity="+", strength="strong"),
+        Connection(source="Y1", target="Y2", polarity="+", strength="strong"),
+        Connection(source="Y2", target="Y1", polarity="-", strength="strong"),
+    ]
+    return IsaData(elements=els, connections=cons)
+
+
+def test_alc_signs_follow_loop_polarity():
+    from sespy.network import adjusted_loop_centrality
+
+    alc = adjusted_loop_centrality(_reinforcing_and_balancing_isa())
+    assert alc["X1"] > 0 and alc["X2"] > 0, "reinforcing -> positive"
+    assert alc["Y1"] < 0 and alc["Y2"] < 0, "balancing -> negative"
+    assert alc["Z"] == 0.0, "in no loop -> exactly zero"
+
+
+def test_alc_covers_every_element_and_handles_no_loops():
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import adjusted_loop_centrality
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B")]
+    isa = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", polarity="+", strength="strong")])
+    alc = adjusted_loop_centrality(isa)
+    assert set(alc) == {"A", "B"}
+    assert all(v == 0.0 for v in alc.values())
+    assert adjusted_loop_centrality(IsaData(elements=[], connections=[])) == {}
+
+
+def test_alc_sums_over_every_loop_a_node_is_in():
+    """A node in two reinforcing loops scores more than in one."""
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import adjusted_loop_centrality
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("H", "P", "Q")]
+    isa = IsaData(elements=els, connections=[
+        Connection(source="H", target="P", polarity="+", strength="strong"),
+        Connection(source="P", target="H", polarity="+", strength="strong"),
+        Connection(source="H", target="Q", polarity="+", strength="strong"),
+        Connection(source="Q", target="H", polarity="+", strength="strong"),
+    ])
+    alc = adjusted_loop_centrality(isa)
+    assert alc["H"] > alc["P"] > 0
+    assert alc["P"] == alc["Q"]
+
+
+def test_alc_is_zero_when_parallel_edges_cancel():
+    """The spec's fourth degenerate case. Two connections share (A,B) with
+    opposite polarity and equal strength, so the summed matrix entry — and
+    the loop's gain — is exactly 0.0 and contributes nothing."""
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.dynamics import isa_to_numeric_matrix
+    from sespy.network import adjusted_loop_centrality, loop_gain, feedback_loops
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B")]
+    isa = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", polarity="+", strength="strong"),
+        Connection(source="A", target="B", polarity="-", strength="strong"),
+        Connection(source="B", target="A", polarity="+", strength="strong"),
+    ])
+    M, mat_ids = isa_to_numeric_matrix(isa)
+    pos = {n: i for i, n in enumerate(mat_ids)}
+    for c in feedback_loops(isa):
+        assert loop_gain(c, M, pos) == 0.0
+    assert adjusted_loop_centrality(isa) == {"A": 0.0, "B": 0.0}
+
+
+def test_alc_truncation_flag_tracks_the_enumeration_cap():
+    """Above the cap the detected subset varies between processes, so the ALC
+    sign is not reproducible. The flag is what suppresses the column."""
+    from sespy.network import alc_is_truncated, LOOP_ENUMERATION_CAP
+    from sespy.data_structure import IsaData
+
+    isa = IsaData(elements=[], connections=[])
+    assert alc_is_truncated(isa, cycles=[]) is False
+    under = [["A", "B"]] * (LOOP_ENUMERATION_CAP - 1)
+    assert alc_is_truncated(isa, cycles=under) is False
+    at_cap = [["A", "B"]] * LOOP_ENUMERATION_CAP
+    assert alc_is_truncated(isa, cycles=at_cap) is True
+
+
+def test_loop_enumeration_cap_matches_feedback_loops_default():
+    """Two literals would drift, and the failure mode is a wrongly-signed
+    column shown to the user."""
+    import inspect
+    from sespy.network import feedback_loops, LOOP_ENUMERATION_CAP
+
+    default = inspect.signature(feedback_loops).parameters["max_loops"].default
+    assert default == LOOP_ENUMERATION_CAP

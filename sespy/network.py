@@ -41,8 +41,14 @@ def basic_metrics(isa: IsaData) -> dict[str, int | float]:
     }
 
 
+#: Ceiling on enumerated cycles. Above it the detected subset is not
+#: reproducible across processes (see _canonical_cycles' note on hash
+#: seeding), which is why adjusted_loop_centrality reports truncation.
+LOOP_ENUMERATION_CAP = 50
+
+
 def feedback_loops(
-    isa: IsaData, *, max_length: int = 6, max_loops: int = 50
+    isa: IsaData, *, max_length: int = 6, max_loops: int = LOOP_ENUMERATION_CAP
 ) -> list[list[str]]:
     """Return up to `max_loops` simple cycles, capped at `max_length` nodes.
 
@@ -197,6 +203,46 @@ def loop_gain(cycle: list[str], M, pos: dict[str, int]) -> float:
     for i in range(len(cycle)):
         g *= float(M[pos[cycle[i]], pos[cycle[(i + 1) % len(cycle)]]])
     return g
+
+
+def adjusted_loop_centrality(
+    isa: IsaData, *, cycles: list[list[str]] | None = None
+) -> dict[str, float]:
+    """Per-node sum of the SIGNED gains of every detected loop it is in.
+
+    Positive: the node sits in amplifying structure. Negative: damping.
+    0.0: in no detected loop, OR its loop gains cancel.
+
+    Only meaningful when the loop set is complete — see alc_is_truncated().
+    """
+    from .dynamics import isa_to_numeric_matrix  # local: dynamics imports network
+
+    alc: dict[str, float] = {el.id: 0.0 for el in isa.elements}
+    cyc = _canonical_cycles(
+        cycles if cycles is not None else feedback_loops(isa))
+    if not cyc or not alc:
+        return alc
+
+    M, mat_ids = isa_to_numeric_matrix(isa)
+    pos = {n: i for i, n in enumerate(mat_ids)}
+    for c in cyc:
+        if any(n not in pos for n in c):
+            continue        # a caller-injected cycle naming unknown nodes
+        g = loop_gain(c, M, pos)
+        for n in set(c):    # set(): never count a node twice for one loop
+            if n in alc:
+                alc[n] += g
+    return alc
+
+
+def alc_is_truncated(
+    isa: IsaData, *, cycles: list[list[str]] | None = None
+) -> bool:
+    """True when loop enumeration hit LOOP_ENUMERATION_CAP, so an ALC sum over
+    the detected subset is not reproducible across processes and must not be
+    shown as a signed number."""
+    cyc = cycles if cycles is not None else feedback_loops(isa)
+    return len(cyc) >= LOOP_ENUMERATION_CAP
 
 
 def loop_dominance(
