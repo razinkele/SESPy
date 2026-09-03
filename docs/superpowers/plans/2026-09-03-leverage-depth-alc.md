@@ -40,7 +40,7 @@
 **Why first:** Tasks 2 and 3 both need it, and this task must prove the extraction is behaviour-preserving before anything builds on it.
 
 **Files:**
-- Modify: `sespy/network.py` — add `loop_gain` above `loop_dominance` (which begins at `:179`); replace the inline gain loop at `:226-231`
+- Modify: `sespy/network.py` — add `loop_gain` above `loop_dominance` (which begins at `:179`); replace the inline gain loop at `:225-231` (the range quoted in Step 4 is authoritative)
 - Test: `tests/test_network.py`
 
 **Interfaces:**
@@ -68,23 +68,59 @@ def _three_cycle_isa():
     return IsaData(elements=els, connections=cons)
 
 
+def _shipped_isas():
+    """Every fixture shipped in data/. The spec asks the polarity property to
+    hold on all of them, not only on synthetic in-file graphs."""
+    import json
+    from pathlib import Path
+    from sespy.data_structure import IsaData, load_sample
+    from sespy.qsem_import import qsem_to_isa
+
+    root = Path(__file__).resolve().parents[1] / "data"
+    out = [("sample_ses.json", load_sample(root / "sample_ses.json"))]
+    for qs in sorted(root.glob("*.qsem")):
+        els, cons = qsem_to_isa(json.loads(qs.read_text(encoding="utf-8")))
+        out.append((qs.name, IsaData(elements=els, connections=cons)))
+    return out
+
+
+def _has_parallel_edges(isa) -> bool:
+    seen = set()
+    for c in isa.connections:
+        if (c.source, c.target) in seen:
+            return True
+        seen.add((c.source, c.target))
+    return False
+
+
 def test_loop_gain_sign_matches_loop_polarity():
-    """The sign IS the polarity. Scoped to fixtures with no parallel edges:
-    the numeric matrix SUMS connections sharing a (source, target) pair while
-    loop_polarity reads a last-wins dict, so the two can disagree there."""
+    """The sign IS the polarity — on every shipped fixture plus the synthetics.
+
+    Skips a fixture with parallel edges: the numeric matrix SUMS connections
+    sharing a (source, target) pair while loop_polarity reads a last-wins
+    dict, so the two legitimately disagree there. No shipped fixture has them
+    today; the guard keeps the test honest if one ever gains some. A zero gain
+    carries no polarity and is skipped too.
+    """
     from sespy.dynamics import isa_to_numeric_matrix
     from sespy.network import loop_gain, loop_polarity, feedback_loops
 
-    for isa in (_two_loop_isa(), _three_cycle_isa()):
+    cases = [("_two_loop_isa", _two_loop_isa()),
+             ("_three_cycle_isa", _three_cycle_isa())] + _shipped_isas()
+    checked = 0
+    for name, isa in cases:
+        if _has_parallel_edges(isa):
+            continue
         M, mat_ids = isa_to_numeric_matrix(isa)
         pos = {n: i for i, n in enumerate(mat_ids)}
-        cycles = feedback_loops(isa)
-        assert cycles, "fixture must have loops"
-        for c in cycles:
+        for c in feedback_loops(isa):
             g = loop_gain(c, M, pos)
-            assert g != 0.0
+            if g == 0.0:
+                continue
             expected = "Reinforcing" if g > 0 else "Balancing"
-            assert loop_polarity(c, isa) == expected, (c, g)
+            assert loop_polarity(c, isa) == expected, (name, c, g)
+            checked += 1
+    assert checked > 0, "the property was never actually exercised"
 
 
 def test_loop_gain_is_orientation_sensitive_on_a_three_cycle():
@@ -258,6 +294,27 @@ def test_alc_sums_over_every_loop_a_node_is_in():
     assert alc["P"] == alc["Q"]
 
 
+def test_alc_is_zero_when_parallel_edges_cancel():
+    """The spec's fourth degenerate case. Two connections share (A,B) with
+    opposite polarity and equal strength, so the summed matrix entry — and
+    the loop's gain — is exactly 0.0 and contributes nothing."""
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.dynamics import isa_to_numeric_matrix
+    from sespy.network import adjusted_loop_centrality, loop_gain, feedback_loops
+
+    els = [Element(id=n, label=n, type="Drivers") for n in ("A", "B")]
+    isa = IsaData(elements=els, connections=[
+        Connection(source="A", target="B", polarity="+", strength="strong"),
+        Connection(source="A", target="B", polarity="-", strength="strong"),
+        Connection(source="B", target="A", polarity="+", strength="strong"),
+    ])
+    M, mat_ids = isa_to_numeric_matrix(isa)
+    pos = {n: i for i, n in enumerate(mat_ids)}
+    for c in feedback_loops(isa):
+        assert loop_gain(c, M, pos) == 0.0
+    assert adjusted_loop_centrality(isa) == {"A": 0.0, "B": 0.0}
+
+
 def test_alc_truncation_flag_tracks_the_enumeration_cap():
     """Above the cap the detected subset varies between processes, so the ALC
     sign is not reproducible. The flag is what suppresses the column."""
@@ -360,7 +417,7 @@ def alc_is_truncated(
 micromamba run -n shiny python -m pytest tests/test_network.py -q
 ```
 
-Expected: the five new tests PASS and nothing else moves.
+Expected: the six new tests PASS and nothing else moves.
 
 - [ ] **Step 6: Commit**
 
@@ -498,7 +555,7 @@ leverage_realm() stays pure and type-only."
 ### Task 4: Wire it into the Leverage module
 
 **Files:**
-- Modify: `sespy/modules/analysis_leverage.py` — `ranked()` (`:146-163`), `leverage_table` (`:203-227`), and the UI block around `:110`
+- Modify: `sespy/modules/analysis_leverage.py` — `ranked()` (`:146-163`), `leverage_table` (`:204-227`; `:203` is its `@render.data_frame` decorator), and the UI block around `:110`
 - Modify: `sespy/translations/core.json` — two new keys beside the realm keys (`:5500-5503`)
 - Create: `tests/test_leverage_module.py` — it does NOT exist yet; only
   `tests/test_leverage_e2e.py` does
@@ -516,7 +573,12 @@ Create `tests/test_leverage_module.py` containing exactly these three tests (eac
 ```python
 def test_leverage_rows_carry_realm_and_alc():
     """ranked() must expose both new fields, and the realm must be the
-    loop-aware one."""
+    loop-aware one.
+
+    The last two assertions pin the FEATURE, not just the call names: an
+    earlier draft of these tests passed with the ALC column stripped out
+    entirely, because it only checked that the functions were called.
+    """
     from sespy.modules import analysis_leverage
     src = analysis_leverage.__file__
     text = open(src, encoding="utf-8").read()
@@ -525,41 +587,39 @@ def test_leverage_rows_carry_realm_and_alc():
     assert "alc_is_truncated(" in text
     assert "leverage_realm(" not in text.replace("leverage_realms(", ""), (
         "the per-row type-only call must be gone")
+    # The column must actually reach the row and the header.
+    assert 'row["alc"]' in text, "ranked() must put alc on the row"
+    assert 'base_cols.insert(5, "alc")' in text, "alc must reach base_cols"
 
 
 def test_leverage_enumerates_loops_once():
-    """Both new calls must receive the SAME cycles list; re-enumerating per
-    call would run feedback_loops three times per render."""
+    """Every consumer must share ONE enumeration. feedback_loops is bounded
+    but not free, and an earlier draft ran it twice per render because the
+    truncation reactive re-enumerated."""
     from sespy.modules import analysis_leverage
     text = open(analysis_leverage.__file__, encoding="utf-8").read()
-    assert text.count("feedback_loops(") == 1
-    assert text.count("cycles=cycles") == 3
+    assert text.count("feedback_loops(") == 1, "one enumeration, shared"
+    assert text.count("cycles=") == 3, (
+        "leverage_realms, adjusted_loop_centrality and alc_is_truncated must "
+        "each receive the shared list")
 
 
 def test_alc_translation_keys_exist_in_every_language():
-    import json
+    """Resolve through the PRODUCTION loader, the way tests/test_i18n.py does.
+    A hand-rolled recursive search over core.json would find a key sitting at
+    the wrong nesting level and pass, while t() at runtime would not resolve
+    it."""
     from pathlib import Path
+    from sespy.i18n import load_translations
 
-    core = json.loads(
-        (Path(__file__).resolve().parents[1]
-         / "sespy" / "translations" / "core.json").read_text(encoding="utf-8"))
-
-    def find(node, key):
-        if isinstance(node, dict):
-            if key in node:
-                return node[key]
-            for v in node.values():
-                got = find(v, key)
-                if got is not None:
-                    return got
-        return None
+    root = Path(__file__).resolve().parents[1]
+    tr = load_translations(root / "sespy" / "translations")
 
     langs = {"en", "es", "fr", "de", "lt", "pt", "it", "no", "el"}
     for key in ("leverage.caption", "leverage.alc_truncated"):
-        entry = find(core, key)
-        assert entry is not None, f"{key} missing"
-        assert langs.issubset(set(entry)), f"{key} missing languages"
-        assert all(entry[l].strip() for l in langs), f"{key} has an empty value"
+        assert key in tr, f"{key} does not resolve through load_translations"
+        assert langs.issubset(set(tr[key])), f"{key} is missing languages"
+        assert all(tr[key][l].strip() for l in langs), f"{key} has an empty value"
 ```
 
 - [ ] **Step 2: Run them to verify they fail**
@@ -578,12 +638,13 @@ In `sespy/modules/analysis_leverage.py`, replace the whole of `ranked()` (`:146-
     def ranked() -> list[dict]:
         isa = project_data.get().isa_data
         s = scores()
-        # ONE enumeration shared by both consumers: feedback_loops is bounded
-        # but not free, and a per-row call would re-run it for every element.
-        cycles = net_analysis.feedback_loops(isa)
+        # The shared enumeration — see cycles_calc() below. feedback_loops is
+        # bounded but not free, and it must run ONCE per ISA change, not once
+        # per consumer.
+        cycles = cycles_calc()
         realms = net_analysis.leverage_realms(isa, cycles=cycles)
         alc = net_analysis.adjusted_loop_centrality(isa, cycles=cycles)
-        truncated = net_analysis.alc_is_truncated(isa, cycles=cycles)
+        truncated = alc_truncated()
         by_id = {el.id: el for el in isa.elements}
         rows = sorted(s.items(), key=lambda kv: kv[1], reverse=True)
         out: list[dict] = []
@@ -606,15 +667,29 @@ In `sespy/modules/analysis_leverage.py`, replace the whole of `ranked()` (`:146-
         return out[: int(input.top_n() or 8)]
 ```
 
-- [ ] **Step 4: Add a truncation reactive and use it in the table**
+- [ ] **Step 4: Add the shared cycles reactive and the truncation flag**
 
-Directly below `ranked()`, add:
+Insert these two reactives **above** `ranked()` (a `@reactive.calc` must be
+defined before the one that calls it), directly after `scores()` (`:141-144`):
 
 ```python
     @reactive.calc
+    def cycles_calc() -> list[list[str]]:
+        """ONE loop enumeration per ISA change, shared by every consumer.
+
+        `event_bus.isa_change.get()` matches scores() — every isa-derived
+        reactive in this module takes that dependency, or it serves a stale
+        result after an edit.
+        """
+        event_bus.isa_change.get()
+        return net_analysis.feedback_loops(project_data.get().isa_data)
+
+    @reactive.calc
     def alc_truncated() -> bool:
-        isa = project_data.get().isa_data
-        return net_analysis.alc_is_truncated(isa)
+        # Passes the SHARED list. Calling alc_is_truncated(isa) without it
+        # would re-run feedback_loops a second time per render.
+        return net_analysis.alc_is_truncated(
+            project_data.get().isa_data, cycles=cycles_calc())
 ```
 
 Then in `leverage_table` (`:203`), replace the `base_cols` line (`:208`):
@@ -671,8 +746,8 @@ micromamba run -n shiny python -m pytest tests -q --ignore-glob='*e2e*' \
   --ignore=tests/test_stepper_click.py
 ```
 
-Expected: the three module tests PASS; suite total **572 passed**
-(559 baseline + 2 in Task 1 + 5 in Task 2 + 3 in Task 3 + 3 here = 13 new).
+Expected: the three module tests PASS; suite total **573 passed**
+(559 baseline + 2 in Task 1 + 6 in Task 2 + 3 in Task 3 + 3 here = 14 new).
 
 - [ ] **Step 8: Look at the panel**
 
@@ -706,7 +781,7 @@ sign is not reproducible over a partial loop set."
 
 Run in this order, never concurrently:
 
-1. `micromamba run -n shiny python -m pytest tests -q --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — expect **572 passed** (559 + 13).
+1. `micromamba run -n shiny python -m pytest tests -q --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py` — expect **573 passed** (559 + 14).
 2. Kill anything on port 8000, then `micromamba run -n shiny python tests/run_e2e.py` — expect **32/32**. Launch it detached; it takes ~10 minutes. `tests/test_leverage_e2e.py` already drives this panel, so a regression in the table shows up here.
 3. MosaicSES must be unaffected — it consumes `leverage_scores()`, which this plan does not touch:
    ```bash
@@ -719,7 +794,7 @@ Run in this order, never concurrently:
 - The Leverage table shows a Realm that distinguishes an Activity inside a feedback loop from one outside it, and an ALC column whose sign says whether a node sits in amplifying or damping structure.
 - On a model past the loop-detection cap the ALC column is absent and a note says why, rather than a number whose sign changes between restarts.
 - `leverage_scores()` and `leverage_realm()` are byte-for-byte unchanged.
-- 572 unit, 32/32 e2e, MosaicSES 526.
+- 573 unit, 32/32 e2e, MosaicSES 526.
 
 ## Explicitly out of scope
 
