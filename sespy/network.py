@@ -754,6 +754,32 @@ def leverage_realm(element_type: str) -> str:
     return _DAPSIWRM_REALM.get(element_type, "")
 
 
+def leverage_realms(
+    isa: IsaData, *, cycles: list[list[str]] | None = None
+) -> dict[str, str]:
+    """Meadows realm per element id, with ONE structural refinement over the
+    type-only leverage_realm(): an Activity that participates in a detected
+    feedback loop reports 'feedbacks' instead of 'design'.
+
+    Everything else — every other type, and an Activity in no loop — is
+    exactly leverage_realm(el.type).
+
+    "Detected" is bounded by feedback_loops(): an Activity in a loop longer
+    than max_length, or beyond LOOP_ENUMERATION_CAP, is not promoted. The
+    realm is therefore a statement about the detected structure, not about
+    the graph in the abstract.
+    """
+    cyc = _canonical_cycles(
+        cycles if cycles is not None else feedback_loops(isa))
+    in_loop = {n for c in cyc for n in c}
+    return {
+        el.id: ("feedbacks"
+                if el.type == "Activities" and el.id in in_loop
+                else leverage_realm(el.type))
+        for el in isa.elements
+    }
+
+
 _SUBSYSTEM: dict[str, str] = {
     "Drivers": "social",
     "Activities": "social",

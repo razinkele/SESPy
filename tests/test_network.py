@@ -2042,3 +2042,49 @@ def test_loop_enumeration_cap_matches_feedback_loops_default():
 
     default = inspect.signature(feedback_loops).parameters["max_loops"].default
     assert default == LOOP_ENUMERATION_CAP
+
+
+def test_leverage_realms_promotes_an_activity_inside_a_loop():
+    """The one structural rule: an Activity in a detected loop acts at the
+    feedback level, not the design level."""
+    from sespy.data_structure import IsaData, Element, Connection
+    from sespy.network import leverage_realms, leverage_realm
+
+    els = [Element(id="ACT", label="ACT", type="Activities"),
+           Element(id="PR", label="PR", type="Pressures")]
+    looped = IsaData(elements=els, connections=[
+        Connection(source="ACT", target="PR", polarity="+", strength="strong"),
+        Connection(source="PR", target="ACT", polarity="+", strength="strong"),
+    ])
+    assert leverage_realms(looped)["ACT"] == "feedbacks"
+
+    # Same Activity, loop broken -> falls back to the type-based mapping.
+    unlooped = IsaData(elements=els, connections=[
+        Connection(source="ACT", target="PR", polarity="+", strength="strong"),
+    ])
+    assert leverage_realms(unlooped)["ACT"] == "design"
+    assert leverage_realm("Activities") == "design", "the pure fn is untouched"
+
+
+def test_leverage_realms_agrees_with_leverage_realm_for_every_other_type():
+    from sespy.network import leverage_realms, leverage_realm
+    from sespy.data_structure import load_sample
+    from pathlib import Path
+
+    isa = load_sample(Path(__file__).resolve().parents[1] / "data" / "sample_ses.json")
+    realms = leverage_realms(isa)
+    by_id = {el.id: el for el in isa.elements}
+    assert set(realms) == set(by_id)
+    for nid, realm in realms.items():
+        if by_id[nid].type != "Activities":
+            assert realm == leverage_realm(by_id[nid].type), nid
+
+
+def test_leverage_realms_handles_no_loops_and_unknown_types():
+    from sespy.data_structure import IsaData, Element
+    from sespy.network import leverage_realms
+
+    isa = IsaData(elements=[Element(id="M", label="M", type="Measures")],
+                  connections=[])
+    assert leverage_realms(isa) == {"M": ""}
+    assert leverage_realms(IsaData(elements=[], connections=[])) == {}
