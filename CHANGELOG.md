@@ -2,6 +2,46 @@
 
 All notable changes to SESPy.
 
+## [1.5.0] — 2026-09-04
+
+- New on the Leverage Points panel (#23): the Meadows realm column is now
+  **loop-aware** — an Activity that participates in a detected feedback loop
+  reports Feedbacks rather than Design, since a variable inside a feedback
+  loop acts at the feedback level. Every other type, and an Activity in no
+  loop, is classified exactly as before. Deliberately NOT the issue as filed:
+  #23's proposed `leverage_depth` column duplicated the shipped realm ladder
+  and contradicted it on two of seven element types, so there is one
+  classification, made structural, rather than two that disagree.
+- New **ALC column** (Adjusted Loop Centrality) beside the leverage composite:
+  per node, the sum of the signed structural gains of every detected loop it
+  sits in. Positive means amplifying structure, negative damping, zero no
+  loop. Not comparable with the leverage score beside it (the caption says
+  so). ALC is suppressed, with a note, when a model exceeds the loop-detection
+  cap: above it the detected loop subset varies between processes, so the
+  sign — ALC's whole meaning — is not reproducible (measured −300/−169/+46
+  for one node across three runs). Both source papers were unreachable, so
+  the depth semantics and the ALC formula are documented reconstructions;
+  ALC's "initiates vs reinforces" half is a recorded gap.
+- Library: `loop_gain()` (the signed product `loop_dominance` previously
+  computed inline and stripped via `abs()`), `adjusted_loop_centrality()`,
+  `leverage_realms()`, `alc_is_truncated()` and a `LOOP_ENUMERATION_CAP`
+  constant now wired as the `max_loops` default of `feedback_loops`,
+  `cascade_vulnerability` and `uncertainty_scores`, with a source-scan test
+  so a hardcoded cap cannot drift back in. `leverage_scores()` and
+  `leverage_realm()` are unchanged.
+- The eigenvector-centrality numpy fallback no longer logs a WARNING on every
+  model. `nx.eigenvector_centrality_numpy` raises AmbiguousSolution for any
+  digraph that is not strongly connected — which a causal SES diagram
+  essentially never is — so the warning fired five times per report render on
+  clean sample data and drowned out the one eigenvector message that matters,
+  the all-zeros fallback (still WARNING). Scores were always computed by the
+  iterative solver and are unchanged.
+- `environment.yml` now requires `networkx>=3.1`, matching `pyproject.toml`.
+  The conda file still said `>=3.0`, so a server env rebuilt from it could
+  satisfy the spec with a networkx lacking `simple_cycles(length_bound=...)`
+  and crash Loop Analysis, uncertainty scoring, cascade vulnerability and the
+  v1.4.0 loop-dominance overlay.
+
 ## [1.4.0] — 2026-08-30
 
 - **Fix — changes shipped output. Dynamic Simulation propagated influence

@@ -35,6 +35,29 @@ the why.
 
 ---
 
+## What's new in v1.5.0
+
+A **leverage-analysis depth** release, closing literature issue #23:
+
+- **Loop-aware Meadows realm.** An Activity inside a detected feedback loop
+  now classifies as Feedbacks rather than Design — a variable inside a loop
+  acts at the feedback level. One classification, made structural, rather
+  than the second, contradicting ladder the issue as filed would have added.
+- **Adjusted Loop Centrality.** A signed per-node score beside the leverage
+  composite: the sum of the structural gains of every detected loop the node
+  sits in. Positive is amplifying structure, negative damping. Suppressed,
+  with a note, on models past the loop-detection cap, where the sign is not
+  reproducible between runs.
+- **Quieter logs.** The eigenvector numpy fallback is routine on causal SES
+  graphs (they are almost never strongly connected) and no longer warns on
+  every model; the genuine all-zeros degradation still does.
+- `environment.yml` now agrees with `pyproject.toml` on `networkx>=3.1`.
+
+Shipped via the brainstorm → spec → multi-agent adversarial review → TDD → review →
+full-e2e cycle.
+
+---
+
 ## What's new in v1.4.0
 
 A **network-analysis depth** release — nine literature-driven analyses added to the
@@ -306,7 +329,7 @@ micromamba run -n shiny pytest tests/ -q \
 micromamba run -n shiny python tests/run_e2e.py
 ```
 
-558 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+576 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
