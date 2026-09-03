@@ -2088,3 +2088,39 @@ def test_leverage_realms_handles_no_loops_and_unknown_types():
                   connections=[])
     assert leverage_realms(isa) == {"M": ""}
     assert leverage_realms(IsaData(elements=[], connections=[])) == {}
+
+
+def test_every_library_max_loops_default_is_the_shared_cap():
+    """LOOP_ENUMERATION_CAP exists so that a literal 50 cannot drift out of
+    step. The original guard covered feedback_loops only, while
+    cascade_vulnerability and uncertainty_scores each still carried their own
+    hardcoded 50 — exactly the drift the constant was extracted to prevent.
+
+    The equality sweep alone cannot catch a reintroduced literal TODAY:
+    defaults bind at def time, so a hardcoded 50 and the constant compare
+    equal while the constant happens to be 50. The source check below is
+    the half that actually bites now.
+    """
+    import inspect
+
+    from sespy import network
+
+    for fn in (network.feedback_loops,
+               network.cascade_vulnerability,
+               network.uncertainty_scores):
+        default = inspect.signature(fn).parameters["max_loops"].default
+        assert default == network.LOOP_ENUMERATION_CAP, (
+            f"{fn.__name__} carries its own max_loops default")
+
+
+def test_no_function_hardcodes_the_loop_cap():
+    """The literal is invisible at runtime — see the sweep above — so the only
+    way to catch it before the constant moves is to read the source.
+    """
+    import inspect
+
+    from sespy import network
+
+    src = inspect.getsource(network)
+    assert "max_loops: int = 50" not in src, (
+        "a function hardcodes the loop cap; use LOOP_ENUMERATION_CAP")

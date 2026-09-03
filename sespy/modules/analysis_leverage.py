@@ -165,13 +165,16 @@ def analysis_leverage_server(
     def ranked() -> list[dict]:
         isa = project_data.get().isa_data
         s = scores()
-        # The shared enumeration — see cycles_calc() below. feedback_loops is
+        # The shared enumeration — see cycles_calc() above. feedback_loops is
         # bounded but not free, and it must run ONCE per ISA change, not once
         # per consumer.
         cycles = cycles_calc()
         realms = net_analysis.leverage_realms(isa, cycles=cycles)
-        alc = net_analysis.adjusted_loop_centrality(isa, cycles=cycles)
         truncated = alc_truncated()
+        # Skipped entirely when truncated: the column is suppressed in that
+        # case, and on a capped model this is the one non-trivial cost here.
+        alc = ({} if truncated
+               else net_analysis.adjusted_loop_centrality(isa, cycles=cycles))
         by_id = {el.id: el for el in isa.elements}
         rows = sorted(s.items(), key=lambda kv: kv[1], reverse=True)
         out: list[dict] = []
