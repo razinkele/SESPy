@@ -123,9 +123,19 @@ module. Draft retained here only for provenance; no longer an open item.
 
 ---
 
-## [High] Loop dominance over time in `sespy/network.py`
+## ✅ SHIPPED — Loop dominance over time in `sespy/network.py`
 
-**Filed as [#22](https://github.com/razinkele/SESPy/issues/22) on 2026-08-26.** Covers ALC (see below) rather than filing it separately.
+**Shipped 2026-08-30 in [v1.4.0](https://github.com/razinkele/SESPy/releases/tag/v1.4.0)**
+(`network.loop_dominance`, `network.dominance_shifts`, `_canonical_cycles`, plus an
+off-by-default overlay on the Dynamic Simulation panel and i18n in nine languages).
+[#22](https://github.com/razinkele/SESPy/issues/22) closed as completed. Draft
+retained here only for provenance; no longer an open item.
+
+**ALC is the exception and remains OPEN.** This draft argued ALC would be "nearly
+free" once `loop_dominance()` landed — true of the inputs, but it still needs
+reconciling with the already-shipped `leverage_realm()` so the two do not offer
+competing node-level leverage views, and that overlaps #23. Fold it into #23
+rather than reviving #22.
 
 **Source papers:** Nguyen, Dinh & Tran, *Scaling Regenerative Supply Chains in Agriculture*, Systems Research and Behavioral Science (2026). https://doi.org/10.1002/sres.70145 ; Imtihan, Edinov & Suhaemi, *Analysis of 5R Waste Management on Green Economy using Causal Loop Diagram Model in West Sumatera*, Indonesian J. Urban & Environmental Technology 9(2) (2026). https://doi.org/10.25105/urbanenvirotech.v9i2.22457
 **Alert week:** 2026-08-25
