@@ -4,6 +4,36 @@ Ready-to-paste issue drafts. Review and open manually.
 
 ---
 
+## [Medium] KL-divergence early-warning step for cascade vulnerability in `sespy/network.py`
+
+**Status:** ✅ Opened as razinkele/SESPy#25 (2026-09-04)
+
+**Source paper:** Entropy-Based Indicators of Critical Transitions in Heavy-Tailed Networks Under Progressive Node Removal, *Research Square* (preprint v3, 2026). https://doi.org/10.21203/rs.3.rs-9204974/v3
+**Alert week:** 2026-09-01 (alert filed it as "extend #15"; #15 had already shipped 2026-08-14, so it got its own issue)
+
+**Motivation.** `cascade_vulnerability()` reports the lccf drop curve under sequential node removal — a lagging signal. Kraehling shows the smoothed KL divergence between successive degree distributions accelerates before connectivity moves, giving a pre-threshold early-warning step on the same plot.
+
+**Proposal.** Add `kl_divergence` per step and a top-level `early_warning_node` (departure point) to the existing return dict; second series on the cascade chart plus one summary line. Purely additive; existing goldens unchanged.
+
+**Effort:** Quick–moderate. **Labels:** enhancement, analysis, network.
+
+---
+
+## [Low] Polycentric governance concentration index in `sespy/network.py`
+
+**Status:** ✅ Opened as razinkele/SESPy#26 (2026-09-04)
+
+**Source paper:** Synergies in Coupled Human–natural Systems: Forty Years of Evidence for Biodiversity Recovery and Nature-based Economic Growth, *Research Square* (preprint, 2026). https://doi.org/10.21203/rs.3.rs-10195628/v1
+**Alert week:** 2026-09-01 (alert filed it as "extend #14"; #14 had already shipped 2026-08-13, so it got its own issue)
+
+**Motivation.** `governance_actor_influence()` ranks actors but does not say whether governance power is concentrated or distributed — the polycentric-governance pillar Heredia et al. tie to long-term resilience.
+
+**Proposal.** Companion `governance_concentration(isa)` returning Shannon entropy (raw and normalised), Gini, and the dominant actor's share over the influence column; one summary sentence above the actor table.
+
+**Effort:** Quick. **Labels:** enhancement, analysis, network.
+
+---
+
 ## [Medium] Stochastic token diffusion simulation in `sespy/dynamics.py`
 
 **Status:** ✅ Opened as razinkele/SESPy#17 (2026-08-04)
