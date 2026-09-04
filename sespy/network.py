@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import replace
 import logging
+import math
 from typing import TypedDict
 
 import networkx as nx
@@ -589,6 +590,46 @@ def governance_actor_influence(isa: IsaData) -> list[dict]:
     ]
     rows.sort(key=lambda r: -r["influence"])
     return rows
+
+
+def governance_concentration(isa: IsaData) -> dict:
+    """Is governance power concentrated or distributed? The polycentric
+    governance diagnostic of Heredia et al. 2026
+    (doi:10.21203/rs.3.rs-10195628/v1): several actors of comparable
+    influence, no single dominant one, is their structural pillar of
+    long-term SES resilience. Issue #26.
+
+    Summarises governance_actor_influence() (unchanged, called as-is):
+    the `influence` z-score composites are turned into shares by softmax
+    — positive, shift-invariant, uniform when influences are equal (the
+    issue's min-shift formula would pin the weakest actor's share to 0,
+    reading every two-actor model as fully concentrated). Returns
+    n_actors, shannon_entropy (nats), normalised_entropy (÷ ln n, in
+    [0, 1]), gini (in [0, 1 - 1/n]), dominant_actor (first row of the
+    ranking — ties keep isa.elements order) and dominant_share. Fewer
+    than two actors: n_actors with every other value None. Pure; finite.
+    """
+    rows = governance_actor_influence(isa)
+    n = len(rows)
+    if n < 2:
+        return {"n_actors": n, "shannon_entropy": None,
+                "normalised_entropy": None, "gini": None,
+                "dominant_actor": None, "dominant_share": None}
+    peak = max(r["influence"] for r in rows)
+    weights = [math.exp(r["influence"] - peak) for r in rows]
+    total = sum(weights)
+    shares = [w / total for w in weights]
+    entropy = -sum(p * math.log(p) for p in shares if p > 0.0)
+    # Gini over shares (sum == 1): mean absolute difference / 2.
+    gini = sum(abs(a - b) for a in shares for b in shares) / (2 * n)
+    return {
+        "n_actors": n,
+        "shannon_entropy": entropy,
+        "normalised_entropy": min(1.0, entropy / math.log(n)),
+        "gini": gini,
+        "dominant_actor": rows[0]["id"],
+        "dominant_share": shares[0],
+    }
 
 
 def cascade_vulnerability(

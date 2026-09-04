@@ -1320,6 +1320,91 @@ def test_actor_influence_disconnected_graph_is_finite():
 
 
 # ---------------------------------------------------------------------------
+# governance_concentration (issue #26)
+# ---------------------------------------------------------------------------
+
+_GC_KEYS = {"n_actors", "shannon_entropy", "normalised_entropy", "gini",
+            "dominant_actor", "dominant_share"}
+
+
+def _gc_isa(n_responses, *, symmetric=True):
+    """n Responses onto one Pressure. symmetric → equal influence; else
+    R1 is additionally brokered (D1 → R1 → P2) so it dominates."""
+    els = [Element(id=f"R{i}", label=f"r{i}", type="Responses")
+           for i in range(1, n_responses + 1)]
+    els.append(Element(id="P1", label="p", type="Pressures"))
+    conns = [Connection(source=f"R{i}", target="P1")
+             for i in range(1, n_responses + 1)]
+    if not symmetric:
+        # R1 becomes a broker (D1 → R1 → P1/P2): non-zero betweenness,
+        # unlike the other Responses which stay pure sources.
+        els.append(Element(id="D1", label="d", type="Drivers"))
+        els.append(Element(id="P2", label="p2", type="Pressures"))
+        conns += [Connection(source="D1", target="R1"),
+                  Connection(source="R1", target="P2")]
+    return IsaData(elements=els, connections=conns)
+
+
+def test_governance_concentration_uniform_is_fully_distributed():
+    gc = network.governance_concentration(_gc_isa(4))
+    assert set(gc) == _GC_KEYS
+    assert gc["n_actors"] == 4
+    assert gc["normalised_entropy"] == pytest.approx(1.0)
+    assert gc["shannon_entropy"] == pytest.approx(np.log(4))
+    assert gc["gini"] == pytest.approx(0.0)
+    assert gc["dominant_share"] == pytest.approx(0.25)
+    assert gc["dominant_actor"] == "R1"  # tie → isa.elements order
+
+
+def test_governance_concentration_dominant_actor_is_concentrated():
+    gc = network.governance_concentration(_gc_isa(3, symmetric=False))
+    assert gc["dominant_actor"] == "R1"
+    assert gc["dominant_share"] > 0.5
+    assert 0.0 <= gc["normalised_entropy"] < 0.5
+    assert 0.0 < gc["gini"] <= 1.0
+
+
+def test_governance_concentration_sample_golden():
+    root = Path(__file__).resolve().parents[1]
+    gc = network.governance_concentration(
+        load_sample(root / "data" / "sample_ses.json"))
+    # R002 leads R001 by ≈ 4.3 z-units → softmax share ≈ 1 / (1 + e^-4.3).
+    assert gc["n_actors"] == 2
+    assert gc["dominant_actor"] == "R002"
+    assert round(gc["dominant_share"], 4) == 0.9865
+    assert round(gc["normalised_entropy"], 4) == 0.1033
+    assert round(gc["gini"], 4) == 0.4865
+
+
+def test_governance_concentration_bounds_are_unit_interval():
+    import math
+    for isa in (_gc_isa(2), _gc_isa(5, symmetric=False)):
+        gc = network.governance_concentration(isa)
+        for k in ("normalised_entropy", "gini", "dominant_share"):
+            assert 0.0 <= gc[k] <= 1.0 and math.isfinite(gc[k])
+        assert math.isfinite(gc["shannon_entropy"])
+
+
+def test_governance_concentration_single_actor_is_degenerate():
+    gc = network.governance_concentration(_gc_isa(1))
+    assert gc["n_actors"] == 1
+    assert all(gc[k] is None for k in _GC_KEYS - {"n_actors"})
+
+
+def test_governance_concentration_no_actors_is_degenerate():
+    gc = network.governance_concentration(IsaData())
+    assert gc["n_actors"] == 0
+    assert all(gc[k] is None for k in _GC_KEYS - {"n_actors"})
+
+
+def test_governance_concentration_leaves_actor_influence_untouched():
+    isa = _gc_isa(3, symmetric=False)
+    before = network.governance_actor_influence(isa)
+    network.governance_concentration(isa)
+    assert network.governance_actor_influence(isa) == before
+
+
+# ---------------------------------------------------------------------------
 # cascade_vulnerability (issue #15)
 # ---------------------------------------------------------------------------
 
