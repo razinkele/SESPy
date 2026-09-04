@@ -35,6 +35,18 @@ the why.
 
 ---
 
+## What's new in v1.6.1
+
+One small diagnostic, from the 2026-09-01 literature alert (#26):
+
+- **Governance concentration.** One sentence above the governance actor
+  influence table says whether governance power is distributed across the
+  actors or concentrated in one, with the dominant actor's share and the
+  normalised entropy of the influence shares, after Heredia et al. 2026's
+  polycentric-governance finding.
+
+---
+
 ## What's new in v1.6.0
 
 One feature, closing the last open literature issue (#24):
@@ -346,7 +358,7 @@ micromamba run -n shiny pytest tests/ -q \
 micromamba run -n shiny python tests/run_e2e.py
 ```
 
-588 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+596 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly

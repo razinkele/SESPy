@@ -2,6 +2,25 @@
 
 All notable changes to SESPy.
 
+## [1.6.1] — 2026-09-04
+
+- New one-line **governance concentration** verdict above the "Governance
+  actor influence" table on the Network Metrics card (#26, after Heredia et
+  al. 2026, doi:10.21203/rs.3.rs-10195628/v1): whether governance power is
+  distributed across the actors or concentrated in one, with the dominant
+  actor's share and the normalised Shannon entropy of the influence shares.
+  "Distributed" is worded at normalised entropy ≥ 0.5. On the sample project:
+  concentrated in R002 (share 0.99 of 2 actors, entropy 0.10).
+- Shares come from a softmax over the actor-influence composite rather than
+  the issue's min-shift normalisation: the latter pins the weakest actor's
+  share to zero by construction, so every two-actor model would read as fully
+  concentrated. Library: `governance_concentration()` returns n_actors,
+  shannon_entropy, normalised_entropy, gini, dominant_actor, dominant_share
+  (None-filled below two actors); `governance_actor_influence()` is called
+  unchanged.
+- Test hygiene: the metrics e2e now checks actor rank order on the table
+  alone, since the new sentence names the dominant actor above it.
+
 ## [1.6.0] — 2026-09-04
 
 - New button-gated **"SES subsystem modules"** block on the Network Metrics
