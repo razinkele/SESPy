@@ -2,6 +2,36 @@
 
 All notable changes to SESPy.
 
+## [1.6.0] — 2026-09-04
+
+- New button-gated **"SES subsystem modules"** block on the Network Metrics
+  card (#24, after Pinheiro et al. 2026's HyperMod,
+  doi:10.1098/rspb.2026.1348): detects cohesive multi-tier subsystems —
+  hypermodules — by module congruence across the three bipartite tier
+  projections (ecological / social / governance), listing each with its tier
+  composition and member labels plus a hypermodularity score. On the sample
+  project: two hypermodules covering 9 of 17 typed elements.
+- The congruence procedure deliberately deviates from the issue as filed,
+  and both deviations were measured rather than argued: the issue's literal
+  "same module in ≥2 of 3 projections" is vacuous on pairs (a cross-tier
+  pair co-occurs in exactly one projection), so congruence works through
+  hinge-tier nodes; and a flat two-shared-hinges threshold returns zero
+  hypermodules on the shipped sample and structurally cannot fire on
+  chain-shaped models, so the threshold is size-aware (two, or one when
+  either module only has one hinge-tier node). The whole procedure is a
+  documented reconstruction — the paper was unreachable — flagged in the
+  spec, the docstring and the UI caption.
+- Deterministic end to end: greedy modularity (no RNG, no seed), sorted
+  construction everywhere networkx looks, membership merged to a partition.
+  Established empirically at review: six hash seeds bit-identical, thirty
+  construction-order shuffles identical, all merge orders over two hundred
+  random candidate collections collapse to one partition.
+- Every degenerate route has its own translated explanation (no cross-tier
+  coupling / only one tier pair connected / tiers connected but nothing
+  co-clusters), so a zero result is never a bare empty table. Library:
+  `hypermodules()` and the `_TIER` partition, whose governance tier matches
+  `governance_gap()`'s layer exactly; `_SUBSYSTEM` is untouched.
+
 ## [1.5.0] — 2026-09-04
 
 - New on the Leverage Points panel (#23): the Meadows realm column is now
