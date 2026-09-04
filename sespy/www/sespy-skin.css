@@ -869,3 +869,7 @@ body.sespy-sidebar-mini .sespy-quick-actions .btn {
   color: var(--mist-light);
   white-space: pre-line;
 }
+
+/* About → Manual tab: rendered docs/MANUAL.md; keep screenshots inside the modal. */
+.sespy-manual img { max-width: 100%; height: auto; border: 1px solid rgba(0,0,0,.12); border-radius: 4px; margin: .5rem 0 1rem; }
+.sespy-manual table { font-size: .9rem; }

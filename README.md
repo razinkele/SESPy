@@ -20,8 +20,25 @@ the why.
 
 ## Screenshots
 
+Captured from v1.8.0 on the sample project by `tests/make_docs_screenshots.py`.
+The full **user manual** (every panel, the science behind each analysis, and
+the literature) is in [`docs/MANUAL.md`](docs/MANUAL.md) and in the app under
+About → Manual.
+
 | | |
 |---|---|
+| **Rate Connections** — multi-rater elicitation + contested-edges view | **CLD Visualization** — DAPSI-ordered hierarchical layout |
+| ![Rate Connections](docs/screenshots/rate.png) | ![CLD](docs/screenshots/cld.png) |
+| **Factor Quadrant** — Vester influence × dependence | **Leverage Points** — composite score + Meadows realm + ALC |
+| ![Quadrant](docs/screenshots/quadrant.png) | ![Leverage](docs/screenshots/leverage.png) |
+| **Loop Analysis** — reinforcing / balancing / oscillation-prone | **Network Metrics** — fit, governance gap, actor influence, cascade, paths, subsystem modules |
+| ![Loops](docs/screenshots/loops.png) | ![Metrics](docs/screenshots/metrics.png) |
+| **Dynamic Simulation** — linear iteration + loop dominance + Monte Carlo | **Stakeholders** — PIMS register (Power × Interest) |
+| ![Simulation](docs/screenshots/simulation.png) | ![Stakeholders](docs/screenshots/stakeholders.png) |
+| **Intervention** — ablation + token diffusion | **Full app** — workflow stepper + nav |
+| ![Intervention](docs/screenshots/intervention.png) | ![Full app](docs/screenshots/full_app.png) |
+
+---|---|
 | **Rate Connections** — multi-rater elicitation + contested-edges view | **CLD Visualization** — DAPSI-ordered hierarchical layout |
 | ![Rate Connections](docs/screenshots/rate_connections.png) | ![CLD](docs/screenshots/cld.png) |
 | **Factor Quadrant** — Vester influence × dependence | **Leverage Points** — composite score + Meadows realm + uncertainty CIs |
@@ -377,6 +394,13 @@ micromamba run -n shiny pytest tests/ -q \
 # Full Playwright e2e — one command boots the server, runs all 31 browser
 # scripts, and handles the wizard's ANTHROPIC_API_KEY two-pass:
 micromamba run -n shiny python tests/run_e2e.py
+```
+
+Refresh the manual's screenshots for a release (needs a server on port 8000;
+writes `docs/screenshots/*.png`, not part of the e2e gate):
+
+```bash
+micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000
 ```
 
 612 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
