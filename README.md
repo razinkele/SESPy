@@ -35,6 +35,19 @@ the why.
 
 ---
 
+## What's new in v1.7.0
+
+One diagnostic, closing the last open literature issue (#25):
+
+- **Cascade early warning.** The cascade table gains a KL column — the
+  divergence of each step's surviving degree distribution from the previous
+  step's — and a line naming the first step where that series departs from
+  its running median, after Kraehling 2026. Both that step and the
+  cascade-threshold step are printed, because on hub-shaped models the
+  collapse comes first and the departure follows it.
+
+---
+
 ## What's new in v1.6.2
 
 Two corrections from the post-release review of #26: the governance
@@ -366,7 +379,7 @@ micromamba run -n shiny pytest tests/ -q \
 micromamba run -n shiny python tests/run_e2e.py
 ```
 
-602 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+612 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly

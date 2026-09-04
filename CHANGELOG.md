@@ -2,6 +2,27 @@
 
 All notable changes to SESPy.
 
+## [1.7.0] — 2026-09-05
+
+- New **KL-divergence early warning** on the cascade vulnerability block
+  (#25, after Kraehling 2026, doi:10.21203/rs.3.rs-9204974/v3): each removal
+  step now reports the smoothed KL divergence of the surviving graph's degree
+  distribution from the previous step's, as a `KL` column, and a bold line
+  names the early-warning node — the first step whose KL exceeds twice the
+  running median of all earlier steps (two earlier steps required). The line
+  always prints both the early-warning step and the cascade-threshold step.
+- Limitation, stated plainly: the rule cannot fire before step 3, and removal
+  runs in descending leverage order, so on hub-shaped models the lccf
+  collapse is step 1 and the KL departure can only follow it. On the sample
+  project: threshold at step 1 (MPF1), departure at step 7 (D002) — a
+  post-threshold departure, not a precursor. The signal earns its name when
+  the connectivity collapse comes late in the removal order.
+- Purely additive in the library: `lccf`, `loop_count`, `delta_lccf` and
+  `cascade_threshold_node` are byte-identical to 1.6.x; the baseline row
+  carries no KL (the first step is measured against it); the trivial shape
+  gains `early_warning_node: None`. Nine-language strings for the two new
+  lines; the caption defines KL.
+
 ## [1.6.2] — 2026-09-04
 
 - Post-release review of #26 (workflow: four lenses, two refuters per

@@ -4,9 +4,9 @@ Ready-to-paste issue drafts. Review and open manually.
 
 ---
 
-## [Medium] KL-divergence early-warning step for cascade vulnerability in `sespy/network.py`
+## ✅ SHIPPED — KL-divergence early-warning step for cascade vulnerability in `sespy/network.py`
 
-**Status:** ✅ Opened as razinkele/SESPy#25 (2026-09-04)
+**Status:** ✅ Opened as razinkele/SESPy#25 (2026-09-04) · shipped in v1.7.0 (2026-09-05; table column + line, no chart exists; departure can only follow a step-1 threshold — see closing comment)
 
 **Source paper:** Entropy-Based Indicators of Critical Transitions in Heavy-Tailed Networks Under Progressive Node Removal, *Research Square* (preprint v3, 2026). https://doi.org/10.21203/rs.3.rs-9204974/v3
 **Alert week:** 2026-09-01 (alert filed it as "extend #15"; #15 had already shipped 2026-08-14, so it got its own issue)
