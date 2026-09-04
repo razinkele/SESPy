@@ -138,6 +138,13 @@ def test_cascade_early_warning_keys_present(translations):
             assert set(re.findall(r"\{(\w+)\}", text)) == names, (key, lang, text)
 
 
+def test_about_manual_keys_present(translations):
+    for key in ("about.manual", "help.manual_hint"):
+        assert key in translations
+        for lang in ("en", "es", "fr", "de", "lt", "pt", "it", "no", "el"):
+            assert translations[key].get(lang), (key, lang)
+
+
 def test_cascade_keys_present(translations):
     for key in ("metrics.cascade", "metrics.cascade_run", "metrics.cascade_hint",
                 "metrics.cascade_threshold", "metrics.cascade_caption"):

@@ -66,6 +66,10 @@ from sespy.modules.topbar_actions import topbar_actions_server, topbar_actions_u
 
 ROOT = Path(__file__).parent
 WWW = ROOT / "www"
+# The About modal renders docs/MANUAL.md, whose images are relative
+# docs/screenshots/*.png paths (so they also work on GitHub). Mount that
+# directory at the same relative URL so the paths resolve in-app too.
+STATIC_ASSETS = {"/": WWW, "/docs/screenshots": ROOT / "docs" / "screenshots"}
 SAMPLE = ROOT / "data" / "sample_ses.json"
 TRANSLATIONS_DIR = ROOT / "sespy" / "translations"
 
@@ -311,5 +315,5 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
 app = App(
     app_ui,
     server,
-    static_assets=str(WWW),
+    static_assets={k: str(v) for k, v in STATIC_ASSETS.items()},
 )

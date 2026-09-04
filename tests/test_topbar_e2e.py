@@ -23,6 +23,23 @@ async def main():
         await pg.wait_for_selector(".modal", timeout=10000)
         body = await pg.text_content(".modal") or ""
         assert "Overview" in body and "Changelog" in body, body[:120]
+        # Manual tab (v1.8.0): rendered docs/MANUAL.md with images that load.
+        assert "Manual" in body, body[:120]
+        await pg.click(".modal .nav-link:has-text('Manual')")
+        await pg.wait_for_selector(".modal h1:has-text('SESPy User Manual')", timeout=10000)
+        await pg.wait_for_selector(".modal h2:has-text('CLD Visualization')", timeout=10000)
+        loaded = await pg.evaluate(
+            "() => { const i = document.querySelector('.modal img'); "
+            "return i ? (i.complete && i.naturalWidth > 0) : null; }")
+        for _ in range(20):
+            if loaded:
+                break
+            await pg.wait_for_timeout(500)
+            loaded = await pg.evaluate(
+                "() => { const i = document.querySelector('.modal img'); "
+                "return i ? (i.complete && i.naturalWidth > 0) : null; }")
+        assert loaded is True, f"first manual image did not load (state={loaded!r})"
+        print("topbar about manual: OK")
         # dismiss any notification that might block the Close button, then close modal
         await pg.evaluate("document.getElementById('shiny-notification-panel') && (document.getElementById('shiny-notification-panel').style.display='none')")
         await pg.click(".modal .btn-default, .modal button:has-text('Close')")

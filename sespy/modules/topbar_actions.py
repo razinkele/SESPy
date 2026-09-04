@@ -159,6 +159,33 @@ def _feedback_modal(translator: Translator | None) -> ui.Tag:
     )
 
 
+_ABOUT_OVERVIEW = """
+SESPy is the Python port of the MarineSABRES Social-Ecological Systems (SES)
+Toolbox. A facilitator and a stakeholder group build a causal loop diagram of a
+marine social-ecological system, typed with the DAPSI(W)R(M) framework, and
+then interrogate it: which feedback loops it contains, which elements carry
+leverage, where governance does not reach the pressures it should, how robust
+the structure is, and what an intervention might propagate into.
+
+**Workflow.** Setup → Get Started → Create SES → Visualize → Analyze → Report.
+The stepper across the top is a guide, not a gate; every panel is reachable
+from the navigation at any time.
+
+| Stage | Panels |
+|---|---|
+| Setup | Project Setup, Stakeholders |
+| Get Started | Recent Projects |
+| Create SES | Templates, SES Wizard, Edit Data, Rate Connections, Import Data |
+| Visualize | CLD Visualization |
+| Analyze | Loop Analysis, Network Metrics, Leverage Points, Factor Quadrant, Boolean & Laplacian, Dynamic Simulation, Behaviour Over Time, Intervention, Simplify Network |
+| Report | Export Report |
+
+**Where to look next.** The *Manual* tab of this dialog walks through every
+panel, explains the science behind each analysis and lists the literature
+that shaped the app. The *Changelog* tab records what changed in each release.
+"""
+
+
 def _about_modal(translator) -> ui.Tag:
     header = ui.markdown(
         f"### MarineSABRES SES Toolbox — Python\n\n"
@@ -170,13 +197,16 @@ def _about_modal(translator) -> ui.Tag:
         ui.navset_tab(
             ui.nav_panel(_t(translator, "about.overview", "Overview"),
                          ui.div(header, class_="mb-3"),
-                         ui.markdown(read_project_doc("README.md"))),
+                         ui.markdown(_ABOUT_OVERVIEW)),
+            ui.nav_panel(_t(translator, "about.manual", "Manual"),
+                         ui.div(ui.markdown(read_project_doc("docs/MANUAL.md")),
+                                class_="sespy-manual")),
             ui.nav_panel(_t(translator, "about.changelog", "Changelog"),
                          ui.markdown(read_project_doc("CHANGELOG.md"))),
         ),
         title="About",
         footer=ui.modal_button("Close"),
-        size="l", easy_close=True,
+        size="xl", easy_close=True,
     )
 
 
@@ -207,6 +237,9 @@ def _options_modal(translator, current_theme, autosave_enabled) -> ui.Tag:
 def _help_modal(translator) -> ui.Tag:
     return ui.modal(
         ui.markdown(_t(translator, "help.body", "See the README.")),
+        ui.p(_t(translator, "help.manual_hint",
+                "The full manual is in About → Manual."),
+             class_="text-muted"),
         title=_t(translator, "help.title", "Help"),
         footer=ui.modal_button("Close"), size="l", easy_close=True,
     )
