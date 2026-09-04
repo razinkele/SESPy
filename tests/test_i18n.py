@@ -115,6 +115,17 @@ def test_governance_concentration_keys_present(translations):
         assert "{entropy}" in translations[key]["en"]
 
 
+def test_governance_concentration_placeholders_match_across_languages(translations):
+    import re
+    expected = {
+        "metrics.gov_concentration_distributed": {"n", "entropy"},
+        "metrics.gov_concentration_concentrated": {"actor", "share", "n", "entropy"},
+    }
+    for key, names in expected.items():
+        for lang, text in translations[key].items():
+            assert set(re.findall(r"\{(\w+)\}", text)) == names, (key, lang, text)
+
+
 def test_cascade_keys_present(translations):
     for key in ("metrics.cascade", "metrics.cascade_run", "metrics.cascade_hint",
                 "metrics.cascade_threshold", "metrics.cascade_caption"):

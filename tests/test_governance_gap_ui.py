@@ -9,7 +9,8 @@ from pathlib import Path
 
 from sespy import network
 from sespy.data_structure import Connection, Element, IsaData, load_sample
-from sespy.modules.analysis_metrics import governance_gap_state
+from sespy.modules.analysis_metrics import (
+    governance_concentration_verdict, governance_gap_state)
 
 
 def _state(isa):
@@ -59,3 +60,48 @@ def test_state_no_press_when_ecological_but_no_pressures():
 def test_state_ok_on_sample():
     root = Path(__file__).resolve().parents[1]
     assert _state(load_sample(root / "data" / "sample_ses.json")) == ""
+
+
+# ---------------------------------------------------------------------------
+# governance_concentration_verdict (issue #26 review follow-up)
+# ---------------------------------------------------------------------------
+
+def _gc(ent, *, n=3, actor="R1", share=0.7):
+    return {"n_actors": n, "normalised_entropy": ent, "dominant_actor": actor,
+            "dominant_share": share, "shannon_entropy": None, "gini": None}
+
+
+def test_verdict_none_below_two_actors():
+    assert governance_concentration_verdict(_gc(None, n=1)) is None
+    assert governance_concentration_verdict(_gc(None, n=0)) is None
+
+
+def test_verdict_distributed_carries_n_and_entropy():
+    key, kw = governance_concentration_verdict(_gc(0.87, n=5))
+    assert key == "metrics.gov_concentration_distributed"
+    assert kw == {"n": 5, "entropy": "0.87"}
+
+
+def test_verdict_concentrated_carries_actor_share_n_entropy():
+    key, kw = governance_concentration_verdict(_gc(0.10, n=2, actor="R002",
+                                                   share=0.9865))
+    assert key == "metrics.gov_concentration_concentrated"
+    assert kw == {"actor": "R002", "share": "0.99", "n": 2, "entropy": "0.10"}
+
+
+def test_verdict_threshold_agrees_with_displayed_entropy():
+    # The wording must follow the number the user sees (2 dp), so 0.497
+    # displays "0.50" and reads distributed, while 0.494 displays "0.49"
+    # and reads concentrated — never two verdicts for one printed value.
+    key_hi, kw_hi = governance_concentration_verdict(_gc(0.497))
+    key_lo, kw_lo = governance_concentration_verdict(_gc(0.494))
+    assert (key_hi, kw_hi["entropy"]) == ("metrics.gov_concentration_distributed", "0.50")
+    assert (key_lo, kw_lo["entropy"]) == ("metrics.gov_concentration_concentrated", "0.49")
+
+
+def test_verdict_on_sample_is_concentrated_in_r002():
+    root = Path(__file__).resolve().parents[1]
+    gc = network.governance_concentration(load_sample(root / "data" / "sample_ses.json"))
+    key, kw = governance_concentration_verdict(gc)
+    assert key == "metrics.gov_concentration_concentrated"
+    assert kw["actor"] == "R002" and kw["entropy"] == "0.10"

@@ -120,9 +120,10 @@ async def main():
         # Governance concentration sentence (#26) sits above the table: the
         # sample is two actors with R002 dominant, so "concentrated" renders.
         assert "concentrated in R002" in ai_text, f"expected concentration sentence, got: {ai_text!r}"
-        # Rank order is checked on the table alone (after the "influence"
-        # header cell) — the sentence names R002 too and must not satisfy it.
-        table_text = ai_text[ai_text.index("influence") + len("influence"):]
+        # Rank order is checked on the <table> element alone — the heading and
+        # the sentence both contain "influence"/"R002", so slicing the block's
+        # text is not enough; read the table's own inner_text.
+        table_text = (await page.inner_text("#metrics-actor_influence_summary table")).strip()
         assert "R002" in table_text and "R001" in table_text, f"expected both actors, got: {table_text!r}"
         # R002 (dominant) must rank above R001 (peripheral).
         assert table_text.index("R002") < table_text.index("R001"), f"expected R002 first, got: {table_text!r}"

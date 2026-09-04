@@ -77,6 +77,25 @@ def governance_gap_state(r: dict, n_elements: int) -> str:
     return ""
 
 
+def governance_concentration_verdict(gc: dict) -> tuple[str, dict] | None:
+    """Translation key + format kwargs for the one-line governance
+    concentration verdict (#26), or None below two actors. The wording
+    follows the NUMBER THE USER SEES: entropy is rounded to 2 dp first and
+    the distributed/concentrated split is taken on that rounded value, so
+    one printed entropy can never carry two different verdicts. Pure.
+    """
+    if gc["n_actors"] < 2:
+        return None
+    entropy = f"{gc['normalised_entropy']:.2f}"
+    if float(entropy) >= 0.5:
+        return ("metrics.gov_concentration_distributed",
+                {"n": gc["n_actors"], "entropy": entropy})
+    return ("metrics.gov_concentration_concentrated",
+            {"actor": gc["dominant_actor"],
+             "share": f"{gc['dominant_share']:.2f}",
+             "n": gc["n_actors"], "entropy": entropy})
+
+
 def _build_metrics_network(
     isa: IsaData,
     metric: str,
@@ -315,19 +334,12 @@ def analysis_metrics_server(
             )
             for r in rows
         ]
-        gc = net_analysis.governance_concentration(isa)
+        verdict = governance_concentration_verdict(
+            net_analysis.governance_concentration(isa))
         concentration = None
-        if gc["n_actors"] >= 2:
-            ent = gc["normalised_entropy"]
-            if ent >= 0.5:
-                sentence = t("metrics.gov_concentration_distributed",
-                             n=gc["n_actors"], entropy=f"{ent:.2f}")
-            else:
-                sentence = t("metrics.gov_concentration_concentrated",
-                             actor=gc["dominant_actor"],
-                             share=f"{gc['dominant_share']:.2f}",
-                             n=gc["n_actors"], entropy=f"{ent:.2f}")
-            concentration = ui.p(sentence, class_="mb-2")
+        if verdict is not None:
+            key, kwargs = verdict
+            concentration = ui.p(t(key, **kwargs), class_="mb-2")
         return ui.div(
             ui.h5(t("metrics.actor_influence")),
             concentration,
