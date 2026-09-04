@@ -585,6 +585,8 @@ shape exactly:
         event_bus.isa_change.get()
         isa = project_data.get().isa_data
         if len(isa.elements) < 3:
+            # gov_gap_none is the card's shared too-small message — the
+            # cascade and paths blocks use the same key for this guard.
             return ui.p(t("metrics.gov_gap_none"), class_="text-muted")
         button = ui.input_action_button(
             "run_hypermodules", t("metrics.hypermodules_run"),
@@ -621,7 +623,8 @@ shape exactly:
                 (by_id[row["node"]].label if row["node"] in by_id
                  else row["node"])
                 for row in rows)
-            lines.append(ui.tags.li(f"HM{hid}: {comp} — {labels}"))
+            lines.append(ui.tags.li(
+                f"HM{hid} ({len(rows)}): {comp} — {labels}"))
         return ui.div(
             ui.h5(t("metrics.hypermodules")),
             button,
@@ -663,7 +666,42 @@ micromamba run -n shiny python -m pytest tests -q --ignore-glob='*e2e*' \
 
 Expected: 2 PASS; suite total **588 passed** (576 + 10 from Task 1 + 2 here).
 
-- [ ] **Step 7: Look at the panel**
+- [ ] **Step 7: Extend the metrics e2e (renders + fires, cascade-style)**
+
+The cascade precedent is e2e-driven (`tests/test_metrics_e2e.py:134` clicks
+`#metrics-run_cascade`); "the block renders" gets the same automated
+coverage, not only the manual look. In `tests/test_metrics_e2e.py`, directly
+after the cascade section (its `print(f"cascade vulnerability block: OK` line)
+and BEFORE the "Causal pathways" section, insert — matching the file's async
+idiom exactly:
+
+```python
+        # --- SES subsystem modules: idle hint, then button-triggered list ---
+        hm_text = ""
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            hm_text = (await page.inner_text("#metrics-hypermodules_summary")).strip()
+            if hm_text:
+                break
+        assert "SES subsystem modules" in hm_text, f"expected heading, got: {hm_text!r}"
+        assert "not computed" in hm_text, f"expected idle hint, got: {hm_text!r}"
+        await page.click("#metrics-run_hypermodules")
+        for _ in range(30):
+            await page.wait_for_timeout(500)
+            hm_text = (await page.inner_text("#metrics-hypermodules_summary")).strip()
+            if "HM0" in hm_text:
+                break
+        # Sample golden: 2 hypermodules, score 0.53 (see the unit golden).
+        assert "2 subsystem module" in hm_text, f"expected count line, got: {hm_text!r}"
+        assert "0.53" in hm_text, f"expected score, got: {hm_text!r}"
+        assert "HM0" in hm_text and "HM1" in hm_text, f"expected both modules, got: {hm_text!r}"
+        print(f"hypermodules block: OK ({hm_text[:120]!r})")
+```
+
+Add `tests/test_metrics_e2e.py` to Step 8's `git add`. The e2e count stays
+32/32 — this extends an existing script.
+
+- [ ] **Step 8: Look at the panel**
 
 The unit tests cannot see a broken block. Start the server DETACHED — a
 foreground `shiny run` never returns and ending your turn ends your
@@ -682,10 +720,10 @@ the score line reads "2 subsystem module(s); 0.53 …". Then stop it:
 Get-NetTCPConnection -LocalPort 8000 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
 ```
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add sespy/modules/analysis_metrics.py sespy/translations/core.json tests/test_metrics_hypermodules.py
+git add sespy/modules/analysis_metrics.py sespy/translations/core.json tests/test_metrics_hypermodules.py tests/test_metrics_e2e.py
 git commit -m "feat(metrics): SES subsystem modules block (#24)
 
 Button-gated per the card's convention; every degenerate note has a
