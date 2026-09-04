@@ -2,6 +2,34 @@
 
 All notable changes to SESPy.
 
+## [1.8.0] — 2026-09-05
+
+- New **user manual**, `docs/MANUAL.md`, rendered as the *Manual* tab of the
+  About dialog and readable on GitHub: getting started, every one of the 19
+  panels (purpose, controls, outputs, how to read the result, caveats), the
+  scientific background of each analysis with the places SESPy departs from
+  the published method, a verified bibliography (method foundations plus the
+  2026 literature-alert papers by feature and release), and an appendix with
+  file formats, URL parameters, a glossary and known limitations. English
+  only; the About tab labels are translated in all nine languages.
+- About dialog rebuilt: a curated *Overview* replaces the verbatim README
+  dump, *Manual* is new, *Changelog* stays. `docs/screenshots/` is now served
+  as a static route so the manual's relative image paths work in-app; the
+  old README screenshots inside About were broken images.
+- Screenshots regenerated for v1.8.0 by a new `tests/make_docs_screenshots.py`
+  (Playwright, 1280×900, sample project, gated blocks run first): one capture
+  per panel plus cascade, Monte Carlo and About states. The June 2026 set is
+  replaced; `qsem_import.png` and `rate_connections.png` are gone.
+- Help dialog points to About → Manual. `deploy.sh` ships the manual and its
+  screenshots.
+- The manual was fact-checked by a 65-agent review workflow (five lenses, two
+  refuters per finding); 34 corrections landed before release, several of
+  them to statements about the sample project and the tier/realm mappings.
+- Tests: `tests/test_manual.py` keeps the manual honest (every referenced
+  image exists, every nav panel has a section, every docstring DOI is in the
+  references, the version line tracks the package, the static mount is
+  pinned); the topbar e2e opens the Manual tab and asserts an image loads.
+
 ## [1.7.0] — 2026-09-05
 
 - New **KL-divergence early warning** on the cascade vulnerability block

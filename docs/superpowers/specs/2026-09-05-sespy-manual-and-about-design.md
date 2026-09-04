@@ -1,6 +1,6 @@
 # SESPy user manual, screenshot refresh and About modal — design
 
-**Date:** 2026-09-05 · **Target release:** v1.8.0 · **Status:** approved in chat (four scoping answers), executing.
+**Date:** 2026-09-05 · **Target release:** v1.8.0 · **Status:** shipped in v1.8.0 (2026-09-05).
 
 ## Problem
 
