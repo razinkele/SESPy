@@ -315,8 +315,22 @@ def analysis_metrics_server(
             )
             for r in rows
         ]
+        gc = net_analysis.governance_concentration(isa)
+        concentration = None
+        if gc["n_actors"] >= 2:
+            ent = gc["normalised_entropy"]
+            if ent >= 0.5:
+                sentence = t("metrics.gov_concentration_distributed",
+                             n=gc["n_actors"], entropy=f"{ent:.2f}")
+            else:
+                sentence = t("metrics.gov_concentration_concentrated",
+                             actor=gc["dominant_actor"],
+                             share=f"{gc['dominant_share']:.2f}",
+                             n=gc["n_actors"], entropy=f"{ent:.2f}")
+            concentration = ui.p(sentence, class_="mb-2")
         return ui.div(
             ui.h5(t("metrics.actor_influence")),
+            concentration,
             ui.tags.table(ui.tags.thead(header), ui.tags.tbody(*body),
                           class_="table table-sm"),
             ui.p(t("metrics.actor_influence_caption"),

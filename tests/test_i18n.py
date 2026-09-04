@@ -108,6 +108,13 @@ def test_actor_influence_keys_present(translations):
     assert "metrics.actor_influence_caption" in translations
 
 
+def test_governance_concentration_keys_present(translations):
+    for key in ("metrics.gov_concentration_distributed",
+                "metrics.gov_concentration_concentrated"):
+        assert key in translations
+        assert "{entropy}" in translations[key]["en"]
+
+
 def test_cascade_keys_present(translations):
     for key in ("metrics.cascade", "metrics.cascade_run", "metrics.cascade_hint",
                 "metrics.cascade_threshold", "metrics.cascade_caption"):
