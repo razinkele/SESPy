@@ -11,6 +11,7 @@ from collections import Counter
 from dataclasses import replace
 import logging
 import math
+import statistics
 from typing import TypedDict
 
 import networkx as nx
@@ -632,6 +633,40 @@ def governance_concentration(isa: IsaData) -> dict:
     }
 
 
+def _degree_kl(prev: list[int], cur: list[int]) -> float:
+    """Smoothed KL(cur || prev) between two total-degree multisets — the
+    early-warning statistic of Kraehling 2026 (doi:10.21203/rs.3.rs-9204974/v3).
+    Union support 0..max degree seen in either, add-one smoothing on both so
+    a degree value vanishing from one side stays finite. Identical multisets
+    give exactly 0.0; an empty side (all nodes removed) gives 0.0 by
+    convention. Never negative (both sides are proper distributions)."""
+    if not prev or not cur:
+        return 0.0
+    support = range(max(max(prev), max(cur)) + 1)
+    cp, cc = Counter(prev), Counter(cur)
+    if cp == cc:
+        return 0.0
+    k = len(support)
+    tp, tc = len(prev) + k, len(cur) + k
+    kl = 0.0
+    for d in support:
+        p = (cp.get(d, 0) + 1) / tp
+        q = (cc.get(d, 0) + 1) / tc
+        kl += q * math.log(q / p)
+    return max(kl, 0.0)
+
+
+def _kl_departure(kls: list[float]) -> int | None:
+    """Index of the first step whose KL exceeds TWICE the median of every
+    earlier step's KL, requiring at least two earlier steps; None if the
+    series never departs. A spike out of a flat-zero history counts (median
+    0 → any positive KL departs); a flat series never does."""
+    for i in range(2, len(kls)):
+        if kls[i] > 2 * statistics.median(kls[:i]):
+            return i
+    return None
+
+
 def cascade_vulnerability(
     isa: IsaData, *, max_steps: int = 20, max_length: int = 6,
     max_loops: int = LOOP_ENUMERATION_CAP,
@@ -654,11 +689,18 @@ def cascade_vulnerability(
     returns the trivial shape with cascade_threshold_node None (never
     raises). Pure; deterministic (leverage ties break in isa.elements
     order); no NaN.
+
+    Issue #25 (Kraehling 2026) adds, purely additively, a per-step
+    `kl_divergence` — smoothed KL between the surviving graph's total-degree
+    distribution and the previous step's (see _degree_kl) — and a top-level
+    `early_warning_node`: the removal at which that series first departs
+    (see _kl_departure), a structural precursor that can fire BEFORE the
+    lccf drop the threshold node marks. None when it never departs.
     """
     if len(isa.elements) < 3:
         return {"baseline": {"lccf": 0.0, "loop_count": 0}, "steps": [],
-                "cascade_threshold_node": None, "n_ranked": 0,
-                "max_steps": max_steps}
+                "cascade_threshold_node": None, "early_warning_node": None,
+                "n_ranked": 0, "max_steps": max_steps}
 
     n_original = len(isa.elements)
 
@@ -678,9 +720,14 @@ def cascade_vulnerability(
             isa, max_length=max_length, max_loops=max_loops)),
     }
 
+    def _degrees(model: IsaData) -> list[int]:
+        g = to_digraph(model)
+        return [g.degree(n) for n in g.nodes]
+
     steps: list[dict] = []
     survivors = list(isa.elements)
     prev = baseline["lccf"]
+    prev_degrees = _degrees(isa)
     for step, victim in enumerate(ranked[:max_steps], start=1):
         survivors = [el for el in survivors if el.id != victim.id]
         ids = {el.id for el in survivors}
@@ -690,6 +737,7 @@ def cascade_vulnerability(
                          if c.source in ids and c.target in ids],
         )
         cur = _lccf(reduced)
+        cur_degrees = _degrees(reduced)
         steps.append({
             "step": step,
             "removed_id": victim.id,
@@ -698,12 +746,16 @@ def cascade_vulnerability(
             "loop_count": len(feedback_loops(
                 reduced, max_length=max_length, max_loops=max_loops)),
             "delta_lccf": prev - cur,
+            "kl_divergence": _degree_kl(prev_degrees, cur_degrees),
         })
-        prev = cur
+        prev, prev_degrees = cur, cur_degrees
 
     threshold = max(steps, key=lambda r: r["delta_lccf"])["removed_id"]
+    departure = _kl_departure([r["kl_divergence"] for r in steps])
     return {"baseline": baseline, "steps": steps,
             "cascade_threshold_node": threshold,
+            "early_warning_node": (None if departure is None
+                                   else steps[departure]["removed_id"]),
             "n_ranked": n_original, "max_steps": max_steps}
 
 

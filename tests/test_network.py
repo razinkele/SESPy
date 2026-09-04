@@ -1467,8 +1467,8 @@ def test_cascade_under_three_elements_trivial():
                         connections=[Connection(source="A", target="B")])):
         r = network.cascade_vulnerability(isa)
         assert r == {"baseline": {"lccf": 0.0, "loop_count": 0}, "steps": [],
-                     "cascade_threshold_node": None, "n_ranked": 0,
-                     "max_steps": 20}
+                     "cascade_threshold_node": None, "early_warning_node": None,
+                     "n_ranked": 0, "max_steps": 20}
 
 
 def test_cascade_is_deterministic():
@@ -1485,6 +1485,90 @@ def test_cascade_removal_follows_leverage_ranking():
                                        key=lambda el: (-lev[el.id], order[el.id]))]
     r = network.cascade_vulnerability(isa)
     assert [s["removed_id"] for s in r["steps"]] == expected
+
+
+# ---------------------------------------------------------------------------
+# cascade KL-divergence early warning (issue #25)
+# ---------------------------------------------------------------------------
+
+def _isolated_isa(n):
+    return IsaData(elements=[Element(id=f"N{i}", label=f"n{i}", type="Pressures")
+                             for i in range(n)])
+
+
+def test_kl_departure_rule_fires_on_first_spike_over_twice_running_median():
+    assert network._kl_departure([0.1, 0.1, 0.1, 0.5]) == 3
+    assert network._kl_departure([0.1, 0.1, 0.25, 0.1]) == 2
+
+
+def test_kl_departure_rule_needs_two_earlier_steps():
+    assert network._kl_departure([0.1, 5.0]) is None
+    assert network._kl_departure([]) is None
+
+
+def test_kl_departure_rule_silent_on_flat_series():
+    assert network._kl_departure([0.0, 0.0, 0.0]) is None
+    assert network._kl_departure([0.2, 0.2, 0.2, 0.2]) is None
+
+
+def test_kl_departure_rule_spike_from_silence_counts():
+    assert network._kl_departure([0.0, 0.0, 0.2]) == 2
+
+
+def test_cascade_kl_is_finite_and_nonnegative():
+    import math
+    root = Path(__file__).resolve().parents[1]
+    for isa in (load_sample(root / "data" / "sample_ses.json"), _bridge_isa()):
+        r = network.cascade_vulnerability(isa)
+        for step in r["steps"]:
+            assert math.isfinite(step["kl_divergence"])
+            assert step["kl_divergence"] >= 0.0
+
+
+def test_cascade_kl_zero_when_degree_distribution_unchanged():
+    # Four isolated nodes: every survivor set is all-degree-0, so each
+    # step's distribution equals the previous one → KL exactly 0.
+    r = network.cascade_vulnerability(_isolated_isa(4))
+    assert [s["kl_divergence"] for s in r["steps"]] == [0.0, 0.0, 0.0, 0.0]
+    assert r["early_warning_node"] is None
+
+
+def test_cascade_early_warning_is_consistent_with_the_rule():
+    import statistics
+    root = Path(__file__).resolve().parents[1]
+    for isa in (load_sample(root / "data" / "sample_ses.json"), _bridge_isa()):
+        r = network.cascade_vulnerability(isa)
+        kls = [s["kl_divergence"] for s in r["steps"]]
+        idx = network._kl_departure(kls)
+        if idx is None:
+            assert r["early_warning_node"] is None
+        else:
+            assert r["early_warning_node"] == r["steps"][idx]["removed_id"]
+            assert idx >= 2
+            assert kls[idx] > 2 * statistics.median(kls[:idx])
+
+
+def test_cascade_kl_sample_golden():
+    # The sample's threshold is step 1 (MPF1), where no departure can fire
+    # by construction (two earlier steps needed); the KL series departs at
+    # step 7 (D002: 0.131 > 2 × median of the first six). Honest, not a
+    # precursor here — the UI says so by printing both step numbers.
+    root = Path(__file__).resolve().parents[1]
+    r = network.cascade_vulnerability(load_sample(root / "data" / "sample_ses.json"))
+    assert r["early_warning_node"] == "D002"
+    assert r["steps"][6]["removed_id"] == "D002"
+    assert round(r["steps"][0]["kl_divergence"], 4) == 0.0982
+    assert round(r["steps"][6]["kl_divergence"], 4) == 0.1311
+    assert r["steps"][-1]["kl_divergence"] == 0.0   # empty survivor set
+
+
+def test_cascade_existing_fields_unchanged_by_kl():
+    # Purely additive: the pre-#25 keys keep their values.
+    r = network.cascade_vulnerability(_bridge_isa())
+    assert [s["removed_id"] for s in r["steps"]] == ["H3", "BR", "H4", "H2", "H1"]
+    assert r["cascade_threshold_node"] == "H3"
+    assert set(r["steps"][0]) == {"step", "removed_id", "removed_label", "lccf",
+                                  "loop_count", "delta_lccf", "kl_divergence"}
 
 
 # ---------------------------------------------------------------------------
