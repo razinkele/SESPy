@@ -117,12 +117,15 @@ async def main():
             if ai_text:
                 break
         assert "Governance actor influence" in ai_text, f"expected heading, got: {ai_text!r}"
-        assert "R002" in ai_text and "R001" in ai_text, f"expected both actors, got: {ai_text!r}"
-        # R002 (dominant) must rank above R001 (peripheral).
-        assert ai_text.index("R002") < ai_text.index("R001"), f"expected R002 first, got: {ai_text!r}"
-        # Governance concentration sentence (#26): the sample is two actors
-        # with R002 dominant, so the "concentrated" wording must render.
+        # Governance concentration sentence (#26) sits above the table: the
+        # sample is two actors with R002 dominant, so "concentrated" renders.
         assert "concentrated in R002" in ai_text, f"expected concentration sentence, got: {ai_text!r}"
+        # Rank order is checked on the table alone (after the "influence"
+        # header cell) — the sentence names R002 too and must not satisfy it.
+        table_text = ai_text[ai_text.index("influence") + len("influence"):]
+        assert "R002" in table_text and "R001" in table_text, f"expected both actors, got: {table_text!r}"
+        # R002 (dominant) must rank above R001 (peripheral).
+        assert table_text.index("R002") < table_text.index("R001"), f"expected R002 first, got: {table_text!r}"
         print(f"actor influence table: OK ({ai_text!r})")
 
         # --- Cascade vulnerability: idle hint, then button-triggered table ---
