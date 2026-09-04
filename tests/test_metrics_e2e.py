@@ -146,6 +146,10 @@ async def main():
                 break
         # Sample golden: MPF1 (Posidonia meadows) is the threshold node, Δ 0.47.
         assert "cascade threshold node" in cs_text, f"expected threshold line, got: {cs_text!r}"
+        # #25: the KL early-warning line renders under the threshold line; on
+        # the sample the series departs at step 7 (D002).
+        assert "early-warning" in cs_text and "D002" in cs_text, f"expected early-warning line, got: {cs_text!r}"
+        assert "KL" in cs_text, f"expected KL column header, got: {cs_text!r}"
         assert "MPF1" in cs_text and "0.47" in cs_text, f"expected MPF1/0.47, got: {cs_text!r}"
         print(f"cascade vulnerability block: OK ({cs_text[:120]!r})")
 

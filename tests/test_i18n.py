@@ -126,6 +126,18 @@ def test_governance_concentration_placeholders_match_across_languages(translatio
             assert set(re.findall(r"\{(\w+)\}", text)) == names, (key, lang, text)
 
 
+def test_cascade_early_warning_keys_present(translations):
+    import re
+    expected = {
+        "metrics.cascade_early_warning": {"id", "step", "kl", "thr_step"},
+        "metrics.cascade_early_warning_none": set(),
+    }
+    for key, names in expected.items():
+        assert key in translations
+        for lang, text in translations[key].items():
+            assert set(re.findall(r"\{(\w+)\}", text)) == names, (key, lang, text)
+
+
 def test_cascade_keys_present(translations):
     for key in ("metrics.cascade", "metrics.cascade_run", "metrics.cascade_hint",
                 "metrics.cascade_threshold", "metrics.cascade_caption"):

@@ -384,9 +384,17 @@ def analysis_metrics_server(
                      style="font-size: 0.85rem; margin-top: 0.5rem;"),
             )
         thr_row = max(r["steps"], key=lambda row: row["delta_lccf"])
+        ew_row = next((row for row in r["steps"]
+                       if row["removed_id"] == r["early_warning_node"]), None)
+        early_warning = (
+            t("metrics.cascade_early_warning_none") if ew_row is None else
+            t("metrics.cascade_early_warning",
+              id=f"{ew_row['removed_id']} · {ew_row['removed_label']}",
+              step=ew_row["step"], kl=f"{ew_row['kl_divergence']:.2f}",
+              thr_step=thr_row["step"]))
         header = ui.tags.tr(
             ui.tags.th("step"), ui.tags.th(""), ui.tags.th("lccf"),
-            ui.tags.th("loops"), ui.tags.th("Δ lccf"),
+            ui.tags.th("loops"), ui.tags.th("Δ lccf"), ui.tags.th("KL"),
         )
         body = [
             ui.tags.tr(
@@ -395,6 +403,7 @@ def analysis_metrics_server(
                 ui.tags.td(f"{row['lccf']:.2f}"),
                 ui.tags.td(str(row["loop_count"])),
                 ui.tags.td(f"{row['delta_lccf']:.2f}"),
+                ui.tags.td(f"{row['kl_divergence']:.2f}"),
             )
             for row in r["steps"]
         ]
@@ -406,6 +415,7 @@ def analysis_metrics_server(
                   id=f"{thr_row['removed_id']} · {thr_row['removed_label']}",
                   delta=f"{thr_row['delta_lccf']:.2f}")),
                 style="margin-top: 0.5rem;"),
+            ui.p(ui.tags.strong(early_warning), class_="mb-2"),
             ui.tags.table(ui.tags.thead(header), ui.tags.tbody(*body),
                           class_="table table-sm"),
             ui.p(t("metrics.cascade_caption",
