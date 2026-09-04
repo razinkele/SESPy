@@ -698,7 +698,8 @@ idiom exactly:
         print(f"hypermodules block: OK ({hm_text[:120]!r})")
 ```
 
-Add `tests/test_metrics_e2e.py` to Step 8's `git add`. The e2e count stays
+Add `tests/test_metrics_e2e.py` to Step 9's `git add` (already done in the
+Step 9 block below). The e2e count stays
 32/32 — this extends an existing script.
 
 - [ ] **Step 8: Look at the panel**
