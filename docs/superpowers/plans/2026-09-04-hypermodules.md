@@ -748,6 +748,24 @@ Run in order, never concurrently:
 - The result is bit-identical across runs, processes, and ISA construction order.
 - 588 unit, 32/32 e2e, MosaicSES 526.
 
+## Follow-ups surfaced by the final whole-branch review
+
+Recorded here because the execution workspace is deleted on completion.
+Neither blocked the merge; the final reviewer graded both Nice-to-Have.
+
+1. **Tier words in the composition string are hardcoded English.** The
+   rendered line interpolates the raw tier tokens ("3 ecological · 1
+   governance · 2 social") inside an otherwise fully translated block, and
+   `sorted(tiers.items())` yields alphabetical order rather than the spec's
+   illustrative ecological · social · governance. Fix: three
+   `metrics.tier_*` keys × 9 languages plus a fixed ordering, following the
+   `leverage.realm.*` precedent.
+2. **`n_congruent` is unpinned contract surface.** The implementation
+   matches the spec's operational definition (the final reviewer traced it
+   line by line), but no test asserts a value and the UI never renders it —
+   a future refactor of `mod_sets` could change it silently. Fix: one golden
+   assertion on the sample project.
+
 ## Explicitly out of scope
 
 Everything the spec's Out of scope lists: strength-weighted modularity, Louvain/`algorithm=`, changes to `_SUBSYSTEM`/`subsystem()`/`social_ecological_fit`/`governance_gap`, pyvis visualisation, MosaicSES surfacing, verifying the reconstruction against the paper, enriching `data/sample_ses.json`.

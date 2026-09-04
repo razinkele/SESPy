@@ -159,6 +159,8 @@ def analysis_metrics_ui() -> ui.Tag:
                 ui.tags.hr(),
                 ui.output_ui("paths_summary"),
                 ui.tags.hr(),
+                ui.output_ui("hypermodules_summary"),
+                ui.tags.hr(),
                 ui.h4(t("metrics.top_ranked")),
                 ui.output_data_frame("metrics_table"),
                 ui.tags.hr(),
@@ -469,6 +471,80 @@ def analysis_metrics_server(
             ui.tags.table(ui.tags.thead(header), ui.tags.tbody(*body),
                           class_="table table-sm"),
             trunc_line,
+        )
+
+    _hypermodules_result = reactive.value(None)
+
+    @reactive.effect
+    def _reset_hypermodules():
+        # Any model change invalidates a computed result — a stale table
+        # must never masquerade as current. (Same contract as the cascade.)
+        event_bus.isa_change.get()
+        _hypermodules_result.set(None)
+
+    @reactive.effect
+    @reactive.event(input.run_hypermodules, ignore_init=True)
+    def _compute_hypermodules():
+        _hypermodules_result.set(
+            net_analysis.hypermodules(project_data.get().isa_data))
+
+    @output
+    @render.ui
+    def hypermodules_summary():
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        if len(isa.elements) < 3:
+            # gov_gap_none is the card's shared too-small message — the
+            # cascade and paths blocks use the same key for this guard.
+            return ui.p(t("metrics.gov_gap_none"), class_="text-muted")
+        button = ui.input_action_button(
+            "run_hypermodules", t("metrics.hypermodules_run"),
+            class_="btn-sm btn-outline-primary")
+        r = _hypermodules_result.get()
+        if r is None:
+            return ui.div(
+                ui.h5(t("metrics.hypermodules")),
+                button,
+                ui.p(t("metrics.hypermodules_hint"), class_="text-muted",
+                     style="font-size: 0.85rem; margin-top: 0.5rem;"),
+            )
+        if r["note"]:
+            return ui.div(
+                ui.h5(t("metrics.hypermodules")),
+                button,
+                ui.p(t(f"metrics.hypermodules_{r['note']}"),
+                     class_="text-muted",
+                     style="font-size: 0.85rem; margin-top: 0.5rem;"),
+            )
+        by_id = {el.id: el for el in isa.elements}
+        groups: dict[int, list[dict]] = {}
+        for row in r["rows"]:
+            if row["hypermodule_id"] is not None:
+                groups.setdefault(row["hypermodule_id"], []).append(row)
+        lines = []
+        for hid in sorted(groups):
+            rows = groups[hid]
+            tiers = {}
+            for row in rows:
+                tiers[row["tier"]] = tiers.get(row["tier"], 0) + 1
+            comp = " · ".join(f"{n} {tname}" for tname, n in sorted(tiers.items()))
+            labels = ", ".join(
+                (by_id[row["node"]].label if row["node"] in by_id
+                 else row["node"])
+                for row in rows)
+            lines.append(ui.tags.li(
+                f"HM{hid} ({len(rows)}): {comp} — {labels}"))
+        return ui.div(
+            ui.h5(t("metrics.hypermodules")),
+            button,
+            ui.p(ui.tags.strong(
+                t("metrics.hypermodules_score",
+                  n=r["n_hypermodules"],
+                  score=f"{r['hypermodularity']:.2f}")),
+                style="margin-top: 0.5rem;"),
+            ui.tags.ul(*lines),
+            ui.p(t("metrics.hypermodules_caption"),
+                 class_="text-muted", style="font-size: 0.85rem;"),
         )
 
     @output(id="metrics_network")

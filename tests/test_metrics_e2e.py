@@ -142,6 +142,27 @@ async def main():
         assert "MPF1" in cs_text and "0.47" in cs_text, f"expected MPF1/0.47, got: {cs_text!r}"
         print(f"cascade vulnerability block: OK ({cs_text[:120]!r})")
 
+        # --- SES subsystem modules: idle hint, then button-triggered list ---
+        hm_text = ""
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            hm_text = (await page.inner_text("#metrics-hypermodules_summary")).strip()
+            if hm_text:
+                break
+        assert "SES subsystem modules" in hm_text, f"expected heading, got: {hm_text!r}"
+        assert "not computed" in hm_text, f"expected idle hint, got: {hm_text!r}"
+        await page.click("#metrics-run_hypermodules")
+        for _ in range(30):
+            await page.wait_for_timeout(500)
+            hm_text = (await page.inner_text("#metrics-hypermodules_summary")).strip()
+            if "HM0" in hm_text:
+                break
+        # Sample golden: 2 hypermodules, score 0.53 (see the unit golden).
+        assert "2 subsystem module" in hm_text, f"expected count line, got: {hm_text!r}"
+        assert "0.53" in hm_text, f"expected score, got: {hm_text!r}"
+        assert "HM0" in hm_text and "HM1" in hm_text, f"expected both modules, got: {hm_text!r}"
+        print(f"hypermodules block: OK ({hm_text[:120]!r})")
+
         # --- Causal pathways: select ES02 -> D001, trace, assert goldens ---
         pt_text = ""
         for _ in range(20):
