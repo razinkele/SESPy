@@ -35,6 +35,14 @@ the why.
 
 ---
 
+## What's new in v1.6.2
+
+Two corrections from the post-release review of #26: the governance
+concentration verdict now follows the entropy as displayed (2 dp), and the
+metrics e2e checks actor rank order on the table element itself.
+
+---
+
 ## What's new in v1.6.1
 
 One small diagnostic, from the 2026-09-01 literature alert (#26):
@@ -358,7 +366,7 @@ micromamba run -n shiny pytest tests/ -q \
 micromamba run -n shiny python tests/run_e2e.py
 ```
 
-596 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+602 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly

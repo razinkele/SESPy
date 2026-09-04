@@ -2,6 +2,22 @@
 
 All notable changes to SESPy.
 
+## [1.6.2] — 2026-09-04
+
+- Post-release review of #26 (workflow: four lenses, two refuters per
+  finding) confirmed two defects, both fixed:
+  - The distributed/concentrated verdict split on the raw entropy while the
+    sentence printed it to 2 dp, so 0.497 read "concentrated … 0.50" and
+    0.500 read "distributed … 0.50". The split is now taken on the rounded
+    value, through a pure `governance_concentration_verdict()` helper that is
+    unit-tested on both branches and at the boundary.
+  - The metrics e2e's actor rank-order check was still vacuous after 1.6.1:
+    it sliced the block text at the first "influence", which sits in the
+    heading, so the sentence's "R002" satisfied it. It now reads the table
+    element's own text.
+- Placeholder parity of the two verdict strings is asserted across all nine
+  languages.
+
 ## [1.6.1] — 2026-09-04
 
 - New one-line **governance concentration** verdict above the "Governance
@@ -18,8 +34,9 @@ All notable changes to SESPy.
   shannon_entropy, normalised_entropy, gini, dominant_actor, dominant_share
   (None-filled below two actors); `governance_actor_influence()` is called
   unchanged.
-- Test hygiene: the metrics e2e now checks actor rank order on the table
-  alone, since the new sentence names the dominant actor above it.
+- Test hygiene (intended, but not achieved until 1.6.2): the metrics e2e
+  was meant to check actor rank order on the table alone, since the new
+  sentence names the dominant actor above it.
 
 ## [1.6.0] — 2026-09-04
 
