@@ -3,7 +3,7 @@
 # Deploy SESPy to a Shiny Server app directory via scp.
 #
 # Ships ONLY the runtime files — app.py, sespy/, data/, www/, environment.yml,
-# pyproject.toml — to $APP_DIR on $SERVER, excluding caches/tests/docs/build,
+# pyproject.toml, README/CHANGELOG, docs/MANUAL.md + docs/screenshots/ — to $APP_DIR on $SERVER, excluding caches/tests/docs/build,
 # then touches restart.txt so Shiny Server reloads the app on the next request.
 #
 # Prerequisites:
@@ -51,6 +51,11 @@ for item in "${RUNTIME[@]}"; do
     echo "    ! missing '$item' — skipping" >&2
   fi
 done
+# The About modal's Manual tab renders docs/MANUAL.md and serves
+# docs/screenshots/ as static assets; ship exactly those two, not docs/.
+mkdir -p "$STAGE/docs"
+cp docs/MANUAL.md "$STAGE/docs/"
+cp -R docs/screenshots "$STAGE/docs/"
 find "$STAGE" -name __pycache__ -type d -prune -exec rm -rf {} +
 find "$STAGE" -name '*.pyc' -delete
 # Never ship the runtime feedback DB / logs. The server OWNS its own
@@ -72,7 +77,7 @@ ssh "$SERVER" "
     mkdir -p '$APP_DIR/.deploy-keep' &&
     mv '$APP_DIR/sespy/logs' '$APP_DIR/.deploy-keep/logs';
   fi &&
-  rm -rf '$APP_DIR/sespy' '$APP_DIR/__pycache__'
+  rm -rf '$APP_DIR/sespy' '$APP_DIR/__pycache__' '$APP_DIR/docs/screenshots'
 "
 
 # 3. Copy the staged runtime tree (scp merges sespy/ into the dir left behind).
