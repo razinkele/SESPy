@@ -38,18 +38,6 @@ About → Manual.
 | **Intervention** — ablation + token diffusion | **Full app** — workflow stepper + nav |
 | ![Intervention](docs/screenshots/intervention.png) | ![Full app](docs/screenshots/full_app.png) |
 
----|---|
-| **Rate Connections** — multi-rater elicitation + contested-edges view | **CLD Visualization** — DAPSI-ordered hierarchical layout |
-| ![Rate Connections](docs/screenshots/rate_connections.png) | ![CLD](docs/screenshots/cld.png) |
-| **Factor Quadrant** — Vester influence × dependence | **Leverage Points** — composite score + Meadows realm + uncertainty CIs |
-| ![Quadrant](docs/screenshots/quadrant.png) | ![Leverage](docs/screenshots/leverage.png) |
-| **Loop Analysis** — reinforcing / balancing / oscillation-prone | **Network Metrics** — centrality + social-ecological fit |
-| ![Loops](docs/screenshots/loops.png) | ![Metrics](docs/screenshots/metrics.png) |
-| **Dynamic Simulation** — linear iteration + Monte-Carlo state-shift | **Stakeholders** — PIMS register (Power × Interest) |
-| ![Simulation](docs/screenshots/simulation.png) | ![Stakeholders](docs/screenshots/stakeholders.png) |
-| **Import** — Excel workbook or native `.qsem` model file | **Full app** — workflow stepper + nav |
-| ![QSEM import](docs/screenshots/qsem_import.png) | ![Full app](docs/screenshots/full_app.png) |
-
 ---
 
 ## What's new in v1.7.0

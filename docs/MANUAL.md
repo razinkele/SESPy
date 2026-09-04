@@ -217,7 +217,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 ![Cascade vulnerability block after running](docs/screenshots/metrics_cascade.png)
 
-**Reading it.** On the sample: fit 0.33, one of three pressures uncovered, governance concentrated in the mooring buoy programme, the cascade threshold at step 1 (Posidonia meadows) with the KL departure at step 7.
+**Reading it.** On the sample: fit 0.40 (8 of 20 edges cross the boundary), a governance gap of 0.33 (one of three pressures uncovered), governance concentrated in the mooring buoy programme, the cascade threshold at step 1 (Posidonia meadows) with the KL departure at step 7.
 
 **Caveats.** The three button-gated blocks are cleared by any project change and must be re-run. Each block has its own idle hint so a blank block is never silent.
 
