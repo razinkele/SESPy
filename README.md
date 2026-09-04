@@ -35,6 +35,23 @@ the why.
 
 ---
 
+## What's new in v1.6.0
+
+One feature, closing the last open literature issue (#24):
+
+- **SES subsystem modules.** A button on the Network Metrics card detects
+  hypermodules — groups of elements that community detection co-clusters
+  across at least two of the three tier pairings (ecological / social /
+  governance), after Pinheiro et al. 2026. Each is listed with its tier
+  composition and member labels; every way a model can yield none gets its
+  own translated explanation. Deterministic across runs, processes and model
+  construction order — established empirically, not assumed.
+
+Shipped via the brainstorm → spec → multi-agent adversarial review → TDD → review →
+full-e2e cycle.
+
+---
+
 ## What's new in v1.5.0
 
 A **leverage-analysis depth** release, closing literature issue #23:
@@ -329,7 +346,7 @@ micromamba run -n shiny pytest tests/ -q \
 micromamba run -n shiny python tests/run_e2e.py
 ```
 
-576 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+588 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
