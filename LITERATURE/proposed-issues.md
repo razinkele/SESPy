@@ -19,9 +19,9 @@ Ready-to-paste issue drafts. Review and open manually.
 
 ---
 
-## [Low] Polycentric governance concentration index in `sespy/network.py`
+## ✅ SHIPPED — Polycentric governance concentration index in `sespy/network.py`
 
-**Status:** ✅ Opened as razinkele/SESPy#26 (2026-09-04)
+**Status:** ✅ Opened as razinkele/SESPy#26 (2026-09-04) · shipped in v1.6.1 the same day (softmax shares rather than min-shift; see closing comment)
 
 **Source paper:** Synergies in Coupled Human–natural Systems: Forty Years of Evidence for Biodiversity Recovery and Nature-based Economic Growth, *Research Square* (preprint, 2026). https://doi.org/10.21203/rs.3.rs-10195628/v1
 **Alert week:** 2026-09-01 (alert filed it as "extend #14"; #14 had already shipped 2026-08-13, so it got its own issue)
