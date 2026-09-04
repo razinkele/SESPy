@@ -108,7 +108,15 @@ module. Draft retained here only for provenance; no longer an open item.
 
 ---
 
-## [Medium] Cross-tier hypermodule detection in `sespy/network.py`
+## ✅ SHIPPED — Cross-tier hypermodule detection in `sespy/network.py`
+
+**Shipped 2026-09-04 in [v1.6.0](https://github.com/razinkele/SESPy/releases/tag/v1.6.0)**
+(`network.hypermodules`, the `_TIER` partition, and the button-gated "SES
+subsystem modules" block; #24 closed as completed). The congruence rule is a
+hinge-tier reconstruction with a size-aware threshold — the issue's literal
+rule is vacuous on pairs, and a flat threshold measures zero on the shipped
+sample; see the closing comment on #24 for the full departures list. Draft
+retained for provenance; no longer an open item.
 
 **Status:** ✅ Opened as razinkele/SESPy#24 (2026-09-01)
 
@@ -159,7 +167,14 @@ rather than reviving #22.
 
 ---
 
-## [High] Leverage-point depth classification alongside the leverage composite
+## ✅ SHIPPED — Leverage-point depth classification alongside the leverage composite
+
+**Shipped 2026-09-04 in [v1.5.0](https://github.com/razinkele/SESPy/releases/tag/v1.5.0)**
+as the loop-aware realm (`leverage_realms`) plus the ALC column — one
+classification made structural rather than a second contradicting ladder;
+#23 closed as completed (belatedly; see its closing comment for the
+departures, including ALC's initiates-vs-reinforces gap). Draft retained
+for provenance; no longer an open item.
 
 **Filed as [#23](https://github.com/razinkele/SESPy/issues/23) on 2026-08-26**, carrying the unverified-source warning below.
 
