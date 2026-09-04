@@ -781,6 +781,24 @@ def leverage_realms(
     }
 
 
+#: Three-tier partition for hypermodule detection (#24). Governance matches
+#: governance_gap()'s layer exactly; the split of the remaining types is
+#: _SUBSYSTEM's. _SUBSYSTEM itself is NOT changed — it answers a different,
+#: two-tier question and other shipped metrics depend on it. Note Measures
+#: is genuinely mapped here, unlike leverage_realm where it is an accepted
+#: gap, because governance_gap already treats it as governance.
+_TIER: dict[str, str] = {
+    "Pressures": "ecological",
+    "Marine Processes & Functioning": "ecological",
+    "Ecosystem Services": "ecological",
+    "Drivers": "social",
+    "Activities": "social",
+    "Goods & Benefits": "social",
+    "Responses": "governance",
+    "Measures": "governance",
+}
+
+
 _SUBSYSTEM: dict[str, str] = {
     "Drivers": "social",
     "Activities": "social",
@@ -938,6 +956,128 @@ def governance_gap(isa: IsaData) -> dict:
         "n_unclassified": n_unclassified,
         "n_edges_considered": len(pairs),
     }
+
+
+def hypermodules(isa: IsaData) -> dict:
+    """Cohesive multi-tier SES subsystems via module congruence (#24).
+
+    Three undirected bipartite projections (eco-social, eco-governance,
+    social-governance), deterministic greedy-modularity communities per
+    projection, then a module graph: modules from different projections link
+    when they share min(2, hinge_capacity) hinge-tier nodes, where
+    hinge_capacity is the smaller module's node count in the tier the two
+    projections share. Two shared hinge nodes normally; one suffices exactly
+    when either module only HAS one hinge-tier node, so chain-shaped models
+    (one activity -> one pressure) are not structurally excluded — a flat
+    >=2 rule measures ZERO hypermodules on data/sample_ses.json.
+
+    A hypermodule is the node union of a module-graph component containing
+    at least two modules; hypermodules sharing any node are then merged to
+    a fixed point, so membership is a partition (a node's modules from
+    different projections need not land in one component otherwise).
+
+    RECONSTRUCTION NOTE: the HyperMod paper (doi:10.1098/rspb.2026.1348)
+    was not reachable when this was designed; the hinge threshold and the
+    merge rule are documented assumptions — check against the paper when
+    available. Same caveat class as #22's ALC and #23's depth scheme.
+    """
+    from networkx.algorithms import community
+
+    tier = {el.id: _TIER.get(el.type, "") for el in isa.elements}
+    tiered = sorted(nid for nid, t in tier.items() if t)
+    n_untyped = sum(1 for t in tier.values() if not t)
+
+    pairs = [("ecological", "social"), ("ecological", "governance"),
+             ("social", "governance")]
+    hinge_of = {(0, 1): "ecological", (0, 2): "social", (1, 2): "governance"}
+
+    modules: list[tuple[int, frozenset]] = []
+    n_wired = 0
+    for pi, (a, b) in enumerate(pairs):
+        g = nx.Graph()
+        for c in sorted(isa.connections, key=lambda c: (c.source, c.target)):
+            if {tier.get(c.source, ""), tier.get(c.target, "")} == {a, b}:
+                g.add_edge(c.source, c.target)
+        if g.number_of_edges() == 0:
+            continue
+        n_wired += 1
+        for m in community.greedy_modularity_communities(g):
+            modules.append((pi, frozenset(m)))
+
+    def _result(hms: list[list[str]], note: str) -> dict:
+        node_hm: dict[str, int] = {}
+        for hid, members in enumerate(hms):
+            for n in members:
+                node_hm[n] = hid
+        # n_congruent: other nodes of the same hypermodule sharing at least
+        # one projection module with this node.
+        mod_sets = [set(m) for _, m in modules]
+        rows = []
+        for nid in tiered:
+            hid = node_hm.get(nid)
+            n_cong = 0
+            if hid is not None:
+                partners = set()
+                for ms in mod_sets:
+                    if nid in ms:
+                        partners |= (ms & set(hms[hid]))
+                partners.discard(nid)
+                n_cong = len(partners)
+            rows.append({"node": nid, "tier": tier[nid],
+                         "hypermodule_id": hid, "n_congruent": n_cong})
+        rows.sort(key=lambda r: (r["hypermodule_id"] is None,
+                                 r["hypermodule_id"]
+                                 if r["hypermodule_id"] is not None else -1,
+                                 r["node"]))
+        score = (sum(1 for r in rows if r["hypermodule_id"] is not None)
+                 / len(tiered)) if tiered else 0.0
+        return {"rows": rows, "hypermodularity": score,
+                "n_hypermodules": len(hms), "n_untyped": n_untyped,
+                "note": note}
+
+    if n_wired == 0:
+        return _result([], "no_coupling")
+    if n_wired == 1:
+        return _result([], "single_projection")
+
+    # Module graph: size-aware hinge linking.
+    mg = nx.Graph()
+    mg.add_nodes_from(range(len(modules)))
+    for i in range(len(modules)):
+        for j in range(i + 1, len(modules)):
+            pi, mi = modules[i]
+            pj, mj = modules[j]
+            if pi == pj:
+                continue
+            h = hinge_of[(min(pi, pj), max(pi, pj))]
+            cap = min(sum(1 for n in mi if tier[n] == h),
+                      sum(1 for n in mj if tier[n] == h))
+            need = min(2, cap)
+            if need >= 1 and len(mi & mj) >= need:
+                mg.add_edge(i, j)
+
+    candidates = []
+    for comp in nx.connected_components(mg):
+        if len(comp) < 2:
+            continue        # a single bipartite module is not a hypermodule
+        candidates.append(set().union(*(modules[i][1] for i in comp)))
+
+    # Merge candidates sharing any node, to a fixed point -> a partition.
+    merged = True
+    while merged:
+        merged = False
+        for i in range(len(candidates)):
+            for j in range(i + 1, len(candidates)):
+                if candidates[i] & candidates[j]:
+                    candidates[i] |= candidates[j]
+                    del candidates[j]
+                    merged = True
+                    break
+            if merged:
+                break
+
+    hms = sorted((sorted(c) for c in candidates))
+    return _result(hms, "" if hms else "no_congruence")
 
 
 def _axis_sums(isa: IsaData) -> tuple[dict[str, float], dict[str, float], dict[tuple[str, str], float]]:

@@ -2124,3 +2124,234 @@ def test_no_function_hardcodes_the_loop_cap():
     src = inspect.getsource(network)
     assert "max_loops: int = 50" not in src, (
         "a function hardcodes the loop cap; use LOOP_ENUMERATION_CAP")
+
+
+# ---- hypermodules (#24) ----
+
+
+def _hm_isa(specs):
+    """Build an IsaData from (id, type) node specs plus (source, target) edges."""
+    from sespy.data_structure import IsaData, Element, Connection
+    nodes, edges = specs
+    els = [Element(id=n, label=n, type=t) for n, t in nodes]
+    cons = [Connection(source=s, target=t, polarity="+", strength="strong")
+            for s, t in edges]
+    return IsaData(elements=els, connections=cons)
+
+
+def _planted_two_clusters():
+    """Two separate dense clusters, each with 2 ecological hinge nodes plus
+    social and governance nodes, one weak inter-cluster link."""
+    nodes = [("E1", "Pressures"), ("E2", "Pressures"),
+             ("S1", "Activities"), ("S2", "Activities"), ("G1", "Responses"),
+             ("E3", "Pressures"), ("E4", "Pressures"),
+             ("S3", "Activities"), ("S4", "Activities"), ("G2", "Responses")]
+    edges = [
+        # cluster 1: E1,E2 wired to both socials and the governance node
+        ("S1", "E1"), ("S1", "E2"), ("S2", "E1"), ("S2", "E2"),
+        ("G1", "E1"), ("G1", "E2"), ("G1", "S1"), ("G1", "S2"),
+        # cluster 2, same shape
+        ("S3", "E3"), ("S3", "E4"), ("S4", "E3"), ("S4", "E4"),
+        ("G2", "E3"), ("G2", "E4"), ("G2", "S3"), ("G2", "S4"),
+        # one weak bridge
+        ("S2", "E3"),
+    ]
+    return _hm_isa((nodes, edges))
+
+
+def test_hypermodules_planted_two_clusters():
+    """The headline behaviour: two dense three-tier clusters -> exactly two
+    hypermodules with the planted membership. Fails against the vacuous
+    pairwise congruence rule (which returns zero always) — the guard against
+    reintroducing that reading."""
+    from sespy.network import hypermodules
+
+    r = hypermodules(_planted_two_clusters())
+    assert r["n_hypermodules"] == 2
+    assert r["note"] == ""
+    by_hm = {}
+    for row in r["rows"]:
+        if row["hypermodule_id"] is not None:
+            by_hm.setdefault(row["hypermodule_id"], set()).add(row["node"])
+    members = sorted(sorted(m) for m in by_hm.values())
+    assert members == [["E1", "E2", "G1", "S1", "S2"],
+                       ["E3", "E4", "G2", "S3", "S4"]]
+    tiers_per_hm = [
+        {row["tier"] for row in r["rows"] if row["hypermodule_id"] == h}
+        for h in by_hm
+    ]
+    assert all(t == {"ecological", "social", "governance"} for t in tiers_per_hm)
+
+
+def test_hypermodules_fire_on_a_chain_model():
+    """The size-aware hinge threshold exists for exactly this shape: one
+    activity -> one pressure chains make every eco-social module a size-2
+    pair, and a flat >=2-shared-hinge rule can never fire (measured: zero on
+    the shipped sample). One shared hinge suffices when a module only HAS
+    one hinge node."""
+    from sespy.network import hypermodules
+
+    isa = _hm_isa((
+        [("A1", "Activities"), ("A2", "Activities"),
+         ("P1", "Pressures"), ("P2", "Pressures"), ("R1", "Responses")],
+        [("A1", "P1"), ("A2", "P2"), ("R1", "P1"), ("R1", "P2")],
+    ))
+    r = hypermodules(isa)
+    assert r["n_hypermodules"] >= 1, "chain models must not be structurally excluded"
+    assert r["note"] == ""
+
+
+def test_hypermodules_membership_is_a_partition():
+    """A node's projection modules can straddle two module-graph components
+    (the review constructed this); hypermodules sharing any node must merge
+    to a fixed point, so every node has exactly one id."""
+    from sespy.network import hypermodules
+
+    # X is an ecological node pulled toward two otherwise-separate groups.
+    nodes = [("X", "Pressures"), ("E2", "Pressures"), ("E3", "Pressures"),
+             ("E4", "Pressures"), ("S1", "Activities"), ("S2", "Activities"),
+             ("S5", "Activities"), ("S6", "Activities"),
+             ("G1", "Responses"), ("G2", "Responses"), ("G9", "Responses")]
+    edges = [
+        ("S1", "X"), ("S1", "E2"), ("S2", "X"), ("S2", "E2"),
+        ("G9", "S1"), ("G9", "S2"),
+        ("S5", "E3"), ("S5", "E4"), ("S6", "E3"), ("S6", "E4"),
+        ("G1", "X"), ("G1", "E3"), ("G1", "E4"),
+        ("G2", "X"), ("G2", "E3"), ("G2", "E4"),
+    ]
+    r = hypermodules(_hm_isa((nodes, edges)))
+    ids = {}
+    for row in r["rows"]:
+        assert row["node"] not in ids, "one row per node"
+        ids[row["node"]] = row["hypermodule_id"]
+    assigned = [n for n, h in ids.items() if h is not None]
+    assert len(assigned) == len({(n, ids[n]) for n in assigned}), "scalar ids"
+    # X bridges the two candidate hypermodules -> they merge into one.
+    x_id = ids["X"]
+    assert x_id is not None
+    assert ids["S1"] == x_id and ids["G1"] == x_id, (
+        "hypermodules sharing X must have merged")
+
+
+def test_hypermodules_single_module_component_is_not_a_hypermodule():
+    """One bipartite module spans two tiers by itself; only components with
+    >= 2 modules count."""
+    from sespy.network import hypermodules
+
+    isa = _hm_isa((
+        [("A1", "Activities"), ("A2", "Activities"),
+         ("P1", "Pressures"), ("P2", "Pressures")],
+        [("A1", "P1"), ("A1", "P2"), ("A2", "P1"), ("A2", "P2")],
+    ))
+    r = hypermodules(isa)
+    assert r["n_hypermodules"] == 0
+    assert r["note"] == "single_projection"
+
+
+def test_hypermodules_deterministic_and_order_independent():
+    from sespy.network import hypermodules
+
+    nodes, edges = ([("E1", "Pressures"), ("E2", "Pressures"),
+                     ("S1", "Activities"), ("S2", "Activities"),
+                     ("G1", "Responses")],
+                    [("S1", "E1"), ("S1", "E2"), ("S2", "E1"), ("S2", "E2"),
+                     ("G1", "E1"), ("G1", "E2")])
+    a = hypermodules(_hm_isa((nodes, edges)))
+    b = hypermodules(_hm_isa((nodes, edges)))
+    assert a == b, "two calls must agree exactly"
+    c = hypermodules(_hm_isa((list(reversed(nodes)), list(reversed(edges)))))
+    assert a["n_hypermodules"] == c["n_hypermodules"]
+    assert sorted((r["node"], r["hypermodule_id"]) for r in a["rows"]) == \
+           sorted((r["node"], r["hypermodule_id"]) for r in c["rows"]), (
+        "construction order must not leak into the result")
+
+
+def test_hypermodules_note_no_coupling_and_empty_isa():
+    from sespy.data_structure import IsaData
+    from sespy.network import hypermodules
+
+    r = hypermodules(IsaData(elements=[], connections=[]))
+    assert r == {"rows": [], "hypermodularity": 0.0, "n_hypermodules": 0,
+                 "n_untyped": 0, "note": "no_coupling"}
+
+    # nodes in all tiers but only within-tier edges -> no projection wired
+    isa = _hm_isa((
+        [("A1", "Activities"), ("A2", "Activities"),
+         ("P1", "Pressures"), ("R1", "Responses")],
+        [("A1", "A2")],
+    ))
+    r2 = hypermodules(isa)
+    assert r2["note"] == "no_coupling"
+    assert r2["n_hypermodules"] == 0
+    assert len(r2["rows"]) == 4
+
+
+def test_hypermodules_note_single_projection_both_routes():
+    """The note keys on wired PROJECTIONS, not tier presence: a missing tier
+    and a present-but-unwired tier land in the same state."""
+    from sespy.network import hypermodules
+
+    # route 1: governance tier entirely absent
+    r = hypermodules(_hm_isa((
+        [("A1", "Activities"), ("P1", "Pressures")],
+        [("A1", "P1")],
+    )))
+    assert r["note"] == "single_projection"
+    # route 2: governance nodes exist but are unwired
+    r2 = hypermodules(_hm_isa((
+        [("A1", "Activities"), ("P1", "Pressures"), ("R1", "Responses")],
+        [("A1", "P1")],
+    )))
+    assert r2["note"] == "single_projection"
+    assert any(row["tier"] == "governance" for row in r2["rows"])
+
+
+def test_hypermodules_note_no_congruence():
+    """Two projections wired, but their modules share no hinge nodes at all
+    -> no link, zero hypermodules, and the note that explains it."""
+    from sespy.network import hypermodules
+
+    isa = _hm_isa((
+        [("A1", "Activities"), ("P1", "Pressures"),
+         ("P2", "Pressures"), ("R1", "Responses")],
+        [("A1", "P1"), ("R1", "P2")],
+    ))
+    r = hypermodules(isa)
+    assert r["n_hypermodules"] == 0
+    assert r["note"] == "no_congruence"
+
+
+def test_hypermodules_untyped_and_score_denominator():
+    """Unknown types are excluded from the score's denominator and counted;
+    an all-unknown ISA gives 0.0, not 0/0."""
+    from sespy.data_structure import IsaData, Element
+    from sespy.network import hypermodules
+
+    els = [Element(id="U1", label="U1", type="Weird"),
+           Element(id="U2", label="U2", type="Weirder")]
+    r = hypermodules(IsaData(elements=els, connections=[]))
+    assert r["n_untyped"] == 2
+    assert r["rows"] == []
+    assert r["hypermodularity"] == 0.0
+
+
+def test_hypermodules_sample_project_golden():
+    """Pinned under the size-aware hinge rule; the flat >=2 rule measures
+    0/17 on this same data (the mean_leverage failure shape). If the tier
+    map or the hinge rule legitimately changes, re-derive by running
+    hypermodules() on the sample and updating BOTH numbers and the members —
+    an unexplained move is a regression."""
+    from pathlib import Path
+    from sespy.data_structure import load_sample
+    from sespy.network import hypermodules
+
+    isa = load_sample(
+        Path(__file__).resolve().parents[1] / "data" / "sample_ses.json")
+    r = hypermodules(isa)
+    assert r["n_hypermodules"] == 2
+    assert abs(r["hypermodularity"] - 9 / 17) < 1e-9
+    members = sorted(sorted(row["node"] for row in r["rows"]
+                            if row["hypermodule_id"] == h)
+                     for h in range(r["n_hypermodules"]))
+    assert members == [["A001", "ES01", "ES03", "GB01", "P001", "R002"],
+                       ["A002", "P002", "R001"]]
