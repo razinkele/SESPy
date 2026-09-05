@@ -103,6 +103,17 @@ def help_panel_ui(translator: Translator | None = None) -> ui.Tag:
                                      "Open the full manual (About → Manual)"),
                                   class_="small"),
              class_="mt-3"),
+        # Bootstrap's shown/hidden events → input.tb_help_shown, so the manual
+        # section is rendered ONLY while the panel is open. A closed panel is
+        # still in the DOM; rendering into it would leave manual text (panel
+        # labels such as "Boolean attractors") hidden on the page, where bare
+        # `text=` selectors and screen readers can find it.
+        ui.tags.script(
+            "$(document).on('shown.bs.offcanvas', '#tb_help_panel', function () {"
+            " Shiny.setInputValue('tb_help_shown', true); });"
+            "$(document).on('hidden.bs.offcanvas', '#tb_help_panel', function () {"
+            " Shiny.setInputValue('tb_help_shown', false); });"
+        ),
         title=_t(translator, "help.title", "Help"),
         id="tb_help_panel", placement="right", width="540px",
         backdrop=False, scroll=True,
@@ -332,6 +343,10 @@ def topbar_actions_server(input, output, session, *, translator=None,
     @output
     @render.ui
     def tb_help_section():
+        # Only while the panel is shown (see the script in help_panel_ui);
+        # `input.tb_help_shown` is unset until the first open → render nothing.
+        if not input.tb_help_shown():
+            return None
         label = labels.get(active_panel.get()) if active_panel is not None else None
         section = manual_section(label, strip_heading=True) if label else None
         if not section:
