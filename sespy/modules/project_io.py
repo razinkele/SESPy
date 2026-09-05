@@ -5,7 +5,7 @@ emit event_bus signals; this module writes project_data when the user
 loads a file or starts fresh.
 
 Three buttons:
-  - Save Project   — `@render.download` writes the current project as JSON
+  - Save Project   — `@render.download_button` writes the current project as JSON
   - Load Project   — `ui.input_file` accepts an upload, validates, sets
   - New Project    — resets to the seed sample (the default-on-startup data)
 
@@ -53,7 +53,7 @@ def quick_actions_ui(translator: Translator | None = None) -> ui.Tag:
         ui.output_ui("autosave_indicator"),
         ui.h6(t("ui.quickactions.title", "QUICK ACTIONS")),
         # Save: a download_button is a special widget that triggers our
-        # @render.download function below. The id maps to the function.
+        # @render.download_button function below. The id maps to the function.
         ui.download_button(
             "save_project",
             ui.tags.span(
@@ -183,7 +183,7 @@ def quick_actions_server(
         )
 
     # ---- SAVE -----------------------------------------------------------
-    @render.download(
+    @render.download_button(
         filename=lambda: f"sespy-project-{datetime.now():%Y%m%d-%H%M%S}.json"
     )
     def save_project():

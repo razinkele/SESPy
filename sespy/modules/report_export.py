@@ -81,17 +81,17 @@ def report_export_server(
     def _stamp() -> str:
         return datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    @render.download(filename=lambda: f"sespy-report-{_stamp()}.html")
+    @render.download_button(filename=lambda: f"sespy-report-{_stamp()}.html")
     def download_html():
         proj = project_data.get()
         yield render_html(proj).encode("utf-8")
 
-    @render.download(filename=lambda: f"sespy-report-{_stamp()}.pdf")
+    @render.download_button(filename=lambda: f"sespy-report-{_stamp()}.pdf")
     def download_pdf():
         proj = project_data.get()
         yield render_pdf(proj)
 
-    @render.download(filename=lambda: f"sespy-report-{_stamp()}.docx")
+    @render.download_button(filename=lambda: f"sespy-report-{_stamp()}.docx")
     def download_docx():
         proj = project_data.get()
         yield render_docx(proj)
