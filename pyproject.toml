@@ -1,12 +1,12 @@
 [project]
 name = "sespy"
-version = "1.8.0"
+version = "1.8.1"
 description = "Shiny for Python port of the MarineSABRES SES Toolbox — DAPSI(W)R(M) social-ecological systems analysis (Horizon Europe)."
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
-    "shiny>=1.5",
+    "shiny>=1.7",
     "networkx>=3.1",  # simple_cycles(length_bound=...) in feedback_loops
     "scipy>=1.10",          # required by networkx for pagerank / eigenvector centrality (network.py)
     "htmltools>=0.5",

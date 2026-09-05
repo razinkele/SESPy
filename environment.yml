@@ -31,4 +31,4 @@ dependencies:
   - weasyprint>=60   # optional: PDF report export (native cairo/pango)
   - pip
   - pip:
-      - shiny>=1.5   # shiny-for-python — published on PyPI, not conda-forge
+      - shiny>=1.7   # shiny-for-python — published on PyPI, not conda-forge

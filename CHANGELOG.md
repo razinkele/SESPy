@@ -2,6 +2,23 @@
 
 All notable changes to SESPy.
 
+## [1.8.1] — 2026-09-05
+
+- Shiny for Python 1.7.0: every `@render.download` renderer (report HTML/PDF/
+  DOCX, Save Project, the three stakeholder exports, the BOT CSV) is now
+  `@render.download_button`, which 1.7.0 introduced and pairs 1:1 with
+  `ui.download_button()`. No user-visible change; the deprecation warning that
+  1.7.0 printed on every session start is gone. Floor pin raised to
+  `shiny>=1.7`.
+- New guard test, `tests/test_no_deprecations.py`: every `sespy` module must
+  import without a `ShinyDeprecationWarning`, and a static source scan fails
+  the suite if any file still calls the deprecated `render.download(...)`.
+  The scan exists because the app's four download renderers are defined
+  inside `@module.server` functions, which only run per-session — a plain
+  import never instantiates them, so the import-time check alone can't catch
+  a deprecation nested inside a server function. Together the two catch the
+  next Shiny deprecation at upgrade time rather than at removal time.
+
 ## [1.8.0] — 2026-09-05
 
 - New **user manual**, `docs/MANUAL.md`, rendered as the *Manual* tab of the
