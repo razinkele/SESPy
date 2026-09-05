@@ -626,15 +626,15 @@ def pims_stakeholders_server(
     # SH6: Export downloads (xlsx / png / pdf)
     # ------------------------------------------------------------------
 
-    @render.download(filename=lambda: f"stakeholders-{_stamp()}.xlsx")
+    @render.download_button(filename=lambda: f"stakeholders-{_stamp()}.xlsx")
     def download_stakeholder_xlsx():
         yield build_stakeholder_workbook(_items(), _engagements(), _communications())
 
-    @render.download(filename=lambda: f"power-interest-{_stamp()}.png")
+    @render.download_button(filename=lambda: f"power-interest-{_stamp()}.png")
     def download_power_interest_png():
         yield build_power_interest_png(_items(), translate=tr)
 
-    @render.download(filename=lambda: f"stakeholder-summary-{_stamp()}.pdf")
+    @render.download_button(filename=lambda: f"stakeholder-summary-{_stamp()}.pdf")
     def download_summary_pdf():
         stats = compute_stakeholder_stats(_items(), _engagements(), _communications())
         yield build_summary_pdf(project_data.get().metadata.name, stats, _items())

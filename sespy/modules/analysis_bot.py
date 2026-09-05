@@ -401,7 +401,7 @@ def analysis_bot_server(
             return pd.DataFrame(columns=["Year", "Value"])
         return df
 
-    @render.download(filename="bot_data.csv")
+    @render.download_button(filename="bot_data.csv")
     def bot_download():
         df = _filtered_frame()
         if df is None:
