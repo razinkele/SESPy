@@ -60,6 +60,9 @@ def _child_env(extra: dict[str, str]) -> dict[str, str]:
     env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
     env["SESPY_FEEDBACK_DB"] = str(E2E_FEEDBACK_DB)
     env["SHINY_TESTMODE"] = "1"   # 1.7.0: serve /session/{id}/dataobj/shinytest
+    # _child_env is used for both the app server and the Playwright client
+    # scripts, so SHINY_TESTMODE also reaches those client processes; it is
+    # a no-op there (only the Shiny server side reads it) and harmless.
     return env
 
 

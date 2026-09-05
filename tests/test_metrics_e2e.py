@@ -4,9 +4,8 @@ to all three modules at once.
 """
 import asyncio
 
+from _testmode import export_value, snapshot
 from playwright.async_api import async_playwright
-
-from _testmode import snapshot, export_value
 
 
 async def main():

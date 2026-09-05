@@ -415,7 +415,7 @@ writes `docs/screenshots/*.png`, not part of the e2e gate):
 micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000
 ```
 
-668 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+673 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly

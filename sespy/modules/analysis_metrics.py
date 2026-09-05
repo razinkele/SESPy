@@ -97,7 +97,7 @@ def governance_concentration_verdict(gc: dict) -> tuple[str, dict] | None:
 
 
 def cascade_snapshot_value(result: dict | None) -> dict | None:
-    """Value published under `export.metrics_cascade` in Shiny test mode
+    """Value published under `export["metrics-metrics_cascade"]` in Shiny test mode
     (SHINY_TESTMODE=1): the raw cascade_vulnerability() dict, or None when
     nothing has been computed for the current model. Identity on purpose —
     the e2e reads the same numbers the UI renders. Pure."""

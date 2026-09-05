@@ -62,7 +62,11 @@ def _module_names() -> list[str]:
 
 def _module_files() -> list[Path]:
     root = Path(sespy.__file__).parent
-    return sorted(root.rglob("*.py"))
+    files = list(root.rglob("*.py"))
+    app_py = _REPO_ROOT / "app.py"
+    if app_py.exists():
+        files.append(app_py)
+    return sorted(files)
 
 
 def test_fresh_interpreter_imports_without_shiny_deprecation():
@@ -80,14 +84,19 @@ def test_fresh_interpreter_imports_without_shiny_deprecation():
         "from shiny._deprecated import ShinyDeprecationWarning\n"
         "warnings.filterwarnings('error', category=ShinyDeprecationWarning)\n"
         f"names = {names!r}\n"
-        "failed = []\n"
+        "deprecations = []\n"
+        "import_errors = []\n"
         "for n in names:\n"
         "    try:\n"
         "        importlib.import_module(n)\n"
         "    except ShinyDeprecationWarning as e:\n"
-        "        failed.append((n, str(e)))\n"
-        "if failed:\n"
-        "    for n, msg in failed:\n"
+        "        deprecations.append((n, str(e)))\n"
+        "    except ImportError as e:\n"
+        "        import_errors.append((n, str(e)))\n"
+        "if deprecations or import_errors:\n"
+        "    for n, msg in import_errors:\n"
+        "        print(f'IMPORT-ERROR {n}: {msg}', file=sys.stderr)\n"
+        "    for n, msg in deprecations:\n"
         "        print(f'DEPRECATION {n}: {msg}', file=sys.stderr)\n"
         "    sys.exit(1)\n"
     )
@@ -97,10 +106,20 @@ def test_fresh_interpreter_imports_without_shiny_deprecation():
         capture_output=True,
         text=True,
     )
+    has_import_error = "IMPORT-ERROR" in result.stderr
+    has_deprecation = "DEPRECATION" in result.stderr
+    if has_import_error and not has_deprecation:
+        reason = "one or more sespy modules failed to import (missing optional dependency?)"
+    elif has_deprecation and not has_import_error:
+        reason = "one or more sespy modules raised ShinyDeprecationWarning while importing"
+    else:
+        reason = (
+            "one or more sespy modules failed to import (missing optional "
+            "dependency?) and/or raised ShinyDeprecationWarning while importing"
+        )
     assert result.returncode == 0, (
-        "a fresh interpreter raised ShinyDeprecationWarning while importing "
-        f"one or more sespy modules (see mechanism 1 in this file's "
-        f"docstring):\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        f"a fresh interpreter reported: {reason} (see mechanism 1 in this "
+        f"file's docstring):\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
 

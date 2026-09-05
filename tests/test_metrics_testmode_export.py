@@ -1,4 +1,12 @@
 """analysis_metrics exposes the cascade result to Shiny test mode (1.7.0)."""
+import pytest
+
+# analysis_metrics imports the pyvis fork (`pyvis.shiny`) at module load, so
+# skip this module when the fork is absent (e.g. the stock-pyvis unit-CI
+# job). It runs for real in the conda full-app/e2e jobs where the fork is
+# installed.
+pytest.importorskip("pyvis.shiny")
+
 from sespy.modules import analysis_metrics
 
 

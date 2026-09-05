@@ -1,6 +1,5 @@
 """tests/_testmode.py: the pure half of the async test-mode snapshot reader."""
 import pytest
-
 from _testmode import export_value
 
 
