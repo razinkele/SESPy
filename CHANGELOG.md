@@ -2,6 +2,23 @@
 
 All notable changes to SESPy.
 
+## [1.8.2] — 2026-09-05
+
+- Shiny 1.7.0 **test mode** adopted for the e2e suite: `tests/run_e2e.py`
+  starts the app with `SHINY_TESTMODE=1`, the Network Metrics module exports
+  its cascade result to the session snapshot (`export_test_values`, a no-op
+  outside test mode — the key is namespaced `metrics-metrics_cascade`), and
+  the metrics e2e asserts the threshold node, early-warning node and
+  first-step drop as numbers read from that snapshot through a small async
+  helper (`tests/_testmode.py`) instead of scraped text.
+- Deprecation guard hardened after review: the import-time check runs in a
+  fresh interpreter (in-process it could never fail once modules were cached),
+  distinguishes a missing optional dependency from a real deprecation, and
+  the source scan now includes the repo-root `app.py`; the test-mode unit
+  test skips cleanly where `pyvis.shiny` is absent (pip-only CI).
+- `CLAUDE.md` points coding agents at Shiny's bundled skills
+  (`shiny skills path shiny-for-python`). No user-visible change in the app.
+
 ## [1.8.1] — 2026-09-05
 
 - Shiny for Python 1.7.0: every `@render.download` renderer (report HTML/PDF/

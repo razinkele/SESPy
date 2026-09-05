@@ -1,6 +1,6 @@
 # SESPy User Manual
 
-**Version 1.8.1 · September 2026**
+**Version 1.8.2 · September 2026**
 
 SESPy is the Python port of the MarineSABRES Social-Ecological Systems (SES) Toolbox. It helps a facilitator and a group of stakeholders build a causal loop diagram of a marine social-ecological system, typed with the DAPSI(W)R(M) framework, and then interrogate that diagram: which feedback loops it contains, which elements carry leverage, where governance does not reach the pressures it should, how robust the structure is, and what an intervention might propagate into.
 

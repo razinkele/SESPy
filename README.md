@@ -40,6 +40,14 @@ About → Manual.
 
 ---
 
+## What's new in v1.8.2
+
+Test-infrastructure release: the e2e suite runs the app in Shiny 1.7.0 test
+mode and reads the cascade result from the session snapshot; deprecation
+guard hardened; no user-visible change.
+
+---
+
 ## What's new in v1.8.1
 
 Shiny for Python 1.7.0 migration: every `@render.download` renderer is now
