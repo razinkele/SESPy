@@ -2,6 +2,27 @@
 
 All notable changes to SESPy.
 
+## [1.9.0] — 2026-09-05
+
+- **Contextual Help.** The Help button now opens a right-hand side panel
+  (Shiny 1.7.0 offcanvas, 540 px, no backdrop) that stays open while you
+  work. It holds the workflow paragraph, the pointer to the manual, and the
+  manual section for the panel currently open — screenshot included — plus
+  a link that opens the full manual in About → Manual. The section is
+  rendered only while the panel is shown, so a closed panel leaves no hidden
+  text on the page. Nine-language labels (`help.this_panel`,
+  `help.full_manual`).
+- Library: `manual_section(label)` slices a Part II section out of
+  `docs/MANUAL.md` by its navigation label (pure; unit-tested for every
+  panel). The panel is mounted in the page body via `pre_panel_slot`; inside
+  the title bar a fixed-position panel was mis-placed.
+- Test note: the Help e2e reads the panel with `textContent` — Shiny renders
+  outputs with `display: contents`, whose subtrees Chromium's `innerText`
+  skips.
+- The Shiny 1.7 plan's three remaining deferred items are recorded as
+  no-ops until the next Shiny release (no `output_text_verbatim` use, no
+  tab-id-dependent selectors, extended-task fix unreleased).
+
 ## [1.8.2] — 2026-09-05
 
 - Shiny 1.7.0 **test mode** adopted for the e2e suite: `tests/run_e2e.py`

@@ -40,6 +40,14 @@ About → Manual.
 
 ---
 
+## What's new in v1.9.0
+
+- **Contextual Help.** Help is now a side panel that stays open beside the
+  analysis and shows the manual section for the panel you are on, with its
+  screenshot, plus a link to the full manual.
+
+---
+
 ## What's new in v1.8.2
 
 Test-infrastructure release: the e2e suite runs the app in Shiny 1.7.0 test
@@ -423,7 +431,7 @@ writes `docs/screenshots/*.png`, not part of the e2e gate):
 micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000
 ```
 
-673 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+696 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
