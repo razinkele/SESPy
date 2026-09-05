@@ -96,6 +96,14 @@ def governance_concentration_verdict(gc: dict) -> tuple[str, dict] | None:
              "n": gc["n_actors"], "entropy": entropy})
 
 
+def cascade_snapshot_value(result: dict | None) -> dict | None:
+    """Value published under `export.metrics_cascade` in Shiny test mode
+    (SHINY_TESTMODE=1): the raw cascade_vulnerability() dict, or None when
+    nothing has been computed for the current model. Identity on purpose —
+    the e2e reads the same numbers the UI renders. Pure."""
+    return result
+
+
 def _build_metrics_network(
     isa: IsaData,
     metric: str,
@@ -350,6 +358,10 @@ def analysis_metrics_server(
         )
 
     _cascade_result = reactive.value(None)
+
+    from shiny.testmode import export_test_values
+    export_test_values(
+        metrics_cascade=lambda: cascade_snapshot_value(_cascade_result.get()))
 
     @reactive.effect
     def _reset_cascade():
