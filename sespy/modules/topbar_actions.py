@@ -340,11 +340,14 @@ def topbar_actions_server(input, output, session, *, translator=None,
     def _open_help():
         ui.toggle_offcanvas("tb_help_panel")
 
-    @output
+    @output(suspend_when_hidden=False)
     @render.ui
     def tb_help_section():
         # Only while the panel is shown (see the script in help_panel_ui);
         # `input.tb_help_shown` is unset until the first open → render nothing.
+        # suspend_when_hidden=False: Shiny would otherwise stop updating the
+        # output once the panel is hidden, so the "render None" on close would
+        # never land and the manual text would linger, hidden, in the DOM.
         if not input.tb_help_shown():
             return None
         label = labels.get(active_panel.get()) if active_panel is not None else None

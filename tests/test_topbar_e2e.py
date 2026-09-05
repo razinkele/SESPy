@@ -81,6 +81,15 @@ async def main():
         assert await pg.is_visible("#cld-network") or await pg.is_visible("[id^=cld-]"), "analysis hidden behind help panel"
         await pg.click("#tb_help_panel .btn-close")
         await pg.wait_for_selector("#tb_help_panel.offcanvas.show", state="detached", timeout=10000)
+        # Closing must clear the section (no hidden manual text left on the
+        # page — bare text= selectors elsewhere would match it).
+        left = "x"
+        for _ in range(20):
+            left = (await pg.text_content("#tb_help_section") or "").strip()
+            if left == "":
+                break
+            await pg.wait_for_timeout(250)
+        assert left == "", f"help section not cleared on close: {left[:80]!r}"
         print("topbar help: OK")
         await b.close()
 
