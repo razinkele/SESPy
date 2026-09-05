@@ -10,14 +10,21 @@ All notable changes to SESPy.
   `ui.download_button()`. No user-visible change; the deprecation warning that
   1.7.0 printed on every session start is gone. Floor pin raised to
   `shiny>=1.7`.
-- New guard test, `tests/test_no_deprecations.py`: every `sespy` module must
-  import without a `ShinyDeprecationWarning`, and a static source scan fails
-  the suite if any file still calls the deprecated `render.download(...)`.
-  The scan exists because the app's four download renderers are defined
+- New guard test, `tests/test_no_deprecations.py`, with two checks: a static
+  source scan fails the suite if any file still calls the deprecated
+  `render.download(...)` (trailing paren, so it does not match
+  `render.download_button(...)`), and a fresh-interpreter import check fails
+  if importing any `sespy` module raises a module-level
+  `ShinyDeprecationWarning`. The scan is what actually catches this
+  migration's four sites, because the app's download renderers are defined
   inside `@module.server` functions, which only run per-session — a plain
-  import never instantiates them, so the import-time check alone can't catch
-  a deprecation nested inside a server function. Together the two catch the
-  next Shiny deprecation at upgrade time rather than at removal time.
+  import never instantiates them, so the import-time check alone cannot see
+  a deprecation nested inside a server function. Together the two checks
+  catch a reappearance of this exact deprecated call anywhere, and any
+  future *module-level* Shiny deprecation at upgrade time; a future
+  deprecation that only fires per-session inside a server function would
+  need a further check (e.g. a mock-session harness), which is not yet in
+  place.
 
 ## [1.8.0] — 2026-09-05
 

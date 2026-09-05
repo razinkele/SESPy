@@ -44,8 +44,11 @@ About → Manual.
 
 Shiny for Python 1.7.0 migration: every `@render.download` renderer is now
 `@render.download_button` (no user-visible change); floor pin raised to
-`shiny>=1.7`, and a new guard test fails the suite on any future Shiny
-deprecation warning.
+`shiny>=1.7`. New guard test: a source scan fails the suite if
+`render.download(...)` reappears anywhere, and a fresh-interpreter import
+check fails on any module-level `ShinyDeprecationWarning` (a deprecation
+that only fires inside a module's server function at session time is not
+covered).
 
 ---
 
@@ -412,7 +415,7 @@ writes `docs/screenshots/*.png`, not part of the e2e gate):
 micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000
 ```
 
-713 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+668 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
