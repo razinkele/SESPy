@@ -6,6 +6,8 @@ import asyncio
 
 from playwright.async_api import async_playwright
 
+from _testmode import snapshot, export_value
+
 
 async def main():
     async with async_playwright() as p:
@@ -152,6 +154,19 @@ async def main():
         assert "KL" in cs_text, f"expected KL column header, got: {cs_text!r}"
         assert "MPF1" in cs_text and "0.47" in cs_text, f"expected MPF1/0.47, got: {cs_text!r}"
         print(f"cascade vulnerability block: OK ({cs_text[:120]!r})")
+
+        # 1.7.0 test mode: the same result the UI rendered, as data — no
+        # text slicing. Sample goldens from tests/test_network.py.
+        snap = await snapshot(page)
+        # Registered inside the "metrics" module's server, so
+        # export_test_values namespaces the key with the module id.
+        cascade = export_value(snap, "metrics-metrics_cascade")
+        assert cascade is not None, "cascade export empty after Run cascade analysis"
+        assert cascade["cascade_threshold_node"] == "MPF1"
+        assert cascade["early_warning_node"] == "D002"
+        assert cascade["steps"][0]["removed_id"] == "MPF1"
+        assert round(cascade["steps"][0]["delta_lccf"], 2) == 0.47
+        print("cascade snapshot: OK")
 
         # --- SES subsystem modules: idle hint, then button-triggered list ---
         hm_text = ""
