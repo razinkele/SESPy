@@ -1,3 +1,3 @@
 """SESPy: Shiny for Python port of the MarineSABRES SES Toolbox."""
 
-__version__ = "1.9.0"
+__version__ = "1.9.1"

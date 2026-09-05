@@ -2,6 +2,13 @@
 
 All notable changes to SESPy.
 
+## [1.9.1] — 2026-09-05
+
+- Contextual Help: the manual section is cleared when the panel closes. In
+  1.9.0 Shiny suspended the hidden output, so the text lingered invisibly in
+  the page after the first use (found by the post-deploy production check).
+  The topbar e2e now asserts the section is empty after closing.
+
 ## [1.9.0] — 2026-09-05
 
 - **Contextual Help.** The Help button now opens a right-hand side panel

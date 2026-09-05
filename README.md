@@ -40,6 +40,12 @@ About → Manual.
 
 ---
 
+## What's new in v1.9.1
+
+Patch: the Help side panel now clears its content when closed.
+
+---
+
 ## What's new in v1.9.0
 
 - **Contextual Help.** Help is now a side panel that stays open beside the
