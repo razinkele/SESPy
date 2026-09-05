@@ -62,7 +62,7 @@ from sespy.modules.rate_connections import rate_connections_server, rate_connect
 from sespy.modules.recent_projects import recent_projects_server, recent_projects_ui
 from sespy.modules.report_export import report_export_server, report_export_ui
 from sespy.modules.templates import templates_server, templates_ui
-from sespy.modules.topbar_actions import topbar_actions_server, topbar_actions_ui
+from sespy.modules.topbar_actions import help_panel_ui, topbar_actions_server, topbar_actions_ui
 
 ROOT = Path(__file__).parent
 WWW = ROOT / "www"
@@ -159,7 +159,7 @@ app_ui = dashboard_page(
     initial="cld",
     title=T.t("ui.app.title"),
     brand_title=T.t("ui.brand.title"),
-    pre_panel_slot=workflow_stepper_slot(),
+    pre_panel_slot=ui.TagList(workflow_stepper_slot(), help_panel_ui(T)),
     header_actions=topbar_actions_ui(T),
     quick_actions=quick_actions_ui(T),
 )
@@ -182,7 +182,7 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
     current_theme = reactive.value("light-marine")
     autosave_enabled = reactive.value(True)
 
-    dashboard_server(
+    active_panel = dashboard_server(
         input, output, session,
         nav_items=NAV,
         initial="cld",
@@ -203,6 +203,8 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         translator=translator,
         current_theme=current_theme,
         autosave_enabled=autosave_enabled,
+        active_panel=active_panel,
+        nav_items=NAV,
     )
 
     pims_project_server(

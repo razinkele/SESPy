@@ -361,7 +361,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Options** sets the theme, the language and autosave, shows when the last autosave happened, and can clear the autosave.
 
-**Help** gives a one-paragraph summary of the workflow and points to this manual.
+**Help** opens a side panel on the right that stays open while you work. It holds a one-paragraph summary of the workflow, a pointer to this manual, and the manual section for the panel you currently have open, with its screenshot. A link at the bottom opens the full manual in the About dialog.
 
 ---
 

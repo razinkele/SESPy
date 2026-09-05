@@ -4,10 +4,11 @@ global. Mimics the BowTie app's feedback (SQLite) + About/Options/Help."""
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 
-from shiny import reactive, ui
+from shiny import reactive, render, ui
 
 from .. import __version__ as _sespy_version
 from .. import feedback_store
@@ -26,6 +27,30 @@ def read_project_doc(name: str) -> str:
         return (_REPO_ROOT / name).read_text(encoding="utf-8")
     except OSError:
         return f"_{name} not available._"
+
+
+_SECTION_HEADING = re.compile(r"^## (\d+)\. (.+?)\s*$", re.M)
+
+
+def manual_section(label: str, text: str | None = None, *,
+                   strip_heading: bool = False) -> str | None:
+    """The docs/MANUAL.md section whose `## N. <label>` heading matches a
+    navigation label (Part II is keyed by nav labels). Returns the text from
+    that heading up to (not including) the next `## ` or `# ` heading, or
+    None when no heading matches. strip_heading drops the section's own
+    heading line so the caller can supply its own title. Pure."""
+    if text is None:
+        text = read_project_doc("docs/MANUAL.md")
+    for m in _SECTION_HEADING.finditer(text):
+        if m.group(2).strip() != label:
+            continue
+        start = m.start()
+        nxt = re.compile(r"^#{1,2} ", re.M).search(text, m.end())
+        section = text[start:nxt.start() if nxt else len(text)].rstrip()
+        if strip_heading:
+            section = section.split("\n", 1)[1].lstrip("\n") if "\n" in section else ""
+        return section
+    return None
 
 
 def _app_version() -> str:
@@ -55,6 +80,33 @@ def topbar_actions_ui(translator: Translator | None = None) -> ui.Tag:
         btn("tb_options", "gear", "topbar.options", "Options"),
         btn("tb_help", "circle-question", "topbar.help", "Help"),
         class_="sespy-topbar-actions",
+    )
+
+
+def help_panel_ui(translator: Translator | None = None) -> ui.Tag:
+    """The contextual-help offcanvas (v1.9.0). Mount it in the page BODY (app.py
+    passes it through dashboard_page's pre_panel_slot), NOT inside the title bar:
+    Bootstrap offcanvas is position:fixed and the title bar's layout context
+    mis-positions it and collapses the rendered output. Body: the workflow
+    paragraph, the manual pointer, then the manual section for the ACTIVE
+    panel, rendered server-side into tb_help_section (topbar_actions_server)."""
+    return ui.offcanvas(
+        ui.markdown(_t(translator, "help.body", "See the README.")),
+        ui.p(_t(translator, "help.manual_hint",
+                "The full manual is in About → Manual."),
+             class_="text-muted small"),
+        ui.tags.hr(),
+        ui.h5(_t(translator, "help.this_panel", "About this panel")),
+        ui.output_ui("tb_help_section"),
+        ui.p(ui.input_action_link("tb_help_open_manual",
+                                  _t(translator, "help.full_manual",
+                                     "Open the full manual (About → Manual)"),
+                                  class_="small"),
+             class_="mt-3"),
+        title=_t(translator, "help.title", "Help"),
+        id="tb_help_panel", placement="right", width="540px",
+        backdrop=False, scroll=True,
+        class_="sespy-help-panel",
     )
 
 
@@ -246,9 +298,16 @@ def _help_modal(translator) -> ui.Tag:
 
 
 def topbar_actions_server(input, output, session, *, translator=None,
-                          current_theme=None, autosave_enabled=None) -> None:
-    """Wires the four topbar buttons to their modals. current_theme /
-    autosave_enabled are the shared reactive.Values (used by the Options modal)."""
+                          current_theme=None, autosave_enabled=None,
+                          active_panel=None, nav_items=None) -> None:
+    """Wires the four topbar buttons. Feedback / About / Options open modals;
+    Help toggles the offcanvas built in topbar_actions_ui. current_theme /
+    autosave_enabled are the shared reactive.Values (used by the Options
+    modal). active_panel (reactive.Value[str], the nav id from
+    dashboard_server) + nav_items (the NAV list, id → label) drive the
+    contextual "About this panel" section; either missing → the section
+    just shows the manual pointer."""
+    labels = {item.id: item.label for item in (nav_items or [])}
 
     @reactive.effect
     @reactive.event(input.tb_feedback)
@@ -268,7 +327,25 @@ def topbar_actions_server(input, output, session, *, translator=None,
     @reactive.effect
     @reactive.event(input.tb_help)
     def _open_help():
-        ui.modal_show(_help_modal(translator))
+        ui.toggle_offcanvas("tb_help_panel")
+
+    @output
+    @render.ui
+    def tb_help_section():
+        label = labels.get(active_panel.get()) if active_panel is not None else None
+        section = manual_section(label, strip_heading=True) if label else None
+        if not section:
+            return ui.p(_t(translator, "help.manual_hint",
+                           "The full manual is in About → Manual."),
+                        class_="text-muted")
+        return ui.div(ui.h6(label), ui.markdown(section),
+                      class_="sespy-help-section")
+
+    @reactive.effect
+    @reactive.event(input.tb_help_open_manual)
+    def _help_to_manual():
+        ui.toggle_offcanvas("tb_help_panel", show=False)
+        ui.modal_show(_about_modal(translator))
 
     @reactive.effect
     @reactive.event(input.theme_select)

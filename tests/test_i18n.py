@@ -145,6 +145,13 @@ def test_about_manual_keys_present(translations):
             assert translations[key].get(lang), (key, lang)
 
 
+def test_help_offcanvas_keys_present(translations):
+    for key in ("help.this_panel", "help.full_manual"):
+        assert key in translations
+        for lang in ("en", "es", "fr", "de", "lt", "pt", "it", "no", "el"):
+            assert translations[key].get(lang), (key, lang)
+
+
 def test_cascade_keys_present(translations):
     for key in ("metrics.cascade", "metrics.cascade_run", "metrics.cascade_hint",
                 "metrics.cascade_threshold", "metrics.cascade_caption"):

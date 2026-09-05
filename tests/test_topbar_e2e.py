@@ -63,9 +63,24 @@ async def main():
         await pg.wait_for_timeout(300)
         # Help modal opens and shows workflow text
         await pg.click("#tb_help")
-        await pg.wait_for_selector(".modal", timeout=10000)
-        body = await pg.text_content(".modal") or ""
+        # v1.9.0: Help is an offcanvas side panel, not a modal. It carries the
+        # workflow paragraph and the manual section for the ACTIVE panel (the
+        # app opens on CLD Visualization).
+        await pg.wait_for_selector("#tb_help_panel.offcanvas.show", timeout=10000)
+        # text_content, not inner_text: Shiny gives the output container
+        # `display: contents` and Chromium's innerText skips such subtrees.
+        body = ""
+        for _ in range(20):
+            body = await pg.text_content("#tb_help_panel") or ""
+            if "CLD Visualization" in body and "Purpose" in body:
+                break
+            await pg.wait_for_timeout(500)
         assert "workflow" in body.lower() or "create" in body.lower(), f"workflow text missing: {body[:200]}"
+        assert "CLD Visualization" in body and "Purpose" in body, f"contextual section missing: {body[:300]}"
+        # The panel must not cover the analysis: the CLD canvas stays visible.
+        assert await pg.is_visible("#cld-network") or await pg.is_visible("[id^=cld-]"), "analysis hidden behind help panel"
+        await pg.click("#tb_help_panel .btn-close")
+        await pg.wait_for_selector("#tb_help_panel.offcanvas.show", state="detached", timeout=10000)
         print("topbar help: OK")
         await b.close()
 

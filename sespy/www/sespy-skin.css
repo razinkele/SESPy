@@ -873,3 +873,9 @@ body.sespy-sidebar-mini .sespy-quick-actions .btn {
 /* About → Manual tab: rendered docs/MANUAL.md; keep screenshots inside the modal. */
 .sespy-manual img { max-width: 100%; height: auto; border: 1px solid rgba(0,0,0,.12); border-radius: 4px; margin: .5rem 0 1rem; }
 .sespy-manual table { font-size: .9rem; }
+
+/* Contextual help offcanvas (v1.9.0): manual screenshots must not overflow
+   the 540px panel; the panel sits above the sidebar/topbar stacking. */
+.sespy-help-panel { z-index: 1080; }
+.sespy-help-section img { max-width: 100%; height: auto; border: 1px solid #dfe6ee; border-radius: 4px; }
+.sespy-help-section h6 { font-weight: 600; margin-bottom: .5rem; }
