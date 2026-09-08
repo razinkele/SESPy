@@ -1373,14 +1373,19 @@ def disagreement_cell(d: dict, *, contested_label: str) -> str:
     return "—"
 
 
-def displayed_pairs(connections, *, contested_only: bool):
+def displayed_pairs(connections, *, contested_only: bool, bayesian: bool = False):
     """Pure core of the C3 index contract: (true_idx, connection) pairs — all
-    connections when not contested_only, else only polarity-contested ones.
-    true_idx is always the position in `connections`, so a contested row keeps
-    its true full-list index after filtering (the lookup the UI persists by)."""
+    connections when not contested_only, else only contested ones. true_idx
+    is always the position in `connections`, so a contested row keeps its
+    true full-list index after filtering (the lookup the UI persists by).
+    `bayesian` switches the contested criterion from 'raters not unanimous'
+    to 'raters not unanimous AND the posterior credible interval straddles
+    0.5' (bayesian_contested) — a lone dissenter among many is discounted."""
     pairs = list(enumerate(connections))
     if not contested_only:
         return pairs
+    if bayesian:
+        return [(i, c) for i, c in pairs if bayesian_contested(c)]
     return [(i, c) for i, c in pairs
             if connection_disagreement(c)["polarity_contested"]]
 

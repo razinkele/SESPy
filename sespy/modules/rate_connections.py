@@ -30,13 +30,13 @@ def rate_connections_ui() -> ui.Tag:
                 ui.tags.hr(),
                 ui.input_checkbox("contested_only", t("rate.contested_only"), value=False),
                 ui.input_checkbox("blind_mode", t("rate.blind_mode"), value=False),
+                ui.input_checkbox("bayesian", t("rate.bayesian"), value=False),
                 width=260,
             ),
             ui.div(
                 ui.output_ui("contested_count"),
                 ui.output_data_frame("connections_table"),
-                ui.tags.small("⚠ contested sign · ~ strength/confidence spread (0–2 / 0–4)",
-                              class_="text-muted"),
+                ui.output_ui("table_legend"),
                 ui.tags.hr(),
                 ui.output_ui("rating_editor"),
                 ui.tags.hr(),
@@ -72,6 +72,7 @@ def rate_connections_server(
         return network.displayed_pairs(
             project_data.get().isa_data.connections,
             contested_only=input.contested_only(),
+            bayesian=input.bayesian(),
         )
 
     @output
@@ -93,12 +94,20 @@ def rate_connections_server(
         isa = project_data.get().isa_data
         by_id = {el.id: el.label for el in isa.elements}
         contested_label = t("rate.contested")
+        bayes = input.bayesian()
         cols = ["source", "target", "polarity", "strength", "confidence", "delay",
                 "#ratings", "mine", "disagreement"]
+        p_col, s_col = t("rate.p_plus"), t("rate.strength_post")
+        if bayes:
+            cols += [p_col, s_col]
         rows = []
         for _true_idx, c in displayed_connections():
+            # Only the sign criterion changes under the toggle; the strength /
+            # confidence spreads (the '~' legend) stay truthful.
             d = network.connection_disagreement(c)
-            rows.append({
+            if bayes:
+                d = {**d, "polarity_contested": network.bayesian_contested(c)}
+            row = {
                 "source": f"{c.source} · {by_id.get(c.source, '?')}",
                 "target": f"{c.target} · {by_id.get(c.target, '?')}",
                 "polarity": c.polarity,
@@ -108,9 +117,15 @@ def rate_connections_server(
                 "#ratings": len(c.ratings),
                 "mine": "✓" if rater and any(r.rater_id == rater for r in c.ratings) else "—",
                 "disagreement": network.disagreement_cell(d, contested_label=contested_label),
-            })
+            }
+            if bayes:
+                pol = network.polarity_posterior(c)
+                st = network.strength_posterior(c)
+                row[p_col] = f"{pol['p_plus']:.2f} [{pol['ci_low']:.2f}–{pol['ci_high']:.2f}]"
+                row[s_col] = f"{st['map']} {st['mean'][st['map']]:.2f}"
+            rows.append(row)
         return render.DataGrid(
-            pd.DataFrame(rows or [{k: "" for k in cols}]),
+            pd.DataFrame(rows or [{k: "" for k in cols}], columns=cols),
             selection_mode="row", height="260px",
         )
 
@@ -129,6 +144,21 @@ def rate_connections_server(
     @reactive.event(input.contested_only)
     def _reset_selection_on_filter():
         sel_idx.set(None)
+
+    @reactive.effect
+    @reactive.event(input.bayesian)
+    def _reset_selection_on_bayesian():
+        sel_idx.set(None)
+
+    @output
+    @render.ui
+    def table_legend():
+        base = ui.tags.small("⚠ contested sign · ~ strength/confidence spread (0–2 / 0–4)",
+                             class_="text-muted")
+        if not input.bayesian():
+            return base
+        return ui.div(base, ui.tags.br(),
+                      ui.tags.small(t("rate.bayesian_legend"), class_="text-muted"))
 
     def _selected():
         """(true_idx, connection) for the cached displayed-row selection, or
@@ -199,8 +229,11 @@ def rate_connections_server(
     def contested_count():
         event_bus.isa_change.get()
         conns = project_data.get().isa_data.connections
-        n = sum(1 for c in conns
-                if network.connection_disagreement(c)["polarity_contested"])
+        if input.bayesian():
+            n = sum(1 for c in conns if network.bayesian_contested(c))
+        else:
+            n = sum(1 for c in conns
+                    if network.connection_disagreement(c)["polarity_contested"])
         return ui.tags.p(t("rate.contested_count", n=n),
                          class_="text-muted", style="margin-bottom:4px;")
 

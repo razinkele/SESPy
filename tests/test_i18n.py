@@ -214,3 +214,9 @@ def test_token_diffusion_keys_present(translations):
                 "diffusion.tokens", "diffusion.run", "diffusion.hint",
                 "diffusion.none", "diffusion.summary", "diffusion.caption"):
         assert key in translations
+
+
+def test_bayesian_keys_present(translations):
+    for key in ("rate.bayesian", "rate.p_plus", "rate.strength_post",
+                "rate.bayesian_legend", "uncertainty.flip_posterior"):
+        assert key in translations

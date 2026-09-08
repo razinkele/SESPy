@@ -170,6 +170,41 @@ async def main():
         assert narrowed, f"contested-only filter did not narrow to 1 row (got {n})"
         print("rate connections contested view: OK")
 
+        # --- Option A: Bayesian toggle adds posterior columns, keeps stored values ---
+        await page.uncheck("#rate-contested_only")
+        await page.check("#rate-bayesian")
+        headers = []
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            headers = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'#rate-connections_table table thead th')).map(th => th.textContent.trim())"
+            )
+            if any("P(+)" in h for h in headers):
+                break
+        assert any("P(+)" in h for h in headers), f"P(+) column missing: {headers}"
+        cells_b = await page.evaluate(
+            "() => Array.from(document.querySelectorAll("
+            "'#rate-connections_table table tbody tr:first-child td')).map(td => td.textContent.trim())"
+        )
+        assert any("[" in c and "–" in c for c in cells_b), f"no credible interval cell: {cells_b}"
+        assert "2" in cells_b and any("⚠" in c for c in cells_b), \
+            f"stored #ratings / contested marker changed under the toggle: {cells_b}"
+        count_b = await page.evaluate(
+            "() => document.getElementById('rate-contested_count').textContent")
+        assert "1" in count_b, f"bayesian contested count wrong: {count_b!r}"
+        await page.uncheck("#rate-bayesian")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            headers = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'#rate-connections_table table thead th')).map(th => th.textContent.trim())"
+            )
+            if not any("P(+)" in h for h in headers):
+                break
+        assert not any("P(+)" in h for h in headers), "P(+) column persisted after toggle-off"
+        print("rate connections bayesian toggle: OK")
+
         await browser.close()
 
 

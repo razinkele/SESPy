@@ -2524,3 +2524,24 @@ def test_hypermodules_sample_project_golden():
                      for h in range(r["n_hypermodules"]))
     assert members == [["A001", "ES01", "ES03", "GB01", "P001", "R002"],
                        ["A002", "P002", "R001"]]
+
+
+def test_displayed_pairs_bayesian_switch_uses_posterior_criterion():
+    from sespy.data_structure import Rating
+    # 1 '+' vs 1 '-' is contested under BOTH criteria; 3 '+' vs 1 '-' at
+    # confidence 5 is not unanimous (legacy: contested) but its Beta(4,2)
+    # interval still straddles 0.5 (bayesian: contested); 12 '+' vs 1 '-'
+    # is legacy-contested but NOT bayesian-contested.
+    c1 = Connection("A", "B", ratings=[Rating("r1", polarity="+"), Rating("r2", polarity="-")])
+    c2 = Connection("B", "C", ratings=[Rating(f"r{i}", polarity="+", confidence=5) for i in range(12)]
+                    + [Rating("x", polarity="-", confidence=5)])
+    # Two unanimous confident raters: Beta(3,1) straddles 0.5 but there is no
+    # dissent -> contested under NEITHER criterion.
+    c3 = Connection("C", "D", ratings=[Rating("r1", polarity="+", confidence=5),
+                                       Rating("r2", polarity="+", confidence=5)])
+    conns = [c1, c2, c3]
+    legacy = network.displayed_pairs(conns, contested_only=True)
+    bayes = network.displayed_pairs(conns, contested_only=True, bayesian=True)
+    assert [i for i, _ in legacy] == [0, 1]
+    assert [i for i, _ in bayes] == [0]
+    assert len(network.displayed_pairs(conns, contested_only=False, bayesian=True)) == 3
