@@ -2,6 +2,30 @@
 
 All notable changes to SESPy.
 
+## [1.10.0] — 2026-09-08
+
+- **Bayesian consensus (Rate Connections).** Opt-in checkbox showing a Beta
+  posterior P(+) with its 95% credible interval and a Dirichlet posterior
+  strength per connection, ratings weighted by rater confidence. The
+  contested criterion under the toggle is "interval straddles 0.5". The
+  stored consensus is untouched. Library: `polarity_posterior`,
+  `strength_posterior`, `bayesian_consensus`, `bayesian_contested`.
+- **Posterior sign flips (Loop Analysis).** `uncertainty_scores(flip_mode=
+  "posterior")` flips edge signs by the rater posterior instead of the
+  confidence heuristic; unrated edges keep the heuristic.
+- **Bayesian inference (Intervention).** A binary noisy-OR belief network
+  over the acyclic causal paths between two chosen elements, exact
+  inference via pgmpy (new optional extra `sespy[bayes]`), forward and
+  diagnostic queries, cut links reported. Library: `sespy/bayes.py`.
+- Manual: sections 10, 12, 19 updated; new section 43 (Bayesian options);
+  screenshots regenerated.
+- Deployment note: the laguna env needs `micromamba install -n shiny pgmpy`
+  once (run as the env owner), verified as the `shiny` user with
+  `python3 -s`, before this release. conda-forge pgmpy does not pull
+  pytorch; if pytorch is present in the env the first inference per worker
+  takes 35–65 s in a background thread (~350 MB RSS), otherwise a few
+  seconds.
+
 ## [1.9.1] — 2026-09-05
 
 - Contextual Help: the manual section is cleared when the panel closes. In
