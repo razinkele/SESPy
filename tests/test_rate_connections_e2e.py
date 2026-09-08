@@ -193,6 +193,12 @@ async def main():
         count_b = await page.evaluate(
             "() => document.getElementById('rate-contested_count').textContent")
         assert "1" in count_b, f"bayesian contested count wrong: {count_b!r}"
+        cells_row2 = await page.evaluate(
+            "() => Array.from(document.querySelectorAll("
+            "'#rate-connections_table table tbody tr:nth-child(2) td')).map(td => td.textContent.trim())"
+        )
+        assert cells_row2[-2:] == ["—", "—"], \
+            f"unrated row should show blank posterior columns: {cells_row2}"
         await page.uncheck("#rate-bayesian")
         for _ in range(20):
             await page.wait_for_timeout(500)

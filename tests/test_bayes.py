@@ -157,6 +157,38 @@ def test_query_is_deterministic_on_the_sample():
     assert i1["cut_edges"] == [] and len(i1["paths"]) == 2
 
 
+@needs_pgmpy
+def test_build_path_bbn_cpt_column_order_matches_noisy_or():
+    # Two parents into "c" with asymmetric edges (one '+' strong, one '-'
+    # weak) so a transposed CPT column order cannot pass by symmetry.
+    isa = _isa([
+        Connection("s", "p", polarity="+", strength="strong", confidence=5),
+        Connection("s", "m", polarity="+", strength="strong", confidence=5),
+        Connection("p", "c", polarity="+", strength="strong", confidence=5),
+        Connection("m", "c", polarity="-", strength="weak", confidence=5),
+    ])
+    info = bayes.path_set_dag(isa, "s", "c")
+    assert set(info["nodes"]) >= {"s", "p", "m", "c"}
+    model, info = bayes.build_path_bbn(isa, "s", "c")
+    assert model is not None
+
+    from pgmpy.inference import VariableElimination
+
+    cpd_c = model.get_cpds("c")
+    evidence_vars = cpd_c.variables[1:]
+    edges_into_c = {u: c for u, v, c in info["edges"] if v == "c"}
+    parents = [(u, edges_into_c[u]) for u in evidence_vars]
+
+    infer = VariableElimination(model)
+    for sp in (0, 1):
+        for sm in (0, 1):
+            evidence = {"p": sp, "m": sm}
+            got = infer.query(["c"], evidence=evidence, show_progress=False).values[1]
+            states = tuple(evidence[v] for v in evidence_vars)
+            expected = bayes.noisy_or_p_high(states, parents)
+            assert math.isclose(got, expected), (evidence, got, expected)
+
+
 def test_bayes_unavailable_when_pgmpy_missing(monkeypatch):
     import builtins
     real_import = builtins.__import__

@@ -40,6 +40,25 @@ About → Manual.
 
 ---
 
+## What's new in v1.10.0
+
+- **Bayesian consensus toggle** (Rate Connections). An optional toggle
+  replaces the majority-vote sign and strength with a conjugate Beta/
+  Dirichlet posterior over each connection's ratings — a P(+) credible
+  interval and MAP strength — and a posterior contested criterion that
+  discounts a lone dissenter among many.
+- **Posterior sign flips** (Loop Analysis). The Monte-Carlo perturbation
+  can flip a connection's sign by the rater posterior probability that the
+  stored sign is wrong, instead of only the confidence heuristic.
+- **Bayesian inference over the source→target path set** (Intervention,
+  optional `sespy[bayes]` extra). A noisy-OR Bayesian network built from
+  the path set answers "how likely is the target high given evidence
+  upstream" queries; the first run loads the pgmpy engine, which takes
+  about a minute.
+- See manual section 43 for the science behind all three.
+
+---
+
 ## What's new in v1.9.1
 
 Patch: the Help side panel now clears its content when closed.

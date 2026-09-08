@@ -119,10 +119,14 @@ def rate_connections_server(
                 "disagreement": network.disagreement_cell(d, contested_label=contested_label),
             }
             if bayes:
-                pol = network.polarity_posterior(c)
-                st = network.strength_posterior(c)
-                row[p_col] = f"{pol['p_plus']:.2f} [{pol['ci_low']:.2f}–{pol['ci_high']:.2f}]"
-                row[s_col] = f"{st['map']} {st['mean'][st['map']]:.2f}"
+                if not c.ratings:
+                    row[p_col] = "—"
+                    row[s_col] = "—"
+                else:
+                    pol = network.polarity_posterior(c)
+                    st = network.strength_posterior(c)
+                    row[p_col] = f"{pol['p_plus']:.2f} [{pol['ci_low']:.2f}–{pol['ci_high']:.2f}]"
+                    row[s_col] = f"{st['map']} {st['mean'][st['map']]:.2f}"
             rows.append(row)
         return render.DataGrid(
             pd.DataFrame(rows or [{k: "" for k in cols}], columns=cols),

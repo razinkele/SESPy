@@ -41,6 +41,15 @@ def test_polarity_posterior_weights_by_confidence():
     assert p["n"] == 2
 
 
+def test_polarity_counts_matches_posterior_parameters():
+    c = _conn(
+        Rating("r1", polarity="+", confidence=1),   # weight 0.2
+        Rating("r2", polarity="-", confidence=3),   # weight 0.6
+    )
+    p = network.polarity_posterior(c)
+    assert network._polarity_counts(c) == (p["alpha"], p["beta"])
+
+
 def test_rating_weight_clamps():
     assert network._rating_weight(Rating("r", confidence=9)) == 1.0
     assert network._rating_weight(Rating("r", confidence=0)) == 0.2

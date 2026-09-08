@@ -1414,6 +1414,21 @@ def _rating_weight(rating) -> float:
     return max(1, min(5, int(rating.confidence))) / 5.0
 
 
+def _polarity_counts(connection, *, prior: tuple[float, float] = (1.0, 1.0)) -> tuple[float, float]:
+    """Weighted Beta(alpha, beta) counts for P(polarity == '+') over
+    `connection.ratings`: alpha = prior[0] + Σ w_i·[r_i == '+'],
+    beta = prior[1] + Σ w_i·[r_i == '-'], w_i = _rating_weight. No ratings ->
+    the prior unchanged. Pure; never reads the stored consensus scalars."""
+    a, b = float(prior[0]), float(prior[1])
+    for r in connection.ratings:
+        w = _rating_weight(r)
+        if r.polarity == "+":
+            a += w
+        else:
+            b += w
+    return a, b
+
+
 def polarity_posterior(connection, *, prior: tuple[float, float] = (1.0, 1.0)) -> dict:
     """Beta posterior for P(polarity == '+') over `connection.ratings`.
 
@@ -1423,13 +1438,7 @@ def polarity_posterior(connection, *, prior: tuple[float, float] = (1.0, 1.0)) -
     the prior. Pure; never reads the stored consensus scalars."""
     from scipy.stats import beta as _beta
 
-    a, b = float(prior[0]), float(prior[1])
-    for r in connection.ratings:
-        w = _rating_weight(r)
-        if r.polarity == "+":
-            a += w
-        else:
-            b += w
+    a, b = _polarity_counts(connection, prior=prior)
     return {
         "p_plus": a / (a + b),
         "ci_low": float(_beta.ppf(0.025, a, b)),
@@ -1509,7 +1518,8 @@ def _flip_prob(c, base: float, flip_mode: str) -> float:
     often than not, which is the point. Edges with no ratings fall back to
     the confidence heuristic so a partially rated model still behaves."""
     if flip_mode == "posterior" and c.ratings:
-        p = polarity_posterior(c)["p_plus"]
+        a, b = _polarity_counts(c)
+        p = a / (a + b)
         return (1.0 - p) if c.polarity == "+" else p
     return _perturb_prob(c.confidence, base)
 

@@ -130,6 +130,7 @@ def build_path_bbn(isa: IsaData, source: str, target: str, *,
     if not info["nodes"]:
         return None, info
     model = DiscreteBayesianNetwork([(u, v) for u, v, _ in info["edges"]])
+    model.add_nodes_from(info["nodes"])
     parents: dict[str, list] = {n: [] for n in info["nodes"]}
     for u, v, c in info["edges"]:
         parents[v].append((u, c))
