@@ -214,8 +214,11 @@ Unit (`tests/test_bayes_consensus.py`, `tests/test_bayes.py`):
 - `bayesian_consensus` returns an equivalent copy with no ratings; never
   mutates; confidence mapping endpoints (width→1 gives 1, width→0 gives 5).
 - `bayesian_contested` false for a single rating; true for 1×'+' vs 1×'-'.
-- `uncertainty_scores(flip_mode="posterior")` collapses to the point estimate
-  when every edge is unanimous at confidence 5; unrated edges fall back.
+- `uncertainty_scores(flip_mode="posterior")`: the per-edge flip probability
+  is `min(p_plus, 1 - p_plus)`, which with the Beta(1,1) prior never reaches
+  zero (three unanimous confidence-5 raters still leave 0.2) but falls
+  monotonically with the number of agreeing raters; unrated edges fall back
+  to the confidence heuristic; the default mode is bit-for-bit unchanged.
 - `link_probability` endpoints and clamping.
 - `path_set_dag` is a DAG on the sample project for several (s, t) pairs,
   returns the empty shape for unknown / equal endpoints, and on the
