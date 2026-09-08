@@ -1492,18 +1492,36 @@ def _perturb_prob(confidence: int, base: float) -> float:
     return base * (5 - c) / 4.0
 
 
-def _perturbed_connections(isa: IsaData, base: float, rng) -> list[Connection]:
+def _flip_prob(c, base: float, flip_mode: str) -> float:
+    """Per-draw sign-flip probability for one edge.
+
+    'confidence': the D2D heuristic _perturb_prob(confidence, base).
+    'posterior': probability the STORED sign is wrong under the rater
+    posterior — 1 - p_plus when the stored polarity is '+', p_plus when it
+    is '-'. The stored sign comes from recompute_consensus (unweighted
+    majority, tie -> '+') or straight from a file, so it can disagree with
+    the confidence-weighted posterior mode; such an edge then flips more
+    often than not, which is the point. Edges with no ratings fall back to
+    the confidence heuristic so a partially rated model still behaves."""
+    if flip_mode == "posterior" and c.ratings:
+        p = polarity_posterior(c)["p_plus"]
+        return (1.0 - p) if c.polarity == "+" else p
+    return _perturb_prob(c.confidence, base)
+
+
+def _perturbed_connections(isa: IsaData, base: float, rng,
+                           flip_mode: str = "confidence") -> list[Connection]:
     """One Monte Carlo draw of structural uncertainty.
 
     Each connection independently: drops out with _perturb_prob (omitted from
-    the result), or — if kept — flips polarity with the same probability.
+    the result), or — if kept — flips polarity with _flip_prob(flip_mode).
     Pure: `isa` is never mutated; returns a fresh connection list."""
     out: list[Connection] = []
     for c in isa.connections:
-        p = _perturb_prob(c.confidence, base)
-        if rng.random() < p:
+        p_drop = _perturb_prob(c.confidence, base)
+        if rng.random() < p_drop:
             continue  # dropped
-        if rng.random() < p:
+        if rng.random() < _flip_prob(c, base, flip_mode):
             flipped = "-" if c.polarity == "+" else "+"
             out.append(replace(c, polarity=flipped))
         else:
@@ -1630,6 +1648,7 @@ def uncertainty_scores(
     max_length: int = 6,
     max_loops: int = LOOP_ENUMERATION_CAP,
     contested_band: tuple[float, float] = (0.2, 0.8),
+    flip_mode: str = "confidence",
 ) -> dict:
     """Monte-Carlo leverage & loop uncertainty under edge drop + sign-flip.
 
@@ -1641,8 +1660,12 @@ def uncertainty_scores(
     and per-baseline-loop existence/polarity probabilities with a `contested`
     flag (polarity probability inside `contested_band`). With every edge at
     confidence 5 (or base=0) the result collapses to the point estimate.
+    flip_mode='posterior' flips by rater posterior (see _flip_prob).
     """
     import numpy as np
+
+    if flip_mode not in ("confidence", "posterior"):
+        raise ValueError(f"flip_mode must be 'confidence' or 'posterior', got {flip_mode!r}")
 
     node_ids = [el.id for el in isa.elements]
     if not node_ids:
@@ -1659,7 +1682,7 @@ def uncertainty_scores(
     for _ in range(n_samples):
         pert = IsaData(
             elements=isa.elements,
-            connections=_perturbed_connections(isa, base, rng),
+            connections=_perturbed_connections(isa, base, rng, flip_mode=flip_mode),
         )
         lev = leverage_scores(pert)
         for nid in node_ids:

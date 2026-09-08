@@ -108,3 +108,61 @@ def test_bayesian_contested_requires_dissent_and_straddle():
     assert network.bayesian_contested(_conn(
         *[Rating(f"r{i}", polarity="+", confidence=5) for i in range(12)],
         Rating("x", polarity="-", confidence=5))) is False
+
+
+from sespy.data_structure import Element, IsaData
+
+
+def _isa(conns):
+    ids = sorted({c.source for c in conns} | {c.target for c in conns})
+    return IsaData(elements=[Element(id=i, label=i, type="Pressures") for i in ids],
+                   connections=conns)
+
+
+def test_flip_prob_confidence_mode_matches_perturb_prob():
+    c = Connection("A", "B", confidence=3)
+    assert network._flip_prob(c, 0.5, "confidence") == network._perturb_prob(3, 0.5)
+
+
+def test_flip_prob_posterior_mode_is_prob_stored_sign_wrong_and_falls_with_agreement():
+    two = Connection("A", "B", ratings=[Rating("r1", polarity="+", confidence=5),
+                                        Rating("r2", polarity="+", confidence=5)])
+    five = Connection("A", "B", ratings=[Rating(f"r{i}", polarity="+", confidence=5)
+                                         for i in range(5)])
+    p2 = network._flip_prob(two, 0.5, "posterior")
+    p5 = network._flip_prob(five, 0.5, "posterior")
+    assert math.isclose(p2, 1 / 4)         # Beta(3,1): p_plus 0.75, stored '+'
+    assert p5 < p2
+
+
+def test_flip_prob_posterior_mode_uses_the_stored_sign_not_the_posterior_mode():
+    # recompute_consensus is an UNWEIGHTED majority (tie -> '+'); the posterior
+    # weights by confidence. Here the stored sign is '+' but the posterior says
+    # p_plus = 0.375, so the stored sign is wrong with probability 0.625 —
+    # NOT min(p, 1-p) = 0.375.
+    c = network.recompute_consensus(Connection("A", "B", ratings=[
+        Rating("r1", polarity="+", confidence=1), Rating("r2", polarity="-", confidence=5)]))
+    assert c.polarity == "+"
+    assert math.isclose(network._flip_prob(c, 0.5, "posterior"), 0.625)
+
+
+def test_flip_prob_posterior_mode_falls_back_when_unrated():
+    c = Connection("A", "B", confidence=2)
+    assert network._flip_prob(c, 0.5, "posterior") == network._perturb_prob(2, 0.5)
+
+
+def test_uncertainty_scores_default_mode_unchanged_and_posterior_mode_runs():
+    conns = [Connection("A", "B", confidence=3,
+                        ratings=[Rating("r1", polarity="+"), Rating("r2", polarity="-")]),
+             Connection("B", "A", confidence=5)]
+    isa = _isa(conns)
+    a = network.uncertainty_scores(isa, n_samples=50, seed=3)
+    b = network.uncertainty_scores(isa, n_samples=50, seed=3, flip_mode="confidence")
+    assert a == b
+    c = network.uncertainty_scores(isa, n_samples=50, seed=3, flip_mode="posterior")
+    assert set(c["leverage"]) == {"A", "B"} and c["n_samples"] == 50
+
+
+def test_uncertainty_scores_rejects_unknown_flip_mode():
+    with pytest.raises(ValueError):
+        network.uncertainty_scores(_isa([Connection("A", "B")]), n_samples=5, flip_mode="x")
