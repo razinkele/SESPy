@@ -159,13 +159,24 @@ def test_bayesian_consensus_confidence_mapping_endpoints():
     assert narrow.confidence == 5
 
 
-def test_bayesian_contested_requires_two_ratings_and_straddle():
+def test_bayesian_contested_requires_dissent_and_straddle():
     assert network.bayesian_contested(_conn()) is False
     assert network.bayesian_contested(_conn(Rating("r1", polarity="-"))) is False
     assert network.bayesian_contested(_conn(
         Rating("r1", polarity="+"), Rating("r2", polarity="-"))) is True
     assert network.bayesian_contested(_conn(*[
         Rating(f"r{i}", polarity="+", confidence=5) for i in range(10)])) is False
+    # Unanimous but few: Beta(3,1) / Beta(5,1) still straddle 0.5 (ci_low 0.292,
+    # 0.478), yet the raters AGREE -> never contested. Without the dissent
+    # precondition every freshly agreed edge would carry a warning.
+    for n in (2, 4):
+        assert network.bayesian_contested(_conn(*[
+            Rating(f"r{i}", polarity="+", confidence=5) for i in range(n)])) is False
+    assert network.bayesian_contested(_conn(Rating("r1"), Rating("r2"), Rating("r3"))) is False
+    # Dissent that the posterior CAN resolve (12 '+' vs 1 '-', ci_low 0.661) is not contested.
+    assert network.bayesian_contested(_conn(
+        *[Rating(f"r{i}", polarity="+", confidence=5) for i in range(12)],
+        Rating("x", polarity="-", confidence=5))) is False
 ```
 
 - [ ] **Step 2: Run to verify they fail**
@@ -247,10 +258,14 @@ def bayesian_consensus(connection):
 
 
 def bayesian_contested(connection, *, band: tuple[float, float] = (0.2, 0.8)) -> bool:
-    """True when >= 2 ratings and the 95% credible interval for P(+)
-    straddles 0.5. `band` is reserved for a future width criterion and is
-    not read today (kept so callers can pass it without a signature change)."""
-    if len(connection.ratings) < 2:
+    """True when >= 2 ratings, the raters are NOT unanimous in sign, AND the
+    95% credible interval for P(+) straddles 0.5 — a disagreement the
+    posterior cannot resolve. Unanimity short-circuits to False whatever n:
+    with the flat Beta(1,1) prior, 2–4 unanimous confidence-5 raters still
+    straddle 0.5, and that is 'sign not yet established', not a dispute.
+    `band` is reserved for a future width criterion and is not read today."""
+    ratings = connection.ratings
+    if len(ratings) < 2 or len({r.polarity for r in ratings}) < 2:
         return False
     pol = polarity_posterior(connection)
     return pol["ci_low"] < 0.5 < pol["ci_high"]
@@ -297,15 +312,26 @@ def test_flip_prob_confidence_mode_matches_perturb_prob():
     assert network._flip_prob(c, 0.5, "confidence") == network._perturb_prob(3, 0.5)
 
 
-def test_flip_prob_posterior_mode_is_min_p_and_falls_with_agreement():
+def test_flip_prob_posterior_mode_is_prob_stored_sign_wrong_and_falls_with_agreement():
     two = Connection("A", "B", ratings=[Rating("r1", polarity="+", confidence=5),
                                         Rating("r2", polarity="+", confidence=5)])
     five = Connection("A", "B", ratings=[Rating(f"r{i}", polarity="+", confidence=5)
                                          for i in range(5)])
     p2 = network._flip_prob(two, 0.5, "posterior")
     p5 = network._flip_prob(five, 0.5, "posterior")
-    assert math.isclose(p2, 1 / 4)         # Beta(3,1): p_plus 0.75
+    assert math.isclose(p2, 1 / 4)         # Beta(3,1): p_plus 0.75, stored '+'
     assert p5 < p2
+
+
+def test_flip_prob_posterior_mode_uses_the_stored_sign_not_the_posterior_mode():
+    # recompute_consensus is an UNWEIGHTED majority (tie -> '+'); the posterior
+    # weights by confidence. Here the stored sign is '+' but the posterior says
+    # p_plus = 0.375, so the stored sign is wrong with probability 0.625 —
+    # NOT min(p, 1-p) = 0.375.
+    c = network.recompute_consensus(Connection("A", "B", ratings=[
+        Rating("r1", polarity="+", confidence=1), Rating("r2", polarity="-", confidence=5)]))
+    assert c.polarity == "+"
+    assert math.isclose(network._flip_prob(c, 0.5, "posterior"), 0.625)
 
 
 def test_flip_prob_posterior_mode_falls_back_when_unrated():
@@ -344,12 +370,16 @@ def _flip_prob(c, base: float, flip_mode: str) -> float:
     """Per-draw sign-flip probability for one edge.
 
     'confidence': the D2D heuristic _perturb_prob(confidence, base).
-    'posterior': probability the stored sign is wrong under the rater
-    posterior, min(p_plus, 1 - p_plus); edges with no ratings fall back to
+    'posterior': probability the STORED sign is wrong under the rater
+    posterior — 1 - p_plus when the stored polarity is '+', p_plus when it
+    is '-'. The stored sign comes from recompute_consensus (unweighted
+    majority, tie -> '+') or straight from a file, so it can disagree with
+    the confidence-weighted posterior mode; such an edge then flips more
+    often than not, which is the point. Edges with no ratings fall back to
     the confidence heuristic so a partially rated model still behaves."""
     if flip_mode == "posterior" and c.ratings:
         p = polarity_posterior(c)["p_plus"]
-        return min(p, 1.0 - p)
+        return (1.0 - p) if c.polarity == "+" else p
     return _perturb_prob(c.confidence, base)
 ```
 
@@ -425,12 +455,16 @@ def test_displayed_pairs_bayesian_switch_uses_posterior_criterion():
     c1 = Connection("A", "B", ratings=[Rating("r1", polarity="+"), Rating("r2", polarity="-")])
     c2 = Connection("B", "C", ratings=[Rating(f"r{i}", polarity="+", confidence=5) for i in range(12)]
                     + [Rating("x", polarity="-", confidence=5)])
-    conns = [c1, c2]
+    # Two unanimous confident raters: Beta(3,1) straddles 0.5 but there is no
+    # dissent -> contested under NEITHER criterion.
+    c3 = Connection("C", "D", ratings=[Rating("r1", polarity="+", confidence=5),
+                                       Rating("r2", polarity="+", confidence=5)])
+    conns = [c1, c2, c3]
     legacy = network.displayed_pairs(conns, contested_only=True)
     bayes = network.displayed_pairs(conns, contested_only=True, bayesian=True)
     assert [i for i, _ in legacy] == [0, 1]
     assert [i for i, _ in bayes] == [0]
-    assert len(network.displayed_pairs(conns, contested_only=False, bayesian=True)) == 2
+    assert len(network.displayed_pairs(conns, contested_only=False, bayesian=True)) == 3
 ```
 
 Append to `tests/test_i18n.py`:
@@ -456,7 +490,8 @@ def displayed_pairs(connections, *, contested_only: bool, bayesian: bool = False
     is always the position in `connections`, so a contested row keeps its
     true full-list index after filtering (the lookup the UI persists by).
     `bayesian` switches the contested criterion from 'raters not unanimous'
-    to 'posterior credible interval straddles 0.5' (bayesian_contested)."""
+    to 'raters not unanimous AND the posterior credible interval straddles
+    0.5' (bayesian_contested) — a lone dissenter among many is discounted."""
     pairs = list(enumerate(connections))
     if not contested_only:
         return pairs
@@ -516,12 +551,11 @@ Replace the body of `connections_table` from `cols = [...]` to the `return`:
             cols += [p_col, s_col]
         rows = []
         for _true_idx, c in displayed_connections():
+            # Only the sign criterion changes under the toggle; the strength /
+            # confidence spreads (the '~' legend) stay truthful.
+            d = network.connection_disagreement(c)
             if bayes:
-                contested = network.bayesian_contested(c)
-                d = {"polarity_contested": contested, "strength_spread": 0.0,
-                     "confidence_spread": 0.0}
-            else:
-                d = network.connection_disagreement(c)
+                d = {**d, "polarity_contested": network.bayesian_contested(c)}
             row = {
                 "source": f"{c.source} · {by_id.get(c.source, '?')}",
                 "target": f"{c.target} · {by_id.get(c.target, '?')}",
@@ -707,7 +741,10 @@ git commit -m "feat(loops): posterior sign-flip option for Monte Carlo uncertain
 """Option B: path-set Bayesian belief network (spec 2026-09-08-sespy-bayesian-options)."""
 from __future__ import annotations
 
+import importlib.util
 import math
+import subprocess
+import sys
 from pathlib import Path
 
 import networkx as nx
@@ -761,6 +798,10 @@ def test_path_set_dag_cuts_the_weaker_edge_of_a_union_cycle():
     g = nx.DiGraph([(u, v) for u, v, _ in r["edges"]])
     assert nx.is_directed_acyclic_graph(g)
     assert ("b", "a") not in g.edges and ("a", "b") in g.edges
+    # causal_paths enumerates 4 simple paths; s->b->a->t crosses the cut edge
+    # and is no longer in the model, so only 3 are reported.
+    assert len(r["paths"]) == 3
+    assert all(("b", "a") not in zip(p["path"], p["path"][1:]) for p in r["paths"])
 
 
 @pytest.mark.parametrize("s,t", [("D001", "GB01"), ("D002", "GB02"), ("A001", "ES03")])
@@ -786,7 +827,8 @@ A causal loop diagram has feedback loops; a belief network must be a DAG.
 Rather than cut the whole diagram, this module answers one question at a
 time: for a chosen source and target it takes the simple causal paths
 between them (network.causal_paths), unions them into a small graph, makes
-that graph acyclic with the fewest, weakest, reported cuts, derives every
+that graph acyclic by greedily removing the weakest link on each cycle found
+(always reported, never silent), derives every
 conditional probability table by noisy-OR from the existing strength ×
 confidence × polarity scores, and runs exact inference with pgmpy.
 
@@ -837,12 +879,16 @@ def path_set_dag(isa: IsaData, source: str, target: str, *,
 
     Returns {"nodes": [ids in lexicographic topological order],
              "edges": [(u, v, Connection)], "cut_edges": [(u, v)],
-             "paths": causal_paths rows, "truncated": bool}; the empty shape
-    when there is no path. The union of simple paths is NOT always a DAG
-    (s→a→b→t and s→b→a→t contain a⇄b): while a cycle remains, the edge on it
-    with the lowest link_probability (ties: lexicographic (u, v)) is removed
-    and recorded in cut_edges — never silently. Parallel (source, target)
-    connections deduplicate last-wins, matching causal_paths. Pure."""
+             "paths": the causal_paths rows still intact after cuts,
+             "truncated": bool}; the empty shape when there is no path. The
+    union of simple paths is NOT always a DAG (s→a→b→t and s→b→a→t contain
+    a⇄b): while a cycle remains, the edge on it with the lowest
+    link_probability (ties: lexicographic (u, v)) is removed greedily and
+    recorded in cut_edges — never silently (greedy, not minimal: a shared
+    edge on two cycles may be spared in favour of two weaker ones). A node
+    whose in-edges were all cut becomes a parentless 0.5-prior root. Parallel
+    (source, target) connections deduplicate last-wins, matching
+    causal_paths. Pure."""
     cp = causal_paths(isa, source, target, max_length=max_length, max_paths=max_paths)
     if not cp["paths"]:
         return _empty_dag()
@@ -866,8 +912,12 @@ def path_set_dag(isa: IsaData, source: str, target: str, *,
         cut.append((u, v))
     nodes = list(nx.lexicographical_topological_sort(g))
     edges = [(u, v, conn_by[(u, v)]) for u, v in sorted(g.edges())]
+    # Only paths whose every hop survived the cuts are still IN the model;
+    # n_paths in the UI must count those, not the pre-cut enumeration.
+    paths = [r for r in cp["paths"]
+             if all(g.has_edge(a, b) for a, b in zip(r["path"], r["path"][1:]))]
     return {"nodes": nodes, "edges": edges, "cut_edges": cut,
-            "paths": cp["paths"], "truncated": cp["truncated"]}
+            "paths": paths, "truncated": cp["truncated"]}
 ```
 
 - [ ] **Step 4: Run to verify they pass**
@@ -914,7 +964,23 @@ def test_noisy_or_two_parents_plus_and_minus():
     assert math.isclose(bayes.noisy_or_p_high((1, 1), parents), 1 - 0.95 * 0.2)
 
 
-pgmpy = pytest.importorskip("pgmpy")
+# NOT a module-level pytest.importorskip: that raises Skipped at collection
+# and silently skips the WHOLE file (the pgmpy-free Task 5 tests included) on
+# every CI job, none of which installs the `bayes` extra. Mark only the five
+# tests that build a real model.
+needs_pgmpy = pytest.mark.skipif(importlib.util.find_spec("pgmpy") is None,
+                                 reason="optional bayes extra (pgmpy) not installed")
+
+
+def test_import_bayes_does_not_import_pgmpy():
+    # Global constraint: pgmpy only inside function bodies (pgmpy 1.1 pulls
+    # torch, ~40 s). Fresh interpreter, single-line -c (multi-line -c breaks on
+    # this Windows shell).
+    out = subprocess.run(
+        [sys.executable, "-c", "import sys, sespy.bayes; print('pgmpy' in sys.modules)"],
+        cwd=str(SAMPLE.parents[1]), capture_output=True, text=True, check=True,
+    )
+    assert out.stdout.strip() == "False"
 
 
 def _chain(sign_ab="+"):
@@ -922,6 +988,7 @@ def _chain(sign_ab="+"):
                  Connection("B", "C", polarity="+", strength="strong", confidence=5)])
 
 
+@needs_pgmpy
 def test_build_path_bbn_returns_valid_model_and_none_without_path():
     model, info = bayes.build_path_bbn(_chain(), "A", "C")
     assert model is not None and model.check_model()
@@ -930,6 +997,7 @@ def test_build_path_bbn_returns_valid_model_and_none_without_path():
     assert model2 is None and info2["nodes"] == []
 
 
+@needs_pgmpy
 def test_forward_query_raises_target_on_positive_chain():
     model, info = bayes.build_path_bbn(_chain(), "A", "C")
     r = bayes.query_path_bbn(model, info, {"A": 1})
@@ -942,6 +1010,7 @@ def test_forward_query_raises_target_on_positive_chain():
     assert [row["id"] for row in r["rows"]][0] == "A"       # largest |delta| first
 
 
+@needs_pgmpy
 def test_negative_edge_flips_the_delta_sign():
     model, info = bayes.build_path_bbn(_chain("-"), "A", "C")
     r = bayes.query_path_bbn(model, info, {"A": 1})
@@ -949,6 +1018,7 @@ def test_negative_edge_flips_the_delta_sign():
     assert by["C"]["delta"] < 0
 
 
+@needs_pgmpy
 def test_diagnostic_query_infers_source():
     model, info = bayes.build_path_bbn(_chain(), "A", "C")
     r = bayes.query_path_bbn(model, info, {"C": 1})
@@ -956,6 +1026,7 @@ def test_diagnostic_query_infers_source():
     assert by["A"]["p_high"] > 0.5 and by["C"]["p_high"] == 1.0
 
 
+@needs_pgmpy
 def test_query_is_deterministic_on_the_sample():
     isa = load_sample(SAMPLE)
     m1, i1 = bayes.build_path_bbn(isa, "D001", "GB01")
@@ -1005,7 +1076,8 @@ def build_path_bbn(isa: IsaData, source: str, target: str, *,
                    max_length: int = 8, max_paths: int = 100):
     """(pgmpy DiscreteBayesianNetwork, dag_info) over path_set_dag; (None,
     empty dag_info) when there is no path. Every node is binary (0 low,
-    1 high). Parentless nodes (the source) get P(high) = 0.5; every other
+    1 high). Parentless nodes (the source, and any node whose in-edges were
+    all cut) get P(high) = 0.5; every other
     CPT is noisy-OR over its parents *inside the path set*. Raises
     BayesUnavailable when pgmpy is missing."""
     try:
@@ -1077,7 +1149,7 @@ pip install ".[bayes]"   # + pgmpy for the Intervention panel's Bayesian inferen
 - [ ] **Step 5: Run to verify they pass**
 
 Run: `micromamba run -n shiny pytest tests/test_bayes.py tests/test_no_deprecations.py -q`
-Expected: PASS (pgmpy's own FutureWarning at import is not a ShinyDeprecationWarning and does not trip the guard).
+Expected: PASS (pgmpy's own FutureWarning at import is not a ShinyDeprecationWarning and does not trip the guard). Wall-clock: the first model test pays the pgmpy import, measured 35–65 s in this env because pgmpy 1.1 loads torch; do not kill the run. In an environment without pgmpy the five `@needs_pgmpy` tests skip and everything else in the file (DAG, noisy-OR, `BayesUnavailable`, lazy-import) must still pass — a wholly skipped file is a regression.
 
 - [ ] **Step 6: Commit**
 
@@ -1103,8 +1175,9 @@ git commit -m "feat(bayes): noisy-OR path-set BBN with exact inference; pgmpy as
 ```python
 def test_bbn_keys_present(translations):
     for key in ("bbn.title", "bbn.source", "bbn.target", "bbn.direction", "bbn.forward",
-                "bbn.diagnostic", "bbn.run", "bbn.hint", "bbn.no_path", "bbn.unavailable",
-                "bbn.summary", "bbn.truncated", "bbn.cut", "bbn.target_line", "bbn.about_text"):
+                "bbn.diagnostic", "bbn.run", "bbn.hint", "bbn.computing", "bbn.no_path",
+                "bbn.unavailable", "bbn.summary", "bbn.truncated", "bbn.cut",
+                "bbn.target_line", "bbn.about_text"):
         assert key in translations
 ```
 
@@ -1121,6 +1194,7 @@ Run: `micromamba run -n shiny pytest tests/test_i18n.py -q -k bbn` → FAIL.
     "bbn.diagnostic": {"en": "Diagnostic: target is high", "es": "Diagnóstica: el destino está alto", "fr": "Diagnostique : la cible est haute", "de": "Diagnostisch: Ziel ist hoch", "lt": "Diagnostinė: tikslas aukštas", "pt": "Diagnóstica: o destino está alto", "it": "Diagnostica: il bersaglio è alto", "no": "Diagnostisk: målet er høyt", "el": "Διαγνωστική: ο στόχος είναι υψηλός"},
     "bbn.run": {"en": "Run inference", "es": "Ejecutar inferencia", "fr": "Lancer l'inférence", "de": "Inferenz ausführen", "lt": "Vykdyti išvedimą", "pt": "Executar inferência", "it": "Esegui inferenza", "no": "Kjør inferens", "el": "Εκτέλεση συμπερασματολογίας"},
     "bbn.hint": {"en": "not computed for the current model — run to compute", "es": "no calculado para el modelo actual: ejecute para calcular", "fr": "non calculé pour le modèle actuel — lancez le calcul", "de": "für das aktuelle Modell nicht berechnet — zum Berechnen ausführen", "lt": "dabartiniam modeliui neapskaičiuota — paleiskite skaičiavimą", "pt": "não calculado para o modelo atual — execute para calcular", "it": "non calcolato per il modello attuale — eseguire per calcolare", "no": "ikke beregnet for gjeldende modell — kjør for å beregne", "el": "δεν έχει υπολογιστεί για το τρέχον μοντέλο — εκτελέστε για υπολογισμό"},
+    "bbn.computing": {"en": "computing Bayesian inference… (the first run loads the inference engine and can take a minute)", "es": "calculando la inferencia bayesiana… (la primera ejecución carga el motor y puede tardar un minuto)", "fr": "calcul de l'inférence bayésienne… (la première exécution charge le moteur et peut prendre une minute)", "de": "Bayessche Inferenz wird berechnet… (der erste Lauf lädt die Engine und kann eine Minute dauern)", "lt": "skaičiuojamos Bajeso išvados… (pirmas paleidimas įkelia variklį ir gali užtrukti minutę)", "pt": "a calcular a inferência bayesiana… (a primeira execução carrega o motor e pode demorar um minuto)", "it": "calcolo dell'inferenza bayesiana… (la prima esecuzione carica il motore e può richiedere un minuto)", "no": "beregner bayesiansk inferens… (første kjøring laster motoren og kan ta et minutt)", "el": "υπολογισμός μπεϋζιανής συμπερασματολογίας… (η πρώτη εκτέλεση φορτώνει τη μηχανή και μπορεί να πάρει ένα λεπτό)"},
     "bbn.no_path": {"en": "no causal path between the chosen elements", "es": "no hay ruta causal entre los elementos elegidos", "fr": "aucun chemin causal entre les éléments choisis", "de": "kein Kausalpfad zwischen den gewählten Elementen", "lt": "tarp pasirinktų elementų nėra priežastinio kelio", "pt": "não há caminho causal entre os elementos escolhidos", "it": "nessun percorso causale tra gli elementi scelti", "no": "ingen årsakssti mellom de valgte elementene", "el": "δεν υπάρχει αιτιώδης διαδρομή μεταξύ των επιλεγμένων στοιχείων"},
     "bbn.unavailable": {"en": "Bayesian inference needs the optional pgmpy package: pip install \"sespy[bayes]\"", "es": "La inferencia bayesiana necesita el paquete opcional pgmpy: pip install \"sespy[bayes]\"", "fr": "L'inférence bayésienne nécessite le paquet optionnel pgmpy : pip install \"sespy[bayes]\"", "de": "Bayessche Inferenz benötigt das optionale Paket pgmpy: pip install \"sespy[bayes]\"", "lt": "Bajeso išvadoms reikia pasirenkamo paketo pgmpy: pip install \"sespy[bayes]\"", "pt": "A inferência bayesiana precisa do pacote opcional pgmpy: pip install \"sespy[bayes]\"", "it": "L'inferenza bayesiana richiede il pacchetto opzionale pgmpy: pip install \"sespy[bayes]\"", "no": "Bayesiansk inferens trenger den valgfrie pakken pgmpy: pip install \"sespy[bayes]\"", "el": "Η μπεϋζιανή συμπερασματολογία χρειάζεται το προαιρετικό πακέτο pgmpy: pip install \"sespy[bayes]\""},
     "bbn.summary": {"en": "{n} causal paths from {source} to {target}{trunc}", "es": "{n} rutas causales de {source} a {target}{trunc}", "fr": "{n} chemins causaux de {source} vers {target}{trunc}", "de": "{n} Kausalpfade von {source} nach {target}{trunc}", "lt": "{n} priežastiniai keliai iš {source} į {target}{trunc}", "pt": "{n} caminhos causais de {source} para {target}{trunc}", "it": "{n} percorsi causali da {source} a {target}{trunc}", "no": "{n} årsaksstier fra {source} til {target}{trunc}", "el": "{n} αιτιώδεις διαδρομές από {source} προς {target}{trunc}"},
@@ -1131,6 +1205,8 @@ Run: `micromamba run -n shiny pytest tests/test_i18n.py -q -k bbn` → FAIL.
 ```
 
 Validate the JSON as in Task 3 Step 4; run the i18n test → PASS.
+
+**Spec deviation (intentional):** the spec's `help.bbn` key is NOT created. The v1.9 Help offcanvas has no per-feature slot — `tb_help_section` in `sespy/modules/topbar_actions.py` renders `manual_section("Intervention")`, i.e. section 19 of `docs/MANUAL.md`, which Task 8 Step 2 extends with the BBN controls, outputs and caveats. A `help.bbn` key would be an unwired translation entry that no test can detect. The spec is amended in Task 8 Step 3.
 
 - [ ] **Step 3: UI** — in `analysis_intervention_ui`, after the `run_diffusion` button (inside the sidebar) add:
 
@@ -1159,10 +1235,38 @@ and in the main column after `ui.output_plot("diffusion_chart", ...)`:
                 ui.output_data_frame("bbn_table"),
 ```
 
-- [ ] **Step 4: Server** — add `from .. import bayes` to the imports, then append after `diffusion_chart`:
+- [ ] **Step 4: Server** — add `import asyncio`, `import logging`, `from shiny.types import SilentException` and `from .. import bayes` to the imports, and near the top of the module (after the imports):
 
 ```python
-    _bbn_result = reactive.value(None)     # None | {"error": key} | query_path_bbn dict
+#: Sentinel for "BBN task in flight". pgmpy 1.1 imports torch when installed:
+#: measured 35–65 s on the FIRST import per server process. The import must
+#: therefore run off the event loop (extended task + thread), never at module
+#: level (tests/test_no_deprecations.py imports every module cold).
+_COMPUTING = object()
+```
+
+The pattern below mirrors `sespy/modules/analysis_loops.py` (`_unc_task` / `_unc_trigger` / `_unc_observe`): a plain generation cell drops results that arrive after the inputs changed. Append after `diffusion_chart`:
+
+```python
+    _bbn_result = reactive.value(None)     # None | _COMPUTING | {"error": key} | query dict
+    _bbn_gen = [0]                          # plain cell, NOT reactive (avoids a self-loop)
+
+    def _bbn_work(isa, src, tgt, direction):
+        """Runs in a worker thread: the lazy pgmpy import lives here."""
+        try:
+            model, info = bayes.build_path_bbn(isa, src, tgt)
+        except bayes.BayesUnavailable:
+            return {"error": "bbn.unavailable"}
+        if model is None:
+            return {"error": "bbn.no_path"}
+        evidence = {src: 1} if direction == "forward" else {tgt: 1}
+        r = bayes.query_path_bbn(model, info, evidence)
+        r["source"], r["target"] = src, tgt
+        return r
+
+    @reactive.extended_task
+    async def _bbn_task(isa, src, tgt, direction, gen):
+        return (gen, await asyncio.to_thread(_bbn_work, isa, src, tgt, direction))
 
     @output
     @render.ui
@@ -1199,6 +1303,7 @@ and in the main column after `ui.output_plot("diffusion_chart", ...)`:
                 read()
             except Exception:
                 pass
+        _bbn_gen[0] += 1          # an in-flight result for the old inputs is now stale
         _bbn_result.set(None)
 
     @reactive.effect
@@ -1210,18 +1315,22 @@ and in the main column after `ui.output_plot("diffusion_chart", ...)`:
             return
         if not src or not tgt:
             return
-        isa = project_data.get().isa_data
+        _bbn_gen[0] += 1
+        _bbn_result.set(_COMPUTING)
+        _bbn_task(project_data.get().isa_data, src, tgt, input.bbn_direction(), _bbn_gen[0])
+
+    @reactive.effect
+    def _bbn_observe():
         try:
-            model, info = bayes.build_path_bbn(isa, src, tgt)
-        except bayes.BayesUnavailable:
-            _bbn_result.set({"error": "bbn.unavailable"})
+            gen, r = _bbn_task.result()
+        except SilentException:
+            raise
+        except Exception:                       # noqa: BLE001 — real task error: clear, don't crash
+            logging.getLogger(__name__).exception("intervention bbn task failed")
+            _bbn_result.set(None)
             return
-        if model is None:
-            _bbn_result.set({"error": "bbn.no_path"})
+        if gen != _bbn_gen[0]:
             return
-        evidence = {src: 1} if input.bbn_direction() == "forward" else {tgt: 1}
-        r = bayes.query_path_bbn(model, info, evidence)
-        r["source"], r["target"] = src, tgt
         _bbn_result.set(r)
 
     @output
@@ -1230,6 +1339,8 @@ and in the main column after `ui.output_plot("diffusion_chart", ...)`:
         r = _bbn_result.get()
         if r is None:
             return ui.p(t("bbn.hint"), class_="text-muted", style="font-size: 0.85rem;")
+        if r is _COMPUTING:       # must precede `"error" in r`: `in` on object() raises TypeError
+            return ui.p(t("bbn.computing"), class_="text-muted", style="font-size: 0.85rem;")
         if "error" in r:
             return ui.p(t(r["error"]), class_="text-muted")
         by_id = {el.id: el.label for el in project_data.get().isa_data.elements}
@@ -1254,7 +1365,7 @@ and in the main column after `ui.output_plot("diffusion_chart", ...)`:
 
         r = _bbn_result.get()
         cols = ["id", "label", "type", "baseline", "posterior", "delta"]
-        if not r or "error" in r:
+        if not isinstance(r, dict) or "error" in r:     # None, _COMPUTING, or an error
             return pd.DataFrame(columns=cols)
         by_id = {el.id: el for el in project_data.get().isa_data.elements}
         return pd.DataFrame([{
@@ -1277,12 +1388,17 @@ and in the main column after `ui.output_plot("diffusion_chart", ...)`:
         await page.select_option("#intervention-bbn_source", "D001")
         await page.select_option("#intervention-bbn_target", "GB01")
         await page.click("#intervention-run_bbn")
-        bbn_text = ""
-        for _ in range(30):
-            await page.wait_for_timeout(500)
-            bbn_text = (await page.inner_text("#intervention-bbn_summary")).strip()
-            if "causal paths" in bbn_text:
-                break
+        # The task runs off the flush, so the "computing" line must appear
+        # promptly (proves the event loop was not blocked by the import)...
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('computing')", timeout=10000)
+        # ...and the result may take up to ~65 s on a fresh server: the first
+        # pgmpy import loads torch. 120 s stays under run_e2e's SCRIPT_TIMEOUT.
+        await page.wait_for_function(
+            "() => { const s = document.getElementById('intervention-bbn_summary')?.innerText || '';"
+            " return s.includes('causal paths') || s.includes('pgmpy'); }", timeout=120000)
+        bbn_text = (await page.inner_text("#intervention-bbn_summary")).strip()
         assert "2 causal paths from D001 to GB01" in bbn_text, f"unexpected summary: {bbn_text!r}"
         assert "GB01" in bbn_text and "(-" in bbn_text, \
             f"expected a negative delta on GB01: {bbn_text!r}"
@@ -1303,7 +1419,7 @@ and in the main column after `ui.output_plot("diffusion_chart", ...)`:
 (Path set D001→GB01 on the sample: D001, A001, P001, MPF1, ES01, ES03, GB01 = 7 nodes.)
 
 - [ ] **Step 6: Run the e2e alone** as in Task 3 Step 8 with `tests/test_intervention_e2e.py`.
-Expected: prints `intervention bbn: OK`. Kill the server afterwards.
+Expected: prints `intervention bbn: OK` on the FIRST attempt against a fresh server (the script now takes up to ~90 s cold). The "rerun once for the cold-server warm-up flake" advice does NOT apply to the BBN assertions: a rerun would pass only because pgmpy is already cached in the server process, which would mask a real freeze. Kill the server afterwards.
 
 - [ ] **Step 7: Commit**
 
@@ -1317,7 +1433,7 @@ git commit -m "feat(intervention): Bayesian inference block over the source→ta
 ### Task 8: Manual, changelog, version, full gate
 
 **Files:**
-- Modify: `docs/MANUAL.md` (Contents list ~lines 11–33; section 10 ~line 158; section 19 ~line 294; new Part III section before `## 43. Foundations`, with 43→44 and 44→45 renumbered), `CHANGELOG.md`, `sespy/__init__.py`, `pyproject.toml` (`version`)
+- Modify: `docs/MANUAL.md` (Contents list ~lines 11–33; section 10 ~line 158; section 12 ~line 184; section 19 ~line 294; new Part III section inserted after the section 42 paragraph and BEFORE the `---` that precedes `# Part IV — References`, with 43→44 and 44→45 renumbered), `docs/screenshots/*.png` (regenerated), `CHANGELOG.md`, `sespy/__init__.py`, `pyproject.toml` (`version`)
 
 - [ ] **Step 1: Check nothing cross-references the two renumbered sections**
 
@@ -1332,16 +1448,18 @@ Section 19, `**Purpose.**`: change to `Three what-if tools: remove elements and 
 
 Section 12 (Loop Analysis) `**Controls.**`: append `"Flip signs by rater posterior" makes the Monte Carlo sign flips follow the rater posterior (section 43) instead of the confidence heuristic.`
 
-New Part III section inserted before `## 43. Foundations` (then renumber Foundations to 44 and Literature to 45, and update the Contents list accordingly):
+Section 19 note: these section 19 additions ARE the Help offcanvas content for the BBN block (`manual_section` renders the active panel's manual section by nav label); no `help.bbn` key exists, see Task 7.
+
+New Part III section. Placement matters: `## 43. Foundations` sits INSIDE Part IV (after the `# Part IV — References` header and its preamble), so do NOT anchor on it. Insert the block immediately after the section 42 paragraph (`## 42. Stakeholder power × interest`, ~line 444–446) and before the `---` that precedes `# Part IV — References` (~line 448). Then renumber `## 43. Foundations` → `## 44. Foundations` and `## 44. Literature that shaped v1.0 to v1.7` → `## 45. Literature that shaped v1.0 to v1.7`. In the Contents list (~lines 22–26): append ` · 43. Bayesian options: rater posteriors and the path-set belief network` to the Part III line and change the Part IV line to `44. Foundations · 45. Literature that shaped v1.0 to v1.7` (Contents entries use the full heading text, matching the existing convention).
 
 ```markdown
 ## 43. Bayesian options: rater posteriors and the path-set belief network
 
 Both are opt-in and neither writes to the stored consensus.
 
-**Rater posteriors.** Each rating of a connection is treated as a partial observation weighted by the rater's confidence (confidence 5 counts as one observation, confidence 1 as a fifth). The sign gets a Beta(1,1) prior updated by the weighted counts of "+" and "−" ratings; the panel shows the posterior probability of a positive sign with its 95% credible interval. The strength gets a Dirichlet(1,1,1) prior over weak, medium and strong; the panel shows the most probable strength and its posterior mean. A connection is contested under this view when the credible interval straddles 0.5, which needs at least two ratings. With the flat prior a unanimous edge never reaches certainty: three confidence-5 raters still leave a one-in-five chance the sign is wrong, and that residual shrinks as raters accumulate. On the Loop Analysis panel the Monte Carlo option can flip signs with exactly that residual instead of the confidence heuristic of section 37; edges nobody has rated keep the heuristic.
+**Rater posteriors.** Each rating of a connection is treated as a partial observation weighted by the rater's confidence (confidence 5 counts as one observation, confidence 1 as a fifth). The sign gets a Beta(1,1) prior updated by the weighted counts of "+" and "−" ratings; the panel shows the posterior probability of a positive sign with its 95% credible interval. The strength gets a Dirichlet(1,1,1) prior over weak, medium and strong; the panel shows the most probable strength and its posterior mean. A connection is contested under this view when raters disagree on the sign and the credible interval still straddles 0.5; a unanimous edge is never marked contested, however few its raters, and a lone dissenter among many is discounted. With the flat prior a unanimous edge never reaches certainty: three confidence-5 raters still leave a one-in-five chance the sign is wrong, and that residual shrinks as raters accumulate. On the Loop Analysis panel the Monte Carlo option can flip each edge with the posterior probability that its stored sign is wrong, instead of the confidence heuristic of section 37; an edge whose stored majority sign disagrees with the confidence-weighted posterior therefore flips more often than not, and edges nobody has rated keep the heuristic.
 
-**Path-set belief network.** A belief network must be acyclic, and a causal loop diagram is not. SESPy therefore builds one per question: for a chosen source and target it takes the simple causal paths between them (section 35), unions them, and if the union still contains a cycle removes the weakest link on it and says so. Every element on the paths becomes a binary node (low, high). Its probability of being high given its parents follows a noisy-OR: each parent that is "active" (high through a positive link, or low through a negative one) independently pushes the child high with a link probability derived from strength and confidence (weak 0.30, medium 0.55, strong 0.80 at confidence 5, halved at confidence 1), and a leak of 0.05 stands for everything outside the paths. Inference is exact (variable elimination), so the answer is reproducible. A forward query fixes the source high and reads the change everywhere downstream; a diagnostic query fixes the target high and asks how likely that makes the source. Read the change against the baseline: the baseline is the marginal with nothing observed, so a small change on a strongly connected element is still a real signal.
+**Path-set belief network.** A belief network must be acyclic, and a causal loop diagram is not. SESPy therefore builds one per question: for a chosen source and target it takes the simple causal paths between them (section 35), unions them, and if the union still contains a cycle removes the weakest link on it, says so, and counts only the paths left intact. Inference is exact but the engine is loaded on first use, so the first run in a session can take up to a minute. Every element on the paths becomes a binary node (low, high). Its probability of being high given its parents follows a noisy-OR: each parent that is "active" (high through a positive link, or low through a negative one) independently pushes the child high with a link probability derived from strength and confidence (weak 0.30, medium 0.55, strong 0.80 at confidence 5, halved at confidence 1), and a leak of 0.05 stands for everything outside the paths. Inference is exact (variable elimination), so the answer is reproducible. A forward query fixes the source high and reads the change everywhere downstream; a diagnostic query fixes the target high and asks how likely that makes the source. Read the change against the baseline: the baseline is the marginal with nothing observed, so a small change on a strongly connected element is still a real signal.
 ```
 
 Bump the version line at the top: `**Version 1.10.0 · September 2026**`.
@@ -1366,12 +1484,19 @@ Bump the version line at the top: `**Version 1.10.0 · September 2026**`.
   over the acyclic causal paths between two chosen elements, exact
   inference via pgmpy (new optional extra `sespy[bayes]`), forward and
   diagnostic queries, cut links reported. Library: `sespy/bayes.py`.
-- Manual: sections 10, 12, 19 updated; new section 43 (Bayesian options).
+- Manual: sections 10, 12, 19 updated; new section 43 (Bayesian options);
+  screenshots regenerated.
 - Deployment note: the laguna env needs `micromamba install -n shiny pgmpy`
-  once, verified as the `shiny` user with `python3 -s`, before this release.
+  once (run as the env owner), verified as the `shiny` user with
+  `python3 -s`, before this release. conda-forge pgmpy does not pull
+  pytorch; if pytorch is present in the env the first inference per worker
+  takes 35–65 s in a background thread (~350 MB RSS), otherwise a few
+  seconds.
 ```
 
 `sespy/__init__.py`: `__version__ = "1.10.0"`; `pyproject.toml`: `version = "1.10.0"`.
+
+The spec was already amended to match this plan on 2026-09-08 after the workflow review (contested criterion, stored-sign flip probability, intact-path count, extended task, no `help.bbn`); no spec edit is needed in this task.
 
 - [ ] **Step 4: Unit gate**
 
@@ -1381,12 +1506,21 @@ Expected: all PASS, including `test_manual_version_line_matches_package`, `test_
 - [ ] **Step 5: Full e2e gate**
 
 Kill any process on port 8000. Run detached (PowerShell): `Start-Process -NoNewWindow -RedirectStandardOutput e2e.log -RedirectStandardError e2e.err micromamba -ArgumentList 'run','-n','shiny','python','tests/run_e2e.py'` and Monitor `e2e.log` until the summary line. Nothing else heavy may run meanwhile.
-Expected: 32/32 runs pass. If a script fails, rerun it alone once (cold-server warm-up flake) before treating it as a regression.
+Expected: `32/32 e2e scripts passed` (30 discovered scripts + wizard no-key + wizard fake-key). If a script fails, rerun it alone once (cold-server warm-up flake) before treating it as a regression — EXCEPT a failure in the intervention script's BBN assertions, which is a real regression (the retry would pass on the warm server and hide it; see Task 7 Step 6). The intervention script now takes up to ~90 s cold, within `SCRIPT_TIMEOUT = 300`.
+
+- [ ] **Step 5b: Regenerate the manual screenshots**
+
+The three panels the manual rewrites (Rate Connections, Loop Analysis, Intervention) all gained sidebar controls, so the Sep 5 captures would contradict the new **Controls** text; `deploy.sh` ships them to laguna. Kill any process on port 8000, start a server as in Task 3 Step 8, then run:
+
+`micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000`
+
+(~2.5 min, rewrites all 24 PNGs). Kill the server afterwards.
+Expected: exit 0, no FAIL lines. Open `docs/screenshots/rate.png` and `loops.png` and confirm the "Bayesian consensus (posteriors)" and "Flip signs by rater posterior" checkboxes are visible. In `intervention.png` the BBN block is at the bottom of the sidebar and may fall below the 900 px fold; if so, say that in the commit body — a dedicated capture is a follow-up, not part of this task.
 
 - [ ] **Step 6: Commit**
 
 ```
-git add docs/MANUAL.md CHANGELOG.md sespy/__init__.py pyproject.toml
+git add docs/MANUAL.md docs/screenshots/*.png CHANGELOG.md sespy/__init__.py pyproject.toml
 git commit -m "chore(release): v1.10.0 — Bayesian consensus + path-set BBN"
 ```
 
