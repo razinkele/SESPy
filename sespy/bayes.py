@@ -16,8 +16,6 @@ importing this module never requires it.
 """
 from __future__ import annotations
 
-import itertools
-
 import networkx as nx
 
 from .data_structure import IsaData
