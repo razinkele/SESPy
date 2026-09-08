@@ -193,7 +193,8 @@ New i18n keys: `bbn.title`, `bbn.source`, `bbn.target`, `bbn.direction`,
 
 ### Packaging
 
-`pyproject.toml`: `bayes = ["pgmpy>=0.1.26"]` in optional-dependencies;
+`pyproject.toml`: `bayes = ["pgmpy>=1.0"]` in optional-dependencies
+(`DiscreteBayesianNetwork` was introduced in 1.0; the `shiny` env has 1.1.0);
 README "Install it" gets one line. `deploy.sh` is unchanged: the laguna env
 must gain pgmpy via `micromamba install -n shiny pgmpy` as a one-off before
 the release that ships this (record in the release notes; verify with
