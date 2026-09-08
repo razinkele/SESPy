@@ -1399,6 +1399,90 @@ def remove_rating(connection, rater_id: str):
     return recompute_consensus(replace(connection, ratings=kept))
 
 
+_STRENGTH_ORDER: tuple[str, ...] = ("weak", "medium", "strong")
+
+
+def _rating_weight(rating) -> float:
+    """Pseudo-count contributed by one rating: confidence/5, confidence
+    clamped to [1, 5]. A confidence-5 rater is one full observation; a
+    confidence-1 rater is a fifth of one."""
+    return max(1, min(5, int(rating.confidence))) / 5.0
+
+
+def polarity_posterior(connection, *, prior: tuple[float, float] = (1.0, 1.0)) -> dict:
+    """Beta posterior for P(polarity == '+') over `connection.ratings`.
+
+    alpha = prior[0] + Σ w_i·[r_i == '+'], beta = prior[1] + Σ w_i·[r_i == '-'],
+    w_i = _rating_weight. Returns p_plus (posterior mean), a 95% equal-tailed
+    credible interval, the parameters and the rating count. No ratings ->
+    the prior. Pure; never reads the stored consensus scalars."""
+    from scipy.stats import beta as _beta
+
+    a, b = float(prior[0]), float(prior[1])
+    for r in connection.ratings:
+        w = _rating_weight(r)
+        if r.polarity == "+":
+            a += w
+        else:
+            b += w
+    return {
+        "p_plus": a / (a + b),
+        "ci_low": float(_beta.ppf(0.025, a, b)),
+        "ci_high": float(_beta.ppf(0.975, a, b)),
+        "alpha": a, "beta": b, "n": len(connection.ratings),
+    }
+
+
+def strength_posterior(connection, *,
+                       prior: tuple[float, float, float] = (1.0, 1.0, 1.0)) -> dict:
+    """Dirichlet posterior over (weak, medium, strong).
+
+    alpha_k = prior_k + Σ w_i·[strength_i == k]. `map` is the label with the
+    largest posterior mean; ties go to the lowest rank (weak < medium <
+    strong) so the result is deterministic. Pure."""
+    alpha = [float(x) for x in prior]
+    for r in connection.ratings:
+        k = _STRENGTH_RANK.get(r.strength, 2) - 1
+        alpha[k] += _rating_weight(r)
+    total = sum(alpha)
+    mean = {lab: alpha[i] / total for i, lab in enumerate(_STRENGTH_ORDER)}
+    best = max(range(3), key=lambda i: (alpha[i], -i))
+    return {"mean": mean, "map": _STRENGTH_ORDER[best],
+            "alpha": tuple(alpha), "n": len(connection.ratings)}
+
+
+def bayesian_consensus(connection):
+    """Copy of `connection` whose polarity/strength/confidence are posterior
+    values: polarity '+' iff p_plus >= 0.5; strength = Dirichlet MAP;
+    confidence = round(1 + 4·(1 - width)) clamped to [1, 5], width being the
+    polarity credible-interval width (narrow -> confident). delay is kept.
+    No ratings -> equivalent copy. NEVER the writer of stored scalars —
+    recompute_consensus keeps that role; this is display/analysis-only."""
+    if not connection.ratings:
+        return replace(connection)
+    pol = polarity_posterior(connection)
+    width = pol["ci_high"] - pol["ci_low"]
+    confidence = max(1, min(5, round(1 + 4 * (1 - width))))
+    return replace(connection,
+                   polarity="+" if pol["p_plus"] >= 0.5 else "-",
+                   strength=strength_posterior(connection)["map"],
+                   confidence=confidence)
+
+
+def bayesian_contested(connection, *, band: tuple[float, float] = (0.2, 0.8)) -> bool:
+    """True when >= 2 ratings, the raters are NOT unanimous in sign, AND the
+    95% credible interval for P(+) straddles 0.5 — a disagreement the
+    posterior cannot resolve. Unanimity short-circuits to False whatever n:
+    with the flat Beta(1,1) prior, 2–4 unanimous confidence-5 raters still
+    straddle 0.5, and that is 'sign not yet established', not a dispute.
+    `band` is reserved for a future width criterion and is not read today."""
+    ratings = connection.ratings
+    if len(ratings) < 2 or len({r.polarity for r in ratings}) < 2:
+        return False
+    pol = polarity_posterior(connection)
+    return pol["ci_low"] < 0.5 < pol["ci_high"]
+
+
 def _perturb_prob(confidence: int, base: float) -> float:
     """Per-draw drop/flip probability for one edge: base*(5-conf)/4.
 
