@@ -104,6 +104,40 @@ async def main():
         assert "13 of 17 elements reached by 1000 tokens in 10 steps" in diff_text, \
             f"expected P002 summary, got: {diff_text!r}"
         print(f"intervention simulation: OK ({diff_text[:90]!r})")
+
+        # --- Option B: path-set BBN, forward query D001 -> GB01 (2 paths, one
+        # '-' hop each, so the target's P(high) must FALL) ---
+        await page.wait_for_selector("#intervention-bbn_summary", timeout=15000)
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary"))
+        await page.select_option("#intervention-bbn_source", "D001")
+        await page.select_option("#intervention-bbn_target", "GB01")
+        await page.click("#intervention-run_bbn")
+        # The task runs off the flush, so the "computing" line must appear
+        # promptly (proves the event loop was not blocked by the import)...
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('computing')", timeout=10000)
+        # ...and the result may take up to ~65 s on a fresh server: the first
+        # pgmpy import loads torch. 120 s stays under run_e2e's SCRIPT_TIMEOUT.
+        await page.wait_for_function(
+            "() => { const s = document.getElementById('intervention-bbn_summary')?.innerText || '';"
+            " return s.includes('causal paths') || s.includes('pgmpy'); }", timeout=120000)
+        bbn_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "2 causal paths from D001 to GB01" in bbn_text, f"unexpected summary: {bbn_text!r}"
+        assert "GB01" in bbn_text and "(-" in bbn_text, \
+            f"expected a negative delta on GB01: {bbn_text!r}"
+        n_rows = await page.evaluate(
+            "() => document.querySelectorAll('#intervention-bbn_table table tbody tr').length")
+        assert n_rows == 7, f"expected 7 path-set nodes in the table, got {n_rows}"
+        # Changing the direction invalidates the result.
+        await page.click("#intervention-bbn_direction input[value='diagnostic']")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived a direction change"
+        print(f"intervention bbn: OK ({bbn_text[:80]!r})")
         print("\nintervention e2e assertions pass")
         await browser.close()
 

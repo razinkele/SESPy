@@ -220,3 +220,11 @@ def test_bayesian_keys_present(translations):
     for key in ("rate.bayesian", "rate.p_plus", "rate.strength_post",
                 "rate.bayesian_legend", "uncertainty.flip_posterior"):
         assert key in translations
+
+
+def test_bbn_keys_present(translations):
+    for key in ("bbn.title", "bbn.source", "bbn.target", "bbn.direction", "bbn.forward",
+                "bbn.diagnostic", "bbn.run", "bbn.hint", "bbn.computing", "bbn.no_path",
+                "bbn.unavailable", "bbn.summary", "bbn.truncated", "bbn.cut",
+                "bbn.target_line", "bbn.about_text"):
+        assert key in translations
