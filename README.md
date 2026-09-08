@@ -401,6 +401,7 @@ from source or the wheel:
 ```bash
 pip install .            # core dependencies
 pip install ".[pdf]"     # + WeasyPrint for PDF export (needs native cairo/pango)
+pip install ".[bayes]"   # + pgmpy for the Intervention panel's Bayesian inference
 ```
 
 ⚠️ A plain `pip install` pulls upstream pyvis from PyPI (0.3.x, no `.shiny`), so

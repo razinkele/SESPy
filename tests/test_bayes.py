@@ -70,3 +70,103 @@ def test_path_set_dag_sample_is_acyclic(s, t):
     assert r["nodes"], "expected a path on the sample"
     assert nx.is_directed_acyclic_graph(nx.DiGraph([(u, v) for u, v, _ in r["edges"]]))
     assert r["nodes"][0] == s and r["nodes"][-1] == t
+
+
+def test_noisy_or_two_parents_plus_and_minus():
+    plus = Connection("p", "c", polarity="+", strength="strong", confidence=5)   # q 0.8
+    minus = Connection("m", "c", polarity="-", strength="weak", confidence=5)    # q 0.3
+    parents = [("p", plus), ("m", minus)]
+    # p low, m low: only the '-' parent is active (low activates a '-' edge)
+    assert math.isclose(bayes.noisy_or_p_high((0, 0), parents), 1 - 0.95 * 0.7)
+    # p low, m high: nothing active -> leak
+    assert math.isclose(bayes.noisy_or_p_high((0, 1), parents), bayes.LEAK)
+    # p high, m low: both active
+    assert math.isclose(bayes.noisy_or_p_high((1, 0), parents), 1 - 0.95 * 0.2 * 0.7)
+    # p high, m high: only '+' active
+    assert math.isclose(bayes.noisy_or_p_high((1, 1), parents), 1 - 0.95 * 0.2)
+
+
+# NOT a module-level pytest.importorskip: that raises Skipped at collection
+# and silently skips the WHOLE file (the pgmpy-free Task 5 tests included) on
+# every CI job, none of which installs the `bayes` extra. Mark only the five
+# tests that build a real model.
+needs_pgmpy = pytest.mark.skipif(importlib.util.find_spec("pgmpy") is None,
+                                 reason="optional bayes extra (pgmpy) not installed")
+
+
+def test_import_bayes_does_not_import_pgmpy():
+    # Global constraint: pgmpy only inside function bodies (pgmpy 1.1 pulls
+    # torch, ~40 s). Fresh interpreter, single-line -c (multi-line -c breaks on
+    # this Windows shell).
+    out = subprocess.run(
+        [sys.executable, "-c", "import sys, sespy.bayes; print('pgmpy' in sys.modules)"],
+        cwd=str(SAMPLE.parents[1]), capture_output=True, text=True, check=True,
+    )
+    assert out.stdout.strip() == "False"
+
+
+def _chain(sign_ab="+"):
+    return _isa([Connection("A", "B", polarity=sign_ab, strength="strong", confidence=5),
+                 Connection("B", "C", polarity="+", strength="strong", confidence=5)])
+
+
+@needs_pgmpy
+def test_build_path_bbn_returns_valid_model_and_none_without_path():
+    model, info = bayes.build_path_bbn(_chain(), "A", "C")
+    assert model is not None and model.check_model()
+    assert info["nodes"] == ["A", "B", "C"]
+    model2, info2 = bayes.build_path_bbn(_chain(), "C", "A")
+    assert model2 is None and info2["nodes"] == []
+
+
+@needs_pgmpy
+def test_forward_query_raises_target_on_positive_chain():
+    model, info = bayes.build_path_bbn(_chain(), "A", "C")
+    r = bayes.query_path_bbn(model, info, {"A": 1})
+    by = {row["id"]: row for row in r["rows"]}
+    assert by["A"]["p_high"] == 1.0
+    assert math.isclose(by["B"]["p_high"], 1 - 0.95 * 0.2)
+    assert math.isclose(by["B"]["baseline"], 0.5 * (1 - 0.95 * 0.2) + 0.5 * bayes.LEAK)
+    assert by["C"]["delta"] > 0
+    assert r["n_paths"] == 1 and r["cut_edges"] == [] and r["truncated"] is False
+    assert [row["id"] for row in r["rows"]][0] == "A"       # largest |delta| first
+
+
+@needs_pgmpy
+def test_negative_edge_flips_the_delta_sign():
+    model, info = bayes.build_path_bbn(_chain("-"), "A", "C")
+    r = bayes.query_path_bbn(model, info, {"A": 1})
+    by = {row["id"]: row for row in r["rows"]}
+    assert by["C"]["delta"] < 0
+
+
+@needs_pgmpy
+def test_diagnostic_query_infers_source():
+    model, info = bayes.build_path_bbn(_chain(), "A", "C")
+    r = bayes.query_path_bbn(model, info, {"C": 1})
+    by = {row["id"]: row for row in r["rows"]}
+    assert by["A"]["p_high"] > 0.5 and by["C"]["p_high"] == 1.0
+
+
+@needs_pgmpy
+def test_query_is_deterministic_on_the_sample():
+    isa = load_sample(SAMPLE)
+    m1, i1 = bayes.build_path_bbn(isa, "D001", "GB01")
+    m2, i2 = bayes.build_path_bbn(isa, "D001", "GB01")
+    assert bayes.query_path_bbn(m1, i1, {"D001": 1}) == bayes.query_path_bbn(m2, i2, {"D001": 1})
+    assert i1["cut_edges"] == [] and len(i1["paths"]) == 2
+
+
+def test_bayes_unavailable_when_pgmpy_missing(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def fake(name, *a, **k):
+        if name.startswith("pgmpy"):
+            raise ImportError("no pgmpy")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake)
+    with pytest.raises(bayes.BayesUnavailable) as exc:
+        bayes.build_path_bbn(_chain(), "A", "C")
+    assert "sespy[bayes]" in str(exc.value)

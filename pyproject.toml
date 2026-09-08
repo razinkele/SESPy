@@ -40,6 +40,9 @@ prod = ["python-igraph>=0.11"]
 # ModuleNotFoundError. Workaround there is `weasyprint=66`, not a version cap
 # here (this extra only governs pip installs).
 pdf = ["weasyprint>=60"]
+# Path-set Bayesian belief network (Intervention panel). DiscreteBayesianNetwork
+# exists from pgmpy 1.0. Optional: the app degrades to an install hint without it.
+bayes = ["pgmpy>=1.0"]
 test = ["pytest>=8", "pytest-playwright>=0.5", "pytest-asyncio>=0.23", "pytest-cov>=4"]
 lint = ["ruff>=0.6", "mypy>=1.10"]
 
