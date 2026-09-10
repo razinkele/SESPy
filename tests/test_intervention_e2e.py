@@ -129,6 +129,58 @@ async def main():
         n_rows = await page.evaluate(
             "() => document.querySelectorAll('#intervention-bbn_table table tbody tr').length")
         assert n_rows == 7, f"expected 7 path-set nodes in the table, got {n_rows}"
+        # --- Free evidence + per-route effect (design 2026-09-10). Goldens
+        # verified 2026-09-11: forward GB01 delta -0.0503; with MPF1 (on both
+        # routes) low, -0.2781; both solo routes tie at -0.0301. ---
+        assert "(-0.05)" in bbn_text, f"expected the forward golden on GB01: {bbn_text!r}"
+        n_paths = await page.evaluate(
+            "() => document.querySelectorAll('#intervention-bbn_paths table tbody tr').length")
+        assert n_paths == 2, f"expected 2 route rows, got {n_paths}"
+        # selectize hides the underlying <select> (display:none), so the default
+        # visible-state wait would time out: wait for presence only.
+        await page.wait_for_selector("#intervention-bbn_low", state="attached", timeout=10000)
+        await page.evaluate(
+            "() => Shiny.setInputValue('intervention-bbn_low', ['MPF1'], {priority: 'event'})")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived an evidence change"
+        await page.click("#intervention-run_bbn")
+        # engine already loaded by the run above: no cold-import budget needed
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('Evidence')", timeout=60000)
+        ev_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "Evidence: D001 high, MPF1 low" in ev_text, f"unexpected evidence line: {ev_text!r}"
+        assert "(-0.28)" in ev_text, f"expected the MPF1-low golden on GB01: {ev_text!r}"
+        n_paths = await page.evaluate(
+            "() => document.querySelectorAll('#intervention-bbn_paths table tbody tr').length")
+        assert n_paths == 2, f"expected 2 route rows after the evidence run, got {n_paths}"
+        # The same node high AND low is a conflict: reported, nothing computed,
+        # and reported instantly (checked before the engine is touched).
+        await page.evaluate(
+            "() => Shiny.setInputValue('intervention-bbn_high', ['MPF1'], {priority: 'event'})")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        await page.click("#intervention-run_bbn")
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('Conflicting evidence')", timeout=30000)
+        conflict_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "MPF1" in conflict_text, f"conflict line should name MPF1: {conflict_text!r}"
+        n_paths = await page.evaluate(
+            "() => document.querySelectorAll('#intervention-bbn_paths table tbody tr').length")
+        assert n_paths == 0, f"route table must be empty on a conflict, got {n_paths}"
+        # Clear the pickers so the direction-change step below sees the original setup.
+        await page.evaluate(
+            "() => { Shiny.setInputValue('intervention-bbn_high', [], {priority: 'event'});"
+            " Shiny.setInputValue('intervention-bbn_low', [], {priority: 'event'}); }")
+        await page.wait_for_timeout(1000)
+        print(f"intervention bbn evidence: OK ({ev_text[:80]!r})")
         # Changing the direction invalidates the result.
         await page.click("#intervention-bbn_direction input[value='diagnostic']")
         for _ in range(20):
