@@ -7,8 +7,11 @@ directions, "free evidence + path attribution" for the path-set belief
 network (Option B), and then chose *solo-path effect* as the attribution
 semantics and *presets plus extra pickers* as the evidence UI.
 
-**Status:** design approved in conversation 2026-09-10. Implementation plan
-not yet written.
+**Status:** design approved in conversation 2026-09-10; revised 2026-09-11
+after a three-lens adversarial review (5 confirmed findings folded in:
+evidence pickers get their own output, None-safe picker reads, conflict
+check before the pgmpy import, golden e2e values, path-table tie order).
+Implementation plan: `docs/superpowers/plans/2026-09-11-bbn-free-evidence.md`.
 
 ---
 
@@ -32,6 +35,7 @@ the two existing query presets.
 | 1 | Attribution = solo-path effect, not edge ablation | Noisy-OR is sub-additive and routes share edges, so no per-route decomposition sums to the joint delta. A chain built from one route alone is cheap (≤ 100 tiny chains), deterministic, and answers the question practitioners ask through the causal-path tracer. Edge ablation answers "which link", a different question; deferred. |
 | 2 | Evidence UI = keep the forward / diagnostic radio as a preset and add two multi-select pickers ("also high", "also low") that merge into it | Existing workflow, e2e and manual text stay valid. "Source low" is not askable; nobody has asked for it. Conflicts are reported and block the run rather than being silently resolved. |
 | 3 | Per-route numbers are labelled *solo* and carry a legend that they do not add up | Stakeholders will otherwise sum them and compare with the joint delta. |
+| 4 | The pickers live in their own `output_ui`, not inside `bbn_controls` (review 2026-09-11) | `bbn_controls` renders the source/target selects and deliberately reads them under `isolate()` so a pick never re-renders the select being used. Picker choices depend on the pair, so they must be a separate output that reacts to the pair. |
 
 ---
 
@@ -41,23 +45,34 @@ All additions are pure except the two that build pgmpy models, which import
 pgmpy lazily and raise `BayesUnavailable` exactly like `build_path_bbn`.
 
 ```python
-def _model_from_edges(nodes: list[str], edges: list[tuple[str, str, Connection]]):
-    """pgmpy DiscreteBayesianNetwork over the given DAG. Parentless nodes get
-    P(high) = 0.5; every other CPT is noisy-OR over its in-edges via
-    noisy_or_p_high. This is the body of today's build_path_bbn, factored so
-    the pgmpy column-order comment and the CPT derivation live in one place.
-    build_path_bbn becomes path_set_dag + this call and is behaviourally
-    unchanged (CPTs bit-identical, asserted in tests)."""
+def model_from_dag(info: dict):
+    """pgmpy DiscreteBayesianNetwork over a path_set_dag result (or any dict
+    with the same "nodes"/"edges" shape). Parentless nodes get P(high) = 0.5;
+    every other CPT is noisy-OR over its in-edges via noisy_or_p_high. This
+    is the body of today's build_path_bbn, factored so the pgmpy
+    column-order comment and the CPT derivation live in one place and so a
+    caller that already holds `info` (the worker, attribute_paths) need not
+    enumerate paths twice. Returns None when info has no nodes. Raises
+    BayesUnavailable when pgmpy is missing.
+    build_path_bbn(isa, s, t) == (model_from_dag(info), info) with
+    info = path_set_dag(isa, s, t) — behaviourally unchanged; the CPD values
+    on the sample pair D001→GB01 are asserted against hard-coded rows."""
 
-def merge_evidence(preset: dict[str, int], high: list[str], low: list[str],
-                   nodes: list[str]) -> dict:
-    """Pure. Returns {"evidence": {id: 0|1}, "ignored": [ids], "conflicts": [ids]}.
-    - ids in `high`/`low` that are not in `nodes` go to `ignored` (outside the
-      path set: not part of the question) and are dropped;
-    - an id in both `high` and `low`, or in a picker with the opposite state
-      to `preset`, goes to `conflicts`;
-    - everything else merges, preset first. Lists are sorted and
-      deduplicated. Any conflict means the caller must not run."""
+def merge_evidence(preset: dict[str, int], high, low, nodes: list[str]) -> dict:
+    """Pure. `high`/`low` are any iterable of ids or None (a multi-select
+    with nothing chosen is None in Shiny). Returns
+    {"evidence": {id: 0|1}, "ignored": [ids], "conflicts": [ids]}.
+    Order of rules, per id:
+    1. not in `nodes` → `ignored` (outside the path set: not part of the
+       question) and dropped — checked first, so an unknown id is never a
+       conflict;
+    2. in both `high` and `low` → `conflicts`;
+    3. in a picker with the opposite state to `preset` → `conflicts`
+       (the source and target are in `nodes`, so naming them in a picker
+       reaches this rule; agreeing with the preset is not a conflict);
+    4. otherwise merged, preset first.
+    All three lists are sorted and deduplicated. Any conflict means the
+    caller must not run inference."""
 
 def focus_node(source: str, target: str, evidence: dict[str, int]) -> str | None:
     """Pure. The node whose posterior the summary and the attribution are
@@ -65,16 +80,19 @@ def focus_node(source: str, target: str, evidence: dict[str, int]) -> str | None
     both are in evidence (no focus line, no attribution)."""
 
 def attribute_paths(info: dict, evidence: dict[str, int], focus: str) -> list[dict]:
-    """Solo-path effect. For each row of info["paths"] (the routes still
-    intact after cuts) build a chain model over that route's edges with
-    _model_from_edges, restrict `evidence` to the route's nodes, and query
-    the focus node. Returns rows
+    """Solo-path effect. Precondition: focus ∉ evidence (focus_node
+    guarantees it; ValueError otherwise). For each row of info["paths"]
+    (the routes still intact after cuts) build a chain model with
+    model_from_dag over that route's edges only, restrict `evidence` to the
+    route's nodes, and query the focus node. Returns rows
       {"path": [ids], "length": int, "polarity": "+"|"-"|"0",
        "baseline": float, "p_high": float, "delta": float}
-    sorted by (-|delta|, path). Routes on which the focus is itself in
-    evidence report p_high = evidence value and delta 0 and are still
-    listed. Empty list when info has no paths. Values are computed on the
-    chain alone and DO NOT sum to the joint delta of query_path_bbn — the
+    sorted by (-round(|delta|, 9), path) — the explicit rounding makes the
+    lexicographic tiebreak deterministic when two routes share a prefix and
+    tie (D001→GB01 does: both routes give −0.0301). `baseline` is the
+    chain's own no-evidence marginal and differs from the joint baseline.
+    Empty list when info has no paths. Values are computed on the chain
+    alone and DO NOT sum to the joint delta of query_path_bbn — the
     docstring and the UI legend both say so. Deterministic."""
 ```
 
@@ -85,97 +103,137 @@ def attribute_paths(info: dict, evidence: dict[str, int], focus: str) -> list[di
 
 ## UI (`sespy/modules/analysis_intervention.py`)
 
-Sidebar, inside the existing `bbn_controls` output (so the new inputs get
-the isolate()-restore treatment already there):
+### Sidebar
 
-- `ui.input_selectize("bbn_high", t("bbn.also_high"), choices, multiple=True)`
-  and `ui.input_selectize("bbn_low", t("bbn.also_low"), choices, multiple=True)`.
-  `choices` are the nodes of `path_set_dag(isa, source, target)["nodes"]`
-  minus the source and target, labelled `id · label`. `path_set_dag` is
-  networkx only and bounded by `max_paths` / `max_length`, so it may run in
-  the render; the plan measures it on the largest sample project and, if it
-  exceeds ~50 ms, falls back to listing all elements and relying on
-  `ignored`. The pickers render empty (disabled) when the pair has no path.
-- The two pickers join `_invalidate_bbn` (rule: invalidate on every feeding
-  input). Their selections are restored from `input.bbn_high()` /
-  `input.bbn_low()` under `reactive.isolate()`, filtered to the new
-  choices, exactly like the source/target selects.
+`bbn_controls` is untouched. A new `ui.output_ui("bbn_evidence_controls")`
+is placed directly after it (before the direction radio):
 
-Worker (`_bbn_work`, unchanged threading and generation-counter discipline):
+- Its render reads `event_bus.isa_change`, `input.bbn_source()` and
+  `input.bbn_target()` **reactively** (each in a try/except; a missing input
+  renders nothing), computes `path_set_dag(isa, source, target)["nodes"]`
+  minus the pair, and renders
+  `ui.input_selectize("bbn_high", t("bbn.also_high"), choices, multiple=True)`
+  and `ui.input_selectize("bbn_low", t("bbn.also_low"), choices, multiple=True)`
+  with `choices` labelled `id · label`. Previous selections are restored
+  from `input.bbn_high()` / `input.bbn_low()` under `reactive.isolate()`,
+  tolerating None, filtered to the new choices.
+- `path_set_dag` is networkx only and bounded by `max_paths` / `max_length`;
+  measured 2026-09-11 over every ordered pair of all five shipped projects
+  (sample plus four templates, up to 19 nodes / 22 edges): worst 3 ms. It
+  runs in the render.
+- When the pair has no path the output renders a single muted line
+  (`bbn.no_path`) and no pickers (`input_selectize` has no disabled
+  parameter). The worker then reports `bbn.no_path` as today.
+- Both pickers join `_invalidate_bbn` (rule: invalidate on every feeding
+  input), read inside try/except like the others.
 
-1. `build_path_bbn` → unavailable / no-path errors as today.
-2. `preset = {src: 1}` or `{tgt: 1}`; `m = merge_evidence(preset, high, low, info["nodes"])`.
-   Conflicts → `{"error": "bbn.conflict", "ids": [...]}`; the summary renders
-   the message with the ids and nothing else.
-3. `r = query_path_bbn(model, info, m["evidence"])`; `r["ignored"] = m["ignored"]`;
-   `r["focus"] = focus_node(src, tgt, m["evidence"])`;
-   `r["paths"] = attribute_paths(info, m["evidence"], r["focus"])` when the
-   focus is not None, else `[]`.
+### Worker
 
-Main panel:
+`_run_bbn` reads the pickers inside its existing try/except and coerces
+each with the `chosen_ids` pattern (`list(v) if v else []`) before handing
+them to `_bbn_task`. `_bbn_work(isa, src, tgt, direction, high, low)` keeps
+the threading and generation-counter discipline and runs, in order:
 
-- `bbn_summary` uses `r["focus"]` instead of the inline rule at today's
-  line 521; when it is None the target line is omitted. New lines: an
-  evidence line ("Evidence: D001 high, A002 low" — ids joined, one
-  `bbn.evidence` key with an `items` placeholder) and, when non-empty, a
-  muted `bbn.ignored` line listing ids that were outside the path set.
-- A new `ui.h5(t("bbn.paths_title"))`, a one-sentence muted legend
-  `bbn.paths_legend` ("Each row applies the evidence along that route alone;
-  solo values do not add up to the joint change above."), and
+1. `info = path_set_dag(isa, src, tgt)`; no nodes → `{"error": "bbn.no_path"}`.
+2. `preset = {src: 1}` or `{tgt: 1}`;
+   `m = merge_evidence(preset, high, low, info["nodes"])`.
+   Conflicts → `{"error": "bbn.conflict", "ids": m["conflicts"]}`. This
+   happens **before** the pgmpy import, so a conflict is reported instantly
+   even on a cold server.
+3. `model = model_from_dag(info)` (catch `BayesUnavailable` →
+   `{"error": "bbn.unavailable"}`).
+4. `r = query_path_bbn(model, info, m["evidence"])`;
+   `r["ignored"] = m["ignored"]`; `r["focus"] = focus_node(src, tgt, m["evidence"])`;
+   `r["paths"] = attribute_paths(info, m["evidence"], r["focus"])` if the
+   focus is not None else `[]`; `r["source"], r["target"] = src, tgt`.
+
+### Main panel
+
+- `bbn_summary` error branch: `t(r["error"], ids=", ".join(r.get("ids", [])))`
+  — `bbn.conflict` uses `{ids}`; the other error keys have no placeholder
+  and ignore the kwarg. Conflict renders with class `text-danger`.
+- The focus line uses `r["focus"]` instead of today's inline rule at
+  line 521; when it is None the line is omitted.
+- New evidence line: `bbn.evidence` with `{items}` = comma-joined
+  `f"{id} {t('bbn.high' | 'bbn.low')}"` over `r["evidence"]` in sorted id
+  order (always present: the preset is evidence too).
+- When `r["ignored"]` is non-empty, a muted `bbn.ignored` line with `{ids}`.
+- Under the node table: `ui.h5(t("bbn.paths_title"))`, a muted legend
+  `bbn.paths_legend` ("Each row applies the evidence along that route
+  alone. Solo baselines are the route's own no-evidence values; solo
+  changes do not add up to the joint change above."), and
   `ui.output_data_frame("bbn_paths")` with columns
   `path` (labels joined with " → "), `length`, `polarity`,
-  `solo baseline`, `solo posterior`, `solo delta` (3 decimals). Empty frame
-  while not computed, on error, or when focus is None.
+  `solo baseline`, `solo posterior`, `solo delta` (3 decimals). Same guard
+  as `bbn_table`: empty frame unless the result is a dict without
+  `"error"`; also empty when `r["paths"]` is `[]`.
 
-i18n (`sespy/translations/core.json`, all nine languages, inserted with the
-other `bbn.*` keys): `bbn.also_high`, `bbn.also_low`, `bbn.evidence`,
-`bbn.ignored`, `bbn.conflict`, `bbn.paths_title`, `bbn.paths_legend`,
-`bbn.high`, `bbn.low`. Data-frame column headers stay plain English, as
-`bbn_table` does today.
-`tests/test_i18n.py` gains the keys in `test_bbn_keys_present` or a sibling.
+### i18n, docs, screenshots
 
-Docs: `docs/MANUAL.md` sections 19 (controls list) and 43 (a short
-"Extra evidence" and "Per-route effect" paragraph including the
-does-not-add-up caveat). `tests/make_docs_screenshots.py` gains a dedicated
-Intervention capture that scrolls the BBN block into view after a run —
-the v1.10.0 plan deferred this. Bump the manual version line.
+- `sespy/translations/core.json`, all nine languages, inserted with the
+  other `bbn.*` keys: `bbn.also_high`, `bbn.also_low`, `bbn.evidence`
+  (`{items}`), `bbn.ignored` (`{ids}`), `bbn.conflict` (`{ids}`),
+  `bbn.paths_title`, `bbn.paths_legend`, `bbn.high`, `bbn.low`.
+  Data-frame column headers stay plain English, as `bbn_table` does today.
+  `tests/test_i18n.py::test_bbn_keys_present` gains the nine keys, and a
+  placeholder-consistency check across languages for the three keys with
+  placeholders (pattern: `test_governance_concentration_placeholders_match_across_languages`).
+- `docs/MANUAL.md`: section 19 controls list gains "Also high", "Also low";
+  section 43 gains an "Extra evidence" paragraph (merge rules, ignored,
+  conflicts) and a "Per-route effect" paragraph with the does-not-add-up
+  caveat, referencing a new screenshot `docs/screenshots/intervention_bbn.png`.
+  Bump the manual version line to 1.11.0.
+- `tests/make_docs_screenshots.py`: a new capture `intervention_bbn.png`
+  taken after a forward run D001→GB01 with MPF1 low, scrolled so the BBN
+  summary and both tables are in view (reuse the cascade-block scroll
+  helper pattern at ~line 345). Budget: the existing 65 s cold-import wait.
 
 ---
 
 ## Testing
 
-Unit (`tests/test_bayes.py`):
+Unit (`tests/test_bayes.py`; pgmpy tests keep `@needs_pgmpy`):
 
-- `_model_from_edges` refactor: CPD values for every node on the sample
-  project pair D001→GB01 equal those of the pre-refactor builder (capture
-  in the test by building through both code paths, or by hard-coding the
-  known CPT rows).
-- `merge_evidence`: plain merge; ids outside `nodes` → ignored; same id in
-  both pickers → conflict; picker contradicting the preset → conflict; picker
-  agreeing with the preset → no conflict; output lists sorted and
-  deduplicated.
+- `model_from_dag` refactor: the CPD values for every node of
+  `path_set_dag(sample, "D001", "GB01")` equal hard-coded rows captured
+  from the v1.10.0 builder before the refactor (the plan's first step
+  records them); `build_path_bbn` still returns `(model, info)`.
+- `merge_evidence`: plain merge; None pickers; ids outside `nodes` →
+  ignored (and never conflicts); same id in both pickers → conflict; picker
+  contradicting the preset → conflict; picker agreeing with the preset → no
+  conflict; output lists sorted and deduplicated.
 - `focus_node`: four cases (neither, target only, source only, both).
-- `attribute_paths` on D001→GB01: two rows, both solo deltas negative,
-  each row's path matches a `path_set_dag` route; on this fixture the joint
+- `attribute_paths` on D001→GB01 forward: two rows, both solo deltas
+  negative and equal at −0.030 (3 dp), ordered
+  `[..., "ES01", "GB01"]` before `[..., "ES03", "GB01"]` by the path
+  tiebreak; each row's path matches a `path_set_dag` route; the joint
   delta from `query_path_bbn` is no larger in magnitude than the sum of the
-  solo deltas (documents sub-additivity); a route on which the focus is in
-  evidence gives delta 0; empty info gives `[]`; `BayesUnavailable` when
-  pgmpy is monkeypatched away. pgmpy tests keep the `@needs_pgmpy` skip.
-- Three-node chain fixture with intermediate evidence: evidence
-  `{A: 1, B: 0}` lowers P(C high) below the forward-only value.
+  solo deltas (documents sub-additivity); ValueError when focus ∈ evidence;
+  empty info gives `[]`; `BayesUnavailable` when pgmpy is monkeypatched
+  away.
+- Three-node chain fixture A→B→C with `{A: 1, B: 0}`: P(C high) is below
+  the forward-only value; the same on the sample with MPF1 low gives a
+  GB01 delta of −0.28 (2 dp) against −0.05 for forward only (the e2e
+  goldens).
 
-E2E (`tests/test_intervention_e2e.py`, id-scoped selectors only):
+E2E (`tests/test_intervention_e2e.py`, id-scoped selectors only). Insert
+the new steps **after** the existing forward-run assertions and **before**
+the direction-change invalidation step, so the preset is still forward:
 
-- After the existing forward run, assert `#intervention-bbn_paths` has 2
-  rows.
-- Select one intermediate node in `#intervention-bbn_low`, assert the
-  result invalidates, re-run, assert the summary contains an "Evidence"
-  line naming that node and that the delta text changed.
-- Select the same node in `#intervention-bbn_high`, run, assert the
-  conflict message appears.
-- Existing assertions are untouched. Cold-server warm-up flake (memory)
-  applies: the first two hand runs may fail; the gate runner is the
-  authority.
+- Assert `#intervention-bbn_paths table tbody tr` count is 2 and the
+  summary target line contains `(-0.05)`.
+- Set MPF1 low via the selectize widget, falling back to
+  `Shiny.setInputValue('intervention-bbn_low', ['MPF1'], {priority: 'event'})`
+  (the make_docs_screenshots pattern); wait for "not computed"
+  (invalidation); click run; wait until the summary contains "Evidence";
+  assert it names `MPF1` and the target line contains `(-0.28)`.
+- Set MPF1 high as well; wait for "not computed"; click run; wait until
+  the summary contains the conflict text (wait predicate written for that
+  string, not for "causal paths"); assert `MPF1` appears in it.
+- Clear both pickers (setInputValue `[]`), then the existing
+  direction-change step runs unchanged.
+- Cold-server warm-up flake (memory) applies: the first two hand runs may
+  fail; the gate runner is the authority.
 
 Gate: full unit suite + full e2e (never `-k "not e2e"`), nothing heavy
 running concurrently. Then release v1.11.0: version bump, screenshots,
