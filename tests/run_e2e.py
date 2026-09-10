@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -78,9 +77,14 @@ def wait_ready(url: str, timeout: int = SERVER_READY_TIMEOUT) -> bool:
 
 
 def start_server(port: int, env_extra: dict[str, str]) -> subprocess.Popen:
-    shiny = shutil.which("shiny") or "shiny"
+    # Run the server through the interpreter, NOT the `shiny` console-script
+    # launcher. On Windows that launcher is a stub .exe that spawns python as a
+    # child: stop_server() terminated only the stub, the real server survived
+    # on the port, the next phase's server failed to bind, and wait_ready()
+    # happily connected to the orphan — Phase 2 then ran its fake-key wizard
+    # against the no-key server and failed at case 8 ("button missing").
     return subprocess.Popen(
-        [shiny, "run", "--port", str(port), "app.py"],
+        [sys.executable, "-m", "shiny", "run", "--port", str(port), "app.py"],
         cwd=str(ROOT), env=_child_env(env_extra),
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
