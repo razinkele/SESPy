@@ -226,5 +226,17 @@ def test_bbn_keys_present(translations):
     for key in ("bbn.title", "bbn.source", "bbn.target", "bbn.direction", "bbn.forward",
                 "bbn.diagnostic", "bbn.run", "bbn.hint", "bbn.computing", "bbn.no_path",
                 "bbn.unavailable", "bbn.summary", "bbn.truncated", "bbn.cut",
-                "bbn.target_line", "bbn.about_text"):
+                "bbn.target_line", "bbn.about_text",
+                "bbn.also_high", "bbn.also_low", "bbn.evidence", "bbn.ignored",
+                "bbn.conflict", "bbn.paths_title", "bbn.paths_legend", "bbn.high", "bbn.low"):
         assert key in translations
+
+
+def test_bbn_evidence_placeholders_match_across_languages(translations):
+    import re
+    expected = {"bbn.evidence": {"items"}, "bbn.ignored": {"ids"}, "bbn.conflict": {"ids"}}
+    for key, names in expected.items():
+        for lang, text in translations[key].items():
+            assert set(re.findall(r"\{(\w+)\}", text)) == names, (key, lang, text)
+    assert translations["bbn.evidence"]["en"].startswith("Evidence:")
+    assert translations["bbn.conflict"]["en"].startswith("Conflicting evidence")
