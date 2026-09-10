@@ -112,23 +112,24 @@ def noisy_or_p_high(states: tuple[int, ...], parents: list) -> float:
     return 1.0 - prod
 
 
-def build_path_bbn(isa: IsaData, source: str, target: str, *,
-                   max_length: int = 8, max_paths: int = 100):
-    """(pgmpy DiscreteBayesianNetwork, dag_info) over path_set_dag; (None,
-    empty dag_info) when there is no path. Every node is binary (0 low,
-    1 high). Parentless nodes (the source, and any node whose in-edges were
-    all cut) get P(high) = 0.5; every other
-    CPT is noisy-OR over its parents *inside the path set*. Raises
-    BayesUnavailable when pgmpy is missing."""
+def model_from_dag(info: dict):
+    """pgmpy DiscreteBayesianNetwork over a path_set_dag result (or any dict
+    with the same "nodes"/"edges" shape); None when info has no nodes.
+    Every node is binary (0 low, 1 high). Parentless nodes (the source, and
+    any node whose in-edges were all cut) get P(high) = 0.5; every other
+    CPT is noisy-OR over its in-edges via noisy_or_p_high. This is the single
+    place the CPT derivation lives: build_path_bbn and attribute_paths both
+    call it. Raises BayesUnavailable when pgmpy is missing (checked before
+    the empty check, so the caller learns about a missing engine even with
+    no path)."""
     try:
         from pgmpy.factors.discrete import TabularCPD
         from pgmpy.models import DiscreteBayesianNetwork
     except ImportError as exc:
         raise BayesUnavailable(_INSTALL_HINT) from exc
 
-    info = path_set_dag(isa, source, target, max_length=max_length, max_paths=max_paths)
     if not info["nodes"]:
-        return None, info
+        return None
     model = DiscreteBayesianNetwork([(u, v) for u, v, _ in info["edges"]])
     model.add_nodes_from(info["nodes"])
     parents: dict[str, list] = {n: [] for n in info["nodes"]}
@@ -148,7 +149,17 @@ def build_path_bbn(isa: IsaData, source: str, target: str, *,
             evidence=[u for u, _ in ps], evidence_card=[2] * len(ps),
         ))
     model.check_model()
-    return model, info
+    return model
+
+
+def build_path_bbn(isa: IsaData, source: str, target: str, *,
+                   max_length: int = 8, max_paths: int = 100):
+    """(pgmpy DiscreteBayesianNetwork, dag_info) over path_set_dag; (None,
+    empty dag_info) when there is no path. Equivalent to
+    (model_from_dag(info), info) with info = path_set_dag(...). Raises
+    BayesUnavailable when pgmpy is missing."""
+    info = path_set_dag(isa, source, target, max_length=max_length, max_paths=max_paths)
+    return model_from_dag(info), info
 
 
 def query_path_bbn(model, info: dict, evidence: dict[str, int]) -> dict:

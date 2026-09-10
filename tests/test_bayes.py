@@ -202,3 +202,58 @@ def test_bayes_unavailable_when_pgmpy_missing(monkeypatch):
     with pytest.raises(bayes.BayesUnavailable) as exc:
         bayes.build_path_bbn(_chain(), "A", "C")
     assert "sespy[bayes]" in str(exc.value)
+
+
+# CPD rows of every node of path_set_dag(sample, "D001", "GB01") as built by
+# the v1.10.0 builder (captured 2026-09-11 before the model_from_dag refactor):
+# cpd.values.flatten() order, rounded to 6 dp.
+_SAMPLE_CPDS = {
+    "D001": [0.5, 0.5],
+    "A001": [0.95, 0.285, 0.05, 0.715],
+    "P001": [0.95, 0.492812, 0.05, 0.507188],
+    "MPF1": [0.19, 0.95, 0.81, 0.05],
+    "ES01": [0.95, 0.285, 0.05, 0.715],
+    "ES03": [0.95, 0.558125, 0.05, 0.441875],
+    "GB01": [0.95, 0.285, 0.558125, 0.167437, 0.05, 0.715, 0.441875, 0.832563],
+}
+
+
+@needs_pgmpy
+def test_model_from_dag_matches_v1_10_cpds_on_the_sample():
+    info = bayes.path_set_dag(load_sample(SAMPLE), "D001", "GB01")
+    model = bayes.model_from_dag(info)
+    assert model is not None and model.check_model()
+    assert set(info["nodes"]) == set(_SAMPLE_CPDS)
+    for node, expected in _SAMPLE_CPDS.items():
+        got = [float(x) for x in model.get_cpds(node).values.flatten()]
+        assert len(got) == len(expected), node
+        for g, e in zip(got, expected):
+            assert math.isclose(g, e, abs_tol=1e-5), (node, got, expected)
+
+
+@needs_pgmpy
+def test_build_path_bbn_is_path_set_dag_plus_model_from_dag():
+    isa = load_sample(SAMPLE)
+    model, info = bayes.build_path_bbn(isa, "D001", "GB01")
+    assert info == bayes.path_set_dag(isa, "D001", "GB01")
+    assert bayes.query_path_bbn(model, info, {"D001": 1}) == \
+        bayes.query_path_bbn(bayes.model_from_dag(info), info, {"D001": 1})
+
+
+@needs_pgmpy
+def test_model_from_dag_returns_none_on_empty_info():
+    assert bayes.model_from_dag(bayes.path_set_dag(_isa([Connection("A", "B")]), "B", "A")) is None
+
+
+def test_model_from_dag_unavailable_when_pgmpy_missing(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def fake(name, *a, **k):
+        if name.startswith("pgmpy"):
+            raise ImportError("no pgmpy")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake)
+    with pytest.raises(bayes.BayesUnavailable):
+        bayes.model_from_dag(bayes.path_set_dag(_chain(), "A", "C"))
