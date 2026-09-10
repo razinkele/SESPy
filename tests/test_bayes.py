@@ -299,3 +299,82 @@ def test_focus_node_rule():
     assert bayes.focus_node("s", "t", {"t": 1}) == "s"
     assert bayes.focus_node("s", "t", {"s": 1, "a": 0}) == "t"
     assert bayes.focus_node("s", "t", {"s": 1, "t": 1}) is None
+
+
+@needs_pgmpy
+def test_attribute_paths_sample_two_routes_tie_and_sort_by_path():
+    isa = load_sample(SAMPLE)
+    info = bayes.path_set_dag(isa, "D001", "GB01")
+    rows = bayes.attribute_paths(info, {"D001": 1}, "GB01")
+    assert [r["path"] for r in rows] == [
+        ["D001", "A001", "P001", "MPF1", "ES01", "GB01"],
+        ["D001", "A001", "P001", "MPF1", "ES03", "GB01"],
+    ]
+    for r in rows:
+        assert r["length"] == 5 and r["polarity"] == "-"
+        assert math.isclose(r["delta"], -0.030107, abs_tol=1e-5)
+        assert r["delta"] < 0 and 0 < r["baseline"] < 1 and 0 < r["p_high"] < 1
+    # sub-additivity on this fixture: |joint| <= sum |solo|
+    joint = next(x for x in bayes.query_path_bbn(bayes.model_from_dag(info), info, {"D001": 1})["rows"]
+                 if x["id"] == "GB01")["delta"]
+    assert math.isclose(joint, -0.0503, abs_tol=1e-3)
+    assert abs(joint) <= sum(abs(r["delta"]) for r in rows) + 1e-9
+
+
+@needs_pgmpy
+def test_attribute_paths_intermediate_evidence_restricted_to_the_route():
+    isa = load_sample(SAMPLE)
+    info = bayes.path_set_dag(isa, "D001", "GB01")
+    rows = bayes.attribute_paths(info, {"D001": 1, "MPF1": 0}, "GB01")
+    base = bayes.attribute_paths(info, {"D001": 1}, "GB01")
+    # MPF1 is on both routes: each solo delta moves further from zero
+    assert all(abs(r["delta"]) > abs(b["delta"]) for r, b in zip(rows, base))
+    # the joint model with MPF1 low is the e2e golden
+    model = bayes.model_from_dag(info)
+    gb = next(x for x in bayes.query_path_bbn(model, info, {"D001": 1, "MPF1": 0})["rows"]
+              if x["id"] == "GB01")
+    assert math.isclose(gb["delta"], -0.2781, abs_tol=1e-3)
+    # evidence on a node that is NOT on a route is simply not applied to it
+    fwd = next(x for x in bayes.query_path_bbn(model, info, {"D001": 1})["rows"] if x["id"] == "GB01")
+    assert math.isclose(fwd["delta"], -0.0503, abs_tol=1e-3)
+
+
+@needs_pgmpy
+def test_attribute_paths_chain_with_intermediate_low_lowers_target():
+    info = bayes.path_set_dag(_chain(), "A", "C")
+    fwd = bayes.attribute_paths(info, {"A": 1}, "C")[0]
+    mid = bayes.attribute_paths(info, {"A": 1, "B": 0}, "C")[0]
+    assert mid["p_high"] < fwd["p_high"]
+    assert math.isclose(fwd["baseline"], mid["baseline"])       # same chain, same baseline
+
+
+@needs_pgmpy
+def test_attribute_paths_diagnostic_focus_is_the_source():
+    info = bayes.path_set_dag(_chain(), "A", "C")
+    row = bayes.attribute_paths(info, {"C": 1}, "A")[0]
+    assert row["p_high"] > 0.5 and row["delta"] > 0
+
+
+def test_attribute_paths_focus_in_evidence_raises_and_empty_info_is_empty():
+    # pgmpy-free on purpose: the ValueError fires before any model is built,
+    # and with no routes model_from_dag is never called.
+    info = bayes.path_set_dag(_chain(), "A", "C")
+    with pytest.raises(ValueError):
+        bayes.attribute_paths(info, {"A": 1, "C": 1}, "C")
+    empty = bayes.path_set_dag(_chain(), "C", "A")
+    assert bayes.attribute_paths(empty, {"C": 1}, "A") == []
+
+
+def test_attribute_paths_unavailable_when_pgmpy_missing(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def fake(name, *a, **k):
+        if name.startswith("pgmpy"):
+            raise ImportError("no pgmpy")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake)
+    info = bayes.path_set_dag(_chain(), "A", "C")
+    with pytest.raises(bayes.BayesUnavailable):
+        bayes.attribute_paths(info, {"A": 1}, "C")

@@ -220,3 +220,36 @@ def query_path_bbn(model, info: dict, evidence: dict[str, int]) -> dict:
     rows.sort(key=lambda r: (-abs(r["delta"]), r["id"]))
     return {"rows": rows, "evidence": ev, "n_paths": len(info["paths"]),
             "truncated": info["truncated"], "cut_edges": list(info["cut_edges"])}
+
+
+def attribute_paths(info: dict, evidence: dict[str, int], focus: str) -> list[dict]:
+    """Solo-path effect: for each route still intact in info["paths"], build
+    a chain model over that route's edges only (model_from_dag), apply the
+    evidence restricted to the route's nodes, and read the focus node.
+    Rows {"path": [ids], "length", "polarity", "baseline", "p_high",
+    "delta"} sorted by (-round(|delta|, 9), path); the explicit rounding
+    makes the lexicographic tiebreak deterministic when routes tie (the
+    sample's two D001→GB01 routes both give −0.0301). `baseline` is the
+    chain's own no-evidence marginal and differs from the joint baseline.
+    The values are computed on the chain ALONE and do NOT sum to the joint
+    delta of query_path_bbn (noisy-OR is sub-additive; routes share edges).
+    Precondition: focus ∉ evidence (focus_node guarantees it) — ValueError
+    otherwise. [] when there are no routes. Raises BayesUnavailable when
+    pgmpy is missing. Deterministic."""
+    if focus in evidence:
+        raise ValueError("attribute_paths: the focus node must not be in evidence")
+    conn_by = {(u, v): c for u, v, c in info["edges"]}
+    rows: list[dict] = []
+    for r in info["paths"]:
+        p = list(r["path"])
+        on_route = set(p)
+        sub = {"nodes": p,
+               "edges": [(u, v, conn_by[(u, v)]) for u, v in zip(p, p[1:])],
+               "cut_edges": [], "paths": [r], "truncated": False}
+        model = model_from_dag(sub)
+        q = query_path_bbn(model, sub, {k: v for k, v in evidence.items() if k in on_route})
+        row = next(x for x in q["rows"] if x["id"] == focus)
+        rows.append({"path": p, "length": r["length"], "polarity": r["polarity"],
+                     "baseline": row["baseline"], "p_high": row["p_high"], "delta": row["delta"]})
+    rows.sort(key=lambda x: (-round(abs(x["delta"]), 9), x["path"]))
+    return rows
