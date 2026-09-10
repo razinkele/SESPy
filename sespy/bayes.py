@@ -112,6 +112,44 @@ def noisy_or_p_high(states: tuple[int, ...], parents: list) -> float:
     return 1.0 - prod
 
 
+def merge_evidence(preset: dict[str, int], high, low, nodes: list[str]) -> dict:
+    """Merge the preset evidence with the user's extra picks. `high`/`low`
+    are any iterable of node ids or None (a multi-select with nothing chosen
+    is None in Shiny). Returns {"evidence": {id: 0|1}, "ignored": [ids],
+    "conflicts": [ids]}. Rules, per id: (1) not in `nodes` → ignored (outside
+    the path set: not part of the question), checked first so an unknown id
+    is never a conflict; (2) in both pickers → conflict; (3) in a picker with
+    the opposite state to the preset → conflict (agreeing is fine); (4)
+    otherwise merged, preset first. Lists are sorted and deduplicated. Any
+    conflict means the caller must not run inference. Pure."""
+    known = set(nodes)
+    hi = sorted({str(x) for x in (high or ())})
+    lo = sorted({str(x) for x in (low or ())})
+    ignored = sorted({x for x in hi + lo if x not in known})
+    hi = [x for x in hi if x in known]
+    lo = [x for x in lo if x in known]
+    conflicts = set(hi) & set(lo)
+    conflicts |= {x for x in hi if preset.get(x) == 0}
+    conflicts |= {x for x in lo if preset.get(x) == 1}
+    evidence = dict(preset)
+    for x in hi:
+        evidence.setdefault(x, 1)
+    for x in lo:
+        evidence.setdefault(x, 0)
+    return {"evidence": evidence, "ignored": ignored, "conflicts": sorted(conflicts)}
+
+
+def focus_node(source: str, target: str, evidence: dict[str, int]) -> str | None:
+    """The node whose posterior the summary and the attribution are about:
+    the target unless it is in evidence, then the source; None when both
+    are in evidence (no focus line, no attribution). Pure."""
+    if target not in evidence:
+        return target
+    if source not in evidence:
+        return source
+    return None
+
+
 def model_from_dag(info: dict):
     """pgmpy DiscreteBayesianNetwork over a path_set_dag result (or any dict
     with the same "nodes"/"edges" shape); None when info has no nodes.

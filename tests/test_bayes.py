@@ -257,3 +257,45 @@ def test_model_from_dag_unavailable_when_pgmpy_missing(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", fake)
     with pytest.raises(bayes.BayesUnavailable):
         bayes.model_from_dag(bayes.path_set_dag(_chain(), "A", "C"))
+
+
+def test_merge_evidence_plain_merge_and_none_pickers():
+    nodes = ["s", "a", "b", "t"]
+    r = bayes.merge_evidence({"s": 1}, ["a"], ["b"], nodes)
+    assert r == {"evidence": {"s": 1, "a": 1, "b": 0}, "ignored": [], "conflicts": []}
+    assert bayes.merge_evidence({"s": 1}, None, None, nodes) == \
+        {"evidence": {"s": 1}, "ignored": [], "conflicts": []}
+    assert bayes.merge_evidence({"t": 1}, (), [], nodes)["evidence"] == {"t": 1}
+
+
+def test_merge_evidence_ignores_ids_outside_the_path_set_before_conflicts():
+    r = bayes.merge_evidence({"s": 1}, ["zz", "a"], ["zz"], ["s", "a", "t"])
+    # zz is outside the set: ignored, never a conflict even though it is in both pickers
+    assert r["ignored"] == ["zz"] and r["conflicts"] == []
+    assert r["evidence"] == {"s": 1, "a": 1}
+
+
+def test_merge_evidence_same_id_in_both_pickers_is_a_conflict():
+    r = bayes.merge_evidence({"s": 1}, ["a", "b"], ["b"], ["s", "a", "b", "t"])
+    assert r["conflicts"] == ["b"]
+
+
+def test_merge_evidence_picker_against_preset_is_a_conflict_agreeing_is_not():
+    nodes = ["s", "a", "t"]
+    assert bayes.merge_evidence({"s": 1}, [], ["s"], nodes)["conflicts"] == ["s"]
+    assert bayes.merge_evidence({"t": 1}, [], ["t"], nodes)["conflicts"] == ["t"]
+    ok = bayes.merge_evidence({"s": 1}, ["s"], [], nodes)
+    assert ok["conflicts"] == [] and ok["evidence"] == {"s": 1}
+
+
+def test_merge_evidence_lists_are_sorted_and_deduplicated():
+    r = bayes.merge_evidence({"s": 1}, ["b", "a", "a"], ["zz", "yy", "zz"], ["s", "a", "b", "t"])
+    assert r["ignored"] == ["yy", "zz"]
+    assert list(r["evidence"]) == ["s", "a", "b"]      # preset first, then sorted picks
+
+
+def test_focus_node_rule():
+    assert bayes.focus_node("s", "t", {"s": 1}) == "t"
+    assert bayes.focus_node("s", "t", {"t": 1}) == "s"
+    assert bayes.focus_node("s", "t", {"s": 1, "a": 0}) == "t"
+    assert bayes.focus_node("s", "t", {"s": 1, "t": 1}) is None
