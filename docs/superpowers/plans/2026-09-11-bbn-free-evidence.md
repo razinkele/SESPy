@@ -42,7 +42,7 @@
 | `sespy/modules/analysis_intervention.py` (modify) | `bbn_evidence_controls` output, worker, summary lines, `bbn_paths` table |
 | `tests/test_intervention_e2e.py` (modify) | Evidence + route-table + conflict assertions |
 | `tests/make_docs_screenshots.py` (modify) | `intervention_bbn.png` capture |
-| `docs/MANUAL.md`, `CHANGELOG.md`, `sespy/__init__.py`, `pyproject.toml` (modify) | Docs + version 1.11.0 |
+| `docs/MANUAL.md`, `CHANGELOG.md`, `README.md`, `sespy/__init__.py`, `pyproject.toml` (modify) | Docs + version 1.11.0 |
 
 Verified goldens (2026-09-11, sample project, pair D001→GB01, `path_set_dag` nodes `['D001','A001','P001','MPF1','ES01','ES03','GB01']`, routes `D001→A001→P001→MPF1→ES01→GB01` and `D001→A001→P001→MPF1→ES03→GB01`):
 
@@ -539,7 +539,7 @@ git commit -m "i18n: keys for BBN extra evidence and per-route effect"
 ### Task 5: Intervention UI — evidence pickers, worker, summary, route table
 
 **Files:**
-- Modify: `sespy/modules/analysis_intervention.py` — UI at lines 167–178 (sidebar) and 198–200 (main); server at lines 425–552
+- Modify: `sespy/modules/analysis_intervention.py` — UI at lines 167–178 (sidebar) and 198–200 (main); server at lines 425–552. All line numbers below refer to the file BEFORE this task's edits; locate by the quoted code, not the number, once Step 1 has shifted things.
 
 **Interfaces:**
 - Consumes: `bayes.path_set_dag`, `bayes.model_from_dag`, `bayes.merge_evidence`, `bayes.focus_node`, `bayes.attribute_paths`, `bayes.query_path_bbn`, `bayes.BayesUnavailable`; i18n keys from Task 4.
@@ -786,7 +786,9 @@ Insert after line 131:
         n_paths = await page.evaluate(
             "() => document.querySelectorAll('#intervention-bbn_paths table tbody tr').length")
         assert n_paths == 2, f"expected 2 route rows, got {n_paths}"
-        await page.wait_for_selector("#intervention-bbn_low", timeout=10000)
+        # selectize hides the underlying <select> (display:none), so the default
+        # visible-state wait would time out: wait for presence only.
+        await page.wait_for_selector("#intervention-bbn_low", state="attached", timeout=10000)
         await page.evaluate(
             "() => Shiny.setInputValue('intervention-bbn_low', ['MPF1'], {priority: 'event'})")
         for _ in range(20):
@@ -850,7 +852,7 @@ git commit -m "test(e2e): BBN extra evidence, route table and conflict assertion
 ### Task 7: Screenshot, manual, changelog, version, full gate
 
 **Files:**
-- Modify: `tests/make_docs_screenshots.py` (`gate_intervention` ~line 251–280; the `run()` per-panel branch ~line 340–364), `docs/MANUAL.md` (version line 3; section 19 lines 296–306; section 43 lines 448–454), `CHANGELOG.md` (top), `sespy/__init__.py` (`__version__`), `pyproject.toml` (`version`)
+- Modify: `tests/make_docs_screenshots.py` (`gate_intervention` ~line 251–280; the `run()` per-panel branch ~line 340–364), `docs/MANUAL.md` (version line 3; section 19 lines 296–306; section 43 lines 448–454), `CHANGELOG.md` (top), `README.md` (line 43), `sespy/__init__.py` (`__version__`), `pyproject.toml` (`version`)
 - Create (generated): `docs/screenshots/intervention_bbn.png`
 
 `tests/test_manual.py::test_every_manual_image_exists` requires the PNG before the manual references it, so generate the screenshot (Step 1–2) before editing the manual (Step 3).
@@ -868,11 +870,24 @@ In `tests/make_docs_screenshots.py`, add a method after `gate_intervention`:
             return
         await self.page.select_option("#intervention-bbn_source", "D001")
         await self.page.select_option("#intervention-bbn_target", "GB01")
+        # The pickers already exist for the initial pair (D001 -> R002) and are
+        # re-rendered for the new pair; a pick sent before the new selectize
+        # binds is overwritten by its empty initial value. Let the render land.
+        await self.page.wait_for_timeout(1500)
         if not await self.poll_sel("#intervention-bbn_low"):
             self.warn("intervention: bbn evidence pickers missing; run skipped")
             return
-        await self.page.evaluate(
-            "() => Shiny.setInputValue('intervention-bbn_low', ['MPF1'], {priority: 'event'})")
+        # Drive the widget itself so the pick shows in the control on the shot
+        # (the ablate pattern above); Shiny.setInputValue is the fallback.
+        try:
+            await self.page.click("#intervention-bbn_low + .selectize-control")
+            await self.page.click(
+                ".selectize-dropdown-content [data-selectable][data-value='MPF1']", timeout=3000)
+            await self.page.keyboard.press("Escape")
+        except Exception:
+            self.warn("intervention: bbn selectize pick failed, using Shiny.setInputValue")
+            await self.page.evaluate(
+                "() => Shiny.setInputValue('intervention-bbn_low', ['MPF1'], {priority: 'event'})")
         await self.page.wait_for_timeout(500)
         await self.page.click("#intervention-run_bbn")
         # The first inference per server process loads pgmpy (35-65 s here).
@@ -961,6 +976,22 @@ Section 43, after the "Path-set belief network" paragraph (line 454), add two pa
 
 `sespy/__init__.py`: `__version__ = "1.11.0"`; `pyproject.toml`: `version = "1.11.0"`.
 
+`README.md`: insert a new section directly above `## What's new in v1.10.0` (line 43), keeping the v1.10.0 section below it unchanged (the README keeps one section per release):
+
+```markdown
+## What's new in v1.11.0
+
+- **Extra evidence for the path-set belief network** (Intervention). "Also
+  high" / "Also low" pickers fix further elements of the causal paths
+  alongside the forward/diagnostic preset; picks outside the paths are
+  listed as ignored, conflicting picks block the run.
+- **Effect per route.** A second table gives, for each causal path on its
+  own, the focus element's baseline, posterior and change — solo values
+  that do not add up to the joint change.
+- See manual sections 19 and 43.
+
+```
+
 - [ ] **Step 5: Unit gate**
 
 Run: `micromamba run -n shiny pytest tests/ -q --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py`
@@ -974,7 +1005,7 @@ Expected: `32/32 e2e scripts passed`. A failing script may be rerun alone once (
 - [ ] **Step 7: Commit**
 
 ```
-git add tests/make_docs_screenshots.py docs/MANUAL.md docs/screenshots/*.png CHANGELOG.md sespy/__init__.py pyproject.toml
+git add tests/make_docs_screenshots.py docs/MANUAL.md docs/screenshots/*.png CHANGELOG.md README.md sespy/__init__.py pyproject.toml
 git commit -m "chore(release): v1.11.0 — BBN extra evidence + effect per route"
 ```
 
