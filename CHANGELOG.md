@@ -2,6 +2,18 @@
 
 All notable changes to SESPy.
 
+## [1.11.0] — 2026-09-11
+
+- **BBN extra evidence (Intervention).** "Also high" / "Also low" pickers
+  fix further path-set elements alongside the forward/diagnostic preset;
+  elements outside the paths are ignored and listed, conflicting picks
+  block the run. Library: `merge_evidence`, `focus_node`.
+- **Effect per route.** A second table gives, for each causal path on its
+  own, the focus element's baseline, posterior and change (solo values
+  that do not add up to the joint change). Library: `attribute_paths`,
+  `model_from_dag` (the CPT builder factored out of `build_path_bbn`).
+- Manual: section 19 and 43 updated; new screenshot `intervention_bbn.png`.
+
 ## [1.10.0] — 2026-09-08
 
 - **Bayesian consensus (Rate Connections).** Opt-in checkbox showing a Beta

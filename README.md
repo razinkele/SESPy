@@ -40,6 +40,17 @@ About → Manual.
 
 ---
 
+## What's new in v1.11.0
+
+- **Extra evidence for the path-set belief network** (Intervention). "Also
+  high" / "Also low" pickers fix further elements of the causal paths
+  alongside the forward/diagnostic preset; picks outside the paths are
+  listed as ignored, conflicting picks block the run.
+- **Effect per route.** A second table gives, for each causal path on its
+  own, the focus element's baseline, posterior and change — solo values
+  that do not add up to the joint change.
+- See manual sections 19 and 43.
+
 ## What's new in v1.10.0
 
 - **Bayesian consensus toggle** (Rate Connections). An optional toggle
