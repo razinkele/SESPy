@@ -629,7 +629,7 @@ def analysis_intervention_server(
         if not isinstance(r, dict) or "error" in r:     # None, _COMPUTING, or an error
             return pd.DataFrame(columns=cols)
         by_id = {el.id: el.label for el in project_data.get().isa_data.elements}
-        return pd.DataFrame([{
+        df = pd.DataFrame([{
             "path": " → ".join(by_id.get(n, n) for n in x["path"]),
             "length": x["length"],
             "polarity": x["polarity"],
@@ -637,3 +637,4 @@ def analysis_intervention_server(
             "solo posterior": round(x["p_high"], 3),
             "solo delta": round(x["delta"], 3),
         } for x in r.get("paths", [])], columns=cols)
+        return render.DataGrid(df, styles=[{"cols": [0], "style": {"min-width": "28rem"}}])

@@ -145,33 +145,54 @@ class Shooter:
         """Screenshot with the first boxed descendant of `sel` parked under
         the topbar (the metrics cascade capture pattern). If `bottom_sel` is
         given and its first boxed descendant's bottom edge falls below the
-        viewport, scroll down by the overflow so that block is fully in
-        frame, sacrificing the top of `sel` if the combined block is taller
-        than the viewport."""
-        scroll_y = await self.page.eval_on_selector(
-            sel,
-            "el => { const box = Array.from(el.querySelectorAll('*'))"
-            "    .find(c => c.getBoundingClientRect().height > 0) || el;"
-            "  const y = box.getBoundingClientRect().top + window.scrollY - 90;"
-            "  window.scrollTo({top: y, behavior: 'instant'}); return window.scrollY; }")
-        await self.page.wait_for_timeout(500)
-        if not scroll_y:
-            self.warn(f"{name}: {sel} did not scroll into view")
-        if bottom_sel:
-            overflow = await self.page.eval_on_selector(
+        viewport, grow the viewport for this one shot (up to 1400px tall) so
+        both `sel` and `bottom_sel` fit together, re-scrolling to the same
+        anchor; only if the block still does not fit at 1400px does it fall
+        back to scrolling down by the remaining overflow (sacrificing the
+        top of `sel`)."""
+        async def _scroll_to_sel() -> float:
+            return await self.page.eval_on_selector(
+                sel,
+                "el => { const box = Array.from(el.querySelectorAll('*'))"
+                "    .find(c => c.getBoundingClientRect().height > 0) || el;"
+                "  const y = box.getBoundingClientRect().top + window.scrollY - 90;"
+                "  window.scrollTo({top: y, behavior: 'instant'}); return window.scrollY; }")
+
+        async def _overflow() -> float:
+            return await self.page.eval_on_selector(
                 bottom_sel,
                 "el => { const box = Array.from(el.querySelectorAll('*'))"
                 "    .find(c => c.getBoundingClientRect().height > 0) || el;"
-                "  const bottom = box.getBoundingClientRect().bottom;"
-                "  const over = bottom - (window.innerHeight - 20);"
-                "  if (over > 0) window.scrollBy({top: over, behavior: 'instant'});"
-                "  return over; }")
+                "  return box.getBoundingClientRect().bottom - (window.innerHeight - 20); }")
+
+        scroll_y = await _scroll_to_sel()
+        await self.page.wait_for_timeout(500)
+        if not scroll_y:
+            self.warn(f"{name}: {sel} did not scroll into view")
+
+        grew_viewport = False
+        if bottom_sel:
+            overflow = await _overflow()
             if overflow and overflow > 0:
+                new_height = min(1400, 900 + overflow)
+                await self.page.set_viewport_size({"width": 1280, "height": int(new_height)})
+                grew_viewport = True
                 await self.page.wait_for_timeout(300)
+                await _scroll_to_sel()
+                await self.page.wait_for_timeout(300)
+                overflow = await _overflow()
+                if overflow and overflow > 0:
+                    await self.page.evaluate(
+                        "(o) => window.scrollBy({top: o, behavior: 'instant'})", overflow)
+                    await self.page.wait_for_timeout(300)
+
         path = self.out / f"{name}.png"
         await self.page.screenshot(path=str(path), full_page=False)
         print(f"wrote {path} ({path.stat().st_size} bytes)")
         self.written.append(path)
+        if grew_viewport:
+            await self.page.set_viewport_size({"width": 1280, "height": 900})
+            await self.page.wait_for_timeout(300)
 
     async def hide_notifications(self) -> None:
         await self.page.evaluate(
