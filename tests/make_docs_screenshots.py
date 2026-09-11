@@ -141,9 +141,13 @@ class Shooter:
         self.written.append(path)
         return path
 
-    async def shot_at(self, sel: str, name: str) -> None:
+    async def shot_at(self, sel: str, name: str, bottom_sel: str | None = None) -> None:
         """Screenshot with the first boxed descendant of `sel` parked under
-        the topbar (the metrics cascade capture pattern)."""
+        the topbar (the metrics cascade capture pattern). If `bottom_sel` is
+        given and its first boxed descendant's bottom edge falls below the
+        viewport, scroll down by the overflow so that block is fully in
+        frame, sacrificing the top of `sel` if the combined block is taller
+        than the viewport."""
         scroll_y = await self.page.eval_on_selector(
             sel,
             "el => { const box = Array.from(el.querySelectorAll('*'))"
@@ -153,6 +157,17 @@ class Shooter:
         await self.page.wait_for_timeout(500)
         if not scroll_y:
             self.warn(f"{name}: {sel} did not scroll into view")
+        if bottom_sel:
+            overflow = await self.page.eval_on_selector(
+                bottom_sel,
+                "el => { const box = Array.from(el.querySelectorAll('*'))"
+                "    .find(c => c.getBoundingClientRect().height > 0) || el;"
+                "  const bottom = box.getBoundingClientRect().bottom;"
+                "  const over = bottom - (window.innerHeight - 20);"
+                "  if (over > 0) window.scrollBy({top: over, behavior: 'instant'});"
+                "  return over; }")
+            if overflow and overflow > 0:
+                await self.page.wait_for_timeout(300)
         path = self.out / f"{name}.png"
         await self.page.screenshot(path=str(path), full_page=False)
         print(f"wrote {path} ({path.stat().st_size} bytes)")
@@ -415,7 +430,8 @@ class Shooter:
                 elif value == "intervention":
                     await self.gate_intervention_bbn()
                     await self.hide_notifications()
-                    await self.shot_at("#intervention-bbn_summary", "intervention_bbn")
+                    await self.shot_at("#intervention-bbn_summary", "intervention_bbn",
+                                       bottom_sel="#intervention-bbn_paths")
             except Exception as exc:  # keep going; report at the end
                 self.failures.append(f"{value}: {type(exc).__name__}: {exc}")
                 print(f"FAIL {value}: {type(exc).__name__}: {exc}")
