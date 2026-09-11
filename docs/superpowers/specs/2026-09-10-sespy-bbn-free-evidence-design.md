@@ -11,7 +11,10 @@ semantics and *presets plus extra pickers* as the evidence UI.
 after a three-lens adversarial review (5 confirmed findings folded in:
 evidence pickers get their own output, None-safe picker reads, conflict
 check before the pgmpy import, golden e2e values, path-table tie order).
-Implementation plan: `docs/superpowers/plans/2026-09-11-bbn-free-evidence.md`.
+Implemented as v1.11.0 on 2026-09-11 (plan
+`docs/superpowers/plans/2026-09-11-bbn-free-evidence.md`); two sentences
+amended after the final review to match what shipped (e2e picker-clear
+step, path-column width).
 
 ---
 
@@ -166,7 +169,10 @@ the threading and generation-counter discipline and runs, in order:
   `path` (labels joined with " → "), `length`, `polarity`,
   `solo baseline`, `solo posterior`, `solo delta` (3 decimals). Same guard
   as `bbn_table`: empty frame unless the result is a dict without
-  `"error"`; also empty when `r["paths"]` is `[]`.
+  `"error"`; also empty when `r["paths"]` is `[]`. The populated frame is
+  returned as `render.DataGrid(df, styles=[{"cols": [0], "style":
+  {"min-width": "14rem"}}])` so the path column does not wrap to ten
+  lines per row (added 2026-09-11 after the manual capture exposed it).
 
 ### i18n, docs, screenshots
 
@@ -230,8 +236,11 @@ the direction-change invalidation step, so the preset is still forward:
 - Set MPF1 high as well; wait for "not computed"; click run; wait until
   the summary contains the conflict text (wait predicate written for that
   string, not for "causal paths"); assert `MPF1` appears in it.
-- Clear both pickers (setInputValue `[]`), then the existing
-  direction-change step runs unchanged.
+- Clear both pickers (setInputValue `[]`), wait for "not computed", run
+  again and wait for the "2 causal paths" summary, then the existing
+  direction-change step runs unchanged on a genuinely computed result
+  (amended 2026-09-11 after the final review: clearing alone already
+  invalidates, which made that step's assertion tautological).
 - Cold-server warm-up flake (memory) applies: the first two hand runs may
   fail; the gate runner is the authority.
 
