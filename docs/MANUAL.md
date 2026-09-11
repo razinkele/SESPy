@@ -457,7 +457,7 @@ Both are opt-in and neither writes to the stored consensus.
 
 **Extra evidence.** Besides the preset (source high or target high) any other element on the paths can be fixed high or low. The evidence is merged into one query: an element outside the paths is ignored and listed as such, and an element picked as both high and low, or against the preset, is a conflict that blocks the run. The summary names the focus element (the target, or the source when the target is fixed); with both fixed there is no focus and no per-route table.
 
-**Per-route effect.** For every causal path left intact, SESPy builds a belief network over that path alone, applies the part of the evidence that lies on it, and reports the focus element's baseline, posterior and change along that single route. These are solo values: the baseline is the route's own no-evidence marginal, and because a noisy-OR is sub-additive and routes share links, the solo changes do not add up to the joint change reported above. Routes are ordered by the size of their solo change; ties keep path order.
+**Per-route effect.** For every causal path left intact, SESPy builds a belief network over that path alone, applies the part of the evidence that lies on it, and reports the focus element's baseline, posterior and change along that single route. These are solo values: the baseline is the route's own no-evidence marginal, and because a noisy-OR is sub-additive and routes share links, the solo changes do not add up to the joint change reported above. Routes are ordered by the size of their solo change; ties are broken by comparing the paths' element ids.
 
 ---
 

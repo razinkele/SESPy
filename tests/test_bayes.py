@@ -295,6 +295,7 @@ def test_merge_evidence_lists_are_sorted_and_deduplicated():
 
 
 def test_focus_node_rule():
+    assert bayes.focus_node("s", "t", {}) == "t"
     assert bayes.focus_node("s", "t", {"s": 1}) == "t"
     assert bayes.focus_node("s", "t", {"t": 1}) == "s"
     assert bayes.focus_node("s", "t", {"s": 1, "a": 0}) == "t"
@@ -334,9 +335,19 @@ def test_attribute_paths_intermediate_evidence_restricted_to_the_route():
     gb = next(x for x in bayes.query_path_bbn(model, info, {"D001": 1, "MPF1": 0})["rows"]
               if x["id"] == "GB01")
     assert math.isclose(gb["delta"], -0.2781, abs_tol=1e-3)
-    # evidence on a node that is NOT on a route is simply not applied to it
-    fwd = next(x for x in bayes.query_path_bbn(model, info, {"D001": 1})["rows"] if x["id"] == "GB01")
-    assert math.isclose(fwd["delta"], -0.0503, abs_tol=1e-3)
+    # evidence on a node that is NOT on a route is simply not applied to it:
+    # ES01 lies only on the D001-A001-P001-MPF1-ES01-GB01 route, so evidence
+    # on it must move that route's row but leave the ES03 route unchanged.
+    rows_es01 = bayes.attribute_paths(info, {"D001": 1, "ES01": 0}, "GB01")
+    base = bayes.attribute_paths(info, {"D001": 1}, "GB01")
+    by_es01 = {tuple(r["path"]): r for r in rows_es01}
+    by_base = {tuple(r["path"]): r for r in base}
+    es03_path = next(p for p in by_base if p[-2:] == ("ES03", "GB01"))
+    es01_path = next(p for p in by_base if p[-2:] == ("ES01", "GB01"))
+    assert math.isclose(by_es01[es03_path]["p_high"], by_base[es03_path]["p_high"])
+    assert math.isclose(by_es01[es03_path]["delta"], by_base[es03_path]["delta"])
+    assert not math.isclose(by_es01[es01_path]["p_high"], by_base[es01_path]["p_high"])
+    assert not math.isclose(by_es01[es01_path]["delta"], by_base[es01_path]["delta"])
 
 
 @needs_pgmpy

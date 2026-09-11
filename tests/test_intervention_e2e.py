@@ -166,6 +166,8 @@ async def main():
             await page.wait_for_timeout(500)
             if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
                 break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived a second evidence change"
         await page.click("#intervention-run_bbn")
         await page.wait_for_function(
             "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
@@ -180,6 +182,19 @@ async def main():
             "() => { Shiny.setInputValue('intervention-bbn_high', [], {priority: 'event'});"
             " Shiny.setInputValue('intervention-bbn_low', [], {priority: 'event'}); }")
         await page.wait_for_timeout(1000)
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived clearing the pickers"
+        await page.click("#intervention-run_bbn")
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('causal paths')", timeout=60000)
+        cleared_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "2 causal paths from D001 to GB01" in cleared_text, \
+            f"unexpected summary after clearing evidence: {cleared_text!r}"
         print(f"intervention bbn evidence: OK ({ev_text[:80]!r})")
         # Changing the direction invalidates the result.
         await page.click("#intervention-bbn_direction input[value='diagnostic']")
