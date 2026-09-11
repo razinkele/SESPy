@@ -637,4 +637,4 @@ def analysis_intervention_server(
             "solo posterior": round(x["p_high"], 3),
             "solo delta": round(x["delta"], 3),
         } for x in r.get("paths", [])], columns=cols)
-        return render.DataGrid(df, styles=[{"cols": [0], "style": {"min-width": "28rem"}}])
+        return render.DataGrid(df, styles=[{"cols": [0], "style": {"min-width": "14rem"}}])
