@@ -7,8 +7,10 @@ time: for a chosen source and target it takes the simple causal paths
 between them (network.causal_paths), unions them into a small graph, makes
 that graph acyclic by greedily removing the weakest link on each cycle found
 (always reported, never silent), derives every
-conditional probability table by noisy-OR from the existing strength ×
-confidence × polarity scores, and runs exact inference with pgmpy.
+conditional probability table by noisy-OR from the stored strength ×
+confidence × polarity scores, or optionally (link_mode="posterior") from the
+rater posteriors with the sign marginalised, and runs exact inference with
+pgmpy.
 
 pgmpy is optional (`pip install "sespy[bayes]"` / `micromamba install -n
 shiny pgmpy`) and is imported lazily inside the two functions that need it;
@@ -55,7 +57,8 @@ def _empty_dag() -> dict:
 
 
 def path_set_dag(isa: IsaData, source: str, target: str, *,
-                 max_length: int = 8, max_paths: int = 100) -> dict:
+                 max_length: int = 8, max_paths: int = 100,
+                 link_mode: LinkMode = "stored") -> dict:
     """Union of the simple source→target paths, made acyclic.
 
     Returns {"nodes": [ids in lexicographic topological order],
@@ -69,7 +72,10 @@ def path_set_dag(isa: IsaData, source: str, target: str, *,
     edge on two cycles may be spared in favour of two weaker ones). A node
     whose in-edges were all cut becomes a parentless 0.5-prior root. Parallel
     (source, target) connections deduplicate last-wins, matching
-    causal_paths. Pure."""
+    causal_paths. link_mode selects the link strength used to rank edges in
+    the cycle cut (link_params(conn, link_mode)[0]); "posterior" can cut a
+    different edge than "stored" when raters disagree, and the node set is
+    the same in both modes (only the topological order can differ). Pure."""
     cp = causal_paths(isa, source, target, max_length=max_length, max_paths=max_paths)
     if not cp["paths"]:
         return _empty_dag()
@@ -88,7 +94,7 @@ def path_set_dag(isa: IsaData, source: str, target: str, *,
         except nx.NetworkXNoCycle:
             break
         u, v = min(((e[0], e[1]) for e in cycle),
-                   key=lambda uv: (link_probability(conn_by[uv]), uv))
+                   key=lambda uv: (link_params(conn_by[uv], link_mode)[0], uv))
         g.remove_edge(u, v)
         cut.append((u, v))
     nodes = list(nx.lexicographical_topological_sort(g))
@@ -190,16 +196,19 @@ def focus_node(source: str, target: str, evidence: dict[str, int]) -> str | None
     return None
 
 
-def model_from_dag(info: dict):
+def model_from_dag(info: dict, *, link_mode: LinkMode = "stored"):
     """pgmpy DiscreteBayesianNetwork over a path_set_dag result (or any dict
     with the same "nodes"/"edges" shape); None when info has no nodes.
     Every node is binary (0 low, 1 high). Parentless nodes (the source, and
     any node whose in-edges were all cut) get P(high) = 0.5; every other
     CPT is noisy-OR over its in-edges via noisy_or_p_high. This is the single
     place the CPT derivation lives: build_path_bbn and attribute_paths both
-    call it. Raises BayesUnavailable when pgmpy is missing (checked before
-    the empty check, so the caller learns about a missing engine even with
-    no path)."""
+    call it. link_mode: "stored" (v1.10.0 CPTs, bit-identical) or "posterior"
+    (rated edges take (q, p_plus) from the rater posteriors; the sign is
+    marginalised inside the noisy-OR). Parameters are resolved once per
+    in-edge, not per CPT cell. Raises BayesUnavailable when pgmpy is missing
+    (checked before the empty check, so the caller learns about a missing
+    engine even with no path)."""
     try:
         from pgmpy.factors.discrete import TabularCPD
         from pgmpy.models import DiscreteBayesianNetwork
@@ -212,7 +221,7 @@ def model_from_dag(info: dict):
     model.add_nodes_from(info["nodes"])
     parents: dict[str, list] = {n: [] for n in info["nodes"]}
     for u, v, c in info["edges"]:
-        parents[v].append((u, c))
+        parents[v].append((u, link_params(c, link_mode)))
     for node in info["nodes"]:
         ps = parents[node]
         if not ps:
@@ -220,7 +229,8 @@ def model_from_dag(info: dict):
             continue
         # pgmpy column order: itertools.product over the evidence list, last
         # variable fastest — exactly what product([0, 1], repeat=k) yields.
-        highs = [noisy_or_p_high(states, ps)
+        params = [prm for _, prm in ps]
+        highs = [_noisy_or(states, params)
                  for states in itertools.product((0, 1), repeat=len(ps))]
         model.add_cpds(TabularCPD(
             node, 2, [[1.0 - p for p in highs], highs],
@@ -231,13 +241,15 @@ def model_from_dag(info: dict):
 
 
 def build_path_bbn(isa: IsaData, source: str, target: str, *,
-                   max_length: int = 8, max_paths: int = 100):
+                   max_length: int = 8, max_paths: int = 100,
+                   link_mode: LinkMode = "stored"):
     """(pgmpy DiscreteBayesianNetwork, dag_info) over path_set_dag; (None,
     empty dag_info) when there is no path. Equivalent to
     (model_from_dag(info), info) with info = path_set_dag(...). Raises
     BayesUnavailable when pgmpy is missing."""
-    info = path_set_dag(isa, source, target, max_length=max_length, max_paths=max_paths)
-    return model_from_dag(info), info
+    info = path_set_dag(isa, source, target, max_length=max_length, max_paths=max_paths,
+                        link_mode=link_mode)
+    return model_from_dag(info, link_mode=link_mode), info
 
 
 def query_path_bbn(model, info: dict, evidence: dict[str, int]) -> dict:
@@ -262,7 +274,8 @@ def query_path_bbn(model, info: dict, evidence: dict[str, int]) -> dict:
             "truncated": info["truncated"], "cut_edges": list(info["cut_edges"])}
 
 
-def attribute_paths(info: dict, evidence: dict[str, int], focus: str) -> list[dict]:
+def attribute_paths(info: dict, evidence: dict[str, int], focus: str, *,
+                    link_mode: LinkMode = "stored") -> list[dict]:
     """Solo-path effect: for each route still intact in info["paths"], build
     a chain model over that route's edges only (model_from_dag), apply the
     evidence restricted to the route's nodes, and read the focus node.
@@ -273,6 +286,7 @@ def attribute_paths(info: dict, evidence: dict[str, int], focus: str) -> list[di
     chain's own no-evidence marginal and differs from the joint baseline.
     The values are computed on the chain ALONE and do NOT sum to the joint
     delta of query_path_bbn (noisy-OR is sub-additive; routes share edges).
+    Chain models are built in `link_mode`, the same mode as the joint model.
     Precondition: focus ∉ evidence (focus_node guarantees it) — ValueError
     otherwise. [] when there are no routes. Raises BayesUnavailable when
     pgmpy is missing. Deterministic."""
@@ -286,7 +300,7 @@ def attribute_paths(info: dict, evidence: dict[str, int], focus: str) -> list[di
         sub = {"nodes": p,
                "edges": [(u, v, conn_by[(u, v)]) for u, v in zip(p, p[1:])],
                "cut_edges": [], "paths": [r], "truncated": False}
-        model = model_from_dag(sub)
+        model = model_from_dag(sub, link_mode=link_mode)
         q = query_path_bbn(model, sub, {k: v for k, v in evidence.items() if k in on_route})
         row = next(x for x in q["rows"] if x["id"] == focus)
         rows.append({"path": p, "length": r["length"], "polarity": r["polarity"],

@@ -105,8 +105,9 @@ def test_import_bayes_does_not_import_pgmpy():
     assert out.stdout.strip() == "False"
 
 
-def _chain(sign_ab="+"):
-    return _isa([Connection("A", "B", polarity=sign_ab, strength="strong", confidence=5),
+def _chain(sign_ab="+", ratings_ab=None):
+    return _isa([Connection("A", "B", polarity=sign_ab, strength="strong", confidence=5,
+                            ratings=list(ratings_ab or [])),
                  Connection("B", "C", polarity="+", strength="strong", confidence=5)])
 
 
@@ -453,3 +454,88 @@ def test_noisy_or_unknown_polarity_is_inactive_in_both_modes():
     for mode in ("stored", "posterior"):
         for s in (0, 1):
             assert math.isclose(bayes.noisy_or_p_high((s,), [("u", unk)], link_mode=mode), bayes.LEAK)
+
+
+_SPLIT = [_r(1, polarity="+"), _r(2, polarity="-")]
+_MAJORITY = [_r(1), _r(2), _r(3, polarity="-")]
+
+
+def _forward(isa, mode):
+    info = bayes.path_set_dag(isa, "A", "C", link_mode=mode)
+    r = bayes.query_path_bbn(bayes.model_from_dag(info, link_mode=mode), info, {"A": 1})
+    return {x["id"]: x for x in r["rows"]}
+
+
+@needs_pgmpy
+def test_contested_link_carries_no_information_in_posterior_mode():
+    stored = _forward(_chain(ratings_ab=_SPLIT), "stored")
+    post = _forward(_chain(ratings_ab=_SPLIT), "posterior")
+    assert math.isclose(stored["B"]["delta"], 0.38) and math.isclose(stored["C"]["delta"], 0.2888)
+    assert abs(post["B"]["delta"]) < 1e-9 and abs(post["C"]["delta"]) < 1e-9
+    assert math.isclose(stored["B"]["baseline"], 0.43) and math.isclose(post["B"]["baseline"], 0.35875)
+
+
+@needs_pgmpy
+def test_majority_link_shrinks_the_forward_effect_in_posterior_mode():
+    stored = _forward(_chain(ratings_ab=_MAJORITY), "stored")
+    post = _forward(_chain(ratings_ab=_MAJORITY), "posterior")
+    assert math.isclose(stored["C"]["delta"], 0.2888)
+    assert math.isclose(post["B"]["delta"], 0.064125, abs_tol=1e-6)
+    assert math.isclose(post["C"]["delta"], 0.048735, abs_tol=1e-6)
+
+
+@needs_pgmpy
+def test_attribute_paths_uses_the_link_mode_of_its_chains():
+    info = bayes.path_set_dag(_chain(ratings_ab=_MAJORITY), "A", "C")
+    stored = bayes.attribute_paths(info, {"A": 1}, "C")[0]["delta"]
+    post = bayes.attribute_paths(info, {"A": 1}, "C", link_mode="posterior")[0]["delta"]
+    assert math.isclose(stored, 0.2888) and math.isclose(post, 0.048735, abs_tol=1e-6)
+
+
+@needs_pgmpy
+def test_build_path_bbn_passes_link_mode_through():
+    isa = _chain(ratings_ab=_MAJORITY)
+    model, info = bayes.build_path_bbn(isa, "A", "C", link_mode="posterior")
+    direct = bayes.model_from_dag(info, link_mode="posterior")
+    assert bayes.query_path_bbn(model, info, {"A": 1}) == bayes.query_path_bbn(direct, info, {"A": 1})
+
+
+def _cycle_isa_with_ratings():
+    return _isa([
+        Connection("s", "a"), Connection("s", "b"),
+        Connection("a", "b", strength="strong", confidence=5,
+                   ratings=[_r(1, strength="weak"), _r(2, strength="weak", polarity="-")]),
+        Connection("b", "a", strength="weak", confidence=1, ratings=[_r(i) for i in range(3)]),
+        Connection("a", "t"), Connection("b", "t"),
+    ])
+
+
+def test_path_set_dag_cut_follows_the_posterior_link_strength():
+    isa = _cycle_isa_with_ratings()
+    stored = bayes.path_set_dag(isa, "s", "t")
+    post = bayes.path_set_dag(isa, "s", "t", link_mode="posterior")
+    assert stored["cut_edges"] == [("b", "a")]
+    assert post["cut_edges"] == [("a", "b")]
+    for r in (stored, post):
+        assert nx.is_directed_acyclic_graph(nx.DiGraph([(u, v) for u, v, _ in r["edges"]]))
+        assert len(r["paths"]) == 3 and len(r["edges"]) == 5
+        assert sum(1 for _, _, c in r["edges"] if c.ratings) == 1
+    assert set(stored["nodes"]) == set(post["nodes"])      # same set; order may differ
+
+
+@needs_pgmpy
+def test_sample_goldens_hold_in_posterior_mode_because_nothing_is_rated():
+    isa = load_sample(SAMPLE)
+    info = bayes.path_set_dag(isa, "D001", "GB01", link_mode="posterior")
+    assert [(u, v) for u, v, _ in info["edges"]] == [
+        ("A001", "P001"), ("D001", "A001"), ("ES01", "GB01"), ("ES03", "GB01"),
+        ("MPF1", "ES01"), ("MPF1", "ES03"), ("P001", "MPF1")]
+    assert sum(1 for _, _, c in info["edges"] if c.ratings) == 0
+    model = bayes.model_from_dag(info, link_mode="posterior")
+    for node, expected in _SAMPLE_CPDS.items():
+        got = [float(x) for x in model.get_cpds(node).values.flatten()]
+        assert len(got) == len(expected), node
+        for g, e in zip(got, expected):
+            assert math.isclose(g, e, abs_tol=1e-5), (node, got, expected)
+    gb = next(x for x in bayes.query_path_bbn(model, info, {"D001": 1})["rows"] if x["id"] == "GB01")
+    assert math.isclose(gb["delta"], -0.0503, abs_tol=1e-3)
