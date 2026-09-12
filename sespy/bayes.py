@@ -24,7 +24,7 @@ from typing import Literal
 import networkx as nx
 
 from .data_structure import IsaData
-from .network import causal_paths, polarity_posterior, strength_posterior
+from .network import _polarity_counts, causal_paths, strength_posterior
 
 LinkMode = Literal["stored", "posterior"]
 
@@ -116,18 +116,21 @@ def link_params(connection, link_mode: LinkMode = "stored") -> tuple[float, floa
     bypassing link_probability's [0.01, 0.99] clamp — so the edge is inactive
     in both parent states, as the v1.10.0 noisy-OR treated it.
     "posterior", when connection.ratings is non-empty: p_plus is the Beta
-    posterior mean of network.polarity_posterior and q the expected strength
+    posterior mean alpha/(alpha+beta) of network.polarity_posterior (taken
+    from network._polarity_counts, so no credible interval is computed) and
+    q the expected strength
     under the Dirichlet posterior of network.strength_posterior,
     s_bar = Σ_k mean[k]·STRENGTH_LINK[k], clamped to [0.01, 0.99]. Rater
     confidence enters once, as the pseudo-count weight inside both
     posteriors; no second confidence factor is applied (Decision 5 of the
     2026-09-12 design). "posterior" with no ratings is identical to
     "stored". Raises ValueError for any link_mode other than "stored" or
-    "posterior". Pure; ~1 ms for a rated edge (two scipy beta.ppf calls)."""
+    "posterior". Pure; microseconds per edge, no scipy call."""
     if link_mode not in ("stored", "posterior"):
         raise ValueError(f"link_mode must be 'stored' or 'posterior', got {link_mode!r}")
     if link_mode == "posterior" and connection.ratings:
-        p_plus = polarity_posterior(connection)["p_plus"]
+        a, b = _polarity_counts(connection)
+        p_plus = a / (a + b)
         mean = strength_posterior(connection)["mean"]
         s_bar = sum(mean[k] * STRENGTH_LINK[k] for k in STRENGTH_LINK)
         return min(0.99, max(0.01, s_bar)), float(p_plus)

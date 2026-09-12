@@ -462,11 +462,19 @@ def test_noisy_or_mixture_reduces_to_v1_10_formula_without_ratings():
         assert bayes._noisy_or(states, params) == stored
 
 
-def test_noisy_or_unknown_polarity_is_inactive_in_both_modes():
+def test_noisy_or_unrated_unknown_polarity_is_inactive_in_both_modes():
     unk = Connection("u", "c", polarity="?", strength="strong", confidence=5)
     for mode in ("stored", "posterior"):
         for s in (0, 1):
             assert math.isclose(bayes.noisy_or_p_high((s,), [("u", unk)], link_mode=mode), bayes.LEAK)
+
+
+def test_link_params_p_plus_equals_polarity_posterior_mean():
+    from sespy.network import polarity_posterior
+    for ratings in ([_r(1)], [_r(1, confidence=2), _r(2, polarity="-")],
+                    [_r(1), _r(2), _r(3, polarity="-", confidence=1)]):
+        c = Connection("a", "b", strength="strong", confidence=5, ratings=ratings)
+        assert bayes.link_params(c, "posterior")[1] == polarity_posterior(c)["p_plus"]
 
 
 _SPLIT = [_r(1, polarity="+"), _r(2, polarity="-")]

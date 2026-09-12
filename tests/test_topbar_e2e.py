@@ -14,7 +14,10 @@ async def main():
             await pg.wait_for_selector(f"#{bid}", timeout=30000)
         # Feedback opens + submit records + notification
         await pg.click("#tb_feedback")
-        await pg.wait_for_selector(".modal #fb_message", timeout=10000)
+        # 30 s, not 10: inside run_e2e.py this script follows the pgmpy-heavy
+        # intervention script and the worker is still busy when the modal is
+        # requested; it failed here three gates in a row and passed alone.
+        await pg.wait_for_selector(".modal #fb_message", timeout=30000)
         await pg.fill("#fb_message", "e2e feedback check")
         await pg.click("#fb_submit")
         await pg.wait_for_selector(".shiny-notification", timeout=10000)
