@@ -329,7 +329,7 @@ def test_sample_goldens_hold_in_posterior_mode_because_nothing_is_rated():
     model = bayes.model_from_dag(info, link_mode="posterior")
     for node, expected in _SAMPLE_CPDS.items():
         got = [float(x) for x in model.get_cpds(node).values.flatten()]
-        assert got == [float(x) for x in got] and len(got) == len(expected)
+        assert len(got) == len(expected), node
         for g, e in zip(got, expected):
             assert math.isclose(g, e, abs_tol=1e-5), (node, got, expected)
     gb = next(x for x in bayes.query_path_bbn(model, info, {"D001": 1})["rows"] if x["id"] == "GB01")
