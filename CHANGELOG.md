@@ -2,6 +2,19 @@
 
 All notable changes to SESPy.
 
+## [1.12.0] — 2026-09-12
+
+- **BBN link probabilities from rater posteriors (Intervention).** An
+  opt-in checkbox derives each rated link's sign probability (Beta
+  posterior) and expected strength (Dirichlet posterior) from the Option A
+  rater posteriors, with the sign marginalised inside the noisy-OR; an
+  evenly split link carries no information, unrated links keep the stored
+  values, and the summary counts the rated links. The cycle cut and the
+  per-route chains use the same mode. Library: `link_params`, `_noisy_or`,
+  `link_mode` on `path_set_dag`, `model_from_dag`, `build_path_bbn`,
+  `attribute_paths`. Stored mode is bit-identical to v1.11.0.
+- Manual: sections 19 and 43 updated.
+
 ## [1.11.0] — 2026-09-11
 
 - **BBN extra evidence (Intervention).** "Also high" / "Also low" pickers

@@ -40,6 +40,15 @@ About → Manual.
 
 ---
 
+## What's new in v1.12.0
+
+- **Link probabilities from rater posteriors** (Intervention). A checkbox
+  lets the path-set belief network take each rated link's sign probability
+  and expected strength from the rater posteriors instead of the stored
+  scalars, with the sign marginalised in the noisy-OR; unrated links keep
+  the stored values and the summary counts the rated ones.
+- See manual sections 19 and 43.
+
 ## What's new in v1.11.0
 
 - **Extra evidence for the path-set belief network** (Intervention). "Also
