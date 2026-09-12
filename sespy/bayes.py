@@ -17,11 +17,14 @@ importing this module never requires it.
 from __future__ import annotations
 
 import itertools
+from typing import Literal
 
 import networkx as nx
 
 from .data_structure import IsaData
-from .network import causal_paths
+from .network import causal_paths, polarity_posterior, strength_posterior
+
+LinkMode = Literal["stored", "posterior"]
 
 #: P(child high | no active parent) — the noisy-OR leak.
 LEAK: float = 0.05
@@ -98,18 +101,55 @@ def path_set_dag(isa: IsaData, source: str, target: str, *,
             "paths": paths, "truncated": cp["truncated"]}
 
 
-def noisy_or_p_high(states: tuple[int, ...], parents: list) -> float:
-    """P(child high | parent states) under noisy-OR.
+def link_params(connection, link_mode: LinkMode = "stored") -> tuple[float, float]:
+    """(q, p_plus) for one edge: the noisy-OR link strength and the
+    probability that the link is positive.
 
-    A parent is *active* when it is high and its edge is '+', or low and its
-    edge is '-' (a negative link pushes the child high when the parent is
-    low). P(high) = 1 − (1 − LEAK)·Π_active (1 − q_i). Pure."""
+    "stored": q = link_probability(connection); p_plus = 1.0 for polarity
+    '+', 0.0 for '-'. Any other polarity returns (0.0, 0.0) — q of exactly 0,
+    bypassing link_probability's [0.01, 0.99] clamp — so the edge is inactive
+    in both parent states, as the v1.10.0 noisy-OR treated it.
+    "posterior", when connection.ratings is non-empty: p_plus is the Beta
+    posterior mean of network.polarity_posterior and q the expected strength
+    under the Dirichlet posterior of network.strength_posterior,
+    s_bar = Σ_k mean[k]·STRENGTH_LINK[k], clamped to [0.01, 0.99]. Rater
+    confidence enters once, as the pseudo-count weight inside both
+    posteriors; no second confidence factor is applied (Decision 5 of the
+    2026-09-12 design). "posterior" with no ratings is identical to
+    "stored". Pure; ~3 ms for a rated edge (two scipy beta.ppf calls)."""
+    if link_mode == "posterior" and connection.ratings:
+        p_plus = polarity_posterior(connection)["p_plus"]
+        mean = strength_posterior(connection)["mean"]
+        s_bar = sum(mean[k] * STRENGTH_LINK[k] for k in STRENGTH_LINK)
+        return min(0.99, max(0.01, s_bar)), float(p_plus)
+    if connection.polarity == "+":
+        return link_probability(connection), 1.0
+    if connection.polarity == "-":
+        return link_probability(connection), 0.0
+    return 0.0, 0.0
+
+
+def _noisy_or(states: tuple[int, ...], params: list[tuple[float, float]]) -> float:
+    """P(child high | parent states) from resolved (q, p_plus) pairs.
+
+    The sign of each link is a latent Bernoulli(p_plus) marginalised out:
+    a_i = p_plus_i when the parent is high, 1 − p_plus_i when it is low, and
+    P(high) = 1 − (1 − LEAK)·Π_i (1 − q_i·a_i). With p_plus ∈ {0, 1} this is
+    the v1.10.0 formula exactly (an inactive parent multiplies by 1.0). At
+    p_plus = 0.5 both parent states give the same activation, so the child
+    is independent of that parent. Pure."""
     prod = 1.0 - LEAK
-    for state, (_, conn) in zip(states, parents):
-        active = (state == 1 and conn.polarity == "+") or (state == 0 and conn.polarity == "-")
-        if active:
-            prod *= 1.0 - link_probability(conn)
+    for state, (q, p_plus) in zip(states, params):
+        a = p_plus if state == 1 else 1.0 - p_plus
+        prod *= 1.0 - q * a
     return 1.0 - prod
+
+
+def noisy_or_p_high(states: tuple[int, ...], parents: list, *,
+                    link_mode: LinkMode = "stored") -> float:
+    """P(child high | parent states) for (parent_id, Connection) pairs —
+    _noisy_or over link_params resolved per call. Pure."""
+    return _noisy_or(states, [link_params(conn, link_mode) for _, conn in parents])
 
 
 def merge_evidence(preset: dict[str, int], high, low, nodes: list[str]) -> dict:

@@ -11,7 +11,7 @@ import networkx as nx
 import pytest
 
 from sespy import bayes
-from sespy.data_structure import Connection, Element, IsaData, load_sample
+from sespy.data_structure import Connection, Element, IsaData, Rating, load_sample
 
 SAMPLE = Path(__file__).resolve().parents[1] / "data" / "sample_ses.json"
 
@@ -389,3 +389,67 @@ def test_attribute_paths_unavailable_when_pgmpy_missing(monkeypatch):
     info = bayes.path_set_dag(_chain(), "A", "C")
     with pytest.raises(bayes.BayesUnavailable):
         bayes.attribute_paths(info, {"A": 1}, "C")
+
+
+def _r(i, strength="strong", polarity="+", confidence=5):
+    return Rating(f"r{i}", strength=strength, confidence=confidence, polarity=polarity)
+
+
+def test_link_params_stored_mode_is_link_probability_and_hard_sign():
+    plus = Connection("a", "b", polarity="+", strength="strong", confidence=5)
+    minus = Connection("a", "b", polarity="-", strength="weak", confidence=2)
+    assert bayes.link_params(plus) == (bayes.link_probability(plus), 1.0)
+    assert bayes.link_params(minus, "stored") == (bayes.link_probability(minus), 0.0)
+    # unknown polarity: inactive in both states, q exactly 0 (bypasses the clamp)
+    assert bayes.link_params(Connection("a", "b", polarity="?", strength="strong", confidence=5)) == (0.0, 0.0)
+    # posterior mode without ratings is stored mode
+    assert bayes.link_params(plus, "posterior") == bayes.link_params(plus, "stored")
+
+
+def test_link_params_posterior_unanimous_three_raters():
+    c = Connection("a", "b", strength="strong", confidence=5, ratings=[_r(i) for i in range(3)])
+    q, p = bayes.link_params(c, "posterior")
+    assert p == 0.8                                     # Beta(4,1) mean, exact
+    assert math.isclose(q, 0.675, abs_tol=1e-6)         # 1/6·0.30 + 1/6·0.55 + 2/3·0.80
+    assert bayes.link_params(c, "stored") == (0.8, 1.0)
+
+
+def test_link_params_posterior_split_and_majority():
+    split = Connection("a", "b", strength="strong", confidence=5,
+                       ratings=[_r(1, polarity="+"), _r(2, polarity="-")])
+    q, p = bayes.link_params(split, "posterior")
+    assert p == 0.5 and math.isclose(q, 0.65, abs_tol=1e-6)
+    maj = Connection("a", "b", strength="strong", confidence=5,
+                     ratings=[_r(1), _r(2), _r(3, polarity="-")])
+    q2, p2 = bayes.link_params(maj, "posterior")
+    assert math.isclose(p2, 0.6, abs_tol=1e-9) and math.isclose(q2, 0.675, abs_tol=1e-6)
+
+
+def test_noisy_or_split_sign_activates_symmetrically():
+    split = Connection("a", "b", strength="strong", confidence=5,
+                       ratings=[_r(1, polarity="+"), _r(2, polarity="-")])
+    hi = bayes.noisy_or_p_high((1,), [("a", split)], link_mode="posterior")
+    lo = bayes.noisy_or_p_high((0,), [("a", split)], link_mode="posterior")
+    assert hi == lo and math.isclose(hi, 0.35875, abs_tol=1e-9)   # 1 − 0.95·(1 − 0.65·0.5)
+
+
+def test_noisy_or_mixture_reduces_to_v1_10_formula_without_ratings():
+    plus = Connection("p", "c", polarity="+", strength="strong", confidence=5)   # q 0.8
+    minus = Connection("m", "c", polarity="-", strength="weak", confidence=5)    # q 0.3
+    parents = [("p", plus), ("m", minus)]
+    expected = {(0, 0): 1 - 0.95 * 0.7, (0, 1): bayes.LEAK,
+                (1, 0): 1 - 0.95 * 0.2 * 0.7, (1, 1): 1 - 0.95 * 0.2}
+    for states, want in expected.items():
+        stored = bayes.noisy_or_p_high(states, parents)
+        post = bayes.noisy_or_p_high(states, parents, link_mode="posterior")
+        assert stored == post                       # bit-identical, not merely close
+        assert math.isclose(stored, want)
+        params = [bayes.link_params(c) for _, c in parents]
+        assert bayes._noisy_or(states, params) == stored
+
+
+def test_noisy_or_unknown_polarity_is_inactive_in_both_modes():
+    unk = Connection("u", "c", polarity="?", strength="strong", confidence=5)
+    for mode in ("stored", "posterior"):
+        for s in (0, 1):
+            assert math.isclose(bayes.noisy_or_p_high((s,), [("u", unk)], link_mode=mode), bayes.LEAK)
