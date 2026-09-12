@@ -503,6 +503,7 @@ def analysis_intervention_server(
             return ui.div()
         if not src or not tgt:
             return ui.div()
+        # Deliberately stored mode: the node set is mode-invariant and this runs in a render, so keep scipy off the UI thread.
         info = bayes.path_set_dag(isa, src, tgt)     # networkx only, ≤3 ms on shipped projects
         if not info["nodes"]:
             return ui.p(t("bbn.no_path"), class_="text-muted", style="font-size: 0.8rem;")

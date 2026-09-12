@@ -407,6 +407,19 @@ def test_link_params_stored_mode_is_link_probability_and_hard_sign():
     assert bayes.link_params(plus, "posterior") == bayes.link_params(plus, "stored")
 
 
+def test_link_params_rejects_unknown_mode():
+    c = Connection("a", "b", polarity="+", strength="strong", confidence=5)
+    with pytest.raises(ValueError):
+        bayes.link_params(c, "Posterior")
+
+
+def test_link_params_rated_unknown_polarity_is_active_in_posterior_mode():
+    c = Connection("a", "b", polarity="?", strength="strong", confidence=5, ratings=[_r(i) for i in range(3)])
+    assert bayes.link_params(c, "stored") == (0.0, 0.0)
+    q, p = bayes.link_params(c, "posterior")
+    assert p == 0.8 and math.isclose(q, 0.675, abs_tol=1e-6)
+
+
 def test_link_params_posterior_unanimous_three_raters():
     c = Connection("a", "b", strength="strong", confidence=5, ratings=[_r(i) for i in range(3)])
     q, p = bayes.link_params(c, "posterior")

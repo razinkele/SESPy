@@ -122,7 +122,10 @@ def link_params(connection, link_mode: LinkMode = "stored") -> tuple[float, floa
     confidence enters once, as the pseudo-count weight inside both
     posteriors; no second confidence factor is applied (Decision 5 of the
     2026-09-12 design). "posterior" with no ratings is identical to
-    "stored". Pure; ~3 ms for a rated edge (two scipy beta.ppf calls)."""
+    "stored". Raises ValueError for any link_mode other than "stored" or
+    "posterior". Pure; ~1 ms for a rated edge (two scipy beta.ppf calls)."""
+    if link_mode not in ("stored", "posterior"):
+        raise ValueError(f"link_mode must be 'stored' or 'posterior', got {link_mode!r}")
     if link_mode == "posterior" and connection.ratings:
         p_plus = polarity_posterior(connection)["p_plus"]
         mean = strength_posterior(connection)["mean"]

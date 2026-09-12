@@ -45,8 +45,8 @@ Two consequences the manual must state:
   feeds its marginal. Rater disagreement therefore *severs* a link for
   inference rather than halving it; baselines under posterior mode are not
   comparable with stored-mode baselines.
-- **Few raters mean shrunk links.** The Dirichlet mean sits near the flat
-  prior until ratings accumulate: one confidence-5 "strong" rater gives
+- **Few raters mean links pulled toward the middle.** The Dirichlet mean sits near the flat
+  prior until ratings accumulate, so a stored strong link is weakened and a stored weak link strengthened: one confidence-5 "strong" rater gives
   `s_bar ≈ 0.49` against a stored 0.80; three unanimous give 0.675. Rater
   confidence enters once, as the pseudo-count weight of `_rating_weight`;
   no second confidence factor is applied to `q` (the v1.10.0 stored formula
@@ -65,7 +65,7 @@ still behaves.
 | 3 | Unrated edges use stored values, and the summary says how many edges were rated | On the sample project (no ratings) the toggle changes nothing; without the line a user cannot tell whether it worked. |
 | 4 | The cycle cut uses the posterior `q` too | One consistent notion of link strength per query; a different cut is possible and is reported, never hidden. |
 | 5 | `q = s_bar`, no interval-width confidence factor (revision) | Rater confidence is already the pseudo-count weight in both posteriors; scaling again by the credible-interval width would count it twice and halve every rated link with fewer than four raters. |
-| 6 | Unknown polarity (neither '+' nor '−') is inactive in both modes (revision) | That is what `noisy_or_p_high` does today; any two-valued P(+) would change it. Keeps stored mode bit-identical for every polarity value. |
+| 6 | Unknown polarity (neither '+' nor '−') is inactive in stored mode, and in posterior mode only when the connection is unrated; a rated connection uses its rater posteriors whatever the stored sign (revision) | That is what `noisy_or_p_high` does today; any two-valued P(+) would change it. Keeps stored mode bit-identical for every polarity value. |
 
 ---
 

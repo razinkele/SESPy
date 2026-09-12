@@ -12,7 +12,8 @@ All notable changes to SESPy.
   values, and the summary counts the rated links. The cycle cut and the
   per-route chains use the same mode. Library: `link_params`, `_noisy_or`,
   `link_mode` on `path_set_dag`, `model_from_dag`, `build_path_bbn`,
-  `attribute_paths`. Stored mode is bit-identical to v1.11.0.
+  `attribute_paths`. Stored mode is bit-identical to v1.11.0 for '+'/'−'
+  links (a '?'-polarity link now ranks at 0 in the cycle cut).
 - Manual: sections 19 and 43 updated.
 
 ## [1.11.0] — 2026-09-11
