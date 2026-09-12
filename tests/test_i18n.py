@@ -228,15 +228,18 @@ def test_bbn_keys_present(translations):
                 "bbn.unavailable", "bbn.summary", "bbn.truncated", "bbn.cut",
                 "bbn.target_line", "bbn.about_text",
                 "bbn.also_high", "bbn.also_low", "bbn.evidence", "bbn.ignored",
-                "bbn.conflict", "bbn.paths_title", "bbn.paths_legend", "bbn.high", "bbn.low"):
+                "bbn.conflict", "bbn.paths_title", "bbn.paths_legend", "bbn.high", "bbn.low",
+                "bbn.posterior_links", "bbn.posterior_line"):
         assert key in translations
 
 
 def test_bbn_evidence_placeholders_match_across_languages(translations):
     import re
-    expected = {"bbn.evidence": {"items"}, "bbn.ignored": {"ids"}, "bbn.conflict": {"ids"}}
+    expected = {"bbn.evidence": {"items"}, "bbn.ignored": {"ids"}, "bbn.conflict": {"ids"},
+                "bbn.posterior_line": {"rated", "total"}}
     for key, names in expected.items():
         for lang, text in translations[key].items():
             assert set(re.findall(r"\{(\w+)\}", text)) == names, (key, lang, text)
     assert translations["bbn.evidence"]["en"].startswith("Evidence:")
     assert translations["bbn.conflict"]["en"].startswith("Conflicting evidence")
+    assert translations["bbn.posterior_line"]["en"].startswith("Links from rater posteriors:")
