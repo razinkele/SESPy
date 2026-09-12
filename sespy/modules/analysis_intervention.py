@@ -173,6 +173,7 @@ def analysis_intervention_ui() -> ui.Tag:
                     {"forward": t("bbn.forward"), "diagnostic": t("bbn.diagnostic")},
                     selected="forward",
                 ),
+                ui.input_checkbox("bbn_posterior", t("bbn.posterior_links"), value=False),
                 ui.input_action_button(
                     "run_bbn", t("bbn.run"),
                     class_="btn btn-sm btn-outline-primary",
@@ -429,11 +430,13 @@ def analysis_intervention_server(
     _bbn_result = reactive.value(None)     # None | _COMPUTING | {"error": key} | query dict
     _bbn_gen = [0]                          # plain cell, NOT reactive (avoids a self-loop)
 
-    def _bbn_work(isa, src, tgt, direction, high, low):
+    def _bbn_work(isa, src, tgt, direction, high, low, link_mode):
         """Runs in a worker thread: the lazy pgmpy import lives here. Order
         matters: the conflict check needs only path_set_dag, so a conflict
-        is reported instantly even before the engine has ever been loaded."""
-        info = bayes.path_set_dag(isa, src, tgt)
+        is reported instantly even before the engine has ever been loaded.
+        link_mode ("stored" | "posterior") reaches every model built for
+        this query: the cut, the joint model and the per-route chains."""
+        info = bayes.path_set_dag(isa, src, tgt, link_mode=link_mode)
         if not info["nodes"]:
             return {"error": "bbn.no_path"}
         preset = {src: 1} if direction == "forward" else {tgt: 1}
@@ -441,20 +444,26 @@ def analysis_intervention_server(
         if merged["conflicts"]:
             return {"error": "bbn.conflict", "ids": merged["conflicts"]}
         try:
-            model = bayes.model_from_dag(info)
+            model = bayes.model_from_dag(info, link_mode=link_mode)
         except bayes.BayesUnavailable:
             return {"error": "bbn.unavailable"}
         r = bayes.query_path_bbn(model, info, merged["evidence"])
         r["ignored"] = merged["ignored"]
         r["focus"] = bayes.focus_node(src, tgt, merged["evidence"])
-        r["paths"] = (bayes.attribute_paths(info, merged["evidence"], r["focus"])
+        r["paths"] = (bayes.attribute_paths(info, merged["evidence"], r["focus"], link_mode=link_mode)
                       if r["focus"] else [])
         r["source"], r["target"] = src, tgt
+        r["link_mode"] = link_mode
+        # Edges still IN the model; an edge removed by the cycle cut is not
+        # counted here (the bbn.cut line reports those).
+        r["rated"] = sum(1 for _, _, c in info["edges"] if c.ratings)
+        r["total"] = len(info["edges"])
         return r
 
     @reactive.extended_task
-    async def _bbn_task(isa, src, tgt, direction, high, low, gen):
-        return (gen, await asyncio.to_thread(_bbn_work, isa, src, tgt, direction, high, low))
+    async def _bbn_task(isa, src, tgt, direction, high, low, link_mode, gen):
+        return (gen, await asyncio.to_thread(_bbn_work, isa, src, tgt, direction,
+                                             high, low, link_mode))
 
     @output
     @render.ui
@@ -521,7 +530,7 @@ def analysis_intervention_server(
         # as the current one's.
         event_bus.isa_change.get()
         for read in (input.bbn_source, input.bbn_target, input.bbn_direction,
-                     input.bbn_high, input.bbn_low):
+                     input.bbn_high, input.bbn_low, input.bbn_posterior):
             try:
                 read()
             except Exception:
@@ -549,8 +558,9 @@ def analysis_intervention_server(
         high, low = _picks(input.bbn_high), _picks(input.bbn_low)
         _bbn_gen[0] += 1
         _bbn_result.set(_COMPUTING)
+        link_mode = "posterior" if input.bbn_posterior() else "stored"
         _bbn_task(project_data.get().isa_data, src, tgt, input.bbn_direction(),
-                  high, low, _bbn_gen[0])
+                  high, low, link_mode, _bbn_gen[0])
 
     @reactive.effect
     def _bbn_observe():
@@ -585,6 +595,9 @@ def analysis_intervention_server(
         items = ", ".join(f"{k} {t('bbn.high') if v == 1 else t('bbn.low')}"
                           for k, v in sorted(r["evidence"].items()))
         lines.append(ui.p(t("bbn.evidence", items=items), style="font-size: 0.85rem;"))
+        if r.get("link_mode") == "posterior":
+            lines.append(ui.p(t("bbn.posterior_line", rated=r["rated"], total=r["total"]),
+                              class_="text-muted", style="font-size: 0.85rem;"))
         focus = r.get("focus")
         if focus:
             row = next(x for x in r["rows"] if x["id"] == focus)
