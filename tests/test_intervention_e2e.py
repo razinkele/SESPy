@@ -136,6 +136,39 @@ async def main():
         n_paths = await page.evaluate(
             "() => document.querySelectorAll('#intervention-bbn_paths table tbody tr').length")
         assert n_paths == 2, f"expected 2 route rows, got {n_paths}"
+        # --- Posterior link mode (design 2026-09-12). The sample has no
+        # ratings, so every link falls back to stored values: the golden
+        # delta is unchanged and the summary says 0 of 7 rated. ---
+        await page.check("#intervention-bbn_posterior")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived the posterior toggle"
+        await page.click("#intervention-run_bbn")
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('causal paths')", timeout=60000)
+        post_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "Links from rater posteriors: 0 of 7 rated" in post_text, \
+            f"expected the rated-edge line: {post_text!r}"
+        assert "(-0.05)" in post_text, f"posterior mode must not change an unrated model: {post_text!r}"
+        # Back to stored mode, recomputed, so the evidence block below starts
+        # from the same state as before this block.
+        await page.uncheck("#intervention-bbn_posterior")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived untoggling posterior mode"
+        await page.click("#intervention-run_bbn")
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('causal paths')", timeout=60000)
+        assert "Links from rater posteriors" not in (await page.inner_text("#intervention-bbn_summary"))
+        print(f"intervention bbn posterior: OK ({post_text[:80]!r})")
         # selectize hides the underlying <select> (display:none), so the default
         # visible-state wait would time out: wait for presence only.
         await page.wait_for_selector("#intervention-bbn_low", state="attached", timeout=10000)
