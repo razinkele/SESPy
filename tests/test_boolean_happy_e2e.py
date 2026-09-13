@@ -45,17 +45,51 @@ async def main():
         await page.click("#sespy_nav_boolean")
         await page.wait_for_timeout(1500)
 
-        await page.click("#boolean-run_boolean")
-        await page.wait_for_timeout(3000)
+        # The pre-run placeholder figure ("Click 'Run analysis' to compute
+        # results.") is ALSO an <img> (analysis_boolean.py:136-143), and so is
+        # the error branch (144-149) — shiny encodes every Figure as
+        # "data:image/png;base64,..." — so "an <img> exists" cannot tell a real
+        # render from a placeholder. Stash the placeholder's src IN THE PAGE
+        # (keeps ~100 KB off the CDP bridge) and require the src to change.
+        # The plot is in the default-visible Laplacian tab, so it renders the
+        # placeholder at the nav click above; matplotlib's import happens inside
+        # the render function, so allow a generous first-render budget.
+        await page.wait_for_selector("#boolean-eigenvalue_plot img", timeout=60000)
+        await page.evaluate(
+            "() => { window.__sespy_plot_src0 = "
+            "document.querySelector('#boolean-eigenvalue_plot img').src; }"
+        )
 
-        # Eigenvalue plot rendered (img tag inside the plot output)
+        await page.click("#boolean-run_boolean")
+
+        # Eigenvalue plot re-rendered with real results: render.plot returns a
+        # content-derived "data:image/png;base64,..." src, so it changes.
+        await page.wait_for_function(
+            "() => {"
+            "  const i = document.querySelector('#boolean-eigenvalue_plot img');"
+            "  return !!i && i.src !== window.__sespy_plot_src0;"
+            "}",
+            timeout=60000,
+        )
         plot_visible = await page.evaluate(
-            "() => !!document.querySelector('#boolean-eigenvalue_plot img')"
+            "() => {"
+            "  const i = document.querySelector('#boolean-eigenvalue_plot img');"
+            "  return !!i && i.src !== window.__sespy_plot_src0;"
+            "}"
         )
         print(f"eigenvalue plot rendered: {plot_visible}")
-        assert plot_visible, "eigenvalue plot did not render"
+        assert plot_visible, \
+            "eigenvalue plot did not render (still the pre-run placeholder figure)"
 
-        # Stability summary populated
+        # Stability summary populated. This is the independent non-vacuous
+        # witness for a successful run (its pre-run placeholder is a bare <p>,
+        # analysis_boolean.py:165) — and it replaces the fixed sleep this block
+        # removed, so this change stands alone. Same pattern as
+        # tests/test_boolean_e2e.py:47-50.
+        await page.wait_for_function(
+            "() => document.querySelectorAll('#boolean-stability_summary dl dt').length >= 3",
+            timeout=30000,
+        )
         n_dt = await page.evaluate(
             "() => document.querySelectorAll('#boolean-stability_summary dl dt').length"
         )
@@ -66,7 +100,24 @@ async def main():
         # Scope to this module's navset, never a bare text= match: every panel
         # shares one DOM, so a future label elsewhere would hijack this click.
         await page.click("#boolean-boolean_tabs a[data-value='Boolean attractors']")
-        await page.wait_for_timeout(1500)
+        # Wait for the attractor panel's reactive content instead of racing a
+        # fixed sleep. Deliberately a NEUTRAL any-content gate, not
+        # "table tbody tr": gating on the table would pre-empt the
+        # alert-warning assertion below, so a too-large warning regressed onto a
+        # 5-node network would die on an opaque selector timeout instead of
+        # failing with "unexpected too-large warning on a 5-node network".
+        # The placeholder clause is defensive only here (the Run click above
+        # already set result_store, so analysis_boolean.py:183 cannot render),
+        # but it keeps the gate correct if that order is ever reversed.
+        await page.wait_for_function(
+            "() => {"
+            "  const el = document.querySelector('#boolean-attractor_panel');"
+            "  if (!el) return false;"
+            "  const s = (el.textContent || '').trim();"
+            "  return s.length > 0 && !s.includes(\"Click 'Run analysis'\");"
+            "}",
+            timeout=15000,
+        )
 
         # No too-large warning — we're below the 12-node cap.
         warning_count = await page.evaluate(

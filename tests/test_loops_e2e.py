@@ -44,19 +44,48 @@ async def main():
         )
         assert ok, "#loops-selected_loop not mounted"
 
+        # Pin the poll to the SELECTED loop: the network is already mounted for
+        # the DEFAULT loop (analysis_loops.py:324-336 — selected_row() falls back
+        # to rows[0]), so a non-empty edge list is NOT evidence of the re-render.
+        row_path = await page.evaluate(
+            "(i) => { const tr=document.querySelectorAll("
+            "'#loops-loops_table table tbody tr')[i]; if(!tr) return null;"
+            " const td=tr.querySelectorAll('td');"
+            " return (td[5]?.textContent || '').trim(); }",
+            osc_idx,
+        )
+        assert row_path, f"could not read the path cell of loops table row {osc_idx}"
+
         # Read the rendered loop network's edge `dashes` flags: the delayed edge
-        # must be dashed AND at least one edge must be solid. Poll for the re-render.
+        # must be dashed AND at least one edge must be solid. Poll until the
+        # network's OWN nodes/edges spell the selected row's path in order
+        # (network.py:1770-1771 path == labels joined by ' → ' plus the first
+        # label repeated; analysis_loops.py:74 node labels come from the same
+        # map), so neither a stale default render nor a reverse-direction loop
+        # over the same nodes can satisfy it.
         dashes = None
-        for _ in range(16):
+        for _ in range(60):
             await page.wait_for_timeout(500)
-            dashes = await page.evaluate(
-                "() => { const s=window.pyvisNetworks && window.pyvisNetworks['loops-loop_network'];"
-                " return s && s.edges ? s.edges.get().map(e => e.dashes === true) : null; }"
+            state = await page.evaluate(
+                "(p) => { const s=window.pyvisNetworks && window.pyvisNetworks['loops-loop_network'];"
+                " if(!s || !s.nodes || !s.edges) return {dashes: null, ready: false};"
+                " const ns=s.nodes.get(), es=s.edges.get();"
+                " const lbl={}; ns.forEach(n => { lbl[n.id]=String(n.label); });"
+                " const want=p.split(' → ').slice(0, -1);"
+                " const seen=new Set(es.map(e => lbl[e.from] + '→' + lbl[e.to]));"
+                " const ready = want.length === ns.length && es.length === want.length"
+                "   && want.every((l, i) => seen.has(l + '→' + want[(i + 1) % want.length]));"
+                " return {dashes: es.map(e => e.dashes === true), ready: ready}; }",
+                row_path,
             )
-            if dashes:
+            if state["ready"]:
+                dashes = state["dashes"]
                 break
         print("dashes:", dashes)
-        assert dashes, "loop network edges not readable"
+        assert dashes, (
+            "loop network never re-rendered for the selected loop "
+            f"({row_path})"
+        )
         assert any(dashes), "no dashed (delayed) edge in the oscillation-prone loop"
         assert not all(dashes), "expected at least one solid (immediate) edge too"
 

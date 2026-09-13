@@ -31,9 +31,12 @@ async def main():
         await pg.click("#tb_about")
         await pg.wait_for_selector(".modal", timeout=10000)
         body = await pg.text_content(".modal") or ""
-        assert "Overview" in body and "Changelog" in body, body[:120]
+        tabs = [t.strip() for t in await pg.eval_on_selector_all(
+            ".modal .nav-link", "els => els.map(e => e.textContent)")]
+        assert any("Overview" in t for t in tabs) and any("Changelog" in t for t in tabs), \
+            f"About tabs={tabs} body={body[:120]}"
         # Manual tab (v1.8.0): rendered docs/MANUAL.md with images that load.
-        assert "Manual" in body, body[:120]
+        assert any("Manual" in t for t in tabs), f"About tabs={tabs} body={body[:120]}"
         await pg.click(".modal .nav-link:has-text('Manual')")
         await pg.wait_for_selector(".modal h1:has-text('SESPy User Manual')", timeout=10000)
         await pg.wait_for_selector(".modal h2:has-text('CLD Visualization')", timeout=10000)

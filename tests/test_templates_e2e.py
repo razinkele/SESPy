@@ -15,7 +15,12 @@ async def main():
 
         # Click Templates nav
         await page.click("#sespy_nav_templates")
-        await page.wait_for_timeout(2500)
+        # templates_list is a suspended @render.ui inside the hidden pane: its
+        # first render (list_templates() validates every sespy/templates/*.json)
+        # begins at this nav click, so wait for the cards instead of sleeping.
+        # Shiny swaps an output_ui's innerHTML atomically, so once one h5 is
+        # present the whole list is present.
+        await page.wait_for_selector("#templates-templates_list h5", timeout=60000)
 
         # Templates panel should list our shipped templates
         cards = await page.evaluate(
@@ -29,8 +34,25 @@ async def main():
             f"Offshore Wind template missing: {cards}"
 
         # Click Load on the first template
+        first_name = cards[0]
         await page.click("#templates-load_template_0")
-        await page.wait_for_timeout(2500)
+        # The load can only be proven by its own success toast. The first
+        # template (sespy/templates/coastal_tourism.json) is graph-identical
+        # to the seeded sample (same 17 element ids/labels, 20 connections),
+        # so NO CLD node count can distinguish "loaded" from "never loaded",
+        # and .shiny-notification alone is shared with the autosave
+        # "Recovered work" banner. Match the interpolated template name in
+        # parentheses: templates.py builds t("templates.loaded") + f" ({info.name})"
+        # only on the success path (the except branch's message is
+        # f"Couldn't load template: {e}" and never carries the name), and
+        # matching the name rather than the translated sentence keeps this
+        # language-independent.
+        await page.wait_for_function(
+            """(name) => Array.from(document.querySelectorAll('.shiny-notification'))
+              .some(n => (n.textContent || '').includes('(' + name + ')'))""",
+            arg=first_name,
+            timeout=30000,
+        )
 
         # Switch to CLD: project_data should now reflect the loaded template
         await page.click("#sespy_nav_cld")

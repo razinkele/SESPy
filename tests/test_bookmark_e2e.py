@@ -2,7 +2,7 @@
 and the URL stays in sync on nav + stepper navigation."""
 import asyncio
 
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
 BASE = "http://127.0.0.1:8000"
 
@@ -35,10 +35,21 @@ async def main():
         # --- Case 2: clicking a nav button updates the URL
         print("\n=== case 2: nav click updates ?view ===")
         await page.click("#sespy_nav_loops")
-        await page.wait_for_function(
-            "() => new URL(window.location).searchParams.get('view') === 'loops'",
-            timeout=15000,
-        )
+        try:
+            await page.wait_for_function(
+                "() => new URL(window.location).searchParams.get('view') === 'loops'",
+                # Case 1 revealed the metrics panel: its suspended outputs (matplotlib
+                # hist, pyvis network, networkx summaries) render on the single event
+                # loop, and this click's round-trip queues behind them.
+                timeout=60000,
+            )
+        except PlaywrightTimeoutError:
+            got = await page.evaluate(
+                "() => new URL(window.location).searchParams.get('view')"
+            )
+            raise AssertionError(
+                f"nav click did not sync ?view to 'loops' within 60s (still {got!r})"
+            )
         print("  ok (?view=loops)")
 
         # --- Case 3: stepper click tracks active_panel (real value change)

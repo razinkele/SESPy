@@ -98,8 +98,12 @@ async def main():
         # Blind mode: rater 2 has NOT rated this connection yet, but rater 1 has.
         # Enabling blind hides the peer value from rater 2 until they submit.
         await page.check("#rate-blind_mode")
-        await page.wait_for_timeout(500)
-        blind_txt = (await page.text_content("#rate-current_ratings")) or ""
+        blind_txt = ""
+        for _ in range(40):
+            await page.wait_for_timeout(500)
+            blind_txt = (await page.text_content("#rate-current_ratings")) or ""
+            if "blind mode" in blind_txt.lower():
+                break
         assert "blind mode" in blind_txt.lower(), f"blind placeholder not shown: {blind_txt!r}"
         assert "/" not in blind_txt, f"peer rating value leaked under blind mode: {blind_txt!r}"
 
@@ -206,9 +210,10 @@ async def main():
                 "() => Array.from(document.querySelectorAll("
                 "'#rate-connections_table table thead th')).map(th => th.textContent.trim())"
             )
-            if not any("P(+)" in h for h in headers):
+            if headers and not any("P(+)" in h for h in headers):
                 break
-        assert not any("P(+)" in h for h in headers), "P(+) column persisted after toggle-off"
+        assert headers and not any("P(+)" in h for h in headers), \
+            f"toggle-off left #rate-connections_table thead empty or P(+) persisted: {headers}"
         print("rate connections bayesian toggle: OK")
 
         await browser.close()

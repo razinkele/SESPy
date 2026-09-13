@@ -140,17 +140,27 @@ async def case_full_run(page):
     # check above. Navigate to Edit Data and look for the labels we
     # entered ("E2E drivers sample", "E2E activities sample", etc.).
     await page.click("#sespy_nav_entry")
-    await page.wait_for_timeout(2500)
-    cells_text = await page.evaluate(
-        "() => Array.from(document.querySelectorAll("
-        "'#entry-elements_table table tbody tr td')).map(c => c.textContent).join('|')"
-    )
     expected_labels = [
         "E2E drivers sample", "E2E activities sample", "E2E pressures sample",
         "E2E states sample", "E2E impacts sample", "E2E welfare sample",
         "E2E responses sample",
     ]
-    missing = [lbl for lbl in expected_labels if lbl not in cells_text]
+    # elements_table is a SUSPENDED output: its first render, payload and
+    # client-side grid mount all start at the nav click above, so a bare sleep
+    # can read an unmounted grid ('' -> every label "missing") and report a
+    # dropped-writes regression that did not happen. Poll, keeping the
+    # original assertion and its diagnostic.
+    cells_text = ""
+    missing = list(expected_labels)
+    for _ in range(120):  # 60 s budget
+        cells_text = await page.evaluate(
+            "() => Array.from(document.querySelectorAll("
+            "'#entry-elements_table table tbody tr td')).map(c => c.textContent).join('|')"
+        )
+        missing = [lbl for lbl in expected_labels if lbl not in cells_text]
+        if not missing:
+            break
+        await page.wait_for_timeout(500)
     assert not missing, f"missing element labels in elements_table: {missing}"
     print("  ok (wizard deactivated, 7 elements persisted)")
 
@@ -159,7 +169,13 @@ async def case_modal_cancel(page):
     print("\n=== case 2: non-empty project modal Cancel ===")
     # Load Coastal Tourism SES so project is non-empty.
     await page.click("#sespy_nav_templates")
-    await page.wait_for_timeout(2000)
+    # templates_list is a suspended @render.ui whose first render starts at
+    # this nav click (navset_hidden pane; shiny suspend_when_hidden=True).
+    # Without a wait, cards == [] and cards.index() raises
+    # ValueError("'Coastal Tourism SES' is not in list") — a crash, not a test
+    # failure. The whole list arrives as one @render.ui payload, so the first
+    # heading appearing means every card is present.
+    await page.wait_for_selector("#templates-templates_list h5", timeout=60000)
     cards = await page.evaluate(
         "() => Array.from(document.querySelectorAll('#templates-templates_list h5'))"
         ".map(e => e.textContent.trim())"
@@ -173,6 +189,20 @@ async def case_modal_cancel(page):
     await page.wait_for_timeout(800)
     # Modal Cancel.
     await page.click("#wizard-wizard_cancel_modal")
+    # `_on_modal_cancel` (sespy/modules/ai_isa_wizard.py:477-481) does nothing
+    # but `ui.modal_remove()` -- wizard_active stays False by construction
+    # (`_on_start`'s non-empty branch, :430-449, only calls `ui.modal_show`),
+    # so the Start-button check below is TRUE before this click as well and
+    # proves nothing about Cancel. The modal going away is the only
+    # observable effect, so assert it. Same idiom as
+    # tests/test_topbar_e2e.py:71, but scoped to the wizard's own Cancel
+    # button: wait_for_selector resolves on the first DOM-order match, and
+    # every panel shares one DOM, so a bare `.modal` would only prove that
+    # *a* modal is gone. `state="hidden"` (not "detached") covers both the
+    # Bootstrap display:none phase and the wrapper detach.
+    await page.wait_for_selector(
+        "#wizard-wizard_cancel_modal", state="hidden", timeout=10000
+    )
     await page.wait_for_timeout(800)
     # Assert: modal closed, wizard still inactive (Start button still in DOM).
     # Cancel does not flip `wizard_active`, so the inactive view never
@@ -190,7 +220,13 @@ async def case_modal_replace(page):
     # Load Coastal Tourism (sorted-first template) by name lookup, mirroring
     # case 2's pattern — robust if a future template sorts before it.
     await page.click("#sespy_nav_templates")
-    await page.wait_for_timeout(2000)
+    # Same session as case 2 (no reload since line 47), so the cards are
+    # already in the hidden pane's DOM and templates() is a cached
+    # reactive.calc. The default state="visible" is what matters here: it
+    # blocks until the nav round-trip actually re-activates the Templates
+    # pane, so the following evaluate can't read [] and crash in
+    # cards.index().
+    await page.wait_for_selector("#templates-templates_list h5", timeout=60000)
     cards = await page.evaluate(
         "() => Array.from(document.querySelectorAll('#templates-templates_list h5'))"
         ".map(e => e.textContent.trim())"
@@ -229,15 +265,29 @@ async def case_modal_replace(page):
     # raw row count, which is what actually distinguishes empty isa_data
     # from leftover Coastal Tourism elements.
     await page.click("#sespy_nav_entry")
-    await page.wait_for_timeout(2500)
-    cell_text = await page.evaluate(
-        "() => Array.from(document.querySelectorAll("
-        "'#entry-elements_table table tbody tr td'))"
-        ".map(c => c.textContent.trim()).join('|')"
+    # elements_table is a SUSPENDED output in a hidden pane: it is not
+    # recomputed while Edit Data is hidden, so right after the nav click the
+    # grid still holds case 2's Coastal Tourism rows — a bare sleep can read
+    # that stale content and report "Replace did not clear isa_data" when it
+    # did. And an unmounted grid yields '' , which passes the cleared-check
+    # vacuously. Poll until the resumed render lands. The empty state still
+    # mounts ONE placeholder row of 3 blank <td> (isa_data_entry.py:153), so
+    # cell_text != '' is the mount signal in both the cleared and the
+    # not-cleared case.
+    cell_text = ""
+    for _ in range(120):  # 60 s budget
+        cell_text = await page.evaluate(
+            "() => Array.from(document.querySelectorAll("
+            "'#entry-elements_table table tbody tr td'))"
+            ".map(c => c.textContent.trim()).join('|')"
+        )
+        if cell_text != "" and cell_text.replace("|", "") == "":
+            break
+        await page.wait_for_timeout(500)
+    assert cell_text != "", (
+        "elements_table never mounted — cannot judge whether Replace cleared "
+        "isa_data"
     )
-    # Expected when empty: "||" (3 empty cells joined). Anything with
-    # actual element labels (e.g. "el_1|Tourism|driver") means Replace
-    # did not wipe isa_data.
     assert cell_text.replace("|", "") == "", (
         f"isa_data not cleared by Replace — elements table cells: "
         f"{cell_text!r}"
@@ -359,12 +409,29 @@ async def case_validation_failure(page):
     # On step 4 with empty driver — click Next.
     await page.fill("#wizard-entry_drivers_0", "   ")  # whitespace-only
     await page.click("#wizard-wizard_next")
-    await page.wait_for_timeout(1000)
-    # Assert: validation toast appeared AND breadcrumb still shows step 4.
-    notif = await page.evaluate(
-        "() => document.querySelectorAll('#shiny-notification-panel .shiny-notification').length"
+    # Match the validation toast's OWN text. Counting .shiny-notification is
+    # vacuous: test_autosave_e2e sorts first and leaves an autosave file, so
+    # project_io._offer_recovery (project_io.py:172-183) shows a persistent
+    # (duration=None) "Recovered work from your last session." banner in every
+    # session started by _start_wizard_empty_via_replace's page.goto — the count
+    # is >= 1 whether or not validation ever fired. Wait HERE, right after the
+    # Next click: this toast carries duration=3 and auto-dismisses.
+    await page.wait_for_function(
+        "() => Array.from(document.querySelectorAll("
+        "  '#shiny-notification-panel .shiny-notification'"
+        ")).some(n => (n.textContent || '').includes("
+        "  'Please provide at least one valid entry before continuing.'))",
+        timeout=30000,
     )
-    assert notif >= 1, "expected validation notification"
+    # Then settle before reading the breadcrumb. Do NOT delete this as
+    # "redundant with the wait above": ui.notification_show uses
+    # session._send_message_sync, so the toast goes out on its own websocket
+    # frame DURING the effect, before the output flush that would re-render
+    # #wizard-wizard_breadcrumb. _on_next advances the step at
+    # ai_isa_wizard.py:668, inside that same effect — so if the validation
+    # `return` (ai_isa_wizard.py:557) ever went missing, the toast would arrive
+    # first and an un-settled pill read would see the stale "5." and pass.
+    await page.wait_for_timeout(1000)
     # Validation failed → still on step 4, active pill is "5. Drivers".
     active_pill = await page.evaluate(
         "() => document.querySelector('#wizard-wizard_breadcrumb .bg-primary')"
@@ -381,6 +448,14 @@ async def case_claude_button_not_rendered_without_env_key(page):
     Pre-condition: launch app WITHOUT setting ANTHROPIC_API_KEY."""
     print("\n=== case 7: Claude button hidden without env key ===")
     await _drive_to_step_11(page)
+    # Anchor the negative assertion: query_selector does not auto-wait, so
+    # without proof that the step-11 view actually rendered this passes even
+    # if the drive stalled on step 10. wizard_finish is rendered ONLY when
+    # step_idx == 11 (ai_isa_wizard.py:1032-1035), by the very same
+    # wizard_step_render output that would carry the Generate button — so its
+    # presence proves the step-11 render landed and the Generate button's
+    # absence is a real observation.
+    await page.wait_for_selector("#wizard-wizard_finish", timeout=60000)
     button = await page.query_selector("#wizard-wizard_claude_generate")
     assert button is None, "expected no button without ANTHROPIC_API_KEY"
 

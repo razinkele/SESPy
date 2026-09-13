@@ -11,9 +11,16 @@ async def main():
         await page.set_viewport_size({"width": 1280, "height": 900})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
         await page.wait_for_timeout(1500)
-        # CLD is the default tab; wait for its network container to mount so a
+        # CLD is the default tab; wait for the vis network object to REGISTER so a
         # "tab never rendered" failure is distinct from an "edges empty" timeout.
-        await page.wait_for_selector("#cld-network", timeout=30000)
+        # NB: `#cld-network` alone is the static output placeholder div emitted by
+        # output_pyvis_network (pyvis/shiny/wrapper.py), so it matches at page load,
+        # before any render — it cannot make that distinction.
+        await page.wait_for_function(
+            "() => !!(window.pyvisNetworks && window.pyvisNetworks['cld-network']"
+            " && window.pyvisNetworks['cld-network'].edges)",
+            timeout=60000,
+        )
         # Poll until the network DataSet has edges.
         dashes = None
         for _ in range(16):

@@ -26,20 +26,53 @@ async def main():
 
         await page.wait_for_selector("#sespy_nav_boolean", timeout=60000)
         await page.click("#sespy_nav_boolean")
-        await page.wait_for_timeout(1500)
+        # The Laplacian tab's plot output is SUSPENDED while the panel is
+        # hidden; when the pane becomes visible it renders a "Click Run"
+        # PLACEHOLDER figure that is also an <img>. Wait for that placeholder
+        # (strictly stronger than a blind sleep: the <img> exists only after
+        # the nav round-trip completed AND the suspended output resumed) and
+        # record its src so the post-Run wait can tell the real eigenvalue
+        # chart apart from it.
+        await page.wait_for_selector("#boolean-eigenvalue_plot img", timeout=60000)
+        pre_run_dt = await page.evaluate(
+            "() => document.querySelectorAll('#boolean-stability_summary dl dt').length"
+        )
+        assert pre_run_dt == 0, (
+            "plot already shows a post-run figure; placeholder capture invalid "
+            f"(stability summary already has {pre_run_dt} <dt>)"
+        )
+        await page.evaluate(
+            "() => { window.__boolPlaceholderSrc ="
+            " document.querySelector('#boolean-eigenvalue_plot img').src; }"
+        )
 
         # Run analysis
         await page.click("#boolean-run_boolean")
 
-        # Eigenvalue plot rendered (img tag inside the plot output). This is the
-        # first matplotlib render in the session and the cold import can take
-        # several seconds, so wait for the <img> rather than a fixed sleep.
-        await page.wait_for_selector("#boolean-eigenvalue_plot img", timeout=30000)
-        plot_visible = await page.evaluate(
-            "() => !!document.querySelector('#boolean-eigenvalue_plot img')"
+        # Eigenvalue plot rendered (img tag inside the plot output). An <img>
+        # already existed before Run — the "Click Run" placeholder figure — so
+        # waiting for the selector alone would pass instantly and prove nothing.
+        # Wait instead for the src to CHANGE away from the captured placeholder
+        # AND for the stability summary to populate; both only happen after the
+        # analysis actually ran. This is the first matplotlib render in the
+        # session and the cold import can take several seconds.
+        await page.wait_for_function(
+            "() => {"
+            "  const i = document.querySelector('#boolean-eigenvalue_plot img');"
+            "  if (!i || i.src === window.__boolPlaceholderSrc) return false;"
+            "  return document.querySelectorAll('#boolean-stability_summary dl dt').length >= 3;"
+            "}",
+            timeout=60000,
         )
-        print(f"eigenvalue plot rendered: {plot_visible}")
-        assert plot_visible, "eigenvalue plot did not render"
+        plot_rendered = await page.evaluate(
+            "() => {"
+            "  const i = document.querySelector('#boolean-eigenvalue_plot img');"
+            "  return !!i && i.src !== window.__boolPlaceholderSrc;"
+            "}"
+        )
+        print(f"eigenvalue plot rendered: {plot_rendered}")
+        assert plot_rendered, \
+            "eigenvalue plot still shows the pre-run 'Click Run' placeholder"
 
         # Stability summary populated (a <dl> with at least 3 dt/dd pairs).
         # It renders a tick after the plot, so wait for it to populate rather

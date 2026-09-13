@@ -13,6 +13,7 @@ async def main():
         await page.wait_for_timeout(1500)
 
         # Click "Leverage Points"
+        await page.wait_for_selector("#sespy_nav_leverage", timeout=60000)
         await page.click("#sespy_nav_leverage")
         # Wait for the nav to activate, rather than guessing with a fixed delay.
         await page.wait_for_function(
@@ -111,6 +112,34 @@ async def main():
                 found_ci = True
                 break
         assert found_ci, f"95% CI column not added after toggling uncertainty: {headers}"
+        # The header alone is not proof. It does prove the task returned a dict
+        # (analysis_leverage.py:249 takes the dict branch only for a real result, and
+        # :228-231 clears unc_state to None on a task exception) — but :262 appends the
+        # CI column for ANY dict while :257 fills "" for every row id missing from
+        # result["leverage"], so an all-blank column passes the assert above. Nothing
+        # else catches that: test_network.py:751 pins the result keys, but its _isa
+        # helper (test_network.py:678) builds Element(id=i, label=i), so an id->label
+        # keying swap compares equal there, and test_leverage_module.py has no
+        # uncertainty coverage at all. Assert the cells actually hold intervals, using
+        # the same thead-index -> td-index mapping the realm block above already proves
+        # works on this grid.
+        await page.wait_for_selector("#leverage-leverage_table table tbody tr", timeout=30000)
+        ci_cells = await page.evaluate(
+            "() => { const ths = Array.from(document.querySelectorAll("
+            "'#leverage-leverage_table table thead th')).map(th => th.textContent.trim());"
+            " const i = ths.findIndex(h => h.includes('CI'));"
+            " if (i < 0) return null;"
+            " return Array.from(document.querySelectorAll("
+            "'#leverage-leverage_table table tbody tr')).map("
+            "tr => (tr.querySelectorAll('td')[i]?.textContent || '').trim()); }"
+        )
+        # all(), not any(): uncertainty_scores seeds lev_samples for every element id
+        # (network.py:1693) and writes a leverage_out entry for each (network.py:1713-1716),
+        # and data/sample_ses.json has no connection endpoint outside its 17 elements, so
+        # every displayed row must carry a bracketed interval. Negative bounds still
+        # satisfy the check ("[-1.20, 0.50]").
+        assert ci_cells and all(c.startswith("[") and "," in c for c in ci_cells), \
+            f"95% CI column present but cells hold no interval: {ci_cells}"
         print("leverage uncertainty CI column: OK")
 
         await browser.close()

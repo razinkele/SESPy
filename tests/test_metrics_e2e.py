@@ -15,28 +15,51 @@ async def main():
         await page.set_viewport_size({"width": 1280, "height": 800})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
         await page.wait_for_timeout(1500)
+        # The nav is a @render.ui output (dashboard.py sespy_nav_render): it
+        # exists only after the session's first flush, which networkidle does
+        # not cover. page.click's implicit 30 s ceiling is half the budget the
+        # sibling nav scripts were given (bot:13, intervention:14, boolean:27).
+        await page.wait_for_selector("#sespy_nav_metrics", timeout=60000)
 
         # Click "Network Metrics" nav button (3rd nav item)
         await page.click("#sespy_nav_metrics")
-        await page.wait_for_timeout(2500)
+        # The metrics panel is a suspended output set: its first render (six
+        # output_ui blocks + the data frame + a matplotlib histogram + the
+        # server-side pyvis build) starts at THIS nav click, not at page load.
+        await page.wait_for_function(
+            "() => { const s = window.pyvisNetworks"
+            " && window.pyvisNetworks['metrics-metrics_network'];"
+            " return !!(s && s.nodes && s.nodes.length); }",
+            timeout=60000,
+        )
 
-        # The data_frame is rendered as a <shiny-data-frame> web component
-        # in shadow DOM; rather than poke into shadow root we just assert
-        # the host element exists, has rendered children, and is no longer
-        # in the "recalculating" state.
-        df_state = await page.evaluate("""() => {
-          const el = document.getElementById('metrics-metrics_table');
-          if (!el) return null;
-          const sdf = el.querySelector('shiny-data-frame');
-          return {
-            host_exists: !!el,
-            recalculating: el.classList.contains('recalculating'),
-            sdf_present: !!sdf,
-            child_count: el.children.length,
-          };
-        }""")
+        # output_data_frame puts the output id ON the <shiny-data-frame>
+        # element itself (shiny/ui/dataframe/_data_frame.py:33-38), so an
+        # inner el.querySelector('shiny-data-frame') is always null — the
+        # dropped `sdf_present` field asserted nothing. The grid is light
+        # DOM (data-frame.js never calls attachShadow), so the rows are
+        # readable directly. The table's first render is not ordered
+        # against the pyvis wait above, hence the bounded poll.
+        df_state = None
+        for _ in range(40):          # 20 s
+            df_state = await page.evaluate("""() => {
+              const el = document.getElementById('metrics-metrics_table');
+              if (!el) return null;
+              return {
+                host_exists: !!el,
+                recalculating: el.classList.contains('recalculating'),
+                child_count: el.children.length,
+                row_count: el.querySelectorAll('tbody tr').length,
+              };
+            }""")
+            if df_state and not df_state["recalculating"] and df_state["row_count"] > 0:
+                break
+            await page.wait_for_timeout(500)
+        n_rows = df_state["row_count"] if df_state else 0
         print(f"data_frame state: {df_state}")
-        assert df_state and df_state["host_exists"] and not df_state["recalculating"]
+        assert df_state and df_state["host_exists"] and not df_state["recalculating"], \
+            f"metrics table host missing or still recalculating: {df_state!r}"
+        assert n_rows > 0, f"metrics table rendered no rows: {df_state!r}"
 
         # Pyvis network rendered with 17 nodes
         nodes_in_canvas = await page.evaluate(
@@ -54,12 +77,28 @@ async def main():
             "() => window.pyvisNetworks['metrics-metrics_network'].nodes.get()"
             ".map(n => n.size).sort()"
         )
-        await page.click("input[type='radio'][value='betweenness']")
-        await page.wait_for_timeout(2000)
-        sizes_betweenness = await page.evaluate(
-            "() => window.pyvisNetworks['metrics-metrics_network'].nodes.get()"
-            ".map(n => n.size).sort()"
-        )
+        # Scope the radio to its own input group: input_radio_buttons("metric", ...)
+        # in module "metrics" renders <div id="metrics-metric" class=
+        # "shiny-input-radiogroup">. The bare value selector is NOT unique —
+        # analysis_intervention.py:144-149 renders the same CENTRALITY_METRICS
+        # choices and every panel shares one DOM (dashboard.py:230 navset_hidden),
+        # so today it works only because app.py:143 precedes app.py:149.
+        await page.click("#metrics-metric input[type='radio'][value='betweenness']")
+        # metrics() is cached and metric-independent (analysis_metrics.py:223-228),
+        # so this waits on the round-trip plus the metrics_table / metrics_hist
+        # (matplotlib) / _network (pyvis) re-renders, not a centrality recompute.
+        sizes_betweenness = sizes_degree
+        for _ in range(40):          # 20 s, the cascade poll's budget (lines 143-147)
+            await page.wait_for_timeout(500)
+            probe = await page.evaluate(
+                "() => { const s = window.pyvisNetworks"
+                " && window.pyvisNetworks['metrics-metrics_network'];"
+                " return s && s.nodes ? s.nodes.get().map(n => n.size).sort() : null; }"
+            )
+            if probe is not None:
+                sizes_betweenness = probe
+                if sizes_betweenness != sizes_degree:
+                    break
         print(f"sizes on Degree:      {sizes_degree[:5]}...")
         print(f"sizes on Betweenness: {sizes_betweenness[:5]}...")
         assert sizes_degree != sizes_betweenness, \
@@ -68,8 +107,25 @@ async def main():
         # Click "New Project" — three-way reactive coupling: this should
         # propagate via event_bus.isa_change to all three modules without
         # any of them crashing. Verify metrics module is still rendering.
+        # Stamp the live instance so the post-reset read cannot pass on the
+        # stale one: New Project reloads the SAME sample (project_io.py:266
+        # _on_new -> load_sample), so "17 nodes" is identical before and
+        # after and by itself proves nothing about the re-render — drop the
+        # isa_change subscription in analysis_metrics.py:227 and this block
+        # still passes on the ref left over from the betweenness render.
+        # pyvis/shiny/bindings.js builds a NEW ref object per renderValue
+        # (line 692) after deleting the old one (line 118 -> pyvisDestroy,
+        # line 67), so the stamp cannot survive a real re-render.
+        await page.evaluate(
+            "() => { window.pyvisNetworks['metrics-metrics_network'].__preReset = true; }"
+        )
         await page.click("#new_project")
-        await page.wait_for_timeout(1500)
+        await page.wait_for_function(
+            "() => { const s = window.pyvisNetworks"
+            " && window.pyvisNetworks['metrics-metrics_network'];"
+            " return !!(s && !s.__preReset && s.nodes && s.nodes.length); }",
+            timeout=60000,
+        )
         nodes_after_reset = await page.evaluate(
             "() => window.pyvisNetworks['metrics-metrics_network'].nodes.length"
         )

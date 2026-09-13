@@ -12,11 +12,18 @@ from playwright.async_api import async_playwright
 async def _load_minimal_demo(page):
     await page.wait_for_selector("#sespy_nav_templates", timeout=60000)
     await page.click("#sespy_nav_templates")
-    await page.wait_for_timeout(2500)
-    cards = await page.evaluate(
-        "() => Array.from(document.querySelectorAll('#templates-templates_list h5'))"
-        ".map(e => e.textContent.trim())"
-    )
+    # The template gallery is a suspended @render.ui: its first render starts at
+    # this nav click (server round-trip + card build), so a fixed settle was the
+    # only guard and an empty list killed all 8 cases at the assert below.
+    cards = []
+    for _ in range(120):
+        cards = await page.evaluate(
+            "() => Array.from(document.querySelectorAll('#templates-templates_list h5'))"
+            ".map(e => e.textContent.trim())"
+        )
+        if cards:
+            break
+        await page.wait_for_timeout(500)
     assert "Minimal Demo" in cards, f"Minimal Demo missing: {cards}"
     idx = cards.index("Minimal Demo")
     await page.click(f"#templates-load_template_{idx}")
@@ -59,8 +66,29 @@ async def case_csv_upload_happy(page):
     print("\n=== case 2: csv upload happy path ===")
     await page.click("input[type=radio][value=csv]")
     await page.wait_for_timeout(500)
+    # Snapshot the plot BEFORE the upload: bot_plot always emits an <img>
+    # (placeholder at analysis_bot.py:330-335, error figure at :325-329), and
+    # while an output recomputes Shiny only adds a `recalculating` class and
+    # reuses the same <img> element -- so case 1's image is still in the DOM
+    # and `!!img` below is true whether or not this upload reached the server.
+    # Only a CHANGED data: URI proves the re-render happened. Deliberately
+    # data-agnostic so the same pattern works for any fixture; case 3 pins its
+    # upload with a summary value instead, which this case cannot do because
+    # bot_sample.csv is also what the plot already shows from case 1.
+    prev_src = await page.evaluate(
+        "() => { const i = document.querySelector('#bot-bot_plot img');"
+        " return i ? i.src : ''; }"
+    )
     await page.set_input_files("#bot-csv_upload", "tests/fixtures/bot_sample.csv")
-    await page.wait_for_timeout(2000)
+    # A timeout here is the intended failure mode: it means the CSV upload
+    # never re-rendered the plot. The `danger == 0` assert below still
+    # distinguishes a successful parse from the error figure.
+    await page.wait_for_function(
+        "(prev) => { const i = document.querySelector('#bot-bot_plot img');"
+        " return !!i && i.src !== prev && i.complete && i.naturalWidth > 0; }",
+        arg=prev_src,
+        timeout=30000,
+    )
     plot_visible = await page.evaluate(
         "() => !!document.querySelector('#bot-bot_plot img')"
     )
@@ -74,8 +102,22 @@ async def case_csv_upload_happy(page):
 
 async def case_csv_lowercase_columns(page):
     print("\n=== case 3: csv with lowercase columns ===")
+    # bot_lowercase.csv now carries values distinct from bot_sample.csv (mean
+    # 103.0000). With identical values the resulting summary was byte-identical
+    # to case 2's, so `danger == 0` passed even if this upload never reached the
+    # server. Poll for the new mean, then keep the original error-count assert.
     await page.set_input_files("#bot-csv_upload", "tests/fixtures/bot_lowercase.csv")
-    await page.wait_for_timeout(2000)
+    summary = ""
+    for _ in range(60):
+        summary = await page.evaluate(
+            "() => (document.querySelector('#bot-bot_summary') || {}).textContent || ''"
+        )
+        if "103.0000" in summary:
+            break
+        await page.wait_for_timeout(500)
+    assert "103.0000" in summary, (
+        f"lowercase-column csv did not parse (mean 103.0000 missing): {summary!r}"
+    )
     danger = await page.evaluate(
         "() => document.querySelectorAll('#bot-bot_summary .alert-danger').length"
     )
@@ -111,10 +153,36 @@ async def case_synthetic_mode(page):
 
 async def case_trend_toggle(page):
     print("\n=== case 6: trend toggle ===")
-    await page.click("#bot-show_trend")
-    await page.wait_for_timeout(800)
-    await page.click("#bot-show_trend")
-    await page.wait_for_timeout(800)
+    # `!!img` alone is vacuous here: case 5 already left an <img> in
+    # #bot-bot_plot and Shiny keeps the previous render's <img> while an output
+    # recomputes, so the assert below is true even if #bot-show_trend is
+    # unwired. Require the figure to actually change on each toggle --
+    # show_trend defaults to True (analysis_bot.py:82) and _trend_coeffs
+    # returns None when it is off (analysis_bot.py:272-274), so the trend line
+    # is drawn/removed and the PNG differs both ways.
+    async def _snap():
+        return await page.evaluate(
+            "() => { const i = document.querySelector('#bot-bot_plot img');"
+            " return i ? i.src : ''; }"
+        )
+
+    async def _wait_changed(prev, label):
+        # A timeout here means the trend toggle did not reach the plot.
+        await page.wait_for_function(
+            "(prev) => { const i = document.querySelector('#bot-bot_plot img');"
+            " return !!i && i.src !== prev && i.complete && i.naturalWidth > 0; }",
+            arg=prev,
+            timeout=30000,
+        )
+        print(f"  trend {label}: plot re-rendered")
+
+    src_on = await _snap()
+    await page.click("#bot-show_trend")      # -> off
+    await _wait_changed(src_on, "off")
+    src_off = await _snap()
+    await page.click("#bot-show_trend")      # -> back on
+    await _wait_changed(src_off, "on")
+
     plot_visible = await page.evaluate(
         "() => !!document.querySelector('#bot-bot_plot img')"
     )
@@ -198,9 +266,35 @@ async def case_stale_warning(page):
         ")).some(n => (n.textContent || '').includes('deleted upstream'))",
         timeout=30000,
     )
+    # bot_plot ALWAYS returns a figure - the error path (analysis_bot.py:325-329)
+    # and the "no data yet" path (:330-335) both draw text on an axis and return
+    # `fig` - and shiny encodes every figure as a data:image/png;base64 <img> src
+    # (shiny/render/_render.py:429-437). While an output recomputes shiny only
+    # adds a `recalculating` class (shiny.js:2975-2979), so the PREVIOUS render's
+    # <img> stays in the DOM and `!!#bot-bot_plot img` is true below no matter
+    # what happens. Snapshot the src HERE: the BOT pane has been hidden since the
+    # nav click above, so its outputs are suspended and no new value can land
+    # between this line and the nav-back - which makes any change observed after
+    # the nav-back provably the post-return re-render.
+    prev_plot_src = await page.evaluate(
+        "() => { const i = document.querySelector('#bot-bot_plot img');"
+        " return i ? i.src : ''; }"
+    )
     # Return to BOT — the active element no longer exists, so plot reverts.
     await page.click("#sespy_nav_bot")
-    await page.wait_for_timeout(1500)
+    # On resume the store has been pruned (analysis_bot.py:243-244) and
+    # element_picker_ui re-renders without the deleted id, so the recompute draws
+    # either the "no data yet" placeholder (stale id still selected) or the first
+    # remaining element's series - either way a different PNG from the snapshot,
+    # so this wait cannot hang on a healthy app. A Playwright timeout here is the
+    # intended failure mode: it means the BOT plot never re-rendered after the
+    # upstream deletion.
+    await page.wait_for_function(
+        "(prev) => { const i = document.querySelector('#bot-bot_plot img');"
+        " return !!i && i.src !== prev && i.complete && i.naturalWidth > 0; }",
+        arg=prev_plot_src,
+        timeout=30000,
+    )
     # And the BOT plot should re-render: the active element id no longer maps
     # to a frame in bot_data_store, so _filtered_frame returns None and the
     # plot displays the "no data yet" message via matplotlib text.
