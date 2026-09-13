@@ -20,7 +20,13 @@ async def main():
         await pg.wait_for_selector(".modal #fb_message", timeout=30000)
         await pg.fill("#fb_message", "e2e feedback check")
         await pg.click("#fb_submit")
-        await pg.wait_for_selector(".shiny-notification", timeout=10000)
+        # Wait for the feedback toast's own text, not any .shiny-notification:
+        # the autosave "Recovered work" banner uses the same class and can
+        # satisfy a generic wait before the submit has even been handled.
+        await pg.wait_for_function(
+            "() => Array.from(document.querySelectorAll('.shiny-notification'))"
+            ".some(n => (n.innerText || '').includes('feedback was recorded'))",
+            timeout=10000)
         print("topbar feedback: OK")
         await pg.click("#tb_about")
         await pg.wait_for_selector(".modal", timeout=10000)
