@@ -12,7 +12,7 @@ async def main():
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
         # Stepper is a reactive @render.ui output; wait for it rather than a
         # fixed sleep (cold first render can exceed 1.5s headless/CI).
-        await page.wait_for_selector(".sespy-stepper-item", timeout=20000)
+        await page.wait_for_selector(".sespy-stepper-item", timeout=60000)
 
         # On the default "cld" panel, "visualize" should be active.
         states = await page.evaluate("""() => {

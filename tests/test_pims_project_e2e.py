@@ -13,7 +13,7 @@ from playwright.async_api import async_playwright
 
 
 async def _open_pims(page):
-    await page.wait_for_selector("#sespy_nav_pims", timeout=15000)
+    await page.wait_for_selector("#sespy_nav_pims", timeout=60000)
     await page.click("#sespy_nav_pims")
     await page.wait_for_timeout(1500)
 

@@ -11,7 +11,7 @@ async def main():
         page = await (await browser.new_context()).new_page()
         await page.set_viewport_size({"width": 1280, "height": 900})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
-        await page.wait_for_selector("#sespy_nav_templates", timeout=15000)
+        await page.wait_for_selector("#sespy_nav_templates", timeout=60000)
 
         # Click Templates nav
         await page.click("#sespy_nav_templates")

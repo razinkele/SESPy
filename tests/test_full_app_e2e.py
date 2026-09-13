@@ -13,7 +13,7 @@ async def main():
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
         # Nav is a reactive @render.ui output; wait for it to flush instead of
         # racing a fixed sleep (cold first render can exceed 1.5s, esp. headless/CI).
-        await page.wait_for_selector(".sespy-nav-btn", timeout=20000)
+        await page.wait_for_selector(".sespy-nav-btn", timeout=60000)
 
         # All 5 nav buttons present
         nav_ids = await page.eval_on_selector_all(

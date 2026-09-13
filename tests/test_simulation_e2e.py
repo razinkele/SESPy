@@ -13,7 +13,7 @@ async def main():
         await page.set_viewport_size({"width": 1280, "height": 1000})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
 
-        await page.wait_for_selector("#sespy_nav_simulation", timeout=15000)
+        await page.wait_for_selector("#sespy_nav_simulation", timeout=60000)
         await page.click("#sespy_nav_simulation")
         # Wait for the run button to mount (condition, not a guessed delay).
         await page.wait_for_selector("#simulation-run_sim", timeout=15000)

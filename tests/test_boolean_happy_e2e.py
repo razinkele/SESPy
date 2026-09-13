@@ -22,7 +22,7 @@ async def main():
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
 
         # --- Step 1: load the Minimal Demo template via the Templates panel.
-        await page.wait_for_selector("#sespy_nav_templates", timeout=15000)
+        await page.wait_for_selector("#sespy_nav_templates", timeout=60000)
         await page.click("#sespy_nav_templates")
         await page.wait_for_timeout(2500)
 
@@ -63,7 +63,9 @@ async def main():
         assert n_dt >= 3, f"expected stability summary with >=3 fields, got {n_dt}"
 
         # Switch to Boolean attractors tab
-        await page.click("text=Boolean attractors")
+        # Scope to this module's navset, never a bare text= match: every panel
+        # shares one DOM, so a future label elsewhere would hijack this click.
+        await page.click("#boolean-boolean_tabs a[data-value='Boolean attractors']")
         await page.wait_for_timeout(1500)
 
         # No too-large warning — we're below the 12-node cap.

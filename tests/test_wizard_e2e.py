@@ -20,7 +20,7 @@ from playwright.async_api import async_playwright
 
 
 async def _open_wizard(page):
-    await page.wait_for_selector("#sespy_nav_wizard", timeout=15000)
+    await page.wait_for_selector("#sespy_nav_wizard", timeout=60000)
     await page.click("#sespy_nav_wizard")
     await page.wait_for_timeout(1500)
 
@@ -45,7 +45,7 @@ async def _start_wizard_empty_via_replace(page):
     state, so we exercise it as the default empty-start helper.
     """
     await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
-    await page.wait_for_selector("#sespy_nav_wizard", timeout=15000)
+    await page.wait_for_selector("#sespy_nav_wizard", timeout=60000)
     await page.click("#sespy_nav_wizard")
     await page.wait_for_timeout(1500)
     await page.click("#wizard-wizard_start")

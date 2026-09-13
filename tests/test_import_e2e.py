@@ -60,7 +60,15 @@ async def main():
         # Click Load into project
         await page.click("#import-commit")
         # Excel import still works with the DAPSIWRM checkbox present-but-unused
-        await page.wait_for_selector(".shiny-notification", timeout=10000)
+        # Match the commit toast's own text: the autosave "Recovered work"
+        # banner shares this class and is present in every runner session once
+        # test_autosave_e2e.py has run, so a bare class wait proves nothing.
+        await page.wait_for_function(
+            "() => Array.from(document.querySelectorAll('.shiny-notification'))"
+            ".some(n => /Imported \\d+ elements|Assigned DAPSIWRM types/"
+            ".test(n.textContent || ''))",
+            timeout=30000,
+        )
         await page.wait_for_timeout(1500)
 
         # Switch to CLD: should now show 4 nodes from the imported file.

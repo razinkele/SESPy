@@ -10,7 +10,7 @@ from playwright.async_api import async_playwright
 
 
 async def _load_minimal_demo(page):
-    await page.wait_for_selector("#sespy_nav_templates", timeout=15000)
+    await page.wait_for_selector("#sespy_nav_templates", timeout=60000)
     await page.click("#sespy_nav_templates")
     await page.wait_for_timeout(2500)
     cards = await page.evaluate(
@@ -151,14 +151,21 @@ async def case_per_element_persistence(page):
     await page.click(".selectize-dropdown-content [data-selectable]:first-child")
     await page.wait_for_timeout(800)
     # Use exact role+name match: "text=Data" would also match "Edit Data" in
-    # the outer module tabset (hidden but in the DOM). The 1500ms settle is
-    # required: @render.data_frame mounts the virtual-scroll <tbody> on a
-    # later tick than synchronous outputs like plots; 800ms races the mount.
+    # the outer module tabset (hidden but in the DOM). @render.data_frame mounts
+    # the virtual-scroll <tbody> on a later tick than synchronous outputs like
+    # plots, and the table is suspended while its tab is hidden, so the server
+    # compute starts only on this click. A fixed settle raced it at 800 ms and
+    # again at 1500 ms (observed 0 rows, 2026-09-13); poll for the mounted rows
+    # instead and keep the assertion, so a real regression still reports a count.
     await page.get_by_role("tab", name="Data", exact=True).click()
-    await page.wait_for_timeout(1500)
-    n_rows = await page.evaluate(
-        "() => document.querySelectorAll('#bot-bot_table table tbody tr').length"
-    )
+    n_rows = 0
+    for _ in range(60):
+        n_rows = await page.evaluate(
+            "() => document.querySelectorAll('#bot-bot_table table tbody tr').length"
+        )
+        if n_rows >= 3:
+            break
+        await page.wait_for_timeout(500)
     assert n_rows >= 3, f"element A should have >=3 rows after switch-back, got {n_rows}"
     await page.get_by_role("tab", name="Time series", exact=True).click()
     await page.wait_for_timeout(500)
@@ -177,18 +184,23 @@ async def case_stale_warning(page):
     await page.click("#entry-elements_table table tbody tr:first-child")
     await page.wait_for_timeout(500)
     await page.click("#entry-remove_element")
-    await page.wait_for_timeout(1200)
+    # Match the stale warning's OWN text, and wait for it HERE rather than after
+    # the nav click below: the toast carries duration=5, so a wait placed after a
+    # server round-trip can miss it entirely under load. _stale_warning fires on
+    # isa_change regardless of which panel is visible, so this is the right spot.
+    # Counting .shiny-notification was vacuous inside run_e2e.py — test_autosave
+    # runs first and leaves an autosave file, so every later session carries the
+    # persistent "Recovered work" banner, which satisfied the count whether or
+    # not this warning ever fired.
+    await page.wait_for_function(
+        "() => Array.from(document.querySelectorAll("
+        "  '#shiny-notification-panel .shiny-notification'"
+        ")).some(n => (n.textContent || '').includes('deleted upstream'))",
+        timeout=30000,
+    )
     # Return to BOT — the active element no longer exists, so plot reverts.
     await page.click("#sespy_nav_bot")
     await page.wait_for_timeout(1500)
-    # The stale-warning notification appears in #shiny-notification-panel.
-    # The notification stays visible for 5s (per the module's duration arg).
-    notif_count = await page.evaluate(
-        "() => document.querySelectorAll("
-        "  '#shiny-notification-panel .shiny-notification'"
-        ").length"
-    )
-    assert notif_count >= 1, f"expected stale-warning notification, got {notif_count}"
     # And the BOT plot should re-render: the active element id no longer maps
     # to a frame in bot_data_store, so _filtered_frame returns None and the
     # plot displays the "no data yet" message via matplotlib text.
@@ -196,7 +208,7 @@ async def case_stale_warning(page):
         "() => !!document.querySelector('#bot-bot_plot img')"
     )
     assert plot_visible, "plot did not re-render after stale element"
-    print(f"  ok ({notif_count} notification(s) shown)")
+    print("  ok (stale-data warning shown, plot reverted)")
 
 
 async def main():

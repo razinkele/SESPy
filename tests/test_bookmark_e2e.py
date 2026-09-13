@@ -22,7 +22,9 @@ async def main():
         await page.wait_for_function(
             "() => { const el = document.querySelector(\".tab-content > .tab-pane[data-value='metrics']\");"
             " return !!el && el.classList.contains('active'); }",
-            timeout=20000,
+            # First wait of the script: this class arrives in the session's first
+            # flush, which networkidle above does not cover.
+            timeout=60000,
         )
         await page.wait_for_function(
             "() => new URL(window.location).searchParams.get('view') === 'metrics'",

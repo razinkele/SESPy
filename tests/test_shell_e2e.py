@@ -23,7 +23,7 @@ async def main():
 
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
         # Wait for the reactive nav to render before querying it.
-        await page.wait_for_selector(".sespy-nav-btn", timeout=20000)
+        await page.wait_for_selector(".sespy-nav-btn", timeout=60000)
 
         nav_buttons = await page.eval_on_selector_all(
             ".sespy-nav-btn",

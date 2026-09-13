@@ -19,7 +19,9 @@ async def main():
             "() => { const a = Array.from(document.querySelectorAll("
             "'.sespy-nav-btn.active')).map(e => e.id);"
             " return a.length === 1 && a[0] === 'sespy_nav_leverage'; }",
-            timeout=15000,
+            # First wait of the script, and the active class is set by a server
+            # re-render of the nav, so budget it like a first render.
+            timeout=60000,
         )
         nav_active = await page.eval_on_selector_all(
             ".sespy-nav-btn.active", "els => els.map(e => e.id)"

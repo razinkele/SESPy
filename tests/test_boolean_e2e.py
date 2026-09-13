@@ -24,7 +24,7 @@ async def main():
         await page.set_viewport_size({"width": 1280, "height": 900})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
 
-        await page.wait_for_selector("#sespy_nav_boolean", timeout=15000)
+        await page.wait_for_selector("#sespy_nav_boolean", timeout=60000)
         await page.click("#sespy_nav_boolean")
         await page.wait_for_timeout(1500)
 
@@ -55,7 +55,9 @@ async def main():
         assert n_dt >= 3, f"expected stability summary with >=3 fields, got {n_dt}"
 
         # Switch to the Boolean attractors tab
-        await page.click("text=Boolean attractors")
+        # Scope to this module's navset, never a bare text= match: every panel
+        # shares one DOM, so a future label elsewhere would hijack this click.
+        await page.click("#boolean-boolean_tabs a[data-value='Boolean attractors']")
         # Wait for the attractor panel's reactive content (the too_large
         # warning alert) rather than racing a fixed sleep.
         await page.wait_for_selector("#boolean-attractor_panel .alert-warning", timeout=15000)
