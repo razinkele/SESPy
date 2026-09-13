@@ -2,6 +2,18 @@
 
 All notable changes to SESPy.
 
+## [1.12.1] — 2026-09-13
+
+- **Cheaper posterior links.** `link_params` reads the Beta mean directly
+  from the rating counts instead of the full polarity posterior, so a rated
+  edge no longer costs two scipy quantile calls (values unchanged, pinned by
+  a new equivalence test).
+- The Intervention BBN sidebar text now mentions the rater-posterior
+  option (nine languages).
+- Tests: the topbar e2e waits longer for the feedback modal inside the
+  full runner; the unrated unknown-polarity noisy-OR test is named for what
+  it covers.
+
 ## [1.12.0] — 2026-09-12
 
 - **BBN link probabilities from rater posteriors (Intervention).** An
