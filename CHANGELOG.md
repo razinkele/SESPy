@@ -17,6 +17,11 @@ All notable changes to SESPy.
 - Internal: the Intervention module's three multi-selectize reads share one
   coercion helper, and the focus check tests for `None` explicitly instead
   of relying on truthiness.
+- Tests: eleven end-to-end scripts clicked the navigation before waiting for
+  it, falling back to a 30-second default against a navigation that needs
+  about 32 seconds to render on an idle machine; each now waits explicitly.
+  The remaining 10-second waits on topbar modals are 30 seconds, matching the
+  feedback modal's. Timeouts only, no assertion changed.
 
 ## [1.12.1] — 2026-09-13
 
