@@ -48,6 +48,11 @@ async def main():
         assert cld_dims["width"] > 100 and cld_dims["height"] > 100, "CLD panel is not the visible default panel"
 
         # Click Loop Analysis nav
+        # The nav is a @render.ui output: it does not exist until the
+        # session's first flush (32 s on an idle machine, more under
+        # load). Without this the click falls back to Playwright's 30 s
+        # default and races startup.
+        await page.wait_for_selector("#sespy_nav_loops", timeout=60000)
         await page.click("#sespy_nav_loops")
         # The click is a full server round-trip (_wire_nav_button -> _goto ->
         # ui.update_navs) that also un-suspends the Loop panel's outputs, on an

@@ -37,6 +37,11 @@ async def main():
         await page.wait_for_timeout(1500)
 
         # Click "Import Data" nav (4th nav item)
+        # The nav is a @render.ui output: it does not exist until the
+        # session's first flush (32 s on an idle machine, more under
+        # load). Without this the click falls back to Playwright's 30 s
+        # default and races startup.
+        await page.wait_for_selector("#sespy_nav_import", timeout=60000)
         await page.click("#sespy_nav_import")
         await page.wait_for_timeout(1500)
 

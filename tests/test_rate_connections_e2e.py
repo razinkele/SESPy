@@ -28,6 +28,11 @@ async def main():
         await page.wait_for_timeout(1500)
 
         # 1. Add one stakeholder (pattern from tests/test_stakeholders_e2e.py:95-97).
+        # The nav is a @render.ui output: it does not exist until the
+        # session's first flush (32 s on an idle machine, more under
+        # load). Without this the click falls back to Playwright's 30 s
+        # default and races startup.
+        await page.wait_for_selector("#sespy_nav_stakeholders", timeout=60000)
         await page.click("#sespy_nav_stakeholders")
         await page.wait_for_selector("#stakeholders-sh_name", timeout=30000)
         await page.fill("#stakeholders-sh_name", "Port Authority")

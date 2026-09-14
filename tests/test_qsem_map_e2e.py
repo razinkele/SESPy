@@ -25,6 +25,11 @@ async def main():
         pg = await (await b.new_context()).new_page()
         await pg.goto("http://127.0.0.1:8000", wait_until="networkidle")
         await pg.wait_for_timeout(1500)
+        # The nav is a @render.ui output: it does not exist until the
+        # session's first flush (32 s on an idle machine, more under
+        # load). Without this the click falls back to Playwright's 30 s
+        # default and races startup.
+        await pg.wait_for_selector("#sespy_nav_import", timeout=60000)
         await pg.click("#sespy_nav_import")
         await pg.wait_for_timeout(1500)
         await pg.set_input_files("#import-xlsx", str(MODEL))

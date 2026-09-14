@@ -34,6 +34,11 @@ async def main():
 
         # --- Case 2: clicking a nav button updates the URL
         print("\n=== case 2: nav click updates ?view ===")
+        # The nav is a @render.ui output: it does not exist until the
+        # session's first flush (32 s on an idle machine, more under
+        # load). Without this the click falls back to Playwright's 30 s
+        # default and races startup.
+        await page.wait_for_selector("#sespy_nav_loops", timeout=60000)
         await page.click("#sespy_nav_loops")
         try:
             await page.wait_for_function(

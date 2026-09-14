@@ -81,6 +81,11 @@ async def main():
         # ------------------------------------------------------------------ #
         # 1. NAV — navigate to Stakeholders and confirm the form renders
         # ------------------------------------------------------------------ #
+        # The nav is a @render.ui output: it does not exist until the
+        # session's first flush (32 s on an idle machine, more under
+        # load). Without this the click falls back to Playwright's 30 s
+        # default and races startup.
+        await page.wait_for_selector("#sespy_nav_stakeholders", timeout=60000)
         await page.click("#sespy_nav_stakeholders")
         # navset_hidden renders EVERY panel into the one DOM (app.py:136 passes a
         # static pims_stakeholders_ui("stakeholders")), so query_selector finds
