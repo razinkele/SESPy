@@ -220,7 +220,10 @@ async def main():
             "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
             ".includes('Evidence')", timeout=60000)
         ev_text = (await page.inner_text("#intervention-bbn_summary")).strip()
-        assert "Evidence: D001 high, MPF1 low" in ev_text, f"unexpected evidence line: {ev_text!r}"
+        # Each evidence item carries its label, like the pickers and the
+        # target line: "D001 · Tourism demand high, MPF1 · Posidonia meadows low".
+        assert "Evidence: D001 · Tourism demand high, MPF1 · Posidonia meadows low" in ev_text, \
+            f"unexpected evidence line: {ev_text!r}"
         assert "(-0.28)" in ev_text, f"expected the MPF1-low golden on GB01: {ev_text!r}"
         n_paths = await page.evaluate(
             "() => document.querySelectorAll('#intervention-bbn_paths table tbody tr').length")

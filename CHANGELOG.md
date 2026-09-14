@@ -2,6 +2,22 @@
 
 All notable changes to SESPy.
 
+## [Unreleased]
+
+- **Intervention BBN evidence line names its nodes.** It listed bare ids
+  (`Evidence: D001 high`) while the pickers above it and the target line
+  below it both showed `id · label`. All three now agree:
+  `Evidence: D001 · Tourism demand high`.
+- **The per-route table fits its panel again.** Its numeric columns were
+  headed "solo baseline", "solo posterior" and "solo delta", which made the
+  table wider than the area it sits in: it scrolled sideways, but the last
+  column sat past the edge and was cut off in the manual screenshot. The
+  headers now read "baseline", "posterior" and "delta", since the section
+  heading and the legend under it already say these are per-route values.
+- Internal: the Intervention module's three multi-selectize reads share one
+  coercion helper, and the focus check tests for `None` explicitly instead
+  of relying on truthiness.
+
 ## [1.12.1] — 2026-09-13
 
 - **Cheaper posterior links.** `link_params` reads the Beta mean directly

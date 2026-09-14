@@ -14,7 +14,11 @@ check before the pgmpy import, golden e2e values, path-table tie order).
 Implemented as v1.11.0 on 2026-09-11 (plan
 `docs/superpowers/plans/2026-09-11-bbn-free-evidence.md`); two sentences
 amended after the final review to match what shipped (e2e picker-clear
-step, path-column width).
+step, path-column width). Amended again on 2026-09-14, closing the four
+cosmetic minors parked from that release: the evidence line renders
+`id · label` per item, and the route table's numeric headers drop the
+`solo ` prefix (Decision 3 revised — the prefix and the 14 rem path column
+together made the table wider than the panel it sits in).
 
 ---
 
@@ -37,7 +41,7 @@ the two existing query presets.
 |---|---|---|
 | 1 | Attribution = solo-path effect, not edge ablation | Noisy-OR is sub-additive and routes share edges, so no per-route decomposition sums to the joint delta. A chain built from one route alone is cheap (≤ 100 tiny chains), deterministic, and answers the question practitioners ask through the causal-path tracer. Edge ablation answers "which link", a different question; deferred. |
 | 2 | Evidence UI = keep the forward / diagnostic radio as a preset and add two multi-select pickers ("also high", "also low") that merge into it | Existing workflow, e2e and manual text stay valid. "Source low" is not askable; nobody has asked for it. Conflicts are reported and block the run rather than being silently resolved. |
-| 3 | Per-route numbers are labelled *solo* and carry a legend that they do not add up | Stakeholders will otherwise sum them and compare with the joint delta. |
+| 3 | Per-route numbers are labelled *solo* and carry a legend that they do not add up | Stakeholders will otherwise sum them and compare with the joint delta. **Amended 2026-09-14:** the *column headers* drop the `solo ` prefix; the legend and the "Effect per route" heading carry the guard instead. Measured: the three prefixed headers made the table 653 px wide inside a 622 px scroll container, so the delta column sat past the edge and was cut off in the manual capture. Keeping both this decision's prefix and the 14 rem path column over-determines the width at a 1280 px viewport; the legend is the half that actually states the non-additivity, so the prefix is the half that gives way. |
 | 4 | The pickers live in their own `output_ui`, not inside `bbn_controls` (review 2026-09-11) | `bbn_controls` renders the source/target selects and deliberately reads them under `isolate()` so a pick never re-renders the select being used. Picker choices depend on the pair, so they must be a separate output that reacts to the pair. |
 
 ---
@@ -158,8 +162,12 @@ the threading and generation-counter discipline and runs, in order:
 - The focus line uses `r["focus"]` instead of today's inline rule at
   line 521; when it is None the line is omitted.
 - New evidence line: `bbn.evidence` with `{items}` = comma-joined
-  `f"{id} {t('bbn.high' | 'bbn.low')}"` over `r["evidence"]` in sorted id
-  order (always present: the preset is evidence too).
+  `f"{id} · {label} {t('bbn.high' | 'bbn.low')}"` over `r["evidence"]` in
+  sorted id order (always present: the preset is evidence too). **Amended
+  2026-09-14:** the item was `f"{id} {t(...)}"`, bare ids. The pickers above
+  this line and the focus line below it both render `id · label`, so the
+  summary was the one surface naming elements by id alone; all three now
+  agree.
 - When `r["ignored"]` is non-empty, a muted `bbn.ignored` line with `{ids}`.
 - Under the node table: `ui.h5(t("bbn.paths_title"))`, a muted legend
   `bbn.paths_legend` ("Each row applies the evidence along that route
@@ -167,7 +175,8 @@ the threading and generation-counter discipline and runs, in order:
   changes do not add up to the joint change above."), and
   `ui.output_data_frame("bbn_paths")` with columns
   `path` (labels joined with " → "), `length`, `polarity`,
-  `solo baseline`, `solo posterior`, `solo delta` (3 decimals). Same guard
+  `baseline`, `posterior`, `delta` (3 decimals; the `solo ` prefix was
+  dropped 2026-09-14, see Decision 3). Same guard
   as `bbn_table`: empty frame unless the result is a dict without
   `"error"`; also empty when `r["paths"]` is `[]`. The populated frame is
   returned as `render.DataGrid(df, styles=[{"cols": [0], "style":

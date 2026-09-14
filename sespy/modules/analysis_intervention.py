@@ -39,6 +39,22 @@ from ..i18n import Translator, t
 _COMPUTING = object()
 
 
+def _selected_ids(read) -> list[str]:
+    """One multi-selectize read, coerced to a list of ids.
+
+    Two shapes have to collapse to the empty list: Shiny hands back `None`
+    (not `()`) while nothing is chosen, and reading an input that does not
+    exist yet — the BBN pickers live in a `@render.ui` — raises. Three call
+    sites used to repeat this; keep them on this one helper so a picker
+    that starts returning something new is fixed in a single place.
+    """
+    try:
+        v = read()
+    except Exception:                    # noqa: BLE001 — input not registered yet
+        v = None
+    return list(v) if v else []
+
+
 def _build_intervention_network(
     isa: IsaData,
     impact: dict[str, dict[str, float]],
@@ -241,11 +257,7 @@ def analysis_intervention_server(
 
     @reactive.calc
     def chosen_ids() -> list[str]:
-        try:
-            sel = input.ablate()
-        except Exception:
-            sel = None
-        return list(sel) if sel else []
+        return _selected_ids(input.ablate)
 
     @reactive.calc
     def impact() -> dict[str, dict[str, float]]:
@@ -503,19 +515,16 @@ def analysis_intervention_server(
             return ui.div()
         if not src or not tgt:
             return ui.div()
-        # Deliberately stored mode: the node set is mode-invariant and this runs in a render, so keep scipy off the UI thread.
+        # Deliberately stored mode: the node set is mode-invariant and this
+        # runs in a render, so keep scipy off the UI thread.
         info = bayes.path_set_dag(isa, src, tgt)     # networkx only, ≤3 ms on shipped projects
         if not info["nodes"]:
             return ui.p(t("bbn.no_path"), class_="text-muted", style="font-size: 0.8rem;")
         by_id = {el.id: el.label for el in isa.elements}
         choices = {n: f"{n} · {by_id.get(n, n)}" for n in info["nodes"] if n not in (src, tgt)}
         with reactive.isolate():
-            def _prev(read):
-                try:
-                    v = read()
-                except Exception:
-                    v = None
-                return [x for x in (list(v) if v else []) if x in choices]
+            def _prev(read):      # keep only picks that survive the new choice set
+                return [x for x in _selected_ids(read) if x in choices]
             prev_hi, prev_lo = _prev(input.bbn_high), _prev(input.bbn_low)
         return ui.div(
             ui.input_selectize("bbn_high", t("bbn.also_high"), choices,
@@ -549,14 +558,7 @@ def analysis_intervention_server(
         if not src or not tgt:
             return
 
-        def _picks(read):            # multi selectize: None when nothing chosen
-            try:
-                v = read()
-            except Exception:
-                v = None
-            return list(v) if v else []
-
-        high, low = _picks(input.bbn_high), _picks(input.bbn_low)
+        high, low = _selected_ids(input.bbn_high), _selected_ids(input.bbn_low)
         _bbn_gen[0] += 1
         _bbn_result.set(_COMPUTING)
         link_mode = "posterior" if input.bbn_posterior() else "stored"
@@ -593,14 +595,17 @@ def analysis_intervention_server(
         lines = [ui.p(ui.tags.strong(t(
             "bbn.summary", n=r["n_paths"], source=r["source"], target=r["target"],
             trunc=t("bbn.truncated") if r["truncated"] else "")))]
-        items = ", ".join(f"{k} {t('bbn.high') if v == 1 else t('bbn.low')}"
+        # "D001 · Tourism demand high" — the same `id · label` shape the
+        # pickers and the target line use, so the three agree on screen.
+        items = ", ".join(f"{k} · {by_id.get(k, k)} "
+                          f"{t('bbn.high') if v == 1 else t('bbn.low')}"
                           for k, v in sorted(r["evidence"].items()))
         lines.append(ui.p(t("bbn.evidence", items=items), style="font-size: 0.85rem;"))
         if r.get("link_mode") == "posterior":
             lines.append(ui.p(t("bbn.posterior_line", rated=r["rated"], total=r["total"]),
                               class_="text-muted", style="font-size: 0.85rem;"))
         focus = r.get("focus")
-        if focus:
+        if focus is not None:      # focus_node returns an id or None, never ""
             row = next(x for x in r["rows"] if x["id"] == focus)
             lines.append(ui.p(t("bbn.target_line", id=focus, label=by_id.get(focus, focus),
                                 base=f"{row['baseline']:.2f}", post=f"{row['p_high']:.2f}",
@@ -639,7 +644,7 @@ def analysis_intervention_server(
         import pandas as pd
 
         r = _bbn_result.get()
-        cols = ["path", "length", "polarity", "solo baseline", "solo posterior", "solo delta"]
+        cols = ["path", "length", "polarity", "baseline", "posterior", "delta"]
         if not isinstance(r, dict) or "error" in r:     # None, _COMPUTING, or an error
             return pd.DataFrame(columns=cols)
         by_id = {el.id: el.label for el in project_data.get().isa_data.elements}
@@ -647,8 +652,16 @@ def analysis_intervention_server(
             "path": " → ".join(by_id.get(n, n) for n in x["path"]),
             "length": x["length"],
             "polarity": x["polarity"],
-            "solo baseline": round(x["baseline"], 3),
-            "solo posterior": round(x["p_high"], 3),
-            "solo delta": round(x["delta"], 3),
+            "baseline": round(x["baseline"], 3),
+            "posterior": round(x["p_high"], 3),
+            "delta": round(x["delta"], 3),
         } for x in r.get("paths", [])], columns=cols)
+        # Col 0 holds a label chain and needs room or it wraps to ~10 lines.
+        # The three numeric headers used to read "solo baseline"/"solo
+        # posterior"/"solo delta", which pushed the table to 653px inside a
+        # 622px scroll container: it scrolled, but the last column sat past
+        # the edge and was cut in the manual capture. Dropping the prefix is
+        # what buys the width back, and it costs nothing: the heading above
+        # reads "Effect per route", and the legend under it is the text that
+        # actually warns these values do not add up to the joint change.
         return render.DataGrid(df, styles=[{"cols": [0], "style": {"min-width": "14rem"}}])
