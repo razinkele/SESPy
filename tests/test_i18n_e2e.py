@@ -30,7 +30,13 @@ async def main():
 
         # Switch to Spanish via the language switcher inside the Options modal
         await page.click("#tb_options")
-        await page.wait_for_selector(".modal #__sespy_language__", timeout=10000)
+        # 30 s, not 10 s: opening a topbar modal is a websocket round-trip, and
+        # this script runs mid-batch when the server is busy. The identical
+        # 10 s wait on the feedback modal flaked three gates running before it
+        # was raised (bbe4f62); this one was caught by the runner's attempt-1
+        # diagnostic on 2026-09-14 — "Timeout 10000ms exceeded ... waiting for
+        # locator('.modal #__sespy_language__') to be visible", retry passed.
+        await page.wait_for_selector(".modal #__sespy_language__", timeout=30000)
         await page.select_option(".modal #__sespy_language__", "es")
         # Selecting in the <select> only fires a client-side change event; the
         # visible effect is a websocket round-trip — `_switch_language`

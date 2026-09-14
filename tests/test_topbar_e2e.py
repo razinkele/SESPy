@@ -26,10 +26,16 @@ async def main():
         await pg.wait_for_function(
             "() => Array.from(document.querySelectorAll('.shiny-notification'))"
             ".some(n => (n.innerText || '').includes('feedback was recorded'))",
-            timeout=10000)
+            timeout=30000)
         print("topbar feedback: OK")
+        # Every wait in this script is 30 s, not 10 s. Opening a topbar modal
+        # or offcanvas is a websocket round-trip, and this script runs late in
+        # the batch, right after the pgmpy-heavy intervention script. The
+        # feedback modal's wait was raised for exactly that reason (bbe4f62)
+        # while its eight siblings were left at 10 s; the i18n script's
+        # identical 10 s modal wait then flaked on the 2026-09-14 gate.
         await pg.click("#tb_about")
-        await pg.wait_for_selector(".modal", timeout=10000)
+        await pg.wait_for_selector(".modal", timeout=30000)
         body = await pg.text_content(".modal") or ""
         tabs = [t.strip() for t in await pg.eval_on_selector_all(
             ".modal .nav-link", "els => els.map(e => e.textContent)")]
@@ -38,8 +44,8 @@ async def main():
         # Manual tab (v1.8.0): rendered docs/MANUAL.md with images that load.
         assert any("Manual" in t for t in tabs), f"About tabs={tabs} body={body[:120]}"
         await pg.click(".modal .nav-link:has-text('Manual')")
-        await pg.wait_for_selector(".modal h1:has-text('SESPy User Manual')", timeout=10000)
-        await pg.wait_for_selector(".modal h2:has-text('CLD Visualization')", timeout=10000)
+        await pg.wait_for_selector(".modal h1:has-text('SESPy User Manual')", timeout=30000)
+        await pg.wait_for_selector(".modal h2:has-text('CLD Visualization')", timeout=30000)
         loaded = await pg.evaluate(
             "() => { const i = document.querySelector('.modal img'); "
             "return i ? (i.complete && i.naturalWidth > 0) : null; }")
@@ -57,7 +63,7 @@ async def main():
         await pg.click(".modal .btn-default, .modal button:has-text('Close')")
         print("topbar about: OK")
         await pg.click("#tb_options")
-        await pg.wait_for_selector(".modal #theme_select", timeout=10000)
+        await pg.wait_for_selector(".modal #theme_select", timeout=30000)
         # pick Deep Ocean → data-theme applied
         await pg.click(".modal input[value='deep-ocean']")
         ok = False
@@ -71,14 +77,14 @@ async def main():
         print("topbar options/theme: OK")
         # close options modal and wait for it to fully disappear
         await pg.click(".modal button:has-text('Close')")
-        await pg.wait_for_selector(".modal", state="hidden", timeout=10000)
+        await pg.wait_for_selector(".modal", state="hidden", timeout=30000)
         await pg.wait_for_timeout(300)
         # Help modal opens and shows workflow text
         await pg.click("#tb_help")
         # v1.9.0: Help is an offcanvas side panel, not a modal. It carries the
         # workflow paragraph and the manual section for the ACTIVE panel (the
         # app opens on CLD Visualization).
-        await pg.wait_for_selector("#tb_help_panel.offcanvas.show", timeout=10000)
+        await pg.wait_for_selector("#tb_help_panel.offcanvas.show", timeout=30000)
         # text_content, not inner_text: Shiny gives the output container
         # `display: contents` and Chromium's innerText skips such subtrees.
         body = ""
@@ -92,7 +98,7 @@ async def main():
         # The panel must not cover the analysis: the CLD canvas stays visible.
         assert await pg.is_visible("#cld-network") or await pg.is_visible("[id^=cld-]"), "analysis hidden behind help panel"
         await pg.click("#tb_help_panel .btn-close")
-        await pg.wait_for_selector("#tb_help_panel.offcanvas.show", state="detached", timeout=10000)
+        await pg.wait_for_selector("#tb_help_panel.offcanvas.show", state="detached", timeout=30000)
         # Closing must clear the section (no hidden manual text left on the
         # page — bare text= selectors elsewhere would match it).
         left = "x"
