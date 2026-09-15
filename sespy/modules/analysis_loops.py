@@ -129,6 +129,7 @@ def _loops_body() -> ui.Tag:
             ui.input_checkbox("show_uncertainty", t("uncertainty.toggle"), value=False),
             ui.input_numeric("n_samples", t("uncertainty.n_samples"),
                              value=100, min=50, max=5000, step=50),
+            ui.input_checkbox("flip_posterior", t("uncertainty.flip_posterior"), value=False),
             ui.tags.hr(),
             ui.h5(t("loops.classification")),
             ui.output_ui("classification_summary"),
@@ -194,10 +195,10 @@ def analysis_loops_server(
     _gen = [0]                                  # plain cell — NOT reactive (avoids self-loop)
 
     @reactive.extended_task
-    async def _unc_task(isa, cycles, n_samples, gen):
+    async def _unc_task(isa, cycles, n_samples, flip_mode, gen):
         result = await asyncio.to_thread(
             net_analysis.uncertainty_scores, isa,
-            cycles=cycles, n_samples=n_samples, seed=0,
+            cycles=cycles, n_samples=n_samples, seed=0, flip_mode=flip_mode,
         )
         return (gen, result)
 
@@ -214,8 +215,9 @@ def analysis_loops_server(
             return
         isa = project_data.get().isa_data
         n = int(input.n_samples() or 100)
+        flip_mode = "posterior" if input.flip_posterior() else "confidence"
         unc_state.set(_COMPUTING)
-        _unc_task(isa, cycles, n, gen)
+        _unc_task(isa, cycles, n, flip_mode, gen)
 
     @reactive.effect
     def _unc_observe():

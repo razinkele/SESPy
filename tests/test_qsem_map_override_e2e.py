@@ -24,7 +24,11 @@ async def main():
         b = await p.chromium.launch()
         pg = await (await b.new_context()).new_page()
         await pg.goto("http://127.0.0.1:8000", wait_until="networkidle")
-        await pg.wait_for_timeout(1500)
+        # The nav is a @render.ui output (dashboard.py sespy_nav_render): it
+        # exists only after the session's first flush, which `networkidle`
+        # above does not cover. Same 60 s budget as the other hardened
+        # scripts — a fixed 1.5 s sleep leaves only page.click's 30 s default.
+        await pg.wait_for_selector("#sespy_nav_import", timeout=60000)
         await pg.click("#sespy_nav_import")
         await pg.wait_for_timeout(1500)
         await pg.set_input_files("#import-xlsx", str(MODEL))
@@ -38,7 +42,16 @@ async def main():
         await pg.wait_for_timeout(800)  # let the changed value round-trip to the server
 
         await pg.click("#import-commit")
-        await pg.wait_for_selector(".shiny-notification", timeout=15000)
+        # Match the commit toast's own text: the autosave "Recovered work"
+        # banner (project_io.py _offer_recovery, duration=None) shares this
+        # class and is present in every runner session, so a bare class wait
+        # matches on the first poll and proves nothing about the commit.
+        await pg.wait_for_function(
+            "() => Array.from(document.querySelectorAll("
+            "  '#shiny-notification-panel .shiny-notification'"
+            ")).some(n => /Assigned DAPSIWRM types/.test(n.textContent || ''))",
+            timeout=30000,
+        )
         await pg.click("#sespy_nav_cld")
         await pg.wait_for_selector("#cld-network", timeout=30000)
         result = None

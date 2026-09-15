@@ -1373,14 +1373,19 @@ def disagreement_cell(d: dict, *, contested_label: str) -> str:
     return "—"
 
 
-def displayed_pairs(connections, *, contested_only: bool):
+def displayed_pairs(connections, *, contested_only: bool, bayesian: bool = False):
     """Pure core of the C3 index contract: (true_idx, connection) pairs — all
-    connections when not contested_only, else only polarity-contested ones.
-    true_idx is always the position in `connections`, so a contested row keeps
-    its true full-list index after filtering (the lookup the UI persists by)."""
+    connections when not contested_only, else only contested ones. true_idx
+    is always the position in `connections`, so a contested row keeps its
+    true full-list index after filtering (the lookup the UI persists by).
+    `bayesian` switches the contested criterion from 'raters not unanimous'
+    to 'raters not unanimous AND the posterior credible interval straddles
+    0.5' (bayesian_contested) — a lone dissenter among many is discounted."""
     pairs = list(enumerate(connections))
     if not contested_only:
         return pairs
+    if bayesian:
+        return [(i, c) for i, c in pairs if bayesian_contested(c)]
     return [(i, c) for i, c in pairs
             if connection_disagreement(c)["polarity_contested"]]
 
@@ -1399,6 +1404,99 @@ def remove_rating(connection, rater_id: str):
     return recompute_consensus(replace(connection, ratings=kept))
 
 
+_STRENGTH_ORDER: tuple[str, ...] = ("weak", "medium", "strong")
+
+
+def _rating_weight(rating) -> float:
+    """Pseudo-count contributed by one rating: confidence/5, confidence
+    clamped to [1, 5]. A confidence-5 rater is one full observation; a
+    confidence-1 rater is a fifth of one."""
+    return max(1, min(5, int(rating.confidence))) / 5.0
+
+
+def _polarity_counts(connection, *, prior: tuple[float, float] = (1.0, 1.0)) -> tuple[float, float]:
+    """Weighted Beta(alpha, beta) counts for P(polarity == '+') over
+    `connection.ratings`: alpha = prior[0] + Σ w_i·[r_i == '+'],
+    beta = prior[1] + Σ w_i·[r_i == '-'], w_i = _rating_weight. No ratings ->
+    the prior unchanged. Pure; never reads the stored consensus scalars."""
+    a, b = float(prior[0]), float(prior[1])
+    for r in connection.ratings:
+        w = _rating_weight(r)
+        if r.polarity == "+":
+            a += w
+        else:
+            b += w
+    return a, b
+
+
+def polarity_posterior(connection, *, prior: tuple[float, float] = (1.0, 1.0)) -> dict:
+    """Beta posterior for P(polarity == '+') over `connection.ratings`.
+
+    alpha = prior[0] + Σ w_i·[r_i == '+'], beta = prior[1] + Σ w_i·[r_i == '-'],
+    w_i = _rating_weight. Returns p_plus (posterior mean), a 95% equal-tailed
+    credible interval, the parameters and the rating count. No ratings ->
+    the prior. Pure; never reads the stored consensus scalars."""
+    from scipy.stats import beta as _beta
+
+    a, b = _polarity_counts(connection, prior=prior)
+    return {
+        "p_plus": a / (a + b),
+        "ci_low": float(_beta.ppf(0.025, a, b)),
+        "ci_high": float(_beta.ppf(0.975, a, b)),
+        "alpha": a, "beta": b, "n": len(connection.ratings),
+    }
+
+
+def strength_posterior(connection, *,
+                       prior: tuple[float, float, float] = (1.0, 1.0, 1.0)) -> dict:
+    """Dirichlet posterior over (weak, medium, strong).
+
+    alpha_k = prior_k + Σ w_i·[strength_i == k]. `map` is the label with the
+    largest posterior mean; ties go to the lowest rank (weak < medium <
+    strong) so the result is deterministic. Pure."""
+    alpha = [float(x) for x in prior]
+    for r in connection.ratings:
+        k = _STRENGTH_RANK.get(r.strength, 2) - 1
+        alpha[k] += _rating_weight(r)
+    total = sum(alpha)
+    mean = {lab: alpha[i] / total for i, lab in enumerate(_STRENGTH_ORDER)}
+    best = max(range(3), key=lambda i: (alpha[i], -i))
+    return {"mean": mean, "map": _STRENGTH_ORDER[best],
+            "alpha": tuple(alpha), "n": len(connection.ratings)}
+
+
+def bayesian_consensus(connection):
+    """Copy of `connection` whose polarity/strength/confidence are posterior
+    values: polarity '+' iff p_plus >= 0.5; strength = Dirichlet MAP;
+    confidence = round(1 + 4·(1 - width)) clamped to [1, 5], width being the
+    polarity credible-interval width (narrow -> confident). delay is kept.
+    No ratings -> equivalent copy. NEVER the writer of stored scalars —
+    recompute_consensus keeps that role; this is display/analysis-only."""
+    if not connection.ratings:
+        return replace(connection)
+    pol = polarity_posterior(connection)
+    width = pol["ci_high"] - pol["ci_low"]
+    confidence = max(1, min(5, round(1 + 4 * (1 - width))))
+    return replace(connection,
+                   polarity="+" if pol["p_plus"] >= 0.5 else "-",
+                   strength=strength_posterior(connection)["map"],
+                   confidence=confidence)
+
+
+def bayesian_contested(connection, *, band: tuple[float, float] = (0.2, 0.8)) -> bool:
+    """True when >= 2 ratings, the raters are NOT unanimous in sign, AND the
+    95% credible interval for P(+) straddles 0.5 — a disagreement the
+    posterior cannot resolve. Unanimity short-circuits to False whatever n:
+    with the flat Beta(1,1) prior, 2–4 unanimous confidence-5 raters still
+    straddle 0.5, and that is 'sign not yet established', not a dispute.
+    `band` is reserved for a future width criterion and is not read today."""
+    ratings = connection.ratings
+    if len(ratings) < 2 or len({r.polarity for r in ratings}) < 2:
+        return False
+    pol = polarity_posterior(connection)
+    return pol["ci_low"] < 0.5 < pol["ci_high"]
+
+
 def _perturb_prob(confidence: int, base: float) -> float:
     """Per-draw drop/flip probability for one edge: base*(5-conf)/4.
 
@@ -1408,18 +1506,37 @@ def _perturb_prob(confidence: int, base: float) -> float:
     return base * (5 - c) / 4.0
 
 
-def _perturbed_connections(isa: IsaData, base: float, rng) -> list[Connection]:
+def _flip_prob(c, base: float, flip_mode: str) -> float:
+    """Per-draw sign-flip probability for one edge.
+
+    'confidence': the D2D heuristic _perturb_prob(confidence, base).
+    'posterior': probability the STORED sign is wrong under the rater
+    posterior — 1 - p_plus when the stored polarity is '+', p_plus when it
+    is '-'. The stored sign comes from recompute_consensus (unweighted
+    majority, tie -> '+') or straight from a file, so it can disagree with
+    the confidence-weighted posterior mode; such an edge then flips more
+    often than not, which is the point. Edges with no ratings fall back to
+    the confidence heuristic so a partially rated model still behaves."""
+    if flip_mode == "posterior" and c.ratings:
+        a, b = _polarity_counts(c)
+        p = a / (a + b)
+        return (1.0 - p) if c.polarity == "+" else p
+    return _perturb_prob(c.confidence, base)
+
+
+def _perturbed_connections(isa: IsaData, base: float, rng,
+                           flip_mode: str = "confidence") -> list[Connection]:
     """One Monte Carlo draw of structural uncertainty.
 
     Each connection independently: drops out with _perturb_prob (omitted from
-    the result), or — if kept — flips polarity with the same probability.
+    the result), or — if kept — flips polarity with _flip_prob(flip_mode).
     Pure: `isa` is never mutated; returns a fresh connection list."""
     out: list[Connection] = []
     for c in isa.connections:
-        p = _perturb_prob(c.confidence, base)
-        if rng.random() < p:
+        p_drop = _perturb_prob(c.confidence, base)
+        if rng.random() < p_drop:
             continue  # dropped
-        if rng.random() < p:
+        if rng.random() < _flip_prob(c, base, flip_mode):
             flipped = "-" if c.polarity == "+" else "+"
             out.append(replace(c, polarity=flipped))
         else:
@@ -1546,6 +1663,7 @@ def uncertainty_scores(
     max_length: int = 6,
     max_loops: int = LOOP_ENUMERATION_CAP,
     contested_band: tuple[float, float] = (0.2, 0.8),
+    flip_mode: str = "confidence",
 ) -> dict:
     """Monte-Carlo leverage & loop uncertainty under edge drop + sign-flip.
 
@@ -1557,8 +1675,12 @@ def uncertainty_scores(
     and per-baseline-loop existence/polarity probabilities with a `contested`
     flag (polarity probability inside `contested_band`). With every edge at
     confidence 5 (or base=0) the result collapses to the point estimate.
+    flip_mode='posterior' flips by rater posterior (see _flip_prob).
     """
     import numpy as np
+
+    if flip_mode not in ("confidence", "posterior"):
+        raise ValueError(f"flip_mode must be 'confidence' or 'posterior', got {flip_mode!r}")
 
     node_ids = [el.id for el in isa.elements]
     if not node_ids:
@@ -1575,7 +1697,7 @@ def uncertainty_scores(
     for _ in range(n_samples):
         pert = IsaData(
             elements=isa.elements,
-            connections=_perturbed_connections(isa, base, rng),
+            connections=_perturbed_connections(isa, base, rng, flip_mode=flip_mode),
         )
         lev = leverage_scores(pert)
         for nid in node_ids:

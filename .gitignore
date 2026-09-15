@@ -59,3 +59,6 @@ restart.txt
 /*-report.md
 /.*-report.md
 /*.diff
+
+# superpowers SDD scratch (ledgers, briefs, review packages)
+.superpowers/

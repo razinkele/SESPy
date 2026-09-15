@@ -43,24 +43,34 @@ async def main():
         # Upload the fixture
         await page.set_input_files("#import-xlsx", str(fixture))
         # The upload round-trip parses the workbook server-side (cold pandas +
-        # openpyxl import is slow); wait for the preview to populate with the
-        # element/connection counts rather than racing a fixed sleep.
-        await page.wait_for_function(
-            "() => { const el = document.querySelector('#import-preview');"
-            " return el && el.textContent.includes('4') && el.textContent.includes('3'); }",
-            timeout=30000,
-        )
+        # openpyxl import is slow). Poll for the preview's exact count lines:
+        # a bare '4'/'3' substring also matches the error branch's
+        # "Elements row 4: missing id" / "Connections row 3: ..." list, so a
+        # failed parse would pass that check.
+        preview = ""
+        for _ in range(60):
+            preview = await page.text_content("#import-preview") or ""
+            if "Elements: 4" in preview and "Connections: 3" in preview:
+                break
+            await page.wait_for_timeout(500)
 
         # Preview should show 4 elements / 3 connections
-        preview = await page.text_content("#import-preview")
-        print("preview:", " ".join((preview or "").split())[:200])
-        assert "4" in (preview or "") and "3" in (preview or ""), \
+        print("preview:", " ".join(preview.split())[:200])
+        assert "Elements: 4" in preview and "Connections: 3" in preview, \
             f"preview missing counts: {preview}"
 
         # Click Load into project
         await page.click("#import-commit")
         # Excel import still works with the DAPSIWRM checkbox present-but-unused
-        await page.wait_for_selector(".shiny-notification", timeout=10000)
+        # Match the commit toast's own text: the autosave "Recovered work"
+        # banner shares this class and is present in every runner session once
+        # test_autosave_e2e.py has run, so a bare class wait proves nothing.
+        await page.wait_for_function(
+            "() => Array.from(document.querySelectorAll('.shiny-notification'))"
+            ".some(n => /Imported \\d+ elements|Assigned DAPSIWRM types/"
+            ".test(n.textContent || ''))",
+            timeout=30000,
+        )
         await page.wait_for_timeout(1500)
 
         # Switch to CLD: should now show 4 nodes from the imported file.
@@ -82,15 +92,16 @@ async def main():
 
         # And metrics tab should compute over the new data
         await page.click("#sespy_nav_metrics")
-        await page.wait_for_function(
-            "() => { const s = window.pyvisNetworks && window.pyvisNetworks['metrics-metrics_network'];"
-            " return s && s.nodes && s.nodes.length === 4; }",
-            timeout=30000,
-        )
-        metrics_node_count = await page.evaluate("""() => {
-          const s = window.pyvisNetworks && window.pyvisNetworks['metrics-metrics_network'];
-          return s && s.nodes ? s.nodes.length : null;
-        }""")
+        metrics_node_count = None
+        for _ in range(60):
+            metrics_node_count = await page.evaluate("""() => {
+              const s = window.pyvisNetworks && window.pyvisNetworks['metrics-metrics_network'];
+              return s && s.nodes ? s.nodes.length : null;
+            }""")
+            if metrics_node_count == 4:
+                break
+            await page.wait_for_timeout(500)
+        print(f"Metrics nodes after import: {metrics_node_count}")
         assert metrics_node_count == 4, \
             f"Metrics didn't reflect the import: {metrics_node_count} nodes"
 

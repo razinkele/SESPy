@@ -12,8 +12,8 @@ async def main():
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
         # Nav + stepper are reactive @render.ui outputs; wait for them rather
         # than racing a fixed sleep (cold first render can exceed 1.5s headless/CI).
-        await page.wait_for_selector(".sespy-nav-btn", timeout=20000)
-        await page.wait_for_selector(".sespy-stepper-item", timeout=20000)
+        await page.wait_for_selector(".sespy-nav-btn", timeout=60000)
+        await page.wait_for_selector(".sespy-stepper-item", timeout=60000)
 
         en_labels = await page.eval_on_selector_all(
             ".sespy-nav-btn span:not(.sespy-nav-icon)",
@@ -32,7 +32,25 @@ async def main():
         await page.click("#tb_options")
         await page.wait_for_selector(".modal #__sespy_language__", timeout=10000)
         await page.select_option(".modal #__sespy_language__", "es")
-        await page.wait_for_timeout(1500)
+        # Selecting in the <select> only fires a client-side change event; the
+        # visible effect is a websocket round-trip — `_switch_language`
+        # (sespy/dashboard.py:421-426) writes translator.language, which
+        # invalidates BOTH `sespy_nav_render` and `sespy_stepper_render`. A
+        # fixed sleep is the only guard on that round-trip, so poll for the
+        # translated text instead. The asserts below are unchanged: a genuine
+        # i18n regression still fails with the labels it actually saw.
+        for _ in range(120):   # up to 60 s, same budget as the first-render waits
+            nav_ok = "Visualización CLD" in await page.eval_on_selector_all(
+                ".sespy-nav-btn span:not(.sespy-nav-icon)",
+                "els => els.map(e => e.textContent.trim())",
+            )
+            step_ok = any("Comenzar" in s for s in await page.eval_on_selector_all(
+                ".sespy-stepper-item",
+                "els => els.map(e => e.textContent.trim())",
+            ))
+            if nav_ok and step_ok:
+                break
+            await page.wait_for_timeout(500)
 
         es_labels = await page.eval_on_selector_all(
             ".sespy-nav-btn span:not(.sespy-nav-icon)",

@@ -82,9 +82,18 @@ async def main():
         # 1. NAV — navigate to Stakeholders and confirm the form renders
         # ------------------------------------------------------------------ #
         await page.click("#sespy_nav_stakeholders")
-        await page.wait_for_timeout(1500)
-
-        sh_name_input = await page.query_selector("#stakeholders-sh_name")
+        # navset_hidden renders EVERY panel into the one DOM (app.py:136 passes a
+        # static pims_stakeholders_ui("stakeholders")), so query_selector finds
+        # #stakeholders-sh_name even when the nav click never fired. Assert the
+        # pane is ACTIVE, then that the input is actually visible.
+        await page.wait_for_function(
+            "() => { const el = document.querySelector("
+            "  \".tab-content > .tab-pane[data-value='stakeholders']\");"
+            " return !!el && el.classList.contains('active'); }",
+            timeout=30000,
+        )
+        sh_name_input = await page.wait_for_selector(
+            "#stakeholders-sh_name", state="visible", timeout=30000)
         assert sh_name_input is not None, "#stakeholders-sh_name not found after nav"
         print("1. nav: #stakeholders-sh_name present — PASS")
 
@@ -103,17 +112,36 @@ async def main():
         # ------------------------------------------------------------------ #
         await page.fill("#stakeholders-sh_name", "")
         await page.click("#stakeholders-save_stakeholder")
-        await page.wait_for_timeout(1000)
-
-        # Toast should appear
-        toast = await page.query_selector(".shiny-notification")
-        assert toast is not None, "Expected validation toast, got none"
+        # Match the validation toast's OWN text (pims_stakeholders.py:312 ->
+        # tr("stakeholders.name_type_required") == "Name and type are required.",
+        # identical in all 9 locales, so this survives a stale global language).
+        # A bare .shiny-notification is vacuous here: test_autosave_e2e runs first
+        # alphabetically and test_rate_connections_e2e re-creates the autosave file,
+        # so project_io.py:162-183 _offer_recovery shows the persistent
+        # (duration=None) "Recovered work from your last session." banner in every
+        # later session on the shared server, satisfying the query whether or not
+        # this toast ever fired.
+        await page.wait_for_function(
+            "() => Array.from(document.querySelectorAll("
+            "  '#shiny-notification-panel .shiny-notification'"
+            ")).some(n => (n.textContent || '').includes('Name and type are required'))",
+            timeout=30000,
+        )
 
         # Table should still contain exactly one data row (Port Authority present,
         # empty stub absent)
         t = await _table_text(page)
         assert "Port Authority" in t, "Expected 'Port Authority' still in table"
         assert EMPTY_STUB not in t, "Unexpected empty-stub after failed add"
+
+        # Count rows so the "no extra row" claim is real: a broken guard at
+        # pims_stakeholders.py:311-314 would add a row with an EMPTY name
+        # (_clear_form ran after the step-2 save), which both asserts above pass.
+        # The empty stub is also exactly one <tr>, so this count is only
+        # discriminating together with the EMPTY_STUB assert above.
+        n_rows = await page.eval_on_selector_all(
+            "#stakeholders-stakeholder_table table tbody tr", "els => els.length")
+        assert n_rows == 1, f"Expected exactly one data row after failed add, got {n_rows}"
         print("3. validation: toast shown, no extra row — PASS")
 
         # ------------------------------------------------------------------ #
@@ -279,6 +307,7 @@ async def main():
         # ------------------------------------------------------------------ #
         # 11. EXPORT — the three download buttons fire with the right file types
         # ------------------------------------------------------------------ #
+        MAGIC = {".xlsx": b"PK\x03\x04", ".png": b"\x89PNG", ".pdf": b"%PDF"}
         for btn, ext in (("download_stakeholder_xlsx", ".xlsx"),
                          ("download_power_interest_png", ".png"),
                          ("download_summary_pdf", ".pdf")):
@@ -287,7 +316,17 @@ async def main():
             download = await dl_info.value
             assert download.suggested_filename.endswith(ext), (
                 f"{btn} -> {download.suggested_filename}")
-        print("11. export: xlsx/png/pdf downloads fire — PASS")
+            # suggested_filename comes from Content-Disposition, which Shiny
+            # sends from the handler's filename lambda before the generator body
+            # runs, so the assert above holds even when the builder raises and
+            # zero bytes are streamed. Save the file and check its magic number,
+            # as tests/test_report_e2e.py does for the PDF.
+            out = SCREENSHOTS / f"_export{ext}"
+            await download.save_as(out)
+            head = out.read_bytes()[:4]
+            assert head == MAGIC[ext], (
+                f"{btn} -> not a valid {ext} file, first bytes {head!r}")
+        print("11. export: xlsx/png/pdf download with valid magic bytes — PASS")
 
         # ------------------------------------------------------------------ #
         # Screenshot + done

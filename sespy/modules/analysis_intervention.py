@@ -10,10 +10,15 @@ high-leverage node ripples through these other nodes").
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from pyvis.network import Network
 from pyvis.shiny import output_pyvis_network, render_pyvis_network
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
+from shiny.types import SilentException
 
+from .. import bayes
 from .. import dynamics as dyn
 from .. import network as net_analysis
 from ..constants import (
@@ -26,6 +31,12 @@ from ..constants import (
 from ..data_structure import IsaData, Project
 from ..event_bus import EventBus
 from ..i18n import Translator, t
+
+#: Sentinel for "BBN task in flight". pgmpy 1.1 imports torch when installed:
+#: measured 35–65 s on the FIRST import per server process. The import must
+#: therefore run off the event loop (extended task + thread), never at module
+#: level (tests/test_no_deprecations.py imports every module cold).
+_COMPUTING = object()
 
 
 def _build_intervention_network(
@@ -152,6 +163,21 @@ def analysis_intervention_ui() -> ui.Tag:
                     "run_diffusion", t("diffusion.run"),
                     class_="btn btn-sm btn-outline-primary",
                 ),
+                ui.tags.hr(),
+                ui.h5(t("bbn.title")),
+                ui.p(t("bbn.about_text"), class_="text-muted", style="font-size: 0.8rem;"),
+                ui.output_ui("bbn_controls"),
+                ui.output_ui("bbn_evidence_controls"),
+                ui.input_radio_buttons(
+                    "bbn_direction", t("bbn.direction"),
+                    {"forward": t("bbn.forward"), "diagnostic": t("bbn.diagnostic")},
+                    selected="forward",
+                ),
+                ui.input_checkbox("bbn_posterior", t("bbn.posterior_links"), value=False),
+                ui.input_action_button(
+                    "run_bbn", t("bbn.run"),
+                    class_="btn btn-sm btn-outline-primary",
+                ),
                 width=280,
             ),
             ui.div(
@@ -170,6 +196,13 @@ def analysis_intervention_ui() -> ui.Tag:
                 ui.h4(t("diffusion.title")),
                 ui.output_ui("diffusion_summary"),
                 ui.output_plot("diffusion_chart", height="260px"),
+                ui.tags.hr(),
+                ui.h4(t("bbn.title")),
+                ui.output_ui("bbn_summary"),
+                ui.output_data_frame("bbn_table"),
+                ui.h5(t("bbn.paths_title"), class_="mt-3"),
+                ui.p(t("bbn.paths_legend"), class_="text-muted", style="font-size: 0.8rem;"),
+                ui.output_data_frame("bbn_paths"),
             ),
         ),
         class_="sespy-card sespy-card-canvas",
@@ -393,3 +426,229 @@ def analysis_intervention_server(
         ax.spines["right"].set_visible(False)
         fig.tight_layout()
         return fig
+
+    _bbn_result = reactive.value(None)     # None | _COMPUTING | {"error": key} | query dict
+    _bbn_gen = [0]                          # plain cell, NOT reactive (avoids a self-loop)
+
+    def _bbn_work(isa, src, tgt, direction, high, low, link_mode):
+        """Runs in a worker thread: the lazy pgmpy import lives here. Order
+        matters: the conflict check needs only path_set_dag, so a conflict
+        is reported instantly even before the engine has ever been loaded.
+        link_mode ("stored" | "posterior") reaches every model built for
+        this query: the cut, the joint model and the per-route chains."""
+        info = bayes.path_set_dag(isa, src, tgt, link_mode=link_mode)
+        if not info["nodes"]:
+            return {"error": "bbn.no_path"}
+        preset = {src: 1} if direction == "forward" else {tgt: 1}
+        merged = bayes.merge_evidence(preset, high, low, info["nodes"])
+        if merged["conflicts"]:
+            return {"error": "bbn.conflict", "ids": merged["conflicts"]}
+        try:
+            model = bayes.model_from_dag(info, link_mode=link_mode)
+        except bayes.BayesUnavailable:
+            return {"error": "bbn.unavailable"}
+        r = bayes.query_path_bbn(model, info, merged["evidence"])
+        r["ignored"] = merged["ignored"]
+        r["focus"] = bayes.focus_node(src, tgt, merged["evidence"])
+        r["paths"] = (bayes.attribute_paths(info, merged["evidence"], r["focus"], link_mode=link_mode)
+                      if r["focus"] else [])
+        r["source"], r["target"] = src, tgt
+        r["link_mode"] = link_mode
+        # Edges still IN the model; an edge removed by the cycle cut is not
+        # counted here (the bbn.cut line reports those).
+        r["rated"] = sum(1 for _, _, c in info["edges"] if c.ratings)
+        r["total"] = len(info["edges"])
+        return r
+
+    @reactive.extended_task
+    async def _bbn_task(isa, src, tgt, direction, high, low, link_mode, gen):
+        return (gen, await asyncio.to_thread(_bbn_work, isa, src, tgt, direction,
+                                             high, low, link_mode))
+
+    @output
+    @render.ui
+    def bbn_controls():
+        event_bus.isa_change.get()
+        els = project_data.get().isa_data.elements
+        if len(els) < 2:
+            return ui.div()
+        choices = {el.id: f"{el.id} · {el.label}" for el in els}
+        with reactive.isolate():
+            try:
+                cur_s = input.bbn_source()
+            except Exception:
+                cur_s = None
+            try:
+                cur_t = input.bbn_target()
+            except Exception:
+                cur_t = None
+        return ui.div(
+            ui.input_select("bbn_source", t("bbn.source"), choices,
+                            selected=cur_s if cur_s in choices else els[0].id),
+            ui.input_select("bbn_target", t("bbn.target"), choices,
+                            selected=cur_t if cur_t in choices else els[-1].id),
+        )
+
+    @output
+    @render.ui
+    def bbn_evidence_controls():
+        # Reacts to the pair (NOT isolated): the picker choices are the
+        # path-set nodes for the current source/target. bbn_controls stays
+        # isolated because it renders the very selects read here.
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        try:
+            src, tgt = input.bbn_source(), input.bbn_target()
+        except Exception:
+            return ui.div()
+        if not src or not tgt:
+            return ui.div()
+        # Deliberately stored mode: the node set is mode-invariant and this runs in a render, so keep scipy off the UI thread.
+        info = bayes.path_set_dag(isa, src, tgt)     # networkx only, ≤3 ms on shipped projects
+        if not info["nodes"]:
+            return ui.p(t("bbn.no_path"), class_="text-muted", style="font-size: 0.8rem;")
+        by_id = {el.id: el.label for el in isa.elements}
+        choices = {n: f"{n} · {by_id.get(n, n)}" for n in info["nodes"] if n not in (src, tgt)}
+        with reactive.isolate():
+            def _prev(read):
+                try:
+                    v = read()
+                except Exception:
+                    v = None
+                return [x for x in (list(v) if v else []) if x in choices]
+            prev_hi, prev_lo = _prev(input.bbn_high), _prev(input.bbn_low)
+        return ui.div(
+            ui.input_selectize("bbn_high", t("bbn.also_high"), choices,
+                               multiple=True, selected=prev_hi),
+            ui.input_selectize("bbn_low", t("bbn.also_low"), choices,
+                               multiple=True, selected=prev_lo),
+        )
+
+    @reactive.effect
+    def _invalidate_bbn():
+        # Any feeding input change clears the previous result (same rule as
+        # diffusion): a table computed for another pair must never be read
+        # as the current one's.
+        event_bus.isa_change.get()
+        for read in (input.bbn_source, input.bbn_target, input.bbn_direction,
+                     input.bbn_high, input.bbn_low, input.bbn_posterior):
+            try:
+                read()
+            except Exception:
+                pass
+        _bbn_gen[0] += 1          # an in-flight result for the old inputs is now stale
+        _bbn_result.set(None)
+
+    @reactive.effect
+    @reactive.event(input.run_bbn, ignore_init=True)
+    def _run_bbn():
+        try:
+            src, tgt = input.bbn_source(), input.bbn_target()
+        except Exception:
+            return
+        if not src or not tgt:
+            return
+
+        def _picks(read):            # multi selectize: None when nothing chosen
+            try:
+                v = read()
+            except Exception:
+                v = None
+            return list(v) if v else []
+
+        high, low = _picks(input.bbn_high), _picks(input.bbn_low)
+        _bbn_gen[0] += 1
+        _bbn_result.set(_COMPUTING)
+        link_mode = "posterior" if input.bbn_posterior() else "stored"
+        _bbn_task(project_data.get().isa_data, src, tgt, input.bbn_direction(),
+                  high, low, link_mode, _bbn_gen[0])
+
+    @reactive.effect
+    def _bbn_observe():
+        try:
+            gen, r = _bbn_task.result()
+        except SilentException:
+            raise
+        except Exception:                       # noqa: BLE001 — real task error: clear, don't crash
+            logging.getLogger(__name__).exception("intervention bbn task failed")
+            _bbn_result.set(None)
+            return
+        if gen != _bbn_gen[0]:
+            return
+        _bbn_result.set(r)
+
+    @output
+    @render.ui
+    def bbn_summary():
+        r = _bbn_result.get()
+        if r is None:
+            return ui.p(t("bbn.hint"), class_="text-muted", style="font-size: 0.85rem;")
+        if r is _COMPUTING:       # must precede `"error" in r`: `in` on object() raises TypeError
+            return ui.p(t("bbn.computing"), class_="text-muted", style="font-size: 0.85rem;")
+        if "error" in r:
+            cls = "text-danger" if r["error"] == "bbn.conflict" else "text-muted"
+            # str.format ignores unused kwargs, so `ids` is safe on every key
+            return ui.p(t(r["error"], ids=", ".join(r.get("ids", []))), class_=cls)
+        by_id = {el.id: el.label for el in project_data.get().isa_data.elements}
+        lines = [ui.p(ui.tags.strong(t(
+            "bbn.summary", n=r["n_paths"], source=r["source"], target=r["target"],
+            trunc=t("bbn.truncated") if r["truncated"] else "")))]
+        items = ", ".join(f"{k} {t('bbn.high') if v == 1 else t('bbn.low')}"
+                          for k, v in sorted(r["evidence"].items()))
+        lines.append(ui.p(t("bbn.evidence", items=items), style="font-size: 0.85rem;"))
+        if r.get("link_mode") == "posterior":
+            lines.append(ui.p(t("bbn.posterior_line", rated=r["rated"], total=r["total"]),
+                              class_="text-muted", style="font-size: 0.85rem;"))
+        focus = r.get("focus")
+        if focus:
+            row = next(x for x in r["rows"] if x["id"] == focus)
+            lines.append(ui.p(t("bbn.target_line", id=focus, label=by_id.get(focus, focus),
+                                base=f"{row['baseline']:.2f}", post=f"{row['p_high']:.2f}",
+                                delta=f"{row['delta']:+.2f}")))
+        if r.get("ignored"):
+            lines.append(ui.p(t("bbn.ignored", ids=", ".join(r["ignored"])),
+                              class_="text-muted", style="font-size: 0.85rem;"))
+        if r["cut_edges"]:
+            lines.append(ui.p(t("bbn.cut", n=len(r["cut_edges"]),
+                                edges=", ".join(f"{u}→{v}" for u, v in r["cut_edges"])),
+                              class_="text-warning", style="font-size: 0.85rem;"))
+        return ui.div(*lines)
+
+    @output
+    @render.data_frame
+    def bbn_table():
+        import pandas as pd
+
+        r = _bbn_result.get()
+        cols = ["id", "label", "type", "baseline", "posterior", "delta"]
+        if not isinstance(r, dict) or "error" in r:     # None, _COMPUTING, or an error
+            return pd.DataFrame(columns=cols)
+        by_id = {el.id: el for el in project_data.get().isa_data.elements}
+        return pd.DataFrame([{
+            "id": x["id"],
+            "label": by_id[x["id"]].label if x["id"] in by_id else x["id"],
+            "type": by_id[x["id"]].type if x["id"] in by_id else "",
+            "baseline": round(x["baseline"], 3),
+            "posterior": round(x["p_high"], 3),
+            "delta": round(x["delta"], 3),
+        } for x in r["rows"]], columns=cols)
+
+    @output
+    @render.data_frame
+    def bbn_paths():
+        import pandas as pd
+
+        r = _bbn_result.get()
+        cols = ["path", "length", "polarity", "solo baseline", "solo posterior", "solo delta"]
+        if not isinstance(r, dict) or "error" in r:     # None, _COMPUTING, or an error
+            return pd.DataFrame(columns=cols)
+        by_id = {el.id: el.label for el in project_data.get().isa_data.elements}
+        df = pd.DataFrame([{
+            "path": " → ".join(by_id.get(n, n) for n in x["path"]),
+            "length": x["length"],
+            "polarity": x["polarity"],
+            "solo baseline": round(x["baseline"], 3),
+            "solo posterior": round(x["p_high"], 3),
+            "solo delta": round(x["delta"], 3),
+        } for x in r.get("paths", [])], columns=cols)
+        return render.DataGrid(df, styles=[{"cols": [0], "style": {"min-width": "14rem"}}])

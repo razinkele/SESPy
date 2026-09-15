@@ -2,6 +2,68 @@
 
 All notable changes to SESPy.
 
+## [1.12.1] — 2026-09-13
+
+- **Cheaper posterior links.** `link_params` reads the Beta mean directly
+  from the rating counts instead of the full polarity posterior, so a rated
+  edge no longer costs two scipy quantile calls (values unchanged, pinned by
+  a new equivalence test).
+- The Intervention BBN sidebar text now mentions the rater-posterior
+  option (nine languages).
+- Tests: the topbar e2e waits longer for the feedback modal inside the
+  full runner; the unrated unknown-polarity noisy-OR test is named for what
+  it covers.
+
+## [1.12.0] — 2026-09-12
+
+- **BBN link probabilities from rater posteriors (Intervention).** An
+  opt-in checkbox derives each rated link's sign probability (Beta
+  posterior) and expected strength (Dirichlet posterior) from the Option A
+  rater posteriors, with the sign marginalised inside the noisy-OR; an
+  evenly split link carries no information, unrated links keep the stored
+  values, and the summary counts the rated links. The cycle cut and the
+  per-route chains use the same mode. Library: `link_params`, `_noisy_or`,
+  `link_mode` on `path_set_dag`, `model_from_dag`, `build_path_bbn`,
+  `attribute_paths`. Stored mode is bit-identical to v1.11.0 for '+'/'−'
+  links (a '?'-polarity link now ranks at 0 in the cycle cut).
+- Manual: sections 19 and 43 updated.
+
+## [1.11.0] — 2026-09-11
+
+- **BBN extra evidence (Intervention).** "Also high" / "Also low" pickers
+  fix further path-set elements alongside the forward/diagnostic preset;
+  elements outside the paths are ignored and listed, conflicting picks
+  block the run. Library: `merge_evidence`, `focus_node`.
+- **Effect per route.** A second table gives, for each causal path on its
+  own, the focus element's baseline, posterior and change (solo values
+  that do not add up to the joint change). Library: `attribute_paths`,
+  `model_from_dag` (the CPT builder factored out of `build_path_bbn`).
+- Manual: section 19 and 43 updated; new screenshot `intervention_bbn.png`.
+
+## [1.10.0] — 2026-09-08
+
+- **Bayesian consensus (Rate Connections).** Opt-in checkbox showing a Beta
+  posterior P(+) with its 95% credible interval and a Dirichlet posterior
+  strength per connection, ratings weighted by rater confidence. The
+  contested criterion under the toggle is "interval straddles 0.5". The
+  stored consensus is untouched. Library: `polarity_posterior`,
+  `strength_posterior`, `bayesian_consensus`, `bayesian_contested`.
+- **Posterior sign flips (Loop Analysis).** `uncertainty_scores(flip_mode=
+  "posterior")` flips edge signs by the rater posterior instead of the
+  confidence heuristic; unrated edges keep the heuristic.
+- **Bayesian inference (Intervention).** A binary noisy-OR belief network
+  over the acyclic causal paths between two chosen elements, exact
+  inference via pgmpy (new optional extra `sespy[bayes]`), forward and
+  diagnostic queries, cut links reported. Library: `sespy/bayes.py`.
+- Manual: sections 10, 12, 19 updated; new section 43 (Bayesian options);
+  screenshots regenerated.
+- Deployment note: the laguna env needs `micromamba install -n shiny pgmpy`
+  once (run as the env owner), verified as the `shiny` user with
+  `python3 -s`, before this release. conda-forge pgmpy does not pull
+  pytorch; if pytorch is present in the env the first inference per worker
+  takes 35–65 s in a background thread (~350 MB RSS), otherwise a few
+  seconds.
+
 ## [1.9.1] — 2026-09-05
 
 - Contextual Help: the manual section is cleared when the panel closes. In

@@ -16,16 +16,19 @@ async def main():
         # output; wait for them before toggling so the mini-mode icon check
         # doesn't race the first render (this test was intermittently flaky
         # on a fixed 1.5s sleep).
-        await page.wait_for_selector(".sespy-nav-icon", timeout=20000)
+        await page.wait_for_selector(".sespy-nav-icon", timeout=60000)
 
         before = await page.evaluate(
             "() => ({"
             " body_classes: document.body.className,"
-            " toggle_present: document.querySelectorAll('.bslib-sidebar-layout > .collapse-toggle').length"
+            " toggle_present: (() => { const s = document.querySelector('.sidebar.sespy-nav-shell');"
+            " const l = s && s.closest('.bslib-sidebar-layout');"
+            " return l ? l.querySelectorAll(':scope > .collapse-toggle').length : 0; })()"
             "})"
         )
         print("before click:", before)
-        assert before["toggle_present"] > 0, "no collapse-toggle in DOM"
+        assert before["toggle_present"] > 0, \
+            "nav layout has no collapse-toggle (sespy-nav-shell marker missing or nav layout shape changed)"
 
         await page.screenshot(path="tests/screenshots/burger_open.png")
 
@@ -40,7 +43,7 @@ async def main():
 
         after = await page.evaluate(
             "() => ({"
-            " sidebar_w: document.querySelector('.bslib-page-sidebar > .bslib-sidebar-layout > .sidebar')?.getBoundingClientRect().width,"
+            " sidebar_w: document.querySelector('.sidebar.sespy-nav-shell')?.getBoundingClientRect().width,"
             " body_classes: document.body.className,"
             " icons_visible: document.querySelectorAll('.sespy-nav-icon').length,"
             " labels_hidden: Array.from(document.querySelectorAll('.sespy-nav-btn > span')).filter(s => !s.classList.contains('sespy-nav-icon')).every(s => getComputedStyle(s).display === 'none')"
@@ -51,7 +54,7 @@ async def main():
             "body should have sespy-sidebar-mini class"
         assert after["icons_visible"] > 0, "icons should still be in DOM"
         assert after["labels_hidden"], "all nav-button labels should be hidden in mini mode"
-        assert after["sidebar_w"] is None or after["sidebar_w"] < 100, \
+        assert after["sidebar_w"] is not None and after["sidebar_w"] < 100, \
             f"sidebar should be ~64px in mini, got {after['sidebar_w']}"
 
         # Verify the grid actually shrunk so main area got wider

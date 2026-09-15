@@ -33,8 +33,19 @@ async def main():
         await pg.check("#import-assign_dapsiwrm")
         await pg.wait_for_selector("#import-dapsiwrm_map select", timeout=10000)
         await pg.click("#import-commit")
-        # post-commit barrier — notification only fires on successful commit
-        await pg.wait_for_selector(".shiny-notification", timeout=15000)
+        # Match the commit toast's OWN text: the autosave "Recovered work from
+        # your last session." banner (project_io.py:172-183, duration=None) shares
+        # this class and is present in every runner session once test_autosave_e2e
+        # has run, so a bare class wait proves nothing. Either commit toast is
+        # accepted — the DAPSIWRM group assertions below are what prove the typing
+        # applied, and they give a far better diagnostic than a text-match timeout.
+        await pg.wait_for_function(
+            "() => Array.from(document.querySelectorAll("
+            "  '#shiny-notification-panel .shiny-notification'"
+            ")).some(n => /Assigned DAPSIWRM types|Imported \\d+ elements/"
+            ".test(n.textContent || ''))",
+            timeout=30000,
+        )
         # go to CLD, wait for the network
         await pg.click("#sespy_nav_cld")
         await pg.wait_for_selector("#cld-network", timeout=30000)

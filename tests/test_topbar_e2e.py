@@ -14,17 +14,29 @@ async def main():
             await pg.wait_for_selector(f"#{bid}", timeout=30000)
         # Feedback opens + submit records + notification
         await pg.click("#tb_feedback")
-        await pg.wait_for_selector(".modal #fb_message", timeout=10000)
+        # 30 s, not 10: inside run_e2e.py this script follows the pgmpy-heavy
+        # intervention script and the worker is still busy when the modal is
+        # requested; it failed here three gates in a row and passed alone.
+        await pg.wait_for_selector(".modal #fb_message", timeout=30000)
         await pg.fill("#fb_message", "e2e feedback check")
         await pg.click("#fb_submit")
-        await pg.wait_for_selector(".shiny-notification", timeout=10000)
+        # Wait for the feedback toast's own text, not any .shiny-notification:
+        # the autosave "Recovered work" banner uses the same class and can
+        # satisfy a generic wait before the submit has even been handled.
+        await pg.wait_for_function(
+            "() => Array.from(document.querySelectorAll('.shiny-notification'))"
+            ".some(n => (n.innerText || '').includes('feedback was recorded'))",
+            timeout=10000)
         print("topbar feedback: OK")
         await pg.click("#tb_about")
         await pg.wait_for_selector(".modal", timeout=10000)
         body = await pg.text_content(".modal") or ""
-        assert "Overview" in body and "Changelog" in body, body[:120]
+        tabs = [t.strip() for t in await pg.eval_on_selector_all(
+            ".modal .nav-link", "els => els.map(e => e.textContent)")]
+        assert any("Overview" in t for t in tabs) and any("Changelog" in t for t in tabs), \
+            f"About tabs={tabs} body={body[:120]}"
         # Manual tab (v1.8.0): rendered docs/MANUAL.md with images that load.
-        assert "Manual" in body, body[:120]
+        assert any("Manual" in t for t in tabs), f"About tabs={tabs} body={body[:120]}"
         await pg.click(".modal .nav-link:has-text('Manual')")
         await pg.wait_for_selector(".modal h1:has-text('SESPy User Manual')", timeout=10000)
         await pg.wait_for_selector(".modal h2:has-text('CLD Visualization')", timeout=10000)

@@ -40,6 +40,45 @@ About → Manual.
 
 ---
 
+## What's new in v1.12.0
+
+- **Link probabilities from rater posteriors** (Intervention). A checkbox
+  lets the path-set belief network take each rated link's sign probability
+  and expected strength from the rater posteriors instead of the stored
+  scalars, with the sign marginalised in the noisy-OR; unrated links keep
+  the stored values and the summary counts the rated ones.
+- See manual sections 19 and 43.
+
+## What's new in v1.11.0
+
+- **Extra evidence for the path-set belief network** (Intervention). "Also
+  high" / "Also low" pickers fix further elements of the causal paths
+  alongside the forward/diagnostic preset; picks outside the paths are
+  listed as ignored, conflicting picks block the run.
+- **Effect per route.** A second table gives, for each causal path on its
+  own, the focus element's baseline, posterior and change — solo values
+  that do not add up to the joint change.
+- See manual sections 19 and 43.
+
+## What's new in v1.10.0
+
+- **Bayesian consensus toggle** (Rate Connections). An optional toggle
+  replaces the majority-vote sign and strength with a conjugate Beta/
+  Dirichlet posterior over each connection's ratings — a P(+) credible
+  interval and MAP strength — and a posterior contested criterion that
+  discounts a lone dissenter among many.
+- **Posterior sign flips** (Loop Analysis). The Monte-Carlo perturbation
+  can flip a connection's sign by the rater posterior probability that the
+  stored sign is wrong, instead of only the confidence heuristic.
+- **Bayesian inference over the source→target path set** (Intervention,
+  optional `sespy[bayes]` extra). A noisy-OR Bayesian network built from
+  the path set answers "how likely is the target high given evidence
+  upstream" queries; the first run loads the pgmpy engine, which takes
+  about a minute.
+- See manual section 43 for the science behind all three.
+
+---
+
 ## What's new in v1.9.1
 
 Patch: the Help side panel now clears its content when closed.
@@ -401,6 +440,7 @@ from source or the wheel:
 ```bash
 pip install .            # core dependencies
 pip install ".[pdf]"     # + WeasyPrint for PDF export (needs native cairo/pango)
+pip install ".[bayes]"   # + pgmpy for the Intervention panel's Bayesian inference
 ```
 
 ⚠️ A plain `pip install` pulls upstream pyvis from PyPI (0.3.x, no `.shiny`), so

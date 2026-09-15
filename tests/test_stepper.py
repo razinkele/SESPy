@@ -12,7 +12,7 @@ async def main():
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
         # Stepper is a reactive @render.ui output; wait for it rather than a
         # fixed sleep (cold first render can exceed 1.5s headless/CI).
-        await page.wait_for_selector(".sespy-stepper-item", timeout=20000)
+        await page.wait_for_selector(".sespy-stepper-item", timeout=60000)
 
         # On the default "cld" panel, "visualize" should be active.
         states = await page.evaluate("""() => {
@@ -36,7 +36,18 @@ async def main():
 
         # Click Loop Analysis -> stepper should jump to "analyze"
         await page.click("#sespy_nav_loops")
-        await page.wait_for_timeout(900)
+        # The nav click is a full server round-trip (dashboard.py
+        # _wire_nav_button -> _goto -> ui.update_navs) that re-renders the
+        # stepper @render.ui output and un-suspends the Loop Analysis panel's
+        # outputs. Poll for the re-render instead of a fixed sleep. This loop
+        # never raises, so the assert below still reports what it found.
+        for _ in range(60):  # up to 30s
+            if await page.evaluate(
+                "() => { const el = document.querySelector('.sespy-stepper-item.active');"
+                " return !!el && el.getAttribute('data-step') === 'analyze'; }"
+            ):
+                break
+            await page.wait_for_timeout(500)
         states = await page.evaluate("""() => {
           const items = Array.from(document.querySelectorAll('.sespy-stepper-item'));
           return items.map(el => ({
@@ -47,12 +58,28 @@ async def main():
           }));
         }""")
         active = [s for s in states if s["state"] == "active"]
-        assert len(active) == 1 and active[0]["step"] == "analyze"
+        assert len(active) == 1 and active[0]["step"] == "analyze", (
+            f"expected exactly one active step 'analyze', got {active}"
+        )
         print(f"\nafter Loop Analysis click: active = {active[0]['step']} ✓")
 
         await page.screenshot(path="tests/screenshots/stepper_analyze.png")
         await page.click("#sespy_nav_cld")
-        await page.wait_for_timeout(900)
+        # Same full server round-trip as the loops click; poll so the
+        # screenshot below cannot silently capture the "analyze" stepper
+        # under the stepper_visualize.png name.
+        back: list[str] = []
+        for _ in range(60):  # up to 30s
+            back = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'.sespy-stepper-item.active')).map(e => e.getAttribute('data-step'))"
+            )
+            if back == ["visualize"]:
+                break
+            await page.wait_for_timeout(500)
+        assert back == ["visualize"], (
+            f"expected active step 'visualize' after the CLD nav click, got {back}"
+        )
         await page.screenshot(path="tests/screenshots/stepper_visualize.png")
 
         print("\nstepper assertions pass")

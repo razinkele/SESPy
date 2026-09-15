@@ -98,8 +98,12 @@ async def main():
         # Blind mode: rater 2 has NOT rated this connection yet, but rater 1 has.
         # Enabling blind hides the peer value from rater 2 until they submit.
         await page.check("#rate-blind_mode")
-        await page.wait_for_timeout(500)
-        blind_txt = (await page.text_content("#rate-current_ratings")) or ""
+        blind_txt = ""
+        for _ in range(40):
+            await page.wait_for_timeout(500)
+            blind_txt = (await page.text_content("#rate-current_ratings")) or ""
+            if "blind mode" in blind_txt.lower():
+                break
         assert "blind mode" in blind_txt.lower(), f"blind placeholder not shown: {blind_txt!r}"
         assert "/" not in blind_txt, f"peer rating value leaked under blind mode: {blind_txt!r}"
 
@@ -169,6 +173,48 @@ async def main():
                 break
         assert narrowed, f"contested-only filter did not narrow to 1 row (got {n})"
         print("rate connections contested view: OK")
+
+        # --- Option A: Bayesian toggle adds posterior columns, keeps stored values ---
+        await page.uncheck("#rate-contested_only")
+        await page.check("#rate-bayesian")
+        headers = []
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            headers = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'#rate-connections_table table thead th')).map(th => th.textContent.trim())"
+            )
+            if any("P(+)" in h for h in headers):
+                break
+        assert any("P(+)" in h for h in headers), f"P(+) column missing: {headers}"
+        cells_b = await page.evaluate(
+            "() => Array.from(document.querySelectorAll("
+            "'#rate-connections_table table tbody tr:first-child td')).map(td => td.textContent.trim())"
+        )
+        assert any("[" in c and "–" in c for c in cells_b), f"no credible interval cell: {cells_b}"
+        assert "2" in cells_b and any("⚠" in c for c in cells_b), \
+            f"stored #ratings / contested marker changed under the toggle: {cells_b}"
+        count_b = await page.evaluate(
+            "() => document.getElementById('rate-contested_count').textContent")
+        assert "1" in count_b, f"bayesian contested count wrong: {count_b!r}"
+        cells_row2 = await page.evaluate(
+            "() => Array.from(document.querySelectorAll("
+            "'#rate-connections_table table tbody tr:nth-child(2) td')).map(td => td.textContent.trim())"
+        )
+        assert cells_row2[-2:] == ["—", "—"], \
+            f"unrated row should show blank posterior columns: {cells_row2}"
+        await page.uncheck("#rate-bayesian")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            headers = await page.evaluate(
+                "() => Array.from(document.querySelectorAll("
+                "'#rate-connections_table table thead th')).map(th => th.textContent.trim())"
+            )
+            if headers and not any("P(+)" in h for h in headers):
+                break
+        assert headers and not any("P(+)" in h for h in headers), \
+            f"toggle-off left #rate-connections_table thead empty or P(+) persisted: {headers}"
+        print("rate connections bayesian toggle: OK")
 
         await browser.close()
 

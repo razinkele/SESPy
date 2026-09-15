@@ -11,9 +11,18 @@ async def main():
         page = await (await browser.new_context()).new_page()
         await page.set_viewport_size({"width": 1280, "height": 900})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
-        await page.wait_for_selector("#sespy_nav_intervention", timeout=15000)
+        await page.wait_for_selector("#sespy_nav_intervention", timeout=60000)
         await page.click("#sespy_nav_intervention")
-        await page.wait_for_timeout(3000)
+        # The pyvis network is a SUSPENDED output: its first build starts at
+        # the nav click, so wait for the registration, never a fixed sleep
+        # (a 2.5 s sleep raced the same init in test_leverage_e2e).
+        await page.wait_for_function(
+            "() => window.pyvisNetworks"
+            " && window.pyvisNetworks['intervention-intervention_network']"
+            " && window.pyvisNetworks['intervention-intervention_network'].nodes"
+            " && window.pyvisNetworks['intervention-intervention_network'].nodes.length",
+            timeout=60000,
+        )
 
         # Network rendered with all 17 nodes (no ablation yet)
         nodes = await page.evaluate(
@@ -32,7 +41,17 @@ async def main():
             "() => Shiny.setInputValue('intervention-ablate', ['P001'], "
             "{priority: 'event'})"
         )
-        await page.wait_for_timeout(2500)
+        # The ablation is a server round-trip that rebuilds the whole pyvis
+        # network; wait for the greyed-out node (the same predicate
+        # make_docs_screenshots.py polls) rather than a fixed sleep — the
+        # 17-node count below is NOT a guard, it equals the pre-ablation count.
+        await page.wait_for_function(
+            "() => { const s = window.pyvisNetworks"
+            " && window.pyvisNetworks['intervention-intervention_network'];"
+            " const n = s && s.nodes && s.nodes.get('P001');"
+            " return !!n && n.opacity != null && n.opacity < 1; }",
+            timeout=30000,
+        )
 
         # Network still has 17 nodes (ablated node is rendered greyed out, not removed
         # from the canvas), but the ablated one has reduced opacity / dashed border
@@ -58,6 +77,15 @@ async def main():
         await page.wait_for_selector("#intervention-diffusion_summary", timeout=15000)
         hint = (await page.inner_text("#intervention-diffusion_summary")).strip()
         assert "not simulated" in hint, f"expected idle hint, got: {hint!r}"
+        # output_plot renders on a later flush than the summary (it needs the
+        # client size), so wait for the idle figure before fingerprinting it.
+        # diffusion_chart returns a fig unconditionally, so the idle state is
+        # ALSO an <img>; only a changed src proves the run re-rendered it.
+        await page.wait_for_selector("#intervention-diffusion_chart img", timeout=30000)
+        idle_chart = await page.evaluate(
+            "() => { const i = document.querySelector('#intervention-diffusion_chart img');"
+            " return i ? i.src.length + ':' + i.src.slice(-64) : ''; }")
+        assert idle_chart, "idle diffusion chart img had no src to fingerprint"
         await page.select_option("#intervention-diffusion_source", "D001")
         await page.click("#intervention-run_diffusion")
         diff_text = ""
@@ -79,12 +107,18 @@ async def main():
         assert "1501 ±32" in diff_text and "1499 ±32" in diff_text, \
             f"expected margins on the near-tied pair, got: {diff_text!r}"
         assert "rank" in diff_text, f"expected a rank column, got: {diff_text!r}"
-        # The bar chart must render as an <img> once results exist.
-        chart_ok = await page.evaluate(
-            "() => { const el = document.getElementById('intervention-diffusion_chart');"
-            " return !!el && !!el.querySelector('img'); }"
-        )
-        assert chart_ok, "diffusion chart did not render an image"
+        # The bar chart must render a NEW <img> once results exist: the idle
+        # figure is also an <img>, so only a CHANGED src proves the
+        # result-driven re-render happened.
+        chart_ok = False
+        for _ in range(40):
+            chart_ok = await page.evaluate(
+                "(idle) => { const i = document.querySelector('#intervention-diffusion_chart img');"
+                " return !!i && (i.src.length + ':' + i.src.slice(-64)) !== idle; }", idle_chart)
+            if chart_ok:
+                break
+            await page.wait_for_timeout(250)
+        assert chart_ok, "diffusion chart did not re-render for the run (src unchanged from idle)"
         # Changing the source must invalidate the previous run (no stale
         # table) and a re-run must reflect the NEW source: P002 reaches 13
         # of 17 elements at seed 0, vs D001's 7.
@@ -104,6 +138,140 @@ async def main():
         assert "13 of 17 elements reached by 1000 tokens in 10 steps" in diff_text, \
             f"expected P002 summary, got: {diff_text!r}"
         print(f"intervention simulation: OK ({diff_text[:90]!r})")
+
+        # --- Option B: path-set BBN, forward query D001 -> GB01 (2 paths, one
+        # '-' hop each, so the target's P(high) must FALL) ---
+        await page.wait_for_selector("#intervention-bbn_summary", timeout=15000)
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary"))
+        await page.select_option("#intervention-bbn_source", "D001")
+        await page.select_option("#intervention-bbn_target", "GB01")
+        await page.click("#intervention-run_bbn")
+        # The task runs off the flush, so the "computing" line must appear
+        # promptly (proves the event loop was not blocked by the import)...
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('computing')", timeout=10000)
+        # ...and the result may take up to ~65 s on a fresh server: the first
+        # pgmpy import loads torch. 120 s stays under run_e2e's SCRIPT_TIMEOUT.
+        await page.wait_for_function(
+            "() => { const s = document.getElementById('intervention-bbn_summary')?.innerText || '';"
+            " return s.includes('causal paths') || s.includes('pgmpy'); }", timeout=120000)
+        bbn_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "2 causal paths from D001 to GB01" in bbn_text, f"unexpected summary: {bbn_text!r}"
+        assert "GB01" in bbn_text and "(-" in bbn_text, \
+            f"expected a negative delta on GB01: {bbn_text!r}"
+        n_rows = await page.evaluate(
+            "() => document.querySelectorAll('#intervention-bbn_table table tbody tr').length")
+        assert n_rows == 7, f"expected 7 path-set nodes in the table, got {n_rows}"
+        # --- Free evidence + per-route effect (design 2026-09-10). Goldens
+        # verified 2026-09-11: forward GB01 delta -0.0503; with MPF1 (on both
+        # routes) low, -0.2781; both solo routes tie at -0.0301. ---
+        assert "(-0.05)" in bbn_text, f"expected the forward golden on GB01: {bbn_text!r}"
+        n_paths = await page.evaluate(
+            "() => document.querySelectorAll('#intervention-bbn_paths table tbody tr').length")
+        assert n_paths == 2, f"expected 2 route rows, got {n_paths}"
+        # --- Posterior link mode (design 2026-09-12). The sample has no
+        # ratings, so every link falls back to stored values: the golden
+        # delta is unchanged and the summary says 0 of 7 rated. ---
+        await page.check("#intervention-bbn_posterior")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived the posterior toggle"
+        await page.click("#intervention-run_bbn")
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('causal paths')", timeout=60000)
+        post_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "Links from rater posteriors: 0 of 7 rated" in post_text, \
+            f"expected the rated-edge line: {post_text!r}"
+        assert "(-0.05)" in post_text, f"posterior mode must not change an unrated model: {post_text!r}"
+        # Back to stored mode, recomputed, so the evidence block below starts
+        # from the same state as before this block.
+        await page.uncheck("#intervention-bbn_posterior")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived untoggling posterior mode"
+        await page.click("#intervention-run_bbn")
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('causal paths')", timeout=60000)
+        assert "Links from rater posteriors" not in (await page.inner_text("#intervention-bbn_summary"))
+        print(f"intervention bbn posterior: OK ({post_text[:80]!r})")
+        # selectize hides the underlying <select> (display:none), so the default
+        # visible-state wait would time out: wait for presence only.
+        await page.wait_for_selector("#intervention-bbn_low", state="attached", timeout=10000)
+        await page.evaluate(
+            "() => Shiny.setInputValue('intervention-bbn_low', ['MPF1'], {priority: 'event'})")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived an evidence change"
+        await page.click("#intervention-run_bbn")
+        # engine already loaded by the run above: no cold-import budget needed
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('Evidence')", timeout=60000)
+        ev_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "Evidence: D001 high, MPF1 low" in ev_text, f"unexpected evidence line: {ev_text!r}"
+        assert "(-0.28)" in ev_text, f"expected the MPF1-low golden on GB01: {ev_text!r}"
+        n_paths = await page.evaluate(
+            "() => document.querySelectorAll('#intervention-bbn_paths table tbody tr').length")
+        assert n_paths == 2, f"expected 2 route rows after the evidence run, got {n_paths}"
+        # The same node high AND low is a conflict: reported, nothing computed,
+        # and reported instantly (checked before the engine is touched).
+        await page.evaluate(
+            "() => Shiny.setInputValue('intervention-bbn_high', ['MPF1'], {priority: 'event'})")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived a second evidence change"
+        await page.click("#intervention-run_bbn")
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('Conflicting evidence')", timeout=30000)
+        conflict_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "MPF1" in conflict_text, f"conflict line should name MPF1: {conflict_text!r}"
+        n_paths = await page.evaluate(
+            "() => document.querySelectorAll('#intervention-bbn_paths table tbody tr').length")
+        assert n_paths == 0, f"route table must be empty on a conflict, got {n_paths}"
+        # Clear the pickers so the direction-change step below sees the original setup.
+        await page.evaluate(
+            "() => { Shiny.setInputValue('intervention-bbn_high', [], {priority: 'event'});"
+            " Shiny.setInputValue('intervention-bbn_low', [], {priority: 'event'}); }")
+        await page.wait_for_timeout(1000)
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived clearing the pickers"
+        await page.click("#intervention-run_bbn")
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-bbn_summary')?.innerText || '')"
+            ".includes('causal paths')", timeout=60000)
+        cleared_text = (await page.inner_text("#intervention-bbn_summary")).strip()
+        assert "2 causal paths from D001 to GB01" in cleared_text, \
+            f"unexpected summary after clearing evidence: {cleared_text!r}"
+        print(f"intervention bbn evidence: OK ({ev_text[:80]!r})")
+        # Changing the direction invalidates the result.
+        await page.click("#intervention-bbn_direction input[value='diagnostic']")
+        for _ in range(20):
+            await page.wait_for_timeout(500)
+            if "not computed" in (await page.inner_text("#intervention-bbn_summary")):
+                break
+        assert "not computed" in (await page.inner_text("#intervention-bbn_summary")), \
+            "stale BBN result survived a direction change"
+        print(f"intervention bbn: OK ({bbn_text[:80]!r})")
         print("\nintervention e2e assertions pass")
         await browser.close()
 

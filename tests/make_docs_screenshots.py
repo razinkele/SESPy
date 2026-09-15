@@ -141,6 +141,59 @@ class Shooter:
         self.written.append(path)
         return path
 
+    async def shot_at(self, sel: str, name: str, bottom_sel: str | None = None) -> None:
+        """Screenshot with the first boxed descendant of `sel` parked under
+        the topbar (the metrics cascade capture pattern). If `bottom_sel` is
+        given and its first boxed descendant's bottom edge falls below the
+        viewport, grow the viewport for this one shot (up to 1400px tall) so
+        both `sel` and `bottom_sel` fit together, re-scrolling to the same
+        anchor; only if the block still does not fit at 1400px does it fall
+        back to scrolling down by the remaining overflow (sacrificing the
+        top of `sel`)."""
+        async def _scroll_to_sel() -> float:
+            return await self.page.eval_on_selector(
+                sel,
+                "el => { const box = Array.from(el.querySelectorAll('*'))"
+                "    .find(c => c.getBoundingClientRect().height > 0) || el;"
+                "  const y = box.getBoundingClientRect().top + window.scrollY - 90;"
+                "  window.scrollTo({top: y, behavior: 'instant'}); return window.scrollY; }")
+
+        async def _overflow() -> float:
+            return await self.page.eval_on_selector(
+                bottom_sel,
+                "el => { const box = Array.from(el.querySelectorAll('*'))"
+                "    .find(c => c.getBoundingClientRect().height > 0) || el;"
+                "  return box.getBoundingClientRect().bottom - (window.innerHeight - 20); }")
+
+        scroll_y = await _scroll_to_sel()
+        await self.page.wait_for_timeout(500)
+        if not scroll_y:
+            self.warn(f"{name}: {sel} did not scroll into view")
+
+        grew_viewport = False
+        if bottom_sel:
+            overflow = await _overflow()
+            if overflow and overflow > 0:
+                new_height = min(1400, 900 + overflow)
+                await self.page.set_viewport_size({"width": 1280, "height": int(new_height)})
+                grew_viewport = True
+                await self.page.wait_for_timeout(300)
+                await _scroll_to_sel()
+                await self.page.wait_for_timeout(300)
+                overflow = await _overflow()
+                if overflow and overflow > 0:
+                    await self.page.evaluate(
+                        "(o) => window.scrollBy({top: o, behavior: 'instant'})", overflow)
+                    await self.page.wait_for_timeout(300)
+
+        path = self.out / f"{name}.png"
+        await self.page.screenshot(path=str(path), full_page=False)
+        print(f"wrote {path} ({path.stat().st_size} bytes)")
+        self.written.append(path)
+        if grew_viewport:
+            await self.page.set_viewport_size({"width": 1280, "height": 900})
+            await self.page.wait_for_timeout(300)
+
     async def hide_notifications(self) -> None:
         await self.page.evaluate(
             "() => { const p = document.getElementById('shiny-notification-panel');"
@@ -279,6 +332,39 @@ class Shooter:
         else:
             await self.poll_sel("#intervention-diffusion_chart img")
 
+    async def gate_intervention_bbn(self) -> None:
+        """Forward query D001 -> GB01 with MPF1 low, so the evidence line and
+        the per-route table are both populated for intervention_bbn.png."""
+        if not await self.poll_sel("#intervention-bbn_source"):
+            self.warn("intervention: bbn source select missing; run skipped")
+            return
+        await self.page.select_option("#intervention-bbn_source", "D001")
+        await self.page.select_option("#intervention-bbn_target", "GB01")
+        # The pickers already exist for the initial pair (D001 -> R002) and are
+        # re-rendered for the new pair; a pick sent before the new selectize
+        # binds is overwritten by its empty initial value. Let the render land.
+        await self.page.wait_for_timeout(1500)
+        if not await self.poll_sel("#intervention-bbn_low"):
+            self.warn("intervention: bbn evidence pickers missing; run skipped")
+            return
+        # Drive the widget itself so the pick shows in the control on the shot
+        # (the ablate pattern above); Shiny.setInputValue is the fallback.
+        try:
+            await self.page.click("#intervention-bbn_low + .selectize-control")
+            await self.page.click(
+                ".selectize-dropdown-content [data-selectable][data-value='MPF1']", timeout=3000)
+            await self.page.keyboard.press("Escape")
+        except Exception:
+            self.warn("intervention: bbn selectize pick failed, using Shiny.setInputValue")
+            await self.page.evaluate(
+                "() => Shiny.setInputValue('intervention-bbn_low', ['MPF1'], {priority: 'event'})")
+        await self.page.wait_for_timeout(500)
+        await self.page.click("#intervention-run_bbn")
+        # The first inference per server process loads pgmpy (35-65 s here).
+        if not await self.poll_text("#intervention-bbn_summary",
+                                    lambda t: "Evidence" in t or "pgmpy" in t, n=160, ms=500):
+            self.warn("intervention: bbn result did not render")
+
     # ---- About modal -----------------------------------------------------
     async def shoot_about(self) -> None:
         await self.hide_notifications()
@@ -362,6 +448,11 @@ class Shooter:
                 elif value == "simulation":
                     await self.gate_simulation_mc()
                     await self.shot("simulation_montecarlo")
+                elif value == "intervention":
+                    await self.gate_intervention_bbn()
+                    await self.hide_notifications()
+                    await self.shot_at("#intervention-bbn_summary", "intervention_bbn",
+                                       bottom_sel="#intervention-bbn_paths")
             except Exception as exc:  # keep going; report at the end
                 self.failures.append(f"{value}: {type(exc).__name__}: {exc}")
                 print(f"FAIL {value}: {type(exc).__name__}: {exc}")

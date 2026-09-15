@@ -13,17 +13,35 @@ async def main():
         await page.set_viewport_size({"width": 1280, "height": 1000})
         await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
 
-        await page.wait_for_selector("#sespy_nav_simulation", timeout=15000)
+        await page.wait_for_selector("#sespy_nav_simulation", timeout=60000)
         await page.click("#sespy_nav_simulation")
         # Wait for the run button to mount (condition, not a guessed delay).
         await page.wait_for_selector("#simulation-run_sim", timeout=15000)
 
         # ---- Deterministic simulation ----
+        # trajectory_plot always emits an <img>: a "Click Run simulation"
+        # placeholder while sim_store is None, and a red error figure on the
+        # _run_sim except branch (sespy/modules/analysis_simulation.py:209-220).
+        # So a bare img-presence wait is also satisfied by a swallowed click.
+        # The run is not unchecked -- dominance_summary returns an empty span
+        # unless sim_store holds a successful run (analysis_simulation.py:252),
+        # so the wait at the loop-dominance block below already fails. Capturing
+        # the placeholder src here just keeps that failure at the Run step
+        # instead of misreporting it as a loop-dominance timeout.
+        await page.wait_for_selector("#simulation-trajectory_plot img", timeout=60000)
+        placeholder_src = await page.eval_on_selector(
+            "#simulation-trajectory_plot img", "el => el.src"
+        )
         await page.click("#simulation-run_sim")
-        # Wait for the plot image itself rather than a fixed timeout: the render
-        # can lag the click under full-suite / CI load, which flaked a bare
-        # 2.5s sleep-then-assert.
-        await page.wait_for_selector("#simulation-trajectory_plot img", timeout=30000)
+        # Condition, not a guessed delay: the render can lag the click under
+        # full-suite / CI load, which flaked a bare 2.5s sleep-then-assert.
+        # A timeout here means Run Simulation never repainted the plot.
+        await page.wait_for_function(
+            "(prev) => { const el = document.querySelector('#simulation-trajectory_plot img');"
+            "            return !!el && el.src !== prev; }",
+            arg=placeholder_src,
+            timeout=30000,
+        )
         print("trajectory plot rendered: True")
 
         # ---- Loop-dominance overlay (#22) ----
@@ -103,14 +121,30 @@ async def main():
             if n_rows >= 1:
                 break
         print(f"MC summary rows: {n_rows}")
-        assert n_rows >= 1
+        assert n_rows >= 1, f"MC summary table never populated within 40s (rows={n_rows})"
 
         # Completion message visible (looks for "Simulations completed:")
-        msg_seen = await page.evaluate(
-            "() => Array.from(document.querySelectorAll('#simulation-mc_summary p'))"
-            "  .some(p => p.textContent.includes('Simulations completed'))"
+        completed_txt = await page.evaluate(
+            "() => { const p = Array.from(document.querySelectorAll('#simulation-mc_summary p'))"
+            "          .find(p => p.textContent.includes('Simulations completed'));"
+            "        return p ? p.textContent.trim() : ''; }"
         )
+        msg_seen = completed_txt != ""
         assert msg_seen, "MC completion message not found"
+        # Rows + message alone pass on a run that computed nothing:
+        # state_shift_monte_carlo drops every diverged run and still fills
+        # summary[i] with NaN for EVERY node (sespy/dynamics.py:522-527), while
+        # mc_summary formats the full 17-row table and the completion line
+        # regardless (sespy/modules/analysis_simulation.py:314-336). A NaN cell
+        # appears only when zero runs survived, so this is the discriminating
+        # check; completed_txt is carried only to name the counts on failure.
+        nan_cells = await page.evaluate(
+            "() => Array.from(document.querySelectorAll("
+            "    '#simulation-mc_summary table tbody td'))"
+            "  .filter(td => td.textContent.trim().toLowerCase() === 'nan').length"
+        )
+        assert nan_cells == 0, \
+            f"MC summary has {nan_cells} NaN cells ({completed_txt!r})"
 
         # Histogram plot visible (render can trail the summary table slightly).
         await page.wait_for_selector("#simulation-mc_histograms img", timeout=15000)
