@@ -8,11 +8,14 @@ sessions. Capped at 10 entries; the oldest is evicted when full.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .autosave import autosave_dir
+
+logger = logging.getLogger(__name__)
 
 MAX_RECENT = 10
 RECENT_FILE = "recent.json"
@@ -81,9 +84,10 @@ def add_recent(
             json.dumps([asdict(e) for e in rolled], indent=2),
             encoding="utf-8",
         )
-    except OSError:
-        # Best-effort — same as autosave, recent registry is a convenience
-        pass
+    except OSError as e:
+        # Best-effort — same as autosave, recent registry is a convenience.
+        # Log for observability so a persistently failing write is diagnosable.
+        logger.warning("recent_projects.add status=error reason=%s", type(e).__name__)
 
 
 def remove_recent(path: Path | str) -> None:
@@ -95,5 +99,5 @@ def remove_recent(path: Path | str) -> None:
             json.dumps([asdict(e) for e in others], indent=2),
             encoding="utf-8",
         )
-    except OSError:
-        pass
+    except OSError as e:
+        logger.warning("recent_projects.remove status=error reason=%s", type(e).__name__)

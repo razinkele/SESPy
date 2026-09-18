@@ -27,6 +27,7 @@ from ..constants import (
 )
 from ..data_structure import IsaData, Project
 from ..event_bus import EventBus
+from ..input_utils import safe_int
 from ..i18n import Translator, t
 
 
@@ -149,11 +150,9 @@ def analysis_simplify_server(
         isa = project_data.get().isa_data
         drop = bool(input.drop_isolated())
         if (input.mode() or "strength") == "top_n":
-            keep_n_raw = input.keep_n()
-            keep_n = 10 if keep_n_raw in (None, "") else int(keep_n_raw)
             return net_analysis.simplify_top_n_edges(
                 isa,
-                keep_top_n=keep_n,
+                keep_top_n=safe_int(input.keep_n(), 10),
                 drop_isolated=drop,
             )
         return net_analysis.simplify_by_strength(

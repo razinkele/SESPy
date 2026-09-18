@@ -14,6 +14,7 @@ from .. import __version__ as _sespy_version
 from .. import feedback_store
 from ..autosave import autosave_age_seconds, clear_autosave
 from ..dashboard import language_switcher
+from ..input_utils import safe_int
 from ..i18n import Translator
 
 _THEME_CHOICES = {"light-marine": "Light Marine", "deep-ocean": "Deep Ocean (Dark)"}
@@ -409,9 +410,7 @@ def topbar_actions_server(input, output, session, *, translator=None,
                                  type="warning", duration=3)
             return
         try:
-            rating_raw = input.fb_rating()
-            rating = 3 if rating_raw in (None, "") else int(rating_raw)
-            feedback_store.add(msg, rating, input.fb_category() or "other")
+            feedback_store.add(msg, safe_int(input.fb_rating(), 3), input.fb_category() or "other")
         except Exception:
             ui.notification_show(
                 _t(translator, "feedback.save_failed", "Could not record feedback."),

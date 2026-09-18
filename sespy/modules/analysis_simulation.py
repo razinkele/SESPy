@@ -15,6 +15,7 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from .. import dynamics
 from ..data_structure import Project
 from ..event_bus import EventBus
+from ..input_utils import safe_int
 from ..i18n import Translator, t
 
 
@@ -155,14 +156,10 @@ def analysis_simulation_server(
                 return
             M, node_ids = built
             isa = project_data.get().isa_data
-            n_iter_raw = input.n_iter()
-            sim_seed_raw = input.sim_seed()
-            n_iter = 200 if n_iter_raw in (None, "") else int(n_iter_raw)
-            sim_seed = 42 if sim_seed_raw in (None, "") else int(sim_seed_raw)
             traj = dynamics.simulate_dynamics(
-                M, n_iter=n_iter,
+                M, n_iter=safe_int(input.n_iter(), 200),
                 initial_state=input.initial_state() or "random",
-                seed=sim_seed,
+                seed=safe_int(input.sim_seed(), 42),
             )
             sim_store.set({"error": None, "traj": traj, "node_ids": node_ids,
                            "isa": isa})
@@ -180,17 +177,11 @@ def analysis_simulation_server(
                               "node_ids": []})
                 return
             M, node_ids = built
-            n_simulations_raw = input.n_simulations()
-            n_iter_raw = input.n_iter()
-            mc_seed_raw = input.mc_seed()
-            n_simulations = 100 if n_simulations_raw in (None, "") else int(n_simulations_raw)
-            n_iter = 200 if n_iter_raw in (None, "") else int(n_iter_raw)
-            mc_seed = 42 if mc_seed_raw in (None, "") else int(mc_seed_raw)
             res = dynamics.state_shift_monte_carlo(
-                M, n_simulations=n_simulations,
-                n_iter=n_iter,
+                M, n_simulations=safe_int(input.n_simulations(), 100),
+                n_iter=safe_int(input.n_iter(), 200),
                 kind=input.kind() or "uniform",
-                seed=mc_seed,
+                seed=safe_int(input.mc_seed(), 42),
             )
             mc_store.set({"error": None, "result": res, "node_ids": node_ids})
         except (ValueError, np.linalg.LinAlgError) as exc:

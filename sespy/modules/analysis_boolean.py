@@ -14,6 +14,7 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from .. import dynamics
 from ..data_structure import Project
 from ..event_bus import EventBus
+from ..input_utils import safe_int
 from ..i18n import Translator, t
 
 
@@ -98,9 +99,7 @@ def analysis_boolean_server(
             M, node_ids = dynamics.isa_to_numeric_matrix(isa)
             stability = dynamics.laplacian_stability(M, direction=input.direction() or "cols")
             rules = dynamics.create_boolean_rules(M)
-            max_nodes_raw = input.max_nodes()
-            max_nodes = 12 if max_nodes_raw in (None, "") else int(max_nodes_raw)
-            attractors = dynamics.boolean_attractors(rules, max_nodes=max_nodes)
+            attractors = dynamics.boolean_attractors(rules, max_nodes=safe_int(input.max_nodes(), 12))
             result_store.set({
                 "error": None,
                 "stability": stability,

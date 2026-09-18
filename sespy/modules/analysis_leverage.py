@@ -30,6 +30,7 @@ from ..constants import (
 )
 from ..data_structure import IsaData, Project
 from ..event_bus import EventBus
+from ..input_utils import safe_int
 from ..i18n import Translator, t
 
 _COMPUTING = object()
@@ -194,9 +195,7 @@ def analysis_leverage_server(
             if not truncated:
                 row["alc"] = round(alc.get(nid, 0.0), 3)
             out.append(row)
-        top_n_raw = input.top_n()
-        top_n = 8 if top_n_raw in (None, "") else int(top_n_raw)
-        return out[:top_n]
+        return out[: safe_int(input.top_n(), 8)]
 
     unc_state = reactive.value(None)            # None | _COMPUTING | <result dict>
     _gen = [0]                                  # plain cell — NOT reactive (avoids self-loop)
@@ -217,8 +216,7 @@ def analysis_leverage_server(
             return
         event_bus.isa_change.get()
         isa = project_data.get().isa_data
-        n_samples_raw = input.n_samples()
-        n = 100 if n_samples_raw in (None, "") else int(n_samples_raw)
+        n = safe_int(input.n_samples(), 100)
         unc_state.set(_COMPUTING)
         _unc_task(isa, n, gen)
 

@@ -27,6 +27,7 @@ from ..constants import (
 )
 from ..data_structure import IsaData, Project
 from ..event_bus import EventBus
+from ..input_utils import safe_int
 from ..i18n import t
 
 _COMPUTING = object()
@@ -172,14 +173,10 @@ def analysis_loops_server(
     @reactive.effect
     @reactive.event(input.detect, ignore_none=False)
     def _run_detection():
-        max_length_raw = input.max_length()
-        max_loops_raw = input.max_loops()
-        max_length = 6 if max_length_raw in (None, "") else int(max_length_raw)
-        max_loops = 200 if max_loops_raw in (None, "") else int(max_loops_raw)
         cycles = net_analysis.feedback_loops(
             project_data.get().isa_data,
-            max_length=max_length,
-            max_loops=max_loops,
+            max_length=safe_int(input.max_length(), 6),
+            max_loops=safe_int(input.max_loops(), 200),
         )
         detected.set(cycles)
         event_bus.emit_analysis_request()
@@ -218,8 +215,7 @@ def analysis_loops_server(
             unc_state.set(None)
             return
         isa = project_data.get().isa_data
-        n_samples_raw = input.n_samples()
-        n = 100 if n_samples_raw in (None, "") else int(n_samples_raw)
+        n = safe_int(input.n_samples(), 100)
         flip_mode = "posterior" if input.flip_posterior() else "confidence"
         unc_state.set(_COMPUTING)
         _unc_task(isa, cycles, n, flip_mode, gen)

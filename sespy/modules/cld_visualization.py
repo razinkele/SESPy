@@ -39,6 +39,7 @@ from ..constants import (
 )
 from ..data_structure import IsaData, Project, filter_elements
 from ..event_bus import EventBus
+from ..input_utils import safe_float, safe_int
 from ..i18n import t
 from ..network import connection_disagreement, delay_edge_kwargs
 
@@ -291,15 +292,11 @@ def cld_viz_server(
                           show_layout_switcher=False, show_export=True, show_status=False)
     def _network():
         try:
-            node_size_raw = input.node_size_scale()
-            font_size_raw = input.font_size_scale()
-            level_sep_raw = input.level_separation()
-            node_sp_raw = input.node_spacing()
+            size_scale = safe_float(input.node_size_scale(), 1.0)
+            font_scale = safe_float(input.font_size_scale(), 1.0)
+            level_sep = safe_int(input.level_separation(), 90)
+            node_sp = safe_int(input.node_spacing(), 200)
             direction_raw = input.direction()
-            size_scale = 1.0 if node_size_raw in (None, "") else float(node_size_raw)
-            font_scale = 1.0 if font_size_raw in (None, "") else float(font_size_raw)
-            level_sep = 90 if level_sep_raw in (None, "") else int(level_sep_raw)
-            node_sp = 200 if node_sp_raw in (None, "") else int(node_sp_raw)
             direction = "DU" if direction_raw in (None, "") else direction_raw
         except Exception:
             size_scale = font_scale = 1.0

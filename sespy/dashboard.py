@@ -408,15 +408,13 @@ def dashboard_server(
         _wire_nav_button(input, session, item, active_panel)
 
     if translator is not None:
-        # The session-specific translator is created once per Shiny session and
-        # should retain the language chosen for that session. Do not reset it to
-        # the fallback here: app.py already initializes it from the URL's
-        # `?lang=` query param before the modules register their outputs.
-        # The in-modal selector is the only place where the active session's
-        # language should change after startup.
-        initial_from_url = _i18n.detect_initial_language(session.clientdata.url_search())
-        translator.set_language(initial_from_url)
-
+        # Single source of truth for the initial language is `app.py`'s
+        # `server()`, which sets it from the `?lang=` URL query param before
+        # any module server (including this one) registers its outputs. We do
+        # NOT re-detect or reset the language here — doing so previously either
+        # leaked the process-global default across sessions or duplicated the
+        # app-level bootstrap. After startup the in-modal selector below is the
+        # only thing that changes the active session's language.
         @reactive.effect
         @reactive.event(input[LANGUAGE_INPUT_ID])
         def _switch_language():
