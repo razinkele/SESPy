@@ -408,15 +408,14 @@ def dashboard_server(
         _wire_nav_button(input, session, item, active_panel)
 
     if translator is not None:
-        # Reset the process-global translator to the default language at the
-        # start of each session. The visible language switcher now lives in
-        # the Options modal (not the initial page DOM), so the per-session
-        # re-init that used to fire when the static topbar switcher's input
-        # initialised is gone. Without this, one visitor's language choice
-        # leaks into the next session served by the same process (and the
-        # e2e suite's i18n test would taint every later test on the shared
-        # server). The in-modal switcher still updates the language in-session.
-        translator.set_language(translator.fallback)
+        # The session-specific translator is created once per Shiny session and
+        # should retain the language chosen for that session. Do not reset it to
+        # the fallback here: app.py already initializes it from the URL's
+        # `?lang=` query param before the modules register their outputs.
+        # The in-modal selector is the only place where the active session's
+        # language should change after startup.
+        initial_from_url = _i18n.detect_initial_language(session.clientdata.url_search())
+        translator.set_language(initial_from_url)
 
         @reactive.effect
         @reactive.event(input[LANGUAGE_INPUT_ID])

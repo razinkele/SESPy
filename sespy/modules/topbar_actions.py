@@ -409,7 +409,9 @@ def topbar_actions_server(input, output, session, *, translator=None,
                                  type="warning", duration=3)
             return
         try:
-            feedback_store.add(msg, int(input.fb_rating() or 3), input.fb_category() or "other")
+            rating_raw = input.fb_rating()
+            rating = 3 if rating_raw in (None, "") else int(rating_raw)
+            feedback_store.add(msg, rating, input.fb_category() or "other")
         except Exception:
             ui.notification_show(
                 _t(translator, "feedback.save_failed", "Could not record feedback."),

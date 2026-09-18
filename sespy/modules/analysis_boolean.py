@@ -98,7 +98,9 @@ def analysis_boolean_server(
             M, node_ids = dynamics.isa_to_numeric_matrix(isa)
             stability = dynamics.laplacian_stability(M, direction=input.direction() or "cols")
             rules = dynamics.create_boolean_rules(M)
-            attractors = dynamics.boolean_attractors(rules, max_nodes=int(input.max_nodes() or 12))
+            max_nodes_raw = input.max_nodes()
+            max_nodes = 12 if max_nodes_raw in (None, "") else int(max_nodes_raw)
+            attractors = dynamics.boolean_attractors(rules, max_nodes=max_nodes)
             result_store.set({
                 "error": None,
                 "stability": stability,

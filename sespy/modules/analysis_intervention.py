@@ -363,10 +363,14 @@ def analysis_intervention_server(
             return
         # Fixed seed: two intervention points then differ by structure
         # rather than by chance, which is the point of comparing them.
+        n_steps_raw = input.n_steps()
+        n_tokens_raw = input.n_tokens()
+        n_steps = 10 if n_steps_raw in (None, "") else int(n_steps_raw)
+        n_tokens = 1000 if n_tokens_raw in (None, "") else int(n_tokens_raw)
         _diffusion_result.set(dyn.token_diffusion(
             project_data.get().isa_data, src,
-            n_steps=int(input.n_steps() or 10),
-            n_tokens=int(input.n_tokens() or 1000),
+            n_steps=n_steps,
+            n_tokens=n_tokens,
             seed=0,
         ))
 

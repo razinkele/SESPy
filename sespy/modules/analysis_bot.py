@@ -18,6 +18,7 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from ..data_structure import Project
 from ..event_bus import EventBus
+from ..input_utils import safe_float, safe_int
 from ..i18n import Translator, t
 
 _YEAR_COL_CANDIDATES = ("year",)
@@ -140,8 +141,8 @@ def analysis_bot_server(
         if not eid:
             return  # silent no-op; spec §4 validation rule
         try:
-            year = int(input.year() or 0)
-            value = float(input.value() or 0)
+            year = safe_int(input.year(), 0)
+            value = safe_float(input.value(), 0.0)
         except (TypeError, ValueError):
             bot_error_store.set("Invalid year or value.")
             return

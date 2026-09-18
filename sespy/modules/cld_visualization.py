@@ -291,11 +291,16 @@ def cld_viz_server(
                           show_layout_switcher=False, show_export=True, show_status=False)
     def _network():
         try:
-            size_scale = float(input.node_size_scale() or 1.0)
-            font_scale = float(input.font_size_scale() or 1.0)
-            level_sep = int(input.level_separation() or 90)
-            node_sp = int(input.node_spacing() or 200)
-            direction = input.direction() or "DU"
+            node_size_raw = input.node_size_scale()
+            font_size_raw = input.font_size_scale()
+            level_sep_raw = input.level_separation()
+            node_sp_raw = input.node_spacing()
+            direction_raw = input.direction()
+            size_scale = 1.0 if node_size_raw in (None, "") else float(node_size_raw)
+            font_scale = 1.0 if font_size_raw in (None, "") else float(font_size_raw)
+            level_sep = 90 if level_sep_raw in (None, "") else int(level_sep_raw)
+            node_sp = 200 if node_sp_raw in (None, "") else int(node_sp_raw)
+            direction = "DU" if direction_raw in (None, "") else direction_raw
         except Exception:
             size_scale = font_scale = 1.0
             level_sep, node_sp, direction = 90, 200, "DU"

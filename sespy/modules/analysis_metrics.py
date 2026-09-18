@@ -233,10 +233,12 @@ def analysis_metrics_server(
 
     @reactive.calc
     def top_rows() -> list[dict]:
+        top_n_raw = input.top_n()
+        top_n = 10 if top_n_raw in (None, "") else int(top_n_raw)
         return net_analysis.top_n_by_metric(
             project_data.get().isa_data,
             chosen_metric(),
-            n=int(input.top_n() or 10),
+            n=top_n,
         )
 
     @output

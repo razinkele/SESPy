@@ -155,10 +155,14 @@ def analysis_simulation_server(
                 return
             M, node_ids = built
             isa = project_data.get().isa_data
+            n_iter_raw = input.n_iter()
+            sim_seed_raw = input.sim_seed()
+            n_iter = 200 if n_iter_raw in (None, "") else int(n_iter_raw)
+            sim_seed = 42 if sim_seed_raw in (None, "") else int(sim_seed_raw)
             traj = dynamics.simulate_dynamics(
-                M, n_iter=int(input.n_iter() or 200),
+                M, n_iter=n_iter,
                 initial_state=input.initial_state() or "random",
-                seed=int(input.sim_seed() or 42),
+                seed=sim_seed,
             )
             sim_store.set({"error": None, "traj": traj, "node_ids": node_ids,
                            "isa": isa})
@@ -176,11 +180,17 @@ def analysis_simulation_server(
                               "node_ids": []})
                 return
             M, node_ids = built
+            n_simulations_raw = input.n_simulations()
+            n_iter_raw = input.n_iter()
+            mc_seed_raw = input.mc_seed()
+            n_simulations = 100 if n_simulations_raw in (None, "") else int(n_simulations_raw)
+            n_iter = 200 if n_iter_raw in (None, "") else int(n_iter_raw)
+            mc_seed = 42 if mc_seed_raw in (None, "") else int(mc_seed_raw)
             res = dynamics.state_shift_monte_carlo(
-                M, n_simulations=int(input.n_simulations() or 100),
-                n_iter=int(input.n_iter() or 200),
+                M, n_simulations=n_simulations,
+                n_iter=n_iter,
                 kind=input.kind() or "uniform",
-                seed=int(input.mc_seed() or 42),
+                seed=mc_seed,
             )
             mc_store.set({"error": None, "result": res, "node_ids": node_ids})
         except (ValueError, np.linalg.LinAlgError) as exc:
