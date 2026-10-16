@@ -74,8 +74,9 @@ removed to match R.
   (`*.backup-part-b`, `Caribbean_SES_Template_backup.json`, a user `PROJ_*.json`).
   Server files are **CRLF**: a raw byte hash differs from the local copy, a
   hash with CRs stripped matches it. The general KB's `"version": "1.0"` is not
-  bumped on content change. The WP5 files do carry
-  `schema_version`/`registry_version`/`schema`.
+  bumped on content change. The WP5 files carry `schema` (mechanisms),
+  `schema_version`/`registry_version` (indicators, impact reference) or only
+  `version` (intervention ops, rm synonyms).
 
 ## 2. Sub-projects
 
@@ -83,19 +84,26 @@ Each sub-project gets its own brainstorm → spec → plan → subagent-TDD →
 full e2e gate → release cycle.
 
 ```
-P0 → P1a → P2
-      ├──→ P1b → P4 → P5 → P6a → P6b → P6c
-      ├──→ P1c (R project import)
-      ├──→ K1 (general KB) ──→ P9
-      └──→ P8 → P7a → P7b
-P3 (Decision Lens) runs in parallel from P0; P7a also needs P3.
-P10 last.
+P0 → P1a ─┬→ P2   (soft: K1)
+          ├→ K1 ─┬→ P4 (also P1b) → P5 → P6a (also P1c) → P6b → P6c
+          │      └→ P9
+          ├→ P1b → P1c → P8 → P7a (also P3) → P7b
+          └→ P3 (Python side)
+P3's R-fixture capture can start at P0; its Python side needs P1a's
+template mapper and link types. P10 last.
 ```
+The per-section "Depends on" lines below match this graph.
 
 ### P0 — Forward-compatibility patch (ship first, as a patch release)
 - `_isa_from_dict` filters element keys the way it already filters connection
   keys. `read_autosave` also catches `TypeError`/`KeyError`, so a
   newer-schema autosave never breaks startup.
+- **Data protection, not just tolerance:** before filtering keys, read
+  `metadata.min_sespy_version` (and `metadata.schema_version`). If either is
+  newer than the running build, warn in the UI and **block overwrite saves and
+  autosave** for that project (offer "save as" only). Otherwise a newer file
+  would load with `response_measures` / `r_passthrough` silently dropped and
+  then be overwritten.
 - New dataclass fields from here on are keyword-only with defaults.
 - Ships as **v1.12.2** together with the `[Unreleased]` fixes, so every
   deployed build tolerates the schema-v7 files that P1a onward will write.
@@ -111,9 +119,12 @@ R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3.
   Responses (measure→response links become R→R); per-element R extras
   (Caribbean `category`, `intensity`, `related_issues`, `indicator`,
   `baseline`, …) are kept in `Element.r_extra: dict`.
-- `ProjectMetadata` gains declared fields `origin` and `r_template_version`.
-- Boolean hardening: clamp on the server side, and give
-  `dynamics.boolean_attractors` a default of `max_nodes=12` plus a
+- `ProjectMetadata` gains declared fields `origin`, `r_template_version` and
+  `min_sespy_version` (stamped, never lowered).
+- **`PROJECT_SCHEMA_VERSION` → 7 here**, because P1a is the first release to
+  write new fields. P1b and P1c add fields within v7 or bump again, and say so.
+- Boolean hardening: clamp `input.max_nodes()` on the server side; keep
+  `dynamics.boolean_attractors`' existing default (`max_nodes=12`) and add a
   module-level hard ceiling that P7 may override explicitly.
 - `excel_import.py` column mapping extended for the new fields and link types.
 - **Done when:** all 7 R templates convert, and SESPy save → load keeps their
@@ -137,18 +148,22 @@ R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4). Depends on P1a.
   Data_Source, Registry_Id, Registry_Version`, on **all elements except
   Responses**.
 - Two version stamps, kept separate: SESPy's own `metadata.min_sespy_version`
-  (stamped, never lowered; warns on load), and `metadata.r_min_app_version`
+  (introduced in P1a, honoured by P0), and `metadata.r_min_app_version`
   (copied from an R import's top-level `min_app_version`, used only for import
   diagnostics, never compared with SESPy's version).
-- `PROJECT_SCHEMA_VERSION` → 7. Explicit `to_dict`/`from_dict` code for every
-  new block.
+- Explicit `to_dict`/`from_dict` code for every new block. Bump the schema version if a
+  v7 reader would drop the block.
 
 ### P1c — R project importer + passthrough
 R source: 1.19.0, 1.20.0 (N4/N5), 1.21.0 (N24/N25/N27/N50), 1.22.0.
 Depends on P1a/P1b.
 - Matrix → connection converter:
-  - Cell grammar `±strength:conf[:delay[:delay_years]]`
-    (`functions/utils.R:47-85`), including the legacy numeric lag.
+  - Cell grammar `±strength[:conf[:delay[:delay_years]]]`
+    (`functions/utils.R:47-89`; a bare `+strong` takes the default
+    confidence), including the legacy numeric lag.
+  - Element columns are matched case-insensitively (R's JSON loader
+    lowercases them, `data_structure.R:929`). The canonical indicator names are
+    R's `ISA_INDICATOR_COLUMNS`.
   - The delay mapping is explicit: R medium-term goes into a new SESPy level
     or is documented as mapped to `short`; decide in the P1c spec.
   - Placement uses the `matrix_dimnames` sidecar, falling back to element-ID
@@ -250,6 +265,9 @@ R source: 1.24.0. Depends on P4.
 
 ### P6 — Impact assessment (three releases: 6a / 6b / 6c)
 R source: 1.25.0, 1.26.0. Depends on P4, P5, P1c.
+- **6a reference data:** `wp5_impact_reference.json` (Macaronesia Table 21,
+  Arctic Tables 2–8, political feasibility), loaded as in R
+  `functions/impact_reference.R` through the §3 loader.
 - **6a data model:** as R `impact_assessment_model.R`, stored at
   `analysis.impact_assessment`, which replaces the P1c passthrough for this block.
   An assessment that fails to normalise is dropped on load with a warning, as R does
@@ -266,12 +284,16 @@ R source: `scenario_builder_module.R` at v1.28.0 (1,381 lines), 1.21.0 N33,
 1.28.0 fixes. Depends on P1c.
 - R's schema:
   - A scenario is `{id, name, description, created, modified, results,
-    source, ops[], modifications}`.
+    modifications}`, plus `source` and `ops[]` **only on Designer-written
+    scenarios** (`intervention_designer.R:498`). Builder scenarios
+    (`scenario_builder_module.R:286-301`) have neither field, and their
+    `links_added` have no `strength`.
   - `modifications` holds `nodes_added[{id,label,dapsi,description}]`,
     `nodes_removed`, `nodes_modified`, `links_added[{id,from,to,polarity,strength}]`,
     `links_removed` (edge ids) and `links_modified[{from,to,polarity,strength,previous_strength}]`.
     `links_modified` is matched by **endpoints**.
-  - `ops[]` entries are `{op, from, to, weight, intervention_type, ebm_code}`.
+  - `ops[]` entries are `{op, from, to, weight, intervention_type, ebm_code}`,
+    where `from`/`to` are node **labels**, not ids.
 - R anchors scenarios to **CLD node and edge ids**. The P8 spec defines the
   mapping from R CLD ids to SESPy element ids and connection keys for both
   import and native use.
@@ -292,12 +314,20 @@ R source: 1.27.0. Depends on P1a, P3, P8.
 - Stability = all Laplacian eigenvalues real, checked first on rows passing
   (a) + (b), and stopped at 70% of the 600 s job budget with a partial notice.
 - Top 20. Boolean pre-check up to 20 nodes, using P1a's explicit ceiling override.
+- **Evidence priors:** `INTERVENTION_EVIDENCE_PRIORS` (e.g. behavioural
+  0.25, regulatory 0.5) cap |level| per intervention type through
+  `ses_evidence_prior_range()` (`constants.R:925`,
+  `intervention_designer.R:110`). Badged as a toolbox extension, as in R.
+- **Reproducibility:** R draws the initial state with `runif()` under seed
+  20261014 (`intervention_designer.R:384`), and NumPy cannot reproduce R's
+  stream. Either port R's Mersenne-Twister/`runif`, or load the fixture's x0
+  into the test (decided in the P7a spec).
 - **Execution:** SESPy's **first worker-process pattern**
   (`ProcessPoolExecutor`/`multiprocessing`, spawn-safe on Windows, Cancel =
   terminate the process, single-threaded BLAS). This is *not* the pgmpy
   `asyncio.to_thread` pattern, which cannot cancel and shares the GIL and BLAS.
-- **Done when:** results reproduce R's D5.3 Tuscany fixture (50,176
-  combinations, same top-ranked combinations).
+- **Done when:** given the same x0, results reproduce R's D5.3 Tuscany
+  fixture (50,176 combinations, the same top-20 set and ranking).
 
 ### P7b — Designer mode C, sensitivity, Compare, Apply
 R source: 1.28.0. Depends on P7a, P8.
@@ -332,27 +362,50 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
   key; on laguna `/srv/shiny-server/marinesabres/data`, an absolute path so
   MosaicSES resolves it the same way through its symlink). The loader:
   1. reads and parses the file;
-  2. validates it: the required top-level keys and entry counts must be
-     present, and a WP5 file's schema major version must equal the vendored one;
-  3. swaps the module-level cache atomically;
-  4. re-stats size and mtime at session start and reloads on change;
-  5. on any failure, keeps the last good copy, else the vendored one, and logs
-     one warning.
+  2. validates it:
+     - the required top-level keys must be present;
+     - entry counts must be ≥ the per-file minimum stated in the allow-list
+       (never "equal to the vendored count");
+     - the file's version key must have the same major as the vendored copy.
+       The allow-list names that key per file: `schema` (mechanisms),
+       `schema_version` (indicators, impact reference), `version`
+       (`wp5_intervention_ops.json`, `wp5_rm_synonyms.json`, general KB);
+  3. publishes a new immutable snapshot atomically;
+  4. re-stats size and mtime when a session starts and reloads on change.
+     **Each session pins the snapshot current at its start**, so other live
+     sessions never see data change underneath them, and that session's
+     provenance comes from its pinned snapshot;
+  5. on any failure, including a missing directory (R's deploy moves
+     `data/` to `data.bak` if it ever becomes shiny-owned,
+     `deploy-remote.ps1:360-362`), keeps the last good copy, else the vendored
+     one, and logs one warning.
 
   It is strictly **read-only**: it never writes into R's directory (the
-  directory is group-writable).
+  directory is group-writable). MosaicSES runs as its own process, so its
+  deploy `config.env` sets the same key.
+- **Allow-list (initial):** `ses_knowledge_db.json`,
+  `country_governance_db.json`, `ses_knowledge_db_wp5_mechanisms.json`,
+  `wp5_indicators.json`, `wp5_impact_reference.json`,
+  `wp5_intervention_ops.json`, `wp5_rm_synonyms.json`, the 7
+  `*_SES_Template.json` files (P2 only; converted, never read at runtime), plus the
+  vendored-only `SES_CONNECTION_DB`/`SES_SYNONYM_DB` export (K1) and
+  `wp5_vocabulary.json` (P4).
 - **Provenance in projects:** on save, SESPy writes
   `metadata.reference_data = {file: {source: vendored|shared, sha256_norm,
-  schema_version, last_updated}}`. On load, it warns when that differs from
-  what is currently loaded. P5/P6 provenance appendices read it. R records
-  nothing for the general KB, so SESPy adds this.
+  version, vendored_r_tag}}`. On load, SESPy warns when that differs from
+  the session's pinned snapshot. When the recorded hash matches neither the
+  vendored copy nor the live copy, it says "reference data unavailable;
+  results may differ". P5/P6 provenance appendices read it. R records nothing for the
+  general KB, so SESPy adds this.
 - **Hashing:** `sha256_norm` = sha256 of the parsed JSON re-serialised with
   sorted keys, UTF-8 and LF. Never raw bytes: the server files are CRLF, and the R
   working tree mixes line endings.
 - **Drift check:** `tests/parity/` asserts the vendored files match the hashes
   recorded in `docs/parity/R_SYNC.md`. `tests/parity/check_live.py`
-  (read-only over SSH, run after each R deploy) compares the live laguna
-  copies. A mismatch blocks the next SESPy release until the files are
+  (read-only over SSH) compares the live laguna copies. `deploy/deploy.sh`
+  runs it as a pre-flight step (SESPy has no `release.sh`, unlike MosaicSES),
+  and it can also be run by hand after an R deploy.
+  It is never run in CI or picked up by pytest collection. A mismatch blocks the next SESPy release until the files are
   re-vendored or the change is explicitly accepted in R_SYNC.md.
 - **CI and tests** use vendored data only. The full e2e gate uses vendored data.
 
@@ -384,8 +437,9 @@ live MosaicSES after deploy.
 - Unit tests reproduce R's published numbers.
 - Every sub-project passes the **full** e2e gate, with no heavy jobs running
   concurrently on the 16 GB machine.
-- P0 = v1.12.2. Then one minor release per sub-project (P1a = v1.13.0 …;
-  P6 takes three). The CHANGELOG names the R version it matches. Bump the MANUAL
+- P0 = v1.12.2. Then one minor release per sub-project, with **versions
+  assigned in merge order** (P3 or K1 may ship out of sequence; P6 takes three).
+  The CHANGELOG names the sub-project. The CHANGELOG names the R version it matches. Bump the MANUAL
   version line and re-run the screenshots.
 
 ## 4. Out of scope
