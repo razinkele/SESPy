@@ -1,6 +1,6 @@
 # R → SESPy parity roadmap — design
 
-Date: 2026-10-16 (revised after review loop 1)
+Date: 2026-10-16 (revised after review loops 1–3)
 Baseline: MarineSABRES_SES_Shiny **v1.28.0** (`e3c3b77`, 2026-10-16; live on
 laguna since 16:29) → SESPy **v1.12.1** + `[Unreleased]` fixes to `0543ed0`
 
@@ -69,14 +69,16 @@ removed to match R.
   KB files (razinka:shiny, dir 775). SESPy (`/srv/shiny-server/SESPy`, worker
   user `shiny`) uses none of them today. MosaicSES reaches SESPy's package
   through the symlink `MosaicSES/sespy → SESPy/sespy`. R deploys extract
-  with `tar` directly into the live directory (no rename step,
-  `deployment/deploy-remote.ps1:370`). Stray files persist in `data/`
+  with `tar` directly into the live directory (no atomic rename;
+  subdirectories not owned by the deploy user are moved to `*.bak` first,
+  `deployment/deploy-remote.ps1:358-370`). Stray files persist in `data/`
   (`*.backup-part-b`, `Caribbean_SES_Template_backup.json`, a user `PROJ_*.json`).
   Server files are **CRLF**: a raw byte hash differs from the local copy, a
   hash with CRs stripped matches it. The general KB's `"version": "1.0"` is not
   bumped on content change. The WP5 files carry `schema` (mechanisms),
   `schema_version`/`registry_version` (indicators, impact reference) or only
-  `version` (intervention ops, rm synonyms).
+  `version` (intervention ops, rm synonyms; the general KB and
+  `country_governance_db.json` also carry `"version": "1.0"`).
 
 ## 2. Sub-projects
 
@@ -98,8 +100,10 @@ The per-section "Depends on" lines below match this graph.
 - `_isa_from_dict` filters element keys the way it already filters connection
   keys. `read_autosave` also catches `TypeError`/`KeyError`, so a
   newer-schema autosave never breaks startup.
-- **Data protection, not just tolerance:** before filtering keys, read
-  `metadata.min_sespy_version` (and `metadata.schema_version`). If either is
+- **Data protection, not just tolerance:** read the **raw payload's**
+  `metadata.min_sespy_version` and `metadata.schema_version` *before*
+  `Project.from_dict` runs. `from_dict` overwrites `schema_version` with the
+  running build's (`data_structure.py:300`), so the loaded object cannot be used. If either is
   newer than the running build, warn in the UI and **block overwrite saves and
   autosave** for that project (offer "save as" only). Otherwise a newer file
   would load with `response_measures` / `r_passthrough` silently dropped and
@@ -245,7 +249,9 @@ R source: 1.19.0, 1.22.0 (N48), 1.23.0, 1.24.0. Depends on P1b; loader from K1.
 - Response register page (R `response_module.R`) on the P1b block.
 - WP5 assets loaded through the §3 reference-data loader:
   `ses_knowledge_db_wp5_mechanisms.json` (`schema: 2`, 31 mechanisms),
-  `wp5_indicators.json` (`registry_version`), `wp5_intervention_ops.json`,
+  `wp5_indicators.json` (its `registry_version` is the value stamped into
+  `Registry_Version`; its `schema_version` is the key used for the §3
+  major-version check), `wp5_intervention_ops.json`,
   `wp5_rm_synonyms.json`. `translations/modules/wp5_vocabulary.json` lives
   outside `data/`, so it is **always vendored** (never overridden).
 - "Linked WP5 mechanisms" pane, filtered by demonstration area (single resolver
@@ -358,9 +364,19 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
 - **Vendored copies are the baseline.** R's data files are copied from an R
   git **tag** into `sespy/data/r_kb/`, using an explicit **allow-list** of file
   names (never a glob over `*.json`).
-- **Optional runtime override:** `SESPY_R_DATA_DIR` (a deploy `config.env`
-  key; on laguna `/srv/shiny-server/marinesabres/data`, an absolute path so
-  MosaicSES resolves it the same way through its symlink). The loader:
+- **Optional runtime override:** `SESPY_R_DATA_DIR`, an absolute path (on
+  laguna `/srv/shiny-server/marinesabres/data`).
+  - **How it reaches the server process:** `deploy/config.env` stays on the
+    developer machine and never ships (`deploy.sh` excludes `deploy/`). The
+    value lives in a server-side settings file, `APP_DIR/server_settings.env`,
+    owned by the server. `app.py` reads it at startup, and an environment
+    variable of the same name takes precedence.
+  - `deploy.sh` creates the file only if it is absent and otherwise
+    **preserves** it, the same pattern as `feedback.db` (it is never clobbered).
+  - MosaicSES runs as its own process, with its own `APP_DIR/server_settings.env`
+    and the same key. Its deploy script preserves the file the same way.
+
+  The loader:
   1. reads and parses the file;
   2. validates it:
      - the required top-level keys must be present;
@@ -369,7 +385,8 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
      - the file's version key must have the same major as the vendored copy.
        The allow-list names that key per file: `schema` (mechanisms),
        `schema_version` (indicators, impact reference), `version`
-       (`wp5_intervention_ops.json`, `wp5_rm_synonyms.json`, general KB);
+       (`wp5_intervention_ops.json`, `wp5_rm_synonyms.json`,
+       `ses_knowledge_db.json`, `country_governance_db.json`);
   3. publishes a new immutable snapshot atomically;
   4. re-stats size and mtime when a session starts and reloads on change.
      **Each session pins the snapshot current at its start**, so other live
@@ -381,8 +398,7 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
      one, and logs one warning.
 
   It is strictly **read-only**: it never writes into R's directory (the
-  directory is group-writable). MosaicSES runs as its own process, so its
-  deploy `config.env` sets the same key.
+  directory is group-writable).
 - **Allow-list (initial):** `ses_knowledge_db.json`,
   `country_governance_db.json`, `ses_knowledge_db_wp5_mechanisms.json`,
   `wp5_indicators.json`, `wp5_impact_reference.json`,
@@ -439,7 +455,7 @@ live MosaicSES after deploy.
   concurrently on the 16 GB machine.
 - P0 = v1.12.2. Then one minor release per sub-project, with **versions
   assigned in merge order** (P3 or K1 may ship out of sequence; P6 takes three).
-  The CHANGELOG names the sub-project. The CHANGELOG names the R version it matches. Bump the MANUAL
+  The CHANGELOG names the sub-project and the R version it matches. Bump the MANUAL
   version line and re-run the screenshots.
 
 ## 4. Out of scope
