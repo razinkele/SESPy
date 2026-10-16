@@ -64,12 +64,25 @@ R source: 1.17.1, 1.18.0, 1.22.0, 1.23.0, 1.24.0.
   provenance (registry id and revision).
 - `metadata.min_app_version` stamp (never lowered). On load, warn when a
   project needs a newer SESPy.
-- **R importer**: R project JSON / R template JSON → `Project`.
-  Matrices become connections, including the dimnames sidecar and the
-  `+medium:5` cell format. Responses and Measures merge into Responses. R
-  blocks that SESPy does not support yet (e.g. `analysis.impact_assessment`,
-  `analysis.scenarios`) are kept in a `Project.r_passthrough` field and
-  written back on save.
+- **R importer, two entry points.** The file shapes were probed on 2026-10-16.
+  - *Templates* (`dapsiwrm_framework.{drivers…measures}` lists +
+    a `connections` list of `{from_id, to_id, from_type, to_type, polarity,
+    strength, confidence, description}`): mostly renaming keys. Check R's
+    `template_loader.R` for the mapping before writing it. Measures merge into
+    Responses (R 1.22.3 loader fix).
+  - *Projects* (`{project_id, …, data: {metadata, pims, isa_data, cld,
+    responses, analysis}}`, where `isa_data` holds category lists +
+    `connections` + `adjacency_matrices`): matrices become connections,
+    including the 1.20.0 dimnames sidecar and the `+medium:5` cell format.
+  - R blocks that SESPy does not support yet (e.g.
+    `analysis.impact_assessment`, `analysis.scenarios`) are kept in a
+    `Project.r_passthrough` field and written back on save.
+- **Prerequisite fixture:** save an R v1.27.0 project that contains Responses with the
+  1.23 register fields, R→MPF and R→R links, element indicator fields, an impact
+  assessment and scenarios. The only R project in R `data/` dates from April.
+- **Hardening (R N16 equivalent):** the Boolean module reads
+  `input.max_nodes()` without clamping it to the slider's 12. Clamp it on the server side
+  and enforce the cap in `dynamics.boolean_attractors` itself.
 - Load-time **matrix/element alignment check**, adapted to SESPy's model:
   warn about connections whose endpoints are not elements.
 - **Done when:** an R v1.27 project and all 7 R templates import, and they survive a
@@ -78,8 +91,10 @@ R source: 1.17.1, 1.18.0, 1.22.0, 1.23.0, 1.24.0.
 
 ### P2 — Curated templates
 R source: 1.21.1, 1.22.1, 1.22.3 (sign-reviewed, 305 links).
+- Depends only on P1's *template* entry point (not the matrix importer).
+  It can ship as soon as the R→MPF and R→R link types and that mapper exist.
 - Convert the 7 R templates (Aquaculture, Caribbean, ClimateChange,
-  Fisheries, OffshoreWind, Pollution, Tourism) with the P1 importer. Ship
+  Fisheries, OffshoreWind, Pollution, Tourism) with the P1 template mapper. Ship
   them in `sespy/templates/` beside SESPy's 4. Each card shows its origin and the R template
   version.
 - `scripts/sync_r_templates.py` re-converts the templates from a configured R checkout.
@@ -88,6 +103,9 @@ R source: 1.21.1, 1.22.1, 1.22.3 (sign-reviewed, 305 links).
 
 ### P3 — Decision Lens (parallel track)
 R source: 1.19.0, 1.22.0 (N35/N37/N52), 1.21.0 (N17).
+- **First task:** run R v1.27.0's `detect_archetypes()` and
+  `calculate_micmac_safe()` on all 7 templates and commit the output as a
+  test fixture.
 - Archetype detection: **Tragedy of the Commons** (a shared MPF or ES
   stock drawn on by ≥2 Activities; reported once per commons) and **Limits to
   Growth** (the GB→D reinforcing engine checked by a Response-mediated balancing loop
@@ -151,7 +169,9 @@ R source: 1.27.0. Depends on P1, P3.
 - Mode A (new intervention node) and mode B (new edges, including the self-loop
   helper). Exhaustive ordinal grid (−1…1), or a seeded sample of 65,536 above that
   size. D5.3 objective, also-sustain and stability ranking. Boolean
-  pre-check (≤20 nodes). Top-20 comparison.
+  pre-check, skipped above **SESPy's cap of 12 nodes** (R uses 20). The P7
+  spec decides whether to raise SESPy's cap for the pre-check only, now that it
+  runs in a worker process. Top-20 comparison.
 - Runs as a Shiny **ExtendedTask** in a worker process (the pgmpy pattern) with Cancel.
   Single-threaded BLAS. Designs above 4.5 × 10^15 combinations are refused.
 - **Done when:** results reproduce R's D5.3 Tuscany fixture (50,176 combinations,
