@@ -29,7 +29,10 @@ _SCRIPT = """
     }
     return t;
   }
-  $(document).on("shiny:connected", function () {
+  // Wait for session init: the socket-open event fires before the client's
+  // init message, and an input update sent then makes the server drop the
+  // session ("Invalid method for the current session state").
+  $(document).on("shiny:sessioninitialized", function () {
     var t = token();
     if (t) { Shiny.setInputValue("%s", t, {priority: "event"}); }
   });

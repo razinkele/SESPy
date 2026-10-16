@@ -44,4 +44,14 @@ def test_script_stores_token_in_local_storage_and_reports_it():
     assert "localStorage" in js
     assert "randomUUID" in js
     assert f'"{bt.BROWSER_TOKEN_INPUT}"' in js
-    assert "shiny:connected" in js
+
+
+def test_script_reports_token_only_after_session_init():
+    """`shiny:connected` fires when the websocket opens, before the client's
+    init message: an input update sent then reaches a session that is not
+    Running yet, and Shiny for Python drops the connection with
+    "ProtocolError: Invalid method for the current session state" (every
+    session disconnected in the 1.12.2 e2e gate)."""
+    js = str(bt.browser_token_script())
+    assert "shiny:sessioninitialized" in js
+    assert "shiny:connected" not in js
