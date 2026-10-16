@@ -1,5 +1,10 @@
-"""E2E for autosave: indicator appears after a data edit, autosave file
-ends up on disk."""
+"""E2E for autosave isolation (port of R 1.20.1 N7).
+
+Each browser has a private token in localStorage; autosave is stored under
+it. Browser A's edit is autosaved to A's file, a second browser (fresh
+context = fresh localStorage) is never offered A's work, and A itself is
+offered recovery when it comes back.
+"""
 import asyncio
 import sys
 from pathlib import Path
@@ -13,63 +18,60 @@ from playwright.async_api import async_playwright
 
 from sespy.autosave import autosave_path, clear_autosave
 
+URL = "http://127.0.0.1:8000"
+TOKEN_JS = "() => window.localStorage.getItem('sespy_browser_token')"
+RECOVERY = "#shiny-notification-autosave-recovery"
+
+
+async def open_app(context):
+    page = await context.new_page()
+    await page.set_viewport_size({"width": 1280, "height": 900})
+    await page.goto(URL, wait_until="networkidle")
+    # The nav is a @render.ui output (dashboard.py sespy_nav_render): it
+    # exists only after the session's first flush, and this script runs
+    # first, against a just-booted server — the coldest session of the run.
+    await page.wait_for_selector("#sespy_nav_entry", timeout=60000)
+    return page
+
+
+async def wait_token(page) -> str:
+    for _ in range(40):          # up to 20 s
+        token = await page.evaluate(TOKEN_JS)
+        if token:
+            return token
+        await page.wait_for_timeout(500)
+    raise AssertionError("browser token never appeared in localStorage")
+
 
 async def main():
-    # Clean slate — remove any leftover autosave from a previous run so
-    # the recovery toast doesn't fire and pollute the test.
-    clear_autosave()
-
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        page = await (await browser.new_context()).new_page()
-        await page.set_viewport_size({"width": 1280, "height": 900})
-        await page.goto("http://127.0.0.1:8000", wait_until="networkidle")
-        # The nav is a @render.ui output (dashboard.py sespy_nav_render): it
-        # exists only after the session's first flush, and this script runs
-        # first, against a just-booted server — the coldest session of the run.
-        # run_e2e.py's readiness check is an HTTP 200, which does not cover it.
-        await page.wait_for_selector("#sespy_nav_entry", timeout=60000)
-        await page.wait_for_timeout(1500)
 
-        # Edit Data → add an element to trigger isa_change
+        # ---- Browser A edits; the autosave lands in A's own file ----------
+        ctx_a = await browser.new_context()
+        page = await open_app(ctx_a)
+        token_a = await wait_token(page)
+        clear_autosave(token=token_a)          # clean slate for this token
+
         await page.click("#sespy_nav_entry")
         await page.wait_for_timeout(1500)
-
-        # The autosave effect also runs once at session start (project_io.py
-        # `_autosave_on_change` is a bare @reactive.effect, no ignore_init), so the
-        # indicator already reads "Auto-saved · HH:MM:SS" before any edit. Wait for
-        # that baseline and capture it, so the assertion below proves THIS edit saved.
-        await page.wait_for_selector(
-            ".sespy-autosave-indicator", state="attached", timeout=60000
-        )
-        indicator_before = await page.evaluate(
-            "() => document.querySelector('.sespy-autosave-indicator')?.textContent || ''"
-        )
-
         await page.fill("#entry-new_label", "Autosave test element")
         await page.click("#entry-add_element")
 
-        # Indicator must refresh with a NEW timestamp for this edit
-        indicator_text = ""
+        indicator = ""
         for _ in range(60):          # up to 30 s
-            indicator_text = await page.evaluate(
+            indicator = await page.evaluate(
                 "() => document.querySelector('.sespy-autosave-indicator')?.textContent || ''"
             )
-            if "Auto-saved" in indicator_text and indicator_text != indicator_before:
+            if "Auto-saved" in indicator:
                 break
             await page.wait_for_timeout(500)
-        print(f"indicator: {indicator_text!r} (was {indicator_before!r})")
-        assert "Auto-saved" in indicator_text, \
-            f"autosave indicator not visible: {indicator_text!r}"
-        assert indicator_text != indicator_before, \
-            f"autosave indicator did not refresh after the edit: {indicator_text!r}"
+        print(f"indicator: {indicator!r}")
+        assert "Auto-saved" in indicator, f"autosave indicator not visible: {indicator!r}"
 
-        # File should exist on disk with the new element. The server writes it
-        # inside the isa_change effect, and the session-start autosave already
-        # created the file with seed data — so poll for the content instead of
-        # reading once. read_text is guarded because save_project_atomic uses
-        # os.replace, which can momentarily make the path unreadable.
-        path = autosave_path()
+        # save_project_atomic uses os.replace, which can momentarily make the
+        # path unreadable, so poll and guard the read.
+        path = autosave_path(token_a)
         text = ""
         for _ in range(60):          # up to 30 s
             if path.exists():
@@ -80,14 +82,32 @@ async def main():
                 if "Autosave test element" in text:
                     break
             await page.wait_for_timeout(500)
-        assert path.exists(), f"autosave file not written at {path}"
         assert "Autosave test element" in text, \
-            "autosave file doesn't contain the just-added element"
-        print(f"autosave file: {path} ({path.stat().st_size} bytes)")
-
+            f"autosave for browser A not written at {path}"
+        assert token_a not in str(path), "autosave file name leaks the raw token"
+        print(f"autosave file: {path.name} ({path.stat().st_size} bytes)")
         await page.screenshot(path="tests/screenshots/autosave.png")
-        print("\nautosave e2e assertions pass")
+
+        # ---- Browser B (fresh localStorage) is never offered A's work ------
+        ctx_b = await browser.new_context()
+        page_b = await open_app(ctx_b)
+        token_b = await wait_token(page_b)
+        assert token_b != token_a, "two browser contexts got the same token"
+        await page_b.wait_for_timeout(5000)    # recovery check runs on token arrival
+        offered_b = await page_b.locator(RECOVERY).count()
+        assert offered_b == 0, "browser B was offered another browser's autosave"
+        print("browser B: no recovery offer (isolated)")
+        await ctx_b.close()
+
+        # ---- Browser A returns and is offered its own work ----------------
+        page_a2 = await open_app(ctx_a)
+        assert await wait_token(page_a2) == token_a, "token did not persist"
+        await page_a2.wait_for_selector(RECOVERY, timeout=30000)
+        print("browser A: recovery offered on return")
+
+        clear_autosave(token=token_a)
         await browser.close()
+        print("\nautosave e2e assertions pass")
 
 
 asyncio.run(main())

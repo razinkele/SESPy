@@ -1,6 +1,6 @@
 # SESPy User Manual
 
-**Version 1.12.1 · September 2026**
+**Version 1.12.2 · October 2026**
 
 SESPy is the Python port of the MarineSABRES Social-Ecological Systems (SES) Toolbox. It helps a facilitator and a group of stakeholders build a causal loop diagram of a marine social-ecological system, typed with the DAPSI(W)R(M) framework, and then interrogate that diagram: which feedback loops it contains, which elements carry leverage, where governance does not reach the pressures it should, how robust the structure is, and what an intervention might propagate into.
 
@@ -77,7 +77,7 @@ Loop Analysis finds five feedback loops in it. The three that close through dema
 
 **Save Project** downloads the current project as a JSON file named `sespy-project-<date-time>.json`. It also clears the autosave. **Load Project** accepts a `.json` project file, validates it (Appendix A) and replaces the current project. **New Project** resets to the sample.
 
-**Autosave** writes the project to `~/.sespy/autosave.json` on every change while it is enabled (Options dialog). On the next start, if that file is less than 24 hours old, a message offers to restore it. Saving a project clears the autosave; you can also clear it from Options.
+**Autosave** writes the project on every change while it is enabled (Options dialog). Each browser has its own private autosave: the browser keeps a random token in its local storage, and the file is stored under `~/.sespy/autosaves/` keyed by a hash of that token, so other people using the same server never see it. On your next visit from the same browser, if your autosave is less than 24 hours old, a message offers to restore it. Autosaves older than 72 hours are deleted. Saving a project clears the autosave; you can also clear it from Options. With browser storage blocked (for example some private windows) there is no autosave.
 
 **Recent Projects** (section 22) lists files opened with Load Project.
 
@@ -339,7 +339,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Purpose.** Reopen a recently loaded project.
 
-**Outputs.** One card per entry with name, element and connection counts, timestamp and path, with "Load" and "Remove". Up to ten entries are kept in `~/.sespy/recent.json`.
+**Outputs.** One card per entry with name, element and connection counts, timestamp and path, with "Load" and "Remove". Up to ten entries are kept per browser, under `~/.sespy/recent/` (keyed the same way as the autosave).
 
 **Caveats.** Only Load Project adds entries, and the path recorded is the browser upload's temporary copy, so entries can disappear when that copy is cleaned up. Save Project is a browser download and does not add an entry.
 

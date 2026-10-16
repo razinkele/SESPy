@@ -26,9 +26,11 @@ from .. import data_structure as ds
 from ..autosave import (
     autosave_age_seconds,
     clear_autosave,
+    housekeeping,
     read_autosave,
     write_autosave,
 )
+from ..browser_token import browser_token_script, read_browser_token
 from ..event_bus import EventBus
 from ..i18n import Translator
 from ..persistent_storage import (
@@ -48,6 +50,9 @@ def quick_actions_ui(translator: Translator | None = None) -> ui.Tag:
         return translator.t(key) if translator else fallback
 
     return ui.tags.div(
+        # Reports this browser's private token (localStorage) to the server;
+        # autosave and recent projects are scoped to it.
+        browser_token_script(),
         # Auto-save indicator at the top — silent until first change, then
         # shows a small "Auto-saved at HH:MM" line.
         ui.output_ui("autosave_indicator"),
@@ -116,6 +121,18 @@ def quick_actions_server(
     # the "Auto-saved at HH:MM" indicator.
     autosave_time: reactive.Value[str] = reactive.value("")
 
+    # This browser's private token (None until the browser script reports
+    # it). Autosave and recent projects are scoped to it; without it nothing
+    # is written or offered — there is no shared fallback.
+    @reactive.calc
+    def browser_token() -> str | None:
+        return read_browser_token(input)
+
+    # Set once this browser's recovery check has run. No autosave is written
+    # before then, so a fresh session can never overwrite the work it is
+    # about to be offered.
+    recovery_checked = reactive.value(False)
+
     # ---- AUTO-SAVE ------------------------------------------------------
     @reactive.effect
     def _autosave_on_change():
@@ -123,8 +140,13 @@ def quick_actions_server(
         event_bus.isa_change.get()
         if autosave_enabled is not None and not autosave_enabled.get():
             return
+        with reactive.isolate():
+            token = browser_token()
+            checked = recovery_checked.get()
+        if token is None or not checked:
+            return
         try:
-            write_autosave(project_data.get())
+            write_autosave(project_data.get(), token=token)
             from datetime import datetime as _dt
             autosave_time.set(_dt.now().strftime("%H:%M:%S"))
         except Exception as e:
@@ -160,15 +182,26 @@ def quick_actions_server(
     # `action` slot wires the click back to a server input.
     @reactive.effect
     def _offer_recovery():
-        if getattr(_offer_recovery, "_fired", False):
+        # Runs when this browser's token arrives (the calc invalidates);
+        # once per session.
+        token = browser_token()
+        if token is None:
             return
-        _offer_recovery._fired = True  # type: ignore[attr-defined]
-
-        age = autosave_age_seconds()
-        if age is None or age > 24 * 3600:
-            return
-        if read_autosave() is None:
-            return
+        with reactive.isolate():
+            if recovery_checked.get():
+                return
+        try:
+            housekeeping()
+        except OSError as e:
+            logger.warning("quick_actions.housekeeping status=error reason=%s", type(e).__name__)
+        try:
+            age = autosave_age_seconds(token=token)
+            if age is None or age > 24 * 3600:
+                return
+            if read_autosave(token=token) is None:
+                return
+        finally:
+            recovery_checked.set(True)
         ui.notification_show(
             t("ui.quickactions.recovery_available",
               "Recovered work from your last session."),
@@ -190,7 +223,7 @@ def quick_actions_server(
         # project_to_bytes calls .with_modified_now() internally; don't double-stamp.
         proj = project_data.get()
         try:
-            clear_autosave()
+            clear_autosave(token=browser_token())
         except OSError as e:
             logger.warning("quick_actions.clear_autosave status=error reason=%s", type(e).__name__)
             ui.notification_show(
@@ -206,7 +239,7 @@ def quick_actions_server(
     @reactive.effect
     @reactive.event(input["__sespy_restore_autosave__"], ignore_init=True)
     def _do_restore():
-        recovered = read_autosave()
+        recovered = read_autosave(token=browser_token())
         if recovered is None:
             ui.notification_remove("autosave-recovery")
             return
@@ -249,6 +282,7 @@ def quick_actions_server(
                 name=proj.metadata.name,
                 element_count=proj.isa_data.element_count(),
                 connection_count=proj.isa_data.connection_count(),
+                token=browser_token(),
             )
         except Exception as e:
             logger.warning("quick_actions.add_recent status=error reason=%s", type(e).__name__)

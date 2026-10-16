@@ -13,6 +13,7 @@ from shiny import reactive, render, ui
 from .. import __version__ as _sespy_version
 from .. import feedback_store
 from ..autosave import autosave_age_seconds, clear_autosave
+from ..browser_token import read_browser_token
 from ..dashboard import language_switcher
 from ..input_utils import safe_int
 from ..i18n import Translator
@@ -274,8 +275,8 @@ def _about_modal(translator) -> ui.Tag:
     )
 
 
-def _options_modal(translator, current_theme, autosave_enabled) -> ui.Tag:
-    age = autosave_age_seconds()
+def _options_modal(translator, current_theme, autosave_enabled, token=None) -> ui.Tag:
+    age = autosave_age_seconds(token=token)
     status = (f"{int(age)}s ago" if age is not None else "—")
     return ui.modal(
         ui.h5(_t(translator, "options.appearance", "Appearance")),
@@ -334,7 +335,8 @@ def topbar_actions_server(input, output, session, *, translator=None,
     @reactive.effect
     @reactive.event(input.tb_options)
     def _open_options():
-        ui.modal_show(_options_modal(translator, current_theme, autosave_enabled))
+        ui.modal_show(_options_modal(translator, current_theme, autosave_enabled,
+                                     token=read_browser_token(input)))
 
     @reactive.effect
     @reactive.event(input.tb_help)
@@ -386,7 +388,7 @@ def topbar_actions_server(input, output, session, *, translator=None,
         # clear_autosave() re-raises OSError (it used to swallow it), and an
         # exception escaping a reactive effect surfaces as a session error.
         try:
-            clear_autosave()
+            clear_autosave(token=read_browser_token(input))
         except OSError as e:
             logging.getLogger(__name__).warning(
                 "topbar.clear_autosave status=error reason=%s", type(e).__name__)
