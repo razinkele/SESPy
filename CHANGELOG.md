@@ -4,6 +4,29 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.12.2] — 2026-10-16
+
+### Security
+
+- **Autosave no longer hands one user's work to another.** On the server
+  every session runs as the same OS user, so the single autosave file
+  (`~/.sespy/autosave.json`) was shared by all visitors: anyone who opened
+  SESPy within 24 hours of someone else's edit was offered "Restore" for
+  that other person's project. Each browser now keeps a random token in
+  its localStorage and only ever sees the autosave stored under the hash of
+  that token (port of the R app's 1.20.1 N7 fix). Nothing is autosaved or
+  offered before the token has arrived and that browser's recovery check
+  has run, and there is no shared fallback without a token.
+- Autosave files sit in an owner-only directory (`~/.sespy/autosaves/`,
+  0700, files 0600) and are deleted after 72 hours.
+- **Recent Projects is per browser too**, for the same reason.
+- The old shared `autosave.json` and `recent.json` are deleted on the first
+  session after the upgrade: they cannot be attributed to anyone.
+- A newer-format autosave can no longer stop the recovery check (a
+  `TypeError` from an unknown field escaped it).
+
+### Fixed
+
 - **Intervention BBN evidence line names its nodes.** It listed bare ids
   (`Evidence: D001 high`) while the pickers above it and the target line
   below it both showed `id · label`. All three now agree:

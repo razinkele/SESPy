@@ -103,7 +103,14 @@ def recent_projects_server(
     project_data: reactive.Value[Project],
     event_bus: EventBus,
     translator: Translator | None = None,
+    browser_token=None,
 ) -> None:
+    # `browser_token` is a reactive callable returning this browser's
+    # private token (app.py); the registry is scoped to it, so without it
+    # the list is empty.
+    def token() -> str | None:
+        return browser_token() if browser_token is not None else None
+
     # Reactive trigger — we don't watch the registry file for changes, so
     # we manually bump this to re-render after save/load/remove.
     refresh: reactive.Value[int] = reactive.value(0)
@@ -123,7 +130,7 @@ def recent_projects_server(
     @reactive.calc
     def entries() -> list[RecentEntry]:
         refresh.get()
-        return list_recent()
+        return list_recent(token=token())
 
     @output
     @render.ui
@@ -144,7 +151,7 @@ def recent_projects_server(
 
     for i in range(MAX_RECENT):
         _wire_load(input, i, project_data, event_bus, entries, refresh)
-        _wire_remove(input, i, entries, refresh)
+        _wire_remove(input, i, entries, refresh, token)
 
 
 def _wire_load(
@@ -187,6 +194,7 @@ def _wire_remove(
     idx: int,
     entries_calc,
     refresh: reactive.Value[int],
+    token,
 ) -> None:
     @reactive.effect
     @reactive.event(input[f"remove_recent_{idx}"], ignore_init=True)
@@ -194,6 +202,6 @@ def _wire_remove(
         rows = entries_calc()
         if idx >= len(rows):
             return
-        remove_recent(rows[idx].path)
+        remove_recent(rows[idx].path, token=token())
         with reactive.isolate():
             refresh.set(refresh.get() + 1)

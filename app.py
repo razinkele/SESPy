@@ -57,6 +57,7 @@ from sespy.modules.pims_stakeholders import (
     pims_stakeholders_server,
     pims_stakeholders_ui,
 )
+from sespy.browser_token import read_browser_token
 from sespy.modules.project_io import quick_actions_server, quick_actions_ui
 from sespy.modules.rate_connections import rate_connections_server, rate_connections_ui
 from sespy.modules.recent_projects import recent_projects_server, recent_projects_ui
@@ -305,6 +306,8 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         project_data=project_data,
         event_bus=event_bus,
         translator=translator,
+        # Root-level input: read here, outside the module's namespace.
+        browser_token=reactive.calc(lambda: read_browser_token(input)),
     )
     report_export_server(
         "report",
