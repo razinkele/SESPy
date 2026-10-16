@@ -26,7 +26,7 @@ removed to match R.
 |---|---|
 | WP5 scope | **Full WP5**: data layer, Response register, valuation, impact assessment + report, intervention designer (incl. 1.28 mode C / Apply) |
 | Templates | **Add beside** SESPy's own 4; converted from R JSON, origin-labelled |
-| Other R modules | Scenario Builder, Response Measures page, Graphical SES creator, Guidebook/tutorial **in scope**; the rest are listed in §5 for a decision |
+| Other R modules | **All in scope**: Scenario Builder, Response Measures page, Graphical SES creator, Guidebook/tutorial, plus the 8 older modules in §5 (P11–P14) |
 | R project files | **Import only** (R → SESPy); SESPy keeps its own save format |
 | Sequencing | **Foundation-first**, with Decision Lens as an early parallel track |
 | Shared KB on laguna | **Vendored copies are the baseline.** An optional, guarded runtime override can point at R's live `data/` (see §3) |
@@ -92,7 +92,8 @@ P0 → P1a ─┬→ P2   (soft: K1)
           ├→ P1b → P1c → P8 → P7a (also P3) → P7b
           └→ P3 (Python side)
 P3's R-fixture capture can start at P0; its Python side needs P1a's
-template mapper and link types. P10 last.
+template mapper and link types. P10, then P11–P14 (§5); P12 may be
+pulled earlier.
 ```
 The per-section "Depends on" lines below match this graph.
 
@@ -469,21 +470,19 @@ live MosaicSES after deploy.
   runtime data.
 - Changing or removing SESPy-only features.
 
-## 5. R modules not yet decided (decision needed before P1a)
+## 5. Older R modules — all in scope (decided 2026-10-16)
 
 These R modules are older than v1.17 (they first appear in R's git history
-on 2026-05-18) and have no SESPy equivalent:
+on 2026-05-18) and have no SESPy equivalent. The user brought all of them in
+as four further sub-projects. Each gets its own brainstorm → spec cycle, and
+its R source is pinned to the baseline at that time.
 
-| R module | Nearest SESPy feature | Proposed |
-|---|---|---|
-| `entry_point_module` (guided pathway) | AI ISA wizard | decide |
-| `workflow_stepper_module` | — | decide |
-| experience levels (`get_level_config`) | — | decide |
-| `pilot_study_module` | — | decide |
-| `ses_models_module` (SES model library) | templates | decide |
-| `connection_review_tabbed` | review inside the AI wizard | decide |
-| `prepare_report_module` | `report_export` | decide |
-| `feedback_admin_module` | topbar feedback form | decide |
+| Sub-project | R modules | Nearest SESPy feature | Depends on |
+|---|---|---|---|
+| **P11** Guided entry | `entry_point_module` (guided pathway), `workflow_stepper_module` | AI ISA wizard | P1a; after P10 so the tour and stepper are designed together |
+| **P12** Experience levels | `get_level_config` / level config (menus, AI element caps; per-session store, R 1.20.0 N20) | — | P0. Can be pulled earlier, because it gates menus that later pages register into; decide at P1a review |
+| **P13** Model library + connection review | `ses_models_module` (SES model library, server-mode path containment R 1.18.2/1.19.1), `connection_review_tabbed` (observer-leak fix R 1.21.0 N30) | templates; review inside the AI wizard | P1c (library files are R models), K1 |
+| **P14** Report prep, feedback admin, pilot study | `prepare_report_module`, `feedback_admin_module` (admin-only actions, escaped user text, R 1.19.1), `pilot_study_module` | `report_export`; topbar feedback form (`feedback.db`) | K1 (Regional Context section), P6c (shared report pipeline) |
 
 Already equivalent: `local_storage` ≈ autosave/persistent_storage;
 `export_reports` ≈ `report_export`; event bus ≈ `event_bus.py`.
