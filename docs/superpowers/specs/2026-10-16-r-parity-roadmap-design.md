@@ -395,14 +395,20 @@ R source: 1.25.0, 1.26.0. Depends on P4, P5, P1c.
     (invalid or duplicate scenario codes, scenarios beyond
     `IMPACT_MAX_SCENARIOS`, unknown or duplicate criteria, cells for unknown
     scenarios, disallowed sub-dimension notes) are discarded too, because R
-    shows the same file without them. Unlike R, SESPy **reports** each
-    discarded part in the load warning.
+    shows the same file without them.
+  - Unlike R, SESPy **reports every difference between the input block and
+    R's normalised output** in the load warning, not only the parts listed
+    above. That includes dropped unknown top-level keys, an invalid `da` or an
+    unmatched `baseline_code` reset to `""`, non-list rows and scenarios
+    skipped, criterion aliases mapped (PO→PI, FI→FF) and defaults filled
+    (`impact_assessment_model.R:443-495`).
   Once 6a takes the block over, nothing of it stays in `r_passthrough`.
 - **6b wizard**, **6c narrative + Word/Excel report**: Appendix B provenance is
   read from `metadata.reference_data`.
 - **Analysis-preservation rule** (R 1.25.0): an ISA change clears only loops
   and metrics, never the scenarios or the impact assessment.
-- **Done when:** an R-saved assessment imports, edits and saves back unchanged;
+- **Done when:** an R-saved assessment (a block R has already normalised)
+  imports, edits and saves back unchanged;
   the report generates; the narrative matches R for the same matrix.
 
 ### P8 — Scenario Builder (moved before P7)
@@ -422,8 +428,8 @@ P1c (and through it P1b).
   entries** from the passthrough, so scenarios are never stored twice. An entry
   that cannot be mapped (an R CLD id that does not resolve, keys outside R's
   schema) **stays in `r_passthrough`** under the same key and is reported, so
-  imported R data is never lost. P6a follows the same rule for
-  `analysis.impact_assessment`.
+  imported R data is never lost. (P6a differs: it normalises its block
+  R-exactly and keeps nothing in passthrough, see P6a.)
 - R's schema:
   - A scenario is `{id, name, description, created, modified, results,
     modifications}`, plus `source` and `ops[]` **only on Designer-written
@@ -613,7 +619,8 @@ MosaicSES builds `Project`/`Element`/`Connection` directly, reuses
 and embeds SESPy Projects in `.multises.json`. Every sub-project that
 **bumps the schema, changes `Project` serialisation or touches ISA entry**
 **or changes a module MosaicSES reuses** (so far P0, P1a, P1b, P1c, K1, P4,
-P6a, P7a, P7b's Apply and P8; M is itself a MosaicSES release) runs MosaicSES's
+P6a, P7a, P7b's Apply and P8, plus any of P3, P5, P9 or P12 whose spec decides
+to persist state; M is itself a MosaicSES release) runs MosaicSES's
 unit tests and full e2e against the SESPy branch **before merge**, and checks
 the live MosaicSES after deploy.
 - MosaicSES must warn on compartments carrying `Project.newer_build`, and
