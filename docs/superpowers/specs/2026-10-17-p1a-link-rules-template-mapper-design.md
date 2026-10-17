@@ -25,7 +25,9 @@ the template gallery; that is P2.
    link's `(source, target, polarity, strength, confidence, description)`
    equal to the R JSON. "Save → load" means the real upload path:
    `project_to_bytes` → `json.loads` → `validate_project_payload(...)`, which
-   must be `.valid`, then the edge set is compared. Element counts also match.
+   must be `.valid`, then the edge set is compared. The total element count
+   matches, and `counts_by_type["Responses"]` equals R's responses plus
+   measures.
    The mapper reports **zero off-rule links** for all 7.
 2. The R fields not carried over are listed (§6).
 3. The full unit and e2e gates pass, and so does MosaicSES's suite against the
@@ -200,8 +202,12 @@ existing projects behave exactly as before. **Call sites:** only
 `persistent_storage.validate_project_payload` and the mapper's report.
 Validation already covers SESPy upload, recent projects, templates, Excel
 import (`excel_import.py:173`) and QSEM import (`qsem_import.py:195`), so each
-project logs exactly once. **Not** `Project.from_dict`: MosaicSES would log
-once per compartment, and `data_structure` is kept standard-library only.
+validation call logs once (template listing and autosave recovery validate
+more than once, so a whole flow may repeat the line; tests pin
+`validate_project_payload`, not whole flows). **Not** `Project.from_dict`:
+MosaicSES would log once per compartment, and `data_structure` stays free of
+logging policy and Shiny. Its only third-party import is `packaging`,
+imported lazily as P0b already does.
 
 ## 4. Schema v7 (`sespy/data_structure.py`)
 
@@ -434,8 +440,9 @@ with the
   is read into `Connection.description` as `str(...)`. An empty or NaN cell
   becomes `""`, as for element descriptions (`excel_import.py:128`), so one
   numeric cell never fails a whole workbook.
-- **Kumu polarity.** When no polarity column is present, a connection's
-  `Label`/`label` column decides: a value of `-`, or one starting with `-`, is
+- **Kumu polarity.** When a row has no numeric weight and **no non-empty
+  polarity cell** (the column may be absent or the cell blank; `_pick` works
+  per cell, `excel_import.py:45-52`), that row's `Label`/`label` cell decides: a value of `-`, or one starting with `-`, is
   negative; anything else is positive (R `excel_import_helpers.R:432-437`).
 - **Element type aliases**, taken from R's list (`excel_import_helpers.R:160-175`):
   `Driver`, `Activity`, `Pressure`, `Marine Process and Function`,
@@ -462,7 +469,10 @@ in `.multises.json`.
 - The new fields are keyword-only with defaults, so construction is unchanged.
 - MosaicSES reuses `isa_data_entry_server` and `analysis_boolean_server` inside
   compartments, so the polarity prefill, the off-rule note and the Boolean
-  clamp reach MosaicSES too. Its e2e suite covers both modules.
+  clamp reach MosaicSES too. No existing SESPy or MosaicSES e2e test drives
+  `new_source`, `new_target`, `new_polarity` or `add_connection`, so the new
+  SESPy e2e test (§10) is the only UI coverage. The MosaicSES gate checks that
+  nothing else regresses.
 - MosaicSES imports `_CONN_TYPES` nowhere (checked); it imports
   `sespy.constants` and `sespy.data_structure`, which are on its §9.3
   allow-list.
@@ -497,7 +507,9 @@ TDD throughout. New unit test files:
   - `r_type` capture;
   - report contents;
   - the legacy-format error and dangling-id error.
-- `tests/parity/test_r_sync.py`: fixture hashes against `R_SYNC.md`.
+- `tests/parity/test_r_sync.py`: fixture hashes against
+  `tests/parity/r_sync.json`, plus a check that every hash quoted in
+  `R_SYNC.md` matches `r_sync.json`.
 - Additions to `tests/test_dynamics.py` (ceiling and clamp) and
   `tests/test_excel_import.py` (description, Kumu label, aliases, Measure).
 
@@ -540,7 +552,12 @@ TDD throughout. New unit test files:
 - a `description` of `None` loading as `""`.
 
 **New e2e test, `tests/test_link_rules_e2e.py`:**
-- choosing a Pressure → MPF pair pre-fills polarity `−`;
+- choosing a Pressure → MPF pair pre-fills polarity `−`. The prefill is a
+  server round-trip (`update_radio_buttons`), so the test **waits** for the
+  scoped selector `input[name$="new_polarity"][value="-"]:checked` before
+  asserting or clicking Add;
+- an Excel row with a blank polarity cell and `Label="-"` imports as `-`
+  (unit test in `tests/test_excel_import.py`);
 - choosing Drivers → Goods & Benefits shows the off-rule note, and the link
   still saves;
 - selectors are scoped (memory: e2e text-selector collisions).
