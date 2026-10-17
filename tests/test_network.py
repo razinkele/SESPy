@@ -2545,3 +2545,22 @@ def test_displayed_pairs_bayesian_switch_uses_posterior_criterion():
     assert [i for i, _ in legacy] == [0, 1]
     assert [i for i, _ in bayes] == [0]
     assert len(network.displayed_pairs(conns, contested_only=False, bayesian=True)) == 3
+
+
+def test_governance_gap_headline_unchanged_by_an_r_to_mpf_link():
+    """P1a: R->MPF is canonical now, but pressure_gap_fraction keeps its
+    Pressures-only denominator (characterisation; green before and after)."""
+    from sespy.network import governance_gap
+    els = [
+        Element("R1", "r", "Responses"),
+        Element("P1", "p", "Pressures"),
+        Element("P2", "p2", "Pressures"),
+        Element("M1", "m", "Marine Processes & Functioning"),
+    ]
+    base = IsaData(els, [Connection("R1", "P1", polarity="-")])
+    plus = IsaData(els, [*base.connections, Connection("R1", "M1", polarity="+")])
+    a, b = governance_gap(base), governance_gap(plus)
+    assert a["pressure_gap_fraction"] == b["pressure_gap_fraction"] == 0.5
+    assert b["gaps_by_type"]["Marine Processes & Functioning"]["uncovered"] == []
+    # ecological_gap_fraction already pools MPF, so it does move.
+    assert a["ecological_gap_fraction"] != b["ecological_gap_fraction"]
