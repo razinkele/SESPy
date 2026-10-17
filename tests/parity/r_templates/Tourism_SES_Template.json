@@ -1,0 +1,526 @@
+{
+  "template_name": "Tourism",
+  "template_description": "Social-ecological system template for coastal tourism impacts, covering recreational activities, habitat disturbance pressures, ecosystem service degradation, and sustainable tourism responses. Applicable to Mediterranean and temperate coastal systems.",
+  "complexity": "simple",
+  "regional_context": {
+    "regional_sea": "mediterranean",
+    "habitat": "rocky_shore",
+    "main_issues": [
+      "coastal tourism ses template"
+    ]
+  },
+  "metadata": {
+    "created_date": "2026-04-08",
+    "version": "2.2",
+    "source": "Rebuilt from ses_knowledge_db.json context: mediterranean_rocky_shore",
+    "applicable_regions": [
+      "mediterranean"
+    ]
+  },
+  "dapsiwrm_framework": {
+    "drivers": [
+      {
+        "id": "D002",
+        "name": "Diving tourism and underwater recreation",
+        "type": "Driver",
+        "description": "Diving tourism and underwater recreation"
+      },
+      {
+        "id": "D004",
+        "name": "Marine biodiversity conservation goals",
+        "type": "Driver",
+        "description": "Marine biodiversity conservation goals"
+      }
+    ],
+    "activities": [
+      {
+        "id": "A001",
+        "name": "Artisanal trammel net and longline fishing",
+        "type": "Activity",
+        "description": "Artisanal trammel net and longline fishing"
+      },
+      {
+        "id": "A002",
+        "name": "Sea urchin (Paracentrotus lividus) harvesting",
+        "type": "Activity",
+        "description": "Sea urchin (Paracentrotus lividus) harvesting"
+      },
+      {
+        "id": "A003",
+        "name": "Recreational spearfishing",
+        "type": "Activity",
+        "description": "Recreational spearfishing"
+      },
+      {
+        "id": "A004",
+        "name": "Scuba diving tourism on rocky reefs",
+        "type": "Activity",
+        "description": "Scuba diving tourism on rocky reefs"
+      }
+    ],
+    "pressures": [
+      {
+        "id": "P001",
+        "name": "Overgrazing by sea urchins (urchin barrens)",
+        "type": "Pressure",
+        "description": "Overgrazing by sea urchins (urchin barrens)"
+      },
+      {
+        "id": "P002",
+        "name": "Overharvesting of predatory fish (grouper, dentex)",
+        "type": "Pressure",
+        "description": "Overharvesting of predatory fish (grouper, dentex)"
+      },
+      {
+        "id": "P003",
+        "name": "Mucilage events and marine heatwaves",
+        "type": "Pressure",
+        "description": "Mucilage events and marine heatwaves"
+      },
+      {
+        "id": "P004",
+        "name": "Ghost fishing from lost nets on rocky substrate",
+        "type": "Pressure",
+        "description": "Ghost fishing from lost nets on rocky substrate"
+      },
+      {
+        "id": "P006",
+        "name": "Physical habitat degradation of rocky substrate",
+        "type": "Pressure",
+        "description": "Physical habitat degradation of rocky substrate"
+      },
+      {
+        "id": "P007",
+        "name": "Climate change and ocean warming",
+        "type": "Pressure",
+        "description": "Climate change and ocean warming"
+      }
+    ],
+    "marine_processes": [
+      {
+        "id": "MPF001",
+        "name": "Macroalgal canopy cover (Cystoseira, Sargassum)",
+        "type": "State Change",
+        "description": "Macroalgal canopy cover (Cystoseira, Sargassum)"
+      },
+      {
+        "id": "MPF002",
+        "name": "Sea urchin population density",
+        "type": "State Change",
+        "description": "Sea urchin population density"
+      },
+      {
+        "id": "MPF003",
+        "name": "Large predatory fish abundance (grouper, dentex)",
+        "type": "State Change",
+        "description": "Large predatory fish abundance (grouper, dentex)"
+      },
+      {
+        "id": "MPF004",
+        "name": "Rocky reef biodiversity index",
+        "type": "State Change",
+        "description": "Rocky reef biodiversity index"
+      },
+      {
+        "id": "MPF005",
+        "name": "Invasive species presence (e.g., Siganus, Fistularia)",
+        "type": "State Change",
+        "description": "Invasive species presence (e.g., Siganus, Fistularia)"
+      }
+    ],
+    "ecosystem_services": [
+      {
+        "id": "ES001",
+        "name": "Fish provisioning from artisanal rocky reef fishery",
+        "type": "Provisioning",
+        "description": "Fish provisioning from artisanal rocky reef fishery"
+      },
+      {
+        "id": "ES002",
+        "name": "Diving and snorkeling tourism attraction",
+        "type": "Provisioning",
+        "description": "Diving and snorkeling tourism attraction"
+      }
+    ],
+    "goods_benefits": [
+      {
+        "id": "GB001",
+        "name": "Artisanal fisher income and cultural continuity",
+        "type": "Welfare",
+        "description": "Artisanal fisher income and cultural continuity"
+      },
+      {
+        "id": "GB002",
+        "name": "Dive centre and marine tourism revenue",
+        "type": "Welfare",
+        "description": "Dive centre and marine tourism revenue"
+      }
+    ],
+    "responses": [
+      {
+        "id": "R001",
+        "name": "No-take marine reserve designation",
+        "type": "Response",
+        "description": "No-take marine reserve designation"
+      },
+      {
+        "id": "R002",
+        "name": "Sea urchin harvesting quota management",
+        "type": "Response",
+        "description": "Sea urchin harvesting quota management"
+      },
+      {
+        "id": "R005",
+        "name": "Cystoseira habitat restoration projects",
+        "type": "Response",
+        "description": "Cystoseira habitat restoration projects"
+      }
+    ],
+    "measures": [
+      {
+        "id": "M001",
+        "name": "Visitor carrying capacity limits",
+        "type": "Measure",
+        "description": "Science-based visitor limits for sensitive marine and coastal areas"
+      },
+      {
+        "id": "M002",
+        "name": "Mooring buoy installation",
+        "type": "Measure",
+        "description": "Fixed mooring buoys to prevent anchor damage to benthic habitat within marine reserves"
+      }
+    ]
+  },
+  "connections": [
+    {
+      "from_id": "P002",
+      "to_id": "MPF002",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Removal of sea urchin predators (fish) triggers urchin population explosion via trophic cascade. Fishing mortality above sustainable levels reduces spawning stock biomass, lowering reproductive output and population resilience"
+    },
+    {
+      "from_id": "P001",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Dense urchin populations graze macroalgal forests to bare rock (barren grounds). The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+    },
+    {
+      "from_id": "A001",
+      "to_id": "P002",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Artisanal fishing selectively targets large predatory fish on rocky reefs. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+    },
+    {
+      "from_id": "R001",
+      "to_id": "P002",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "The reserve effect on Mediterranean predatory fish is one of the best-documented outcomes in marine ecology. Grouper biomass increases 5-10x inside no-take reserves within 10-15 years (Harmelin et al. 1995, Garcia-Charton et al. 2008, Guidetti & Sala 2007). Multiple studies across >20 Mediterranean MPAs."
+    },
+    {
+      "from_id": "MPF003",
+      "to_id": "ES002",
+      "from_type": "state",
+      "to_type": "impact",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Large predatory fish (especially grouper Epinephelus marginatus) are the primary attraction for dive tourists on Mediterranean reefs. Dive tourism revenue is strongly correlated with large fish sighting rates (Sala et al. 2012, MedPAN reports)."
+    },
+    {
+      "from_id": "MPF001",
+      "to_id": "MPF004",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Macroalgal canopies create habitat complexity supporting diverse invertebrate and fish communities"
+    },
+    {
+      "from_id": "ES002",
+      "to_id": "GB002",
+      "from_type": "impact",
+      "to_type": "welfare",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Diving tourism attraction directly and strongly drives dive centre revenue. This is a direct economic link well-documented in Mediterranean tourism studies (Sala et al. 2012, Badalamenti et al. 2000)."
+    },
+    {
+      "from_id": "ES001",
+      "to_id": "GB001",
+      "from_type": "impact",
+      "to_type": "welfare",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Fish catches provide the economic basis for artisanal fishing communities. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+    },
+    {
+      "from_id": "R002",
+      "to_id": "P001",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Managed harvesting can reduce urchin density, allowing macroalgal recovery. The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+    },
+    {
+      "from_id": "MPF005",
+      "to_id": "MPF004",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Tropical invasives like Siganus compete with native herbivores and alter reef community structure. Marine invasive species alter ecosystem structure and function through competition, predation, and habitat modification"
+    },
+    {
+      "from_id": "MPF002",
+      "to_id": "MPF001",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "High sea urchin density causes barren formation by grazing macroalgal canopies to bare rock, a well-documented trophic cascade on Mediterranean rocky reefs"
+    },
+    {
+      "from_id": "MPF001",
+      "to_id": "ES001",
+      "from_type": "state",
+      "to_type": "impact",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Macroalgal canopies support higher fish recruitment and biomass by providing nursery habitat and food web support for commercially targeted species"
+    },
+    {
+      "from_id": "D002",
+      "to_id": "A004",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 5,
+      "description": "Underwater recreation demand directly drives scuba diving tourism operations on Mediterranean rocky reefs"
+    },
+    {
+      "from_id": "MPF003",
+      "to_id": "MPF002",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Large predatory fish control sea urchin populations through predation, preventing overgrazing of macroalgae. Fishing mortality above sustainable levels reduces spawning stock biomass, lowering reproductive output and population resilience"
+    },
+    {
+      "from_id": "P003",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Marine heatwaves and mucilage events cause mass mortality of heat-sensitive Cystoseira and Sargassum canopy species"
+    },
+    {
+      "from_id": "P002",
+      "to_id": "P001",
+      "from_type": "pressure",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Removal of sea urchin predators (grouper, wrasse, sea breams) triggers urchin population explosions that create barren grounds by overgrazing macroalgal canopy"
+    },
+    {
+      "from_id": "P003",
+      "to_id": "MPF005",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Marine heatwaves weaken native Mediterranean communities and create ecological niches that facilitate establishment of Lessepsian migrants and tropical invasive species"
+    },
+    {
+      "from_id": "R001",
+      "to_id": "A003",
+      "from_type": "response",
+      "to_type": "activity",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Marine reserve designation eliminates spearfishing within boundaries, redistributing diving pressure to adjacent unprotected rocky shore areas"
+    },
+    {
+      "from_id": "P002",
+      "to_id": "MPF003",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Overharvesting directly reduces predatory fish abundance on rocky shores. The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+    },
+    {
+      "from_id": "R005",
+      "to_id": "P006",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Cystoseira restoration counteracts physical habitat degradation by reestablishing canopy-forming algae"
+    },
+    {
+      "from_id": "P006",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Physical degradation of rocky substrate reduces macroalgal canopy recruitment and persistence"
+    },
+    {
+      "from_id": "D004",
+      "to_id": "A001",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Marine biodiversity conservation goals (MPA designations, EU Habitats Directive) restrict artisanal fishing through spatial closures, gear restrictions, and quotas. The effect is negative (reducing fishing activity), not positive."
+    },
+    {
+      "from_id": "A002",
+      "to_id": "P001",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Sea urchin harvesting reduces Paracentrotus lividus density, thereby reducing overgrazing pressure and allowing macroalgal recovery. Large-scale urchin culling has been shown to reduce barren grounds in the Mediterranean (Piazzi & Ceccherelli 2019, Guidetti & Dulcic 2007). Polarity corrected from + to -."
+    },
+    {
+      "from_id": "P004",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 3,
+      "description": "Lost fishing nets on rocky substrate cause physical abrasion and smothering of macroalgal canopy. The effect is negative (reducing canopy cover). However, the scale of impact is typically small and localized. Polarity corrected from + to -."
+    },
+    {
+      "from_id": "P007",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Ocean warming and marine heatwaves cause mass mortality of heat-sensitive canopy-forming algae (Cystoseira, Sargassum) in the Mediterranean, facilitating replacement by turf algae (Thibaut et al. 2005, Vergés et al. 2014). Polarity corrected from + to -."
+    },
+    {
+      "from_id": "MPF005",
+      "to_id": "ES001",
+      "from_type": "state",
+      "to_type": "impact",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Invasive herbivorous fish (Siganus spp.) overgraze macroalgal canopies, reducing habitat for native commercial species. While some invasives are commercially exploited in the eastern Mediterranean, the net effect on traditional artisanal fishery provision is generally negative (Azzurro et al. 2019). Polarity changed to negative."
+    },
+    {
+      "from_id": "M001",
+      "to_id": "R001",
+      "from_type": "measure",
+      "to_type": "response",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Carrying capacity limits support no-take marine reserve effectiveness by controlling visitor pressure"
+    },
+    {
+      "from_id": "M002",
+      "to_id": "R001",
+      "from_type": "measure",
+      "to_type": "response",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Mooring buoys protect benthic habitat from anchor damage within marine reserves"
+    },
+    {
+      "from_id": "GB002",
+      "to_id": "D002",
+      "from_type": "welfare",
+      "to_type": "driver",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Dive centre and marine tourism revenue reinforces diving tourism and underwater recreation demand"
+    },
+    {
+      "from_id": "GB002",
+      "to_id": "R001",
+      "from_type": "welfare",
+      "to_type": "response",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Declining dive and marine tourism revenue, as large predatory fish disappear, increases local support for no-take marine reserves: less revenue, more reserve designation."
+    },
+    {
+      "from_id": "GB001",
+      "to_id": "R002",
+      "from_type": "welfare",
+      "to_type": "response",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 2,
+      "description": "Falling income from sea urchin harvesting signals stock depletion and prompts harvest quotas: less fisher income, tighter quota management."
+    },
+    {
+      "from_id": "GB002",
+      "to_id": "M001",
+      "from_type": "welfare",
+      "to_type": "measure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 2,
+      "description": "Dive operators losing revenue as heavily visited reef sites degrade press for visitor carrying-capacity limits: less dive revenue, stricter limits."
+    },
+    {
+      "from_id": "GB002",
+      "to_id": "M002",
+      "from_type": "welfare",
+      "to_type": "measure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 2,
+      "description": "Anchor damage that degrades dive sites and dive revenue prompts dive operators and managers to install mooring buoys: less dive revenue, more buoys."
+    }
+  ]
+}

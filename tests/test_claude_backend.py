@@ -85,11 +85,12 @@ def test_system_prompt_mentions_tool_by_name():
     assert "record_connection_suggestions" == _TOOL_NAME
 
 
-def test_system_prompt_lists_all_10_directions():
-    """Rule 1 lists the 10 valid type-pair directions verbatim."""
+def test_system_prompt_lists_all_11_directions():
+    """Rule 1 lists the 11 valid type-pair directions verbatim."""
     for direction in ["D->A", "A->P", "P->S", "S->I", "I->W",
-                      "R->P", "R->D", "R->A", "W->D", "W->R"]:
+                      "R->P", "R->D", "R->A", "R->S", "W->D", "W->R"]:
         assert direction in _SYSTEM_PROMPT
+    assert "(11 valid)" in _SYSTEM_PROMPT
 
 
 def test_system_prompt_pins_confidence_enum_values():
@@ -328,7 +329,7 @@ def test_drops_invalid_id_field(invalid_field, invalid_value, expected_drop):
 
 
 def test_drops_invalid_type_pair_states_to_drivers():
-    """States -> Drivers is not in the 10 valid type-pair directions."""
+    """States -> Drivers is not in the 11 valid type-pair directions."""
     elements = [
         Element(id="S001", type="Marine Processes & Functioning", label="X"),
         Element(id="D001", type="Drivers", label="Y"),

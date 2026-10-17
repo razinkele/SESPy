@@ -99,7 +99,11 @@ def analysis_boolean_server(
             M, node_ids = dynamics.isa_to_numeric_matrix(isa)
             stability = dynamics.laplacian_stability(M, direction=input.direction() or "cols")
             rules = dynamics.create_boolean_rules(M)
-            attractors = dynamics.boolean_attractors(rules, max_nodes=safe_int(input.max_nodes(), 12))
+            # Server-side clamp to the slider's own range [4, 12]: a crafted
+            # input must not run a 2^20 search on the shared worker.
+            max_nodes = dynamics.clamp_max_nodes(
+                safe_int(input.max_nodes(), 12), lo=4, hi=12)
+            attractors = dynamics.boolean_attractors(rules, max_nodes=max_nodes)
             result_store.set({
                 "error": None,
                 "stability": stability,

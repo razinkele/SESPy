@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from sespy.excel_import import _try_float, fcm_weight_to_fields, parse_excel
 
@@ -215,3 +216,107 @@ def test_parse_excel_categorical_weight_back_compat(tmp_path):
     assert result.valid, result.errors
     c = result.project.isa_data.connections[0]
     assert c.polarity == "-" and c.strength == "weak"
+
+
+# ---------------------------------------------------------------------------
+# P1a (spec §8): connection description, Kumu Label polarity, type aliases
+# ---------------------------------------------------------------------------
+
+TWO = [{"id": "D001", "label": "Tourism demand", "type": "Drivers"},
+       {"id": "A001", "label": "Boating", "type": "Activities"}]
+
+
+def _one_conn(tmp_path, conn: dict, elements=TWO):
+    res = parse_excel(_write_workbook(tmp_path, elements=elements, connections=[conn]))
+    assert res.valid, res.errors
+    return res.project.isa_data.connections[0]
+
+
+@pytest.mark.parametrize("col", ["description", "Description", "rationale", "Rationale"])
+def test_connection_description_columns(tmp_path, col):
+    c = _one_conn(tmp_path, {"source": "D001", "target": "A001", col: "demand drives boating"})
+    assert c.description == "demand drives boating"
+
+
+def test_connection_description_empty_or_numeric_cell(tmp_path):
+    f = _write_workbook(tmp_path, elements=TWO, connections=[
+        {"source": "D001", "target": "A001", "description": None},
+        {"source": "A001", "target": "D001", "description": 42}])
+    res = parse_excel(f)
+    assert res.valid, res.errors
+    # pandas reads a column holding NaN and 42 as float: str() gives "42.0".
+    assert [c.description for c in res.project.isa_data.connections] == ["", "42.0"]
+
+
+BASE = {"source": "D001", "target": "A001", "strength": "medium"}
+
+
+@pytest.mark.parametrize("conn,want", [
+    ({**BASE, "polarity": None, "Label": "-"}, "-"),        # blank polarity cell
+    ({**BASE, "polarity": "   ", "Label": "-"}, "-"),       # whitespace-only polarity cell
+    ({**BASE, "Label": " -"}, "+"),                          # Label is not stripped (as R)
+    ({**BASE, "Label": "\u2212"}, "-"),                      # U+2212 (SESPy divergence)
+    ({**BASE, "label": "--"}, "-"),                          # lowercase column, starts with -
+    ({**BASE, "Label": "increases"}, "+"),
+    ({**BASE}, "+"),                                         # nothing at all
+    ({**BASE, "polarity": "+", "Label": "-"}, "+"),         # polarity beats Label
+    ({**BASE, "polarity": " -"}, "-"),                       # polarity cell is stripped
+    ({**BASE, "polarity": "  ", "Sign": "-", "Label": "+"}, "-"),  # next alias column first
+    ({"source": "D001", "target": "A001", "strength": -0.8, "Label": "+"}, "-"),  # weight wins
+])
+def test_polarity_precedence_with_kumu_label(tmp_path, conn, want):
+    assert _one_conn(tmp_path, conn).polarity == want
+
+
+@pytest.mark.parametrize("cell,want", [
+    ("Driver", "Drivers"), ("driver", "Drivers"), ("  Activity ", "Activities"),
+    ("Pressure", "Pressures"),
+    ("Marine Process and Function", "Marine Processes & Functioning"),
+    ("Marine Process and Functioning", "Marine Processes & Functioning"),
+    ("State", "Marine Processes & Functioning"),
+    ("state change", "Marine Processes & Functioning"),
+    ("Ecosystem Service", "Ecosystem Services"), ("IMPACT", "Ecosystem Services"),
+    ("Good and Benefit", "Goods & Benefits"), ("Goods and Benefits", "Goods & Benefits"),
+    ("Welfare", "Goods & Benefits"), ("Response", "Responses"),
+    ("drivers", "Drivers"), ("goods & benefits", "Goods & Benefits"),
+])
+def test_element_type_aliases(tmp_path, cell, want):
+    els = [{"id": "X1", "label": "x", "type": cell},
+           {"id": "D001", "label": "d", "type": "Drivers"}]
+    res = parse_excel(_write_workbook(tmp_path, elements=els, connections=[
+        {"source": "X1", "target": "D001"}]))
+    assert res.valid, res.errors
+    x = res.project.isa_data.elements[0]
+    assert x.type == want and x.r_extra == {}
+
+
+def test_measure_becomes_response_with_r_kind(tmp_path):
+    els = [{"id": "M1", "label": "Gear ban", "type": "Measure"},
+           {"id": "R1", "label": "Quota", "type": "response"}]
+    res = parse_excel(_write_workbook(tmp_path, elements=els, connections=[
+        {"source": "M1", "target": "R1"}]))
+    assert res.valid, res.errors
+    m, r = res.project.isa_data.elements
+    assert (m.type, m.r_extra) == ("Responses", {"r_kind": "measure"})
+    assert (r.type, r.r_extra) == ("Responses", {})
+
+
+def test_unknown_type_still_rejected(tmp_path):
+    els = [{"id": "X1", "label": "x", "type": "Banana"},
+           {"id": "D001", "label": "d", "type": "Drivers"}]
+    res = parse_excel(_write_workbook(tmp_path, elements=els, connections=[
+        {"source": "X1", "target": "D001"}]))
+    assert not res.valid
+    assert any("Banana" in e for e in res.errors)
+
+
+def test_off_rule_link_imports_with_a_logged_warning(tmp_path, caplog):
+    import logging
+    els = [{"id": "D001", "label": "d", "type": "Drivers"},
+           {"id": "G1", "label": "g", "type": "Goods & Benefits"}]
+    with caplog.at_level(logging.WARNING, logger="sespy.link_rules"):
+        res = parse_excel(_write_workbook(tmp_path, elements=els, connections=[
+            {"source": "D001", "target": "G1"}]))
+    assert res.valid
+    assert any("D001->G1" in r.getMessage() for r in caplog.records
+               if r.name == "sespy.link_rules")

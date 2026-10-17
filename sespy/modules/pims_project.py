@@ -9,12 +9,13 @@ Pattern matches `analysis_intervention.py` for static form-style UI.
 """
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime, timezone
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from ..constants import DA_SITES, SPATIAL_SCALES, TEMPORAL_SCALES
-from ..data_structure import Project, ProjectMetadata
+from ..data_structure import Project
 from ..event_bus import EventBus
 from ..i18n import Translator, t
 
@@ -144,8 +145,9 @@ def pims_project_server(
     pims_save_status: reactive.Value[str | None] = reactive.value(None)
 
     # Full save handler: read form inputs, apply empty-name fallback,
-    # build fresh ProjectMetadata, call project_metadata.set, emit
-    # project_change, and show confirmation toast.
+    # replace the form's fields on the current ProjectMetadata (every other
+    # field, e.g. origin / r_template_version / min_sespy_version, is kept),
+    # set project_data, emit isa_change, and show confirmation toast.
     @reactive.effect
     @reactive.event(input.save_project_info, ignore_init=True)
     def _handle_save() -> None:
@@ -153,20 +155,16 @@ def pims_project_server(
         name = (input.project_name() or "").strip() or "Untitled Project"
         current_project = project_data.get()
         current = current_project.metadata
-        new_meta = ProjectMetadata(
+        new_meta = dataclasses.replace(
+            current,
             name=name,
-            description=current.description,
             da_site=(input.da_site() or "").strip(),
-            regional_sea=current.regional_sea,
-            ecosystem_type=current.ecosystem_type,
             focal_issue=(input.focal_issue() or "").strip(),
             definition_statement=(input.definition_statement() or "").strip(),
             temporal_scale=(input.temporal_scale() or "").strip(),
             spatial_scale=(input.spatial_scale() or "").strip(),
             system_in_focus=(input.system_in_focus() or "").strip(),
-            created_at=current.created_at,
             modified_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            schema_version=current.schema_version,
         )
         project_data.set(current_project.replace(metadata=new_meta))
         pims_save_status.set(datetime.now().strftime("%H:%M:%S"))

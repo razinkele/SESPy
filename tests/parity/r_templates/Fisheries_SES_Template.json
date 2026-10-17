@@ -1,0 +1,525 @@
+{
+  "template_name": "Fisheries",
+  "template_description": "Social-ecological system template for marine fisheries, covering fishing activities, stock depletion pressures, ecosystem service impacts, and fisheries management responses. Applicable to temperate offshore systems.",
+  "complexity": "simple",
+  "regional_context": {
+    "regional_sea": "baltic",
+    "habitat": "offshore",
+    "main_issues": [
+      "marine fisheries ses template"
+    ]
+  },
+  "metadata": {
+    "created_date": "2026-04-08",
+    "version": "2.3",
+    "source": "Rebuilt from ses_knowledge_db.json context: baltic_offshore",
+    "applicable_regions": [
+      "baltic"
+    ]
+  },
+  "dapsiwrm_framework": {
+    "drivers": [
+      {
+        "id": "D001",
+        "name": "Demand for Baltic cod and herring",
+        "type": "Driver",
+        "description": "Demand for Baltic cod and herring"
+      },
+      {
+        "id": "D002",
+        "name": "Offshore wind energy expansion targets",
+        "type": "Driver",
+        "description": "Offshore wind energy expansion targets"
+      }
+    ],
+    "activities": [
+      {
+        "id": "A001",
+        "name": "Demersal trawling for Baltic cod",
+        "type": "Activity",
+        "description": "Demersal trawling for Baltic cod"
+      },
+      {
+        "id": "A002",
+        "name": "Pelagic fishing for herring and sprat",
+        "type": "Activity",
+        "description": "Pelagic fishing for herring and sprat"
+      },
+      {
+        "id": "A003",
+        "name": "Offshore wind farm construction and operation",
+        "type": "Activity",
+        "description": "Offshore wind farm construction and operation"
+      }
+    ],
+    "pressures": [
+      {
+        "id": "P001",
+        "name": "Overfishing of Eastern Baltic cod",
+        "type": "Pressure",
+        "description": "Overfishing of Eastern Baltic cod"
+      },
+      {
+        "id": "P002",
+        "name": "Underwater noise from shipping and construction",
+        "type": "Pressure",
+        "description": "Underwater noise from shipping and construction"
+      },
+      {
+        "id": "P003",
+        "name": "Bycatch of harbour porpoise and seabirds",
+        "type": "Pressure",
+        "description": "Bycatch of harbour porpoise and seabirds"
+      },
+      {
+        "id": "P004",
+        "name": "Seabed disturbance from bottom trawling",
+        "type": "Pressure",
+        "description": "Seabed disturbance from bottom trawling"
+      },
+      {
+        "id": "P005",
+        "name": "Contamination from dumped munitions",
+        "type": "Pressure",
+        "description": "Contamination from dumped munitions"
+      },
+      {
+        "id": "P006",
+        "name": "Military munition dumping legacy",
+        "type": "Pressure",
+        "description": "Military munition dumping legacy"
+      }
+    ],
+    "marine_processes": [
+      {
+        "id": "MPF001",
+        "name": "Eastern Baltic cod stock biomass",
+        "type": "State Change",
+        "description": "Eastern Baltic cod stock biomass"
+      },
+      {
+        "id": "MPF002",
+        "name": "Central Baltic herring recruitment",
+        "type": "State Change",
+        "description": "Central Baltic herring recruitment"
+      },
+      {
+        "id": "MPF003",
+        "name": "Halocline dynamics and deep-water renewal",
+        "type": "State Change",
+        "description": "Halocline dynamics and deep-water renewal"
+      },
+      {
+        "id": "MPF005",
+        "name": "Benthic macrofauna in deep basins",
+        "type": "State Change",
+        "description": "Benthic macrofauna in deep basins"
+      },
+      {
+        "id": "MPF006",
+        "name": "Deep-water hypoxia (dead zones)",
+        "type": "State Change",
+        "description": "Deep-water hypoxia (dead zones)"
+      }
+    ],
+    "ecosystem_services": [
+      {
+        "id": "ES001",
+        "name": "Commercial fish stock provision (cod, herring, sprat)",
+        "type": "Provisioning",
+        "description": "Commercial fish stock provision (cod, herring, sprat)"
+      },
+      {
+        "id": "ES002",
+        "name": "Baltic herring recruitment as nursery habitat provision",
+        "description": "Nursery and spawning ground services supporting herring and sprat life cycles in the Baltic Sea"
+      }
+    ],
+    "goods_benefits": [
+      {
+        "id": "GB001",
+        "name": "Fishing fleet economic viability",
+        "type": "Welfare",
+        "description": "Fishing fleet economic viability"
+      },
+      {
+        "id": "GB002",
+        "name": "Energy security from Baltic wind farms",
+        "type": "Welfare",
+        "description": "Energy security from Baltic wind farms"
+      },
+      {
+        "id": "GB003",
+        "name": "Fish processing industry employment",
+        "type": "Welfare",
+        "description": "Fish processing industry employment"
+      }
+    ],
+    "responses": [
+      {
+        "id": "R001",
+        "name": "Baltic cod fishing quota reductions (EU TAC)",
+        "type": "Response",
+        "description": "Baltic cod fishing quota reductions (EU TAC)"
+      },
+      {
+        "id": "R004",
+        "name": "Harbour porpoise bycatch mitigation (pingers)",
+        "type": "Response",
+        "description": "Harbour porpoise bycatch mitigation (pingers)"
+      },
+      {
+        "id": "R005",
+        "name": "Trawling closure zones in spawning areas",
+        "type": "Response",
+        "description": "Trawling closure zones in spawning areas"
+      }
+    ],
+    "measures": [
+      {
+        "id": "M001",
+        "name": "Seasonal fishing closures",
+        "type": "Measure",
+        "description": "Seasonal fishing closures during spawning periods"
+      },
+      {
+        "id": "M002",
+        "name": "Selective gear technology (acoustic pingers)",
+        "type": "Measure",
+        "description": "Acoustic deterrent devices on gillnets to reduce cetacean bycatch"
+      }
+    ]
+  },
+  "connections": [
+    {
+      "from_id": "D001",
+      "to_id": "A001",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Market demand for cod directly drives trawling effort in the Baltic. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+    },
+    {
+      "from_id": "A001",
+      "to_id": "P001",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Excessive trawling effort has driven Eastern Baltic cod below safe biological limits"
+    },
+    {
+      "from_id": "A001",
+      "to_id": "P004",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Bottom trawls physically disturb soft-sediment seabed habitats. Bottom trawling physically disrupts benthic habitat structure, removing biogenic features."
+    },
+    {
+      "from_id": "A001",
+      "to_id": "P003",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Gillnets and trawls incidentally catch harbour porpoise and diving seabirds. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+    },
+    {
+      "from_id": "P001",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Overfishing of Eastern Baltic cod affects Eastern Baltic cod stock biomass"
+    },
+    {
+      "from_id": "MPF006",
+      "to_id": "MPF005",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Hypoxic conditions eliminate benthic fauna over large areas of the Baltic deep basins"
+    },
+    {
+      "from_id": "MPF006",
+      "to_id": "MPF001",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Hypoxia reduces cod spawning success and juvenile survival in deep-water spawning areas"
+    },
+    {
+      "from_id": "MPF001",
+      "to_id": "ES001",
+      "from_type": "state",
+      "to_type": "impact",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Eastern Baltic cod stock biomass affects Commercial fish stock provision (cod, herring, sprat)"
+    },
+    {
+      "from_id": "ES001",
+      "to_id": "GB001",
+      "from_type": "impact",
+      "to_type": "welfare",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Commercial fish stock provision (cod, herring, sprat) affects Fishing fleet economic viability"
+    },
+    {
+      "from_id": "R001",
+      "to_id": "P001",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Baltic cod fishing quota reductions (EU TAC) affects Overfishing of Eastern Baltic cod"
+    },
+    {
+      "from_id": "R005",
+      "to_id": "P004",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Spatial closures prevent trawl damage in ecologically sensitive spawning areas. Bottom trawling physically disrupts benthic habitat structure, removing biogenic features."
+    },
+    {
+      "from_id": "D002",
+      "to_id": "A003",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Government renewable energy targets drive rapid expansion of offshore wind installations"
+    },
+    {
+      "from_id": "A003",
+      "to_id": "P002",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Pile-driving during construction generates intense underwater noise affecting marine mammals"
+    },
+    {
+      "from_id": "D001",
+      "to_id": "A002",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Market demand for herring drives pelagic fishing fleet effort in the Baltic Sea. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+    },
+    {
+      "from_id": "P004",
+      "to_id": "MPF006",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Bottom trawling resuspends organic sediments and increases oxygen demand, exacerbating deep-water hypoxia in enclosed basins"
+    },
+    {
+      "from_id": "MPF003",
+      "to_id": "MPF005",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Deep-water renewal events bring oxygenated water below the halocline, directly controlling benthic macrofauna survival in Baltic basins"
+    },
+    {
+      "from_id": "P001",
+      "to_id": "MPF006",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "The primary causal direction is hypoxia affecting cod, not overfishing causing hypoxia. While trophic cascade effects are possible, the link from cod stock reduction to deep-water oxygen conditions is very indirect. ICES assessments emphasize hypoxia as driver of cod decline. Strength and confidence reduced."
+    },
+    {
+      "from_id": "MPF001",
+      "to_id": "MPF002",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Cod collapse released sprat from predation pressure, causing sprat to outcompete herring larvae for zooplankton prey, depressing herring recruitment through competitive exclusion"
+    },
+    {
+      "from_id": "R001",
+      "to_id": "A002",
+      "from_type": "response",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Cod quota reductions redirect fishing effort toward pelagic species (herring, sprat), increasing pressure on small pelagic stocks as fishers substitute target species. Note: positive polarity reflects fleet displacement effect - when cod quotas are cut, fishing effort shifts to pelagic species (herring and sprat)"
+    },
+    {
+      "from_id": "P005",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Contamination from dumped munitions (TNT, heavy metals) would harm cod through toxicological effects, not increase biomass. Polarity corrected from + to -. Effect size is uncertain; strength to weak, confidence to 2."
+    },
+    {
+      "from_id": "P006",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Military munition dumping introduces toxic compounds harmful to marine life including cod. Polarity corrected from + to -. Limited evidence for population-level effects. Strength to weak, confidence to 2."
+    },
+    {
+      "from_id": "R004",
+      "to_id": "P001",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Harbour porpoise bycatch mitigation measures (pingers, gear modifications) do not directly address cod overfishing. While some gear changes may indirectly affect fishing effort, the primary target is bycatch reduction. Strength and confidence reduced."
+    },
+    {
+      "from_id": "D002",
+      "to_id": "A001",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Offshore wind farm development creates trawling exclusion zones, reducing demersal trawling activity in those areas. Multiple North Sea and Baltic studies document fisheries displacement from wind farm areas. Polarity corrected from + to -."
+    },
+    {
+      "from_id": "M001",
+      "to_id": "R001",
+      "from_type": "measure",
+      "to_type": "response",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Seasonal closures are the primary implementation tool for Baltic cod quota reductions"
+    },
+    {
+      "from_id": "M002",
+      "to_id": "R004",
+      "from_type": "measure",
+      "to_type": "response",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Acoustic pingers implement harbour porpoise bycatch mitigation requirements (EU Reg 812/2004)"
+    },
+    {
+      "from_id": "GB001",
+      "to_id": "D001",
+      "from_type": "welfare",
+      "to_type": "driver",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Fishing fleet economic viability reinforces Demand for Baltic cod and herring"
+    },
+    {
+      "from_id": "GB002",
+      "to_id": "D002",
+      "from_type": "welfare",
+      "to_type": "driver",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Energy security from Baltic wind farms reinforces Offshore wind energy expansion targets"
+    },
+    {
+      "from_id": "GB003",
+      "to_id": "D001",
+      "from_type": "welfare",
+      "to_type": "driver",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Fish processing industry employment reinforces demand for Baltic cod and herring fisheries"
+    },
+    {
+      "from_type": "state",
+      "from_id": "MPF002",
+      "to_type": "impact",
+      "to_id": "ES002",
+      "description": "Central Baltic herring recruitment sustains nursery habitat provision",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4
+    },
+    {
+      "from_type": "impact",
+      "from_id": "ES002",
+      "to_type": "welfare",
+      "to_id": "GB003",
+      "description": "Nursery habitat provision supports fish processing industry employment",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3
+    },
+    {
+      "from_id": "GB001",
+      "to_id": "R001",
+      "from_type": "welfare",
+      "to_type": "response",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "The collapse of fleet economic viability alongside the Eastern Baltic cod stock built political acceptance for the 2019 emergency closure and deep cod TAC cuts (Reg. (EU) 2019/1248), paired with cessation aid: less viability, stronger quota cuts. The cuts themselves followed ICES stock advice."
+    },
+    {
+      "from_id": "GB001",
+      "to_id": "R005",
+      "from_type": "welfare",
+      "to_type": "response",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 2,
+      "description": "Falling fleet viability as the Eastern Baltic cod stock declined built support for closing trawling in the Bornholm Basin spawning area alongside the 2019 emergency measures: less viability, stronger closures."
+    },
+    {
+      "from_id": "GB001",
+      "to_id": "M001",
+      "from_type": "welfare",
+      "to_type": "measure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 2,
+      "description": "The same loss of fleet viability motivated seasonal spawning-time closures as the practical tool for cod recovery: less viability, more closure periods."
+    }
+  ]
+}

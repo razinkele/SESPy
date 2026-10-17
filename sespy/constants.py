@@ -7,6 +7,8 @@ hyperparameters, and UI sizing that are not yet relevant.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 DAPSIWRM_ELEMENTS: tuple[str, ...] = (
     "Drivers",
     "Activities",
@@ -189,3 +191,66 @@ def normalize_delay(raw: object) -> str:
         return "immediate" if float(s) == 0 else "short"
     except ValueError:
         return "short" if s else "immediate"
+
+
+# ---------------------------------------------------------------------------
+# DAPSI(W)R(M) link rules (P1a). Ported from R v1.29.0
+# functions/dapsiwrm_connection_rules.R:26-341 (targets, extension_targets,
+# per-pair target_polarities). R's table has no rule ids: they come from R's
+# DAPSIWRM_FRAMEWORK_RULES.md ("6-7" = the collapsed GB->D rules, "ExUP" =
+# the D->P exogenic-unmanaged-pressure exception). R's per-source
+# default_polarity is unreachable (every listed target has its own
+# polarity), so it is not ported. There is no Measures entry: Measures fold
+# into Responses (M->R is covered by R->R, Rule 14).
+# tests/parity/test_r_rules_parity.py pins this table to the R file.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class RuleTarget:
+    to_type: str
+    polarity: str      # "+" | "-"
+    rule_id: str
+
+
+@dataclass(frozen=True)
+class AdjacencyRule:
+    targets: tuple[RuleTarget, ...]              # canonical: offered as suggestions
+    extension_targets: tuple[RuleTarget, ...]    # valid, never suggested
+
+
+_MPF = "Marine Processes & Functioning"
+
+DAPSIWRM_ADJACENCY_RULES: dict[str, AdjacencyRule] = {
+    "Drivers": AdjacencyRule(
+        targets=(RuleTarget("Activities", "+", "1"),),
+        extension_targets=(RuleTarget("Pressures", "+", "ExUP"),),
+    ),
+    "Activities": AdjacencyRule(
+        targets=(RuleTarget("Pressures", "+", "2"),),
+        extension_targets=(RuleTarget("Activities", "+", "18"),),
+    ),
+    "Pressures": AdjacencyRule(
+        targets=(RuleTarget(_MPF, "-", "3"),),
+        extension_targets=(RuleTarget("Pressures", "+", "17"),),
+    ),
+    _MPF: AdjacencyRule(
+        targets=(RuleTarget("Ecosystem Services", "+", "4"),),
+        extension_targets=(RuleTarget(_MPF, "+", "16"),),
+    ),
+    "Ecosystem Services": AdjacencyRule(
+        targets=(RuleTarget("Goods & Benefits", "+", "5"),),
+        extension_targets=(),
+    ),
+    "Goods & Benefits": AdjacencyRule(
+        targets=(RuleTarget("Drivers", "+", "6-7"),
+                 RuleTarget("Responses", "+", "8")),
+        extension_targets=(),
+    ),
+    "Responses": AdjacencyRule(
+        targets=(RuleTarget("Drivers", "-", "9"),
+                 RuleTarget("Activities", "-", "10"),
+                 RuleTarget("Pressures", "-", "11"),
+                 RuleTarget(_MPF, "+", "12")),
+        extension_targets=(RuleTarget("Responses", "+", "14"),),
+    ),
+}

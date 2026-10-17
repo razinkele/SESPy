@@ -966,11 +966,13 @@ def governance_gap(isa: IsaData) -> dict:
 
     Coverage is DIRECTED: an ecological node counts as covered when at least
     one governance node has an out-edge to it. The headline
-    ``pressure_gap_fraction`` uses Pressures alone as denominator — the only
-    ecological layer the DAPSI(W)R(M) topology (``_CONN_TYPES``) routes a
-    Response into; Marine Processes & Functioning and Ecosystem Services are
-    unreachable at distance 1 by construction, so their coverage is reported
-    per-type in ``gaps_by_type`` rather than pooled into the headline. A
+    ``pressure_gap_fraction`` uses Pressures alone as denominator. Since P1a
+    (v1.13.0) Responses -> Marine Processes & Functioning is also a canonical
+    pair (Rule 12, ``_CONN_TYPES``), but the headline stays Pressures-only for
+    continuity, so a published diagnostic does not change silently. MPF and
+    Ecosystem Services coverage is reported per type in ``gaps_by_type``, and
+    ``ecological_gap_fraction`` pools every ecological layer (so an R -> MPF
+    link does move it). A
     governance *orphan* is a governance node with no directed PATH to any
     ecological node, so a Response acting through Drivers/Activities (the
     highest-leverage "intent" realm per ``leverage_realm``) is not an orphan.

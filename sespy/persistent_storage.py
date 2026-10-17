@@ -16,6 +16,7 @@ from typing import Any
 
 from .constants import DAPSIWRM_ELEMENTS, DELAY_LEVELS
 from .data_structure import Project
+from .link_rules import log_off_rule_links
 
 # Controlled vocabularies enforced at load time. A value is only checked when
 # the key is present and non-null — an omitted field falls back to the
@@ -118,12 +119,26 @@ def validate_project_payload(raw: dict[str, Any]) -> ValidationResult:
                     f"connection[{i}] has invalid delay {delay!r} "
                     f"(expected one of {sorted(_VALID_DELAYS)})"
                 )
+            # Schema v7. None/absent is skipped like every optional field;
+            # _isa_from_dict turns it into "". Element.description is not
+            # validated (it never was), so old files keep loading.
+            desc = c.get("description")
+            if desc is not None and not isinstance(desc, str):
+                errors.append(
+                    f"connection[{i}] has invalid description {desc!r} "
+                    f"(expected a string)"
+                )
             if len(errors) >= 10:
                 break
 
     if errors:
         return ValidationResult(False, errors)
-    return ValidationResult(True, [], Project.from_dict(raw))
+    project = Project.from_dict(raw)
+    # Off-rule links are accepted (as R's validate_connection(strict=FALSE))
+    # and logged once per validation call. Not in Project.from_dict, which
+    # MosaicSES calls once per compartment.
+    log_off_rule_links(project, context="validate_project_payload")
+    return ValidationResult(True, [], project)
 
 
 def save_project_atomic(project: Project, path: Path | str) -> None:

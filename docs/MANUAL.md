@@ -1,6 +1,6 @@
 # SESPy User Manual
 
-**Version 1.12.3 · October 2026**
+**Version 1.13.0 · October 2026**
 
 SESPy is the Python port of the MarineSABRES Social-Ecological Systems (SES) Toolbox. It helps a facilitator and a group of stakeholders build a causal loop diagram of a marine social-ecological system, typed with the DAPSI(W)R(M) framework, and then interrogate that diagram: which feedback loops it contains, which elements carry leverage, where governance does not reach the pressures it should, how robust the structure is, and what an intervention might propagate into.
 
@@ -149,11 +149,13 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Purpose.** Edit the element and connection lists by hand. Every change is visible at once in every other panel.
 
-**Controls.** Under "Elements": "Label", "Type" (the seven DAPSI(W)R(M) types), "Add element", "Remove selected element". Under "Connections": "Source", "Target", "Polarity" (+ reinforcing or − opposing), "Delay" (Immediate, Short, Long), "Add connection", "Remove selected connection". Rows are selected by clicking them in the tables.
+**Controls.** Under "Elements": "Label", "Type" (the seven DAPSI(W)R(M) types), "Add element", "Remove selected element". Under "Connections": "Source" and "Target" (both start on "— choose —"), "Polarity" (+ reinforcing or − opposing), "Delay" (Immediate, Short, Long), "Add connection", "Remove selected connection". Rows are selected by clicking them in the tables.
 
 **Outputs.** The elements table (id, label, type), the connections table (source, target, polarity, strength, delay) and a status line with the counts and a reminder to use Save Project to write to disk.
 
 **Reading it.** Ids are generated from the type prefix (D, A, P, MPF, ES, GB, R). Removing an element also removes every connection that touches it, so the project never holds a dangling reference.
+
+**Link rules.** SESPy follows the DAPSI(W)R(M) framework rules used by the R toolbox. When both a source and a target are chosen, "Polarity" is pre-filled with the rule's default for that pair of types: for example Pressures → Marine Processes & Functioning is "−", and Responses → Drivers, Activities or Pressures is "−". You can change it before adding the link; choosing a different source or target pre-fills it again. If the pair is not a standard DAPSI(W)R(M) link (for example Drivers → Goods & Benefits), a yellow note says so. The link can still be added. Elements without a type are never flagged.
 
 **Caveats.** This panel has no strength or confidence inputs. A new connection gets medium strength and confidence 3; those change only through Rate Connections or an import. Source and target must differ, and duplicate connections are refused.
 

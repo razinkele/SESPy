@@ -14,8 +14,8 @@ from sespy.data_structure import (
 )
 
 
-def test_schema_version_is_6():
-    assert PROJECT_SCHEMA_VERSION == 6
+def test_schema_version_is_7():
+    assert PROJECT_SCHEMA_VERSION == 7
 
 
 def test_metadata_has_pims_fields_with_empty_defaults():
@@ -145,7 +145,7 @@ def test_conn_types_is_three_tuple_shape():
     the original connection_scorer.py definition. Pinning this prevents
     a refactor from silently breaking tests/test_connection_scorer.py:491."""
     assert isinstance(_CONN_TYPES, list)
-    assert len(_CONN_TYPES) == 10
+    assert len(_CONN_TYPES) == 11
     for entry in _CONN_TYPES:
         assert isinstance(entry, tuple)
         assert len(entry) == 3
@@ -157,7 +157,8 @@ def test_conn_types_is_three_tuple_shape():
 
 
 def test_conn_types_exact_entries():
-    """The 10 type-pairs are the canonical DAPSI(W)R(M) directed edges."""
+    """The 11 type-pairs are the canonical DAPSI(W)R(M) directed edges,
+    in a fixed order (R->S was appended after R->A in P1a)."""
     expected = [
         ("drivers", "activities", "drivers_activities"),
         ("activities", "pressures", "activities_pressures"),
@@ -167,6 +168,7 @@ def test_conn_types_exact_entries():
         ("responses", "pressures", "responses_pressures"),
         ("responses", "drivers", "responses_drivers"),
         ("responses", "activities", "responses_activities"),
+        ("responses", "states", "responses_states"),
         ("welfare", "drivers", "welfare_drivers"),
         ("welfare", "responses", "welfare_responses"),
     ]
@@ -181,7 +183,7 @@ def test_valid_type_pairs_derives_from_conn_types():
     )
     assert _VALID_TYPE_PAIRS == expected
     assert isinstance(_VALID_TYPE_PAIRS, frozenset)
-    assert len(_VALID_TYPE_PAIRS) == 10
+    assert len(_VALID_TYPE_PAIRS) == 11
 
 
 def test_connection_ratings_round_trip():
@@ -214,7 +216,7 @@ def test_v5_project_loads_without_ratings():
     c = restored.isa_data.connections[0]
     assert c.ratings == []
     assert (c.polarity, c.strength, c.confidence, c.delay) == ("-", "weak", 2, "short")
-    assert restored.metadata.schema_version == 6
+    assert restored.metadata.schema_version == PROJECT_SCHEMA_VERSION
 
 
 def test_connection_unknown_keys_filtered():
