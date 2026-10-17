@@ -13,7 +13,7 @@ starts, triages the R changes since the previous pin, and records the pin in
 
 SESPy is the Python port of the R Shiny MarineSABRES app, and the R app is
 the source of truth. SESPy's ports were taken against R ≈ v1.11–1.16
-(April–May 2026). Since then R has shipped v1.17 → v1.28.0. Those releases
+(April–May 2026). Since then R has shipped v1.17 → v1.29.0. Those releases
 add the Responses/Measures arm, the Response register, Decision Lens, the
 reviewed curated templates, the WP5 suite and a deep-review hardening pass.
 This roadmap brings SESPy to feature parity with R v1.29.0. R keeps moving
@@ -95,10 +95,12 @@ Each sub-project gets its own brainstorm → spec → plan → subagent-TDD →
 full e2e gate → release cycle.
 
 ```
+            M = MosaicSES newer_build warning (prerequisite of the first
+                schema bump after P1a: whichever of K1 / P1b merges first)
 P0 → P1a ─┬→ P2   (soft: K1)
           ├→ K1 ─┬→ P4 (also P1b) → P5 → P6a (also P1c) → P6b → P6c
           │      └→ P9
-          ├→ P1b → P1c → P8 → P7a (also P3) → P7b
+          ├→ P1b → P1c → P8 (also P1b) → P7a (also P3) → P7b
           └→ P3 (Python side)
 P3's R-fixture capture can start at P0; its Python side needs P1a's
 template mapper and link types. P10, then P11–P14 (§5); P12 may be
@@ -169,9 +171,10 @@ R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3. **Detailed spec:**
 ### P1b — Response register + indicator fields
 R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4), 1.29.0 (`PestleTag`).
 Depends on P1a.
-- **Prerequisite (MosaicSES):** before P1b ships its schema bump, MosaicSES
-  warns when a compartment carries `Project.newer_build`, and blocks
-  overwriting it. Without that, an older MosaicSES re-saves such a compartment
+- **Prerequisite (MosaicSES), shared with K1:** before the *first* schema
+  bump after P1a ships, whichever of K1 or P1b merges first, MosaicSES warns
+  when a compartment carries `Project.newer_build` and blocks overwriting it
+  (node M in the §2 graph). Without that, an older MosaicSES re-saves such a compartment
   in the older format (P1a resets the stamp) and silently loses the newer data.
 - The **Response register is a separate block**, as in R:
   `Project.response_measures = {measures, impacts, milestones, counter}`.
@@ -179,8 +182,8 @@ Depends on P1a.
   Mechanism, TargetElement, Effectiveness, Feasibility, Cost, Status,
   Stakeholders, Barriers, DateAdded, Kind, EbmCode, GovernanceLevel,
   CompetentAuthority, LegalBasis, ImplementingStakeholders, PairedWith,
-  PestleTag, Tenet_<11 codes>` (`PestleTag` added in R 1.29.0,
-  `response_measures_schema.R:81`).
+  PestleTag, Tenet_<11 codes>` (`PestleTag` added in R 1.29.0: column list
+  `constants.R:835`, normalisation `response_measures_schema.R:81`).
 - **Decide in the P1b spec:**
   - whether Responses elements marked `r_extra["r_kind"] = "measure"` (folded
     in by P1a's mapper and Excel import) are promoted into
@@ -230,7 +233,9 @@ Depends on P1a/P1b.
   impact assessment and a Designer-applied scenario with `links_modified`.
 - **Done when:** importing the fixture, editing through each module's
   `.replace` path, autosaving and reloading keeps `r_passthrough`
-  byte-equal and keeps the edge set (incl. delay and description).
+  byte-equal and keeps the edge set (incl. delay and description). Byte
+  equality holds for each block until a later sub-project takes it over
+  (P6a: `analysis.impact_assessment`; P8: `analysis.scenarios`).
 
 ### K1 — General knowledge-base parity
 R source: `functions/ses_knowledge_db_loader.R`, `modules/ai_isa_knowledge_base.R`,
@@ -250,14 +255,17 @@ R source: `functions/ses_knowledge_db_loader.R`, `modules/ai_isa_knowledge_base.
   one-off R → JSON export, vendored and hash-checked. Python cannot read
   `.R` at runtime, so the override does not apply to these.
 - Writing `metadata.reference_data` (§3 provenance) adds a serialised field,
-  so K1 **bumps the schema version**.
+  so K1 **bumps the schema version**. If K1 merges before P1b, the MosaicSES
+  `newer_build` warning (node M, §3 MosaicSES) is K1's prerequisite.
 - **Owns `tests/parity/check_live.py`**, the live drift check against laguna,
   because K1 is the first sub-project that reads R data at runtime.
 - **Owns extension-pair suggestions** in the AI wizard (R→R, P→P, MPF→MPF), as
   R's `modules/ai_isa/connection_generator.R:625-640` does. P1a suggests only
   the canonical pairs.
 - **Done when:** for 3 contexts, SESPy's suggestions equal R's
-  `get_context_elements(min_relevance = 0.5)`.
+  `get_context_elements(min_relevance = 0.5)`; extension-pair suggestions
+  match R's `connection_generator.R:625-640` on a fixture; and `check_live.py`
+  runs read-only as a `deploy.sh` pre-flight step.
 
 ### P2 — Curated templates
 R source: 1.21.1, 1.22.1, 1.22.3. Depends on P1a; soft dependency on K1
@@ -280,7 +288,7 @@ R source: 1.21.1, 1.22.1, 1.22.3. Depends on P1a; soft dependency on K1
 
 ### P3 — Decision Lens (parallel track)
 R source: 1.19.0, 1.20.0 (N17), 1.21.0 (N35/N36), 1.22.0 (N37/N52).
-- **First task:** run R v1.28.0's `calculate_micmac_safe()` and
+- **First task:** run the re-pinned R tag's `calculate_micmac_safe()` and
   `detect_archetypes()` on all 7 templates and commit the output as a test
   fixture.
 - **R-exact MICMAC**, *beside* SESPy's Vester quadrant (which stays):
@@ -345,12 +353,21 @@ R source: 1.25.0, 1.26.0. Depends on P4, P5, P1c.
   the report generates; the narrative matches R for the same matrix.
 
 ### P8 — Scenario Builder (moved before P7)
-R source: `scenario_builder_module.R` at v1.28.0 (1,381 lines), 1.21.0 N33,
-1.28.0 fixes, and the **"WP5 scenarios (D5.1)" tab added in R 1.29.0**, which
+R source: `scenario_builder_module.R` (1,392 lines at v1.29.0), 1.21.0 N33,
+1.28.0 fixes, and the **"WP5 scenarios (D5.1)" tab added in R 1.29.0**
+(`modules/scenario_builder_module.R:99-102`, code in
+`modules/wp5_scenario_reference_module.R` and `functions/wp5_scenarios.R`). It
 reads `data/wp5_scenarios_ssp.json` and `data/wp5_worldview_matrix.json`
-(both added to the §3 allow-list). Depends on P1c.
+(both on the §3 allow-list); its strings are
+`translations/modules/wp5_scenarios.json`, which lives outside `data/` and is
+always vendored, like `wp5_vocabulary.json`. The tab filters the register's
+`PestleTag` (`wp5_scenarios.R:70-79`), so it needs P1b's column. Depends on
+P1c and P1b.
 - Native scenarios are a new serialised block, so P8 **bumps the schema
-  version**.
+  version**. P8 **replaces the P1c passthrough for `analysis.scenarios`**: on
+  load it migrates them into the native block and drops the passthrough key,
+  so scenarios are never stored twice (the same pattern as P6a for
+  `analysis.impact_assessment`).
 - R's schema:
   - A scenario is `{id, name, description, created, modified, results,
     modifications}`, plus `source` and `ops[]` **only on Designer-written
@@ -384,8 +401,11 @@ R source: 1.27.0. Depends on P1a, P3, P8.
   (a) + (b), and stopped at 70% of the 600 s job budget with a partial notice.
 - Top 20. Boolean pre-check up to 20 nodes, by passing `max_nodes=20` (P1a's
   library ceiling is already 20).
-- **Raises the Boolean analysis UI cap from 12 to 20**, now that the worker
-  process below keeps a 2^20 search off the shared Shiny worker.
+- **Raises the Boolean analysis UI cap from 12 to 20.** This requires moving
+  `analysis_boolean_server`'s attractor search onto the worker-process pattern
+  below (or an ExtendedTask), so a 2^20 search never runs on the shared Shiny
+  worker. The designer's worker alone is not enough. MosaicSES compartments
+  reuse `analysis_boolean_server`, so P7a is on the MosaicSES gate list.
 - **Evidence priors:** `INTERVENTION_EVIDENCE_PRIORS` (e.g. behavioural
   0.25, regulatory 0.5) cap |level| per intervention type through
   `ses_evidence_prior_range()` (`constants.R:925`,
@@ -455,7 +475,8 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
        The allow-list names that key per file: `schema` (mechanisms),
        `schema_version` (indicators, impact reference), `version`
        (`wp5_intervention_ops.json`, `wp5_rm_synonyms.json`,
-       `ses_knowledge_db.json`, `country_governance_db.json`);
+       `ses_knowledge_db.json`, `country_governance_db.json`,
+       `wp5_scenarios_ssp.json`, `wp5_worldview_matrix.json`);
   3. publishes a new immutable snapshot atomically;
   4. re-stats size and mtime when a session starts and reloads on change.
      **Each session pins the snapshot current at its start**, so other live
@@ -474,7 +495,8 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
   `wp5_intervention_ops.json`, `wp5_rm_synonyms.json`,
   `wp5_scenarios_ssp.json` and `wp5_worldview_matrix.json` (P8, R 1.29.0),
   plus the vendored-only `SES_CONNECTION_DB`/`SES_SYNONYM_DB` export (K1) and
-  `wp5_vocabulary.json` (P4).
+  `wp5_vocabulary.json` (P4) and `wp5_scenarios.json` strings (P8), both
+  always vendored.
 - **Test fixtures are separate from vendored runtime data.** The 7
   `*_SES_Template.json` files and R's `functions/dapsiwrm_connection_rules.R`
   are copied into `tests/parity/` (`r_templates/`, `r_rules/`) from P1a on.
@@ -489,7 +511,8 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
   general KB, so SESPy adds this.
 - **Hashing:** one helper, `sespy/r_sync.py::sha256_norm(obj)` =
   `sha256(json.dumps(obj, sort_keys=True, ensure_ascii=False,
-  separators=(",", ":")).encode("utf-8"))` over the *parsed* JSON, and
+  separators=(",", ":")).encode("utf-8")).hexdigest()` over the *parsed*
+  JSON, and
   `sha256_text_norm(text)` (CRLF → LF) for non-JSON files such as `.R`.
   Never raw bytes: the server files are CRLF, and the R working tree mixes
   line endings. Every hash in SESPy (drift tests, sync scripts,
@@ -528,12 +551,13 @@ MosaicSES builds `Project`/`Element`/`Connection` directly, reuses
 `isa_data_entry_server` and `analysis_boolean_server` inside compartments,
 and embeds SESPy Projects in `.multises.json`. Every sub-project that
 **bumps the schema, changes `Project` serialisation or touches ISA entry**
-(so far P0, P1a, P1b, P1c, K1, P4, P6a, P7b's Apply and P8) runs MosaicSES's
+**or changes a module MosaicSES reuses** (so far P0, P1a, P1b, P1c, K1, P4,
+P6a, P7a, P7b's Apply and P8) runs MosaicSES's
 unit tests and full e2e against the SESPy branch **before merge**, and checks
 the live MosaicSES after deploy.
 - MosaicSES must warn on, and refuse to overwrite, compartments carrying
-  `Project.newer_build` **before the first schema bump after P1a** (P1b's
-  prerequisite).
+  `Project.newer_build` **before the first schema bump after P1a**, which is
+  the prerequisite of whichever of K1 or P1b merges first (node M).
 
 ### Testing and releases
 - Unit tests reproduce R's published numbers.
@@ -571,7 +595,7 @@ its R source is pinned to the baseline at that time.
 | Sub-project | R modules | Nearest SESPy feature | Depends on |
 |---|---|---|---|
 | **P11** Guided entry | `entry_point_module` (guided pathway), `workflow_stepper_module` | AI ISA wizard | P1a; after P10 so the tour and stepper are designed together |
-| **P12** Experience levels | `get_level_config` / level config (menus, AI element caps; per-session store, R 1.20.0 N20) | — | P0. Can be pulled earlier, because it gates menus that later pages register into; decide at P1a review |
+| **P12** Experience levels | `get_level_config` / level config (menus, AI element caps; per-session store, R 1.20.0 N20) | — | P0. Can be pulled earlier, because it gates menus that later pages register into. **Open decision for the user** (was "decide at P1a review"; P1a closed without deciding it): pull it before P4 or keep it after P10 |
 | **P13** Model library + connection review | `ses_models_module` (SES model library, server-mode path containment R 1.18.2/1.19.1), `connection_review_tabbed` (observer-leak fix R 1.21.0 N30) | templates; review inside the AI wizard | P1c (library files are R models), K1 |
 | **P14** Report prep, feedback admin, pilot study | `prepare_report_module`, `feedback_admin_module` (admin-only actions, escaped user text, R 1.19.1), `pilot_study_module` | `report_export`; topbar feedback form (`feedback.db`) | K1 (Regional Context section), P6c (shared report pipeline) |
 
