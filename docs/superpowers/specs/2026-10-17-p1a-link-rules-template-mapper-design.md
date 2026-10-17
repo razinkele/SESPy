@@ -25,8 +25,9 @@ the template gallery; that is P2.
 3. The full unit and e2e gates pass, and so does MosaicSES's suite against the
    branch.
 
-Counts are always read from the fixture files, never hard-coded. The roadmap's
-"320 links" predates R 1.22.3, which added 15 GB→Response/Measure links.
+Counts are always read from the fixture files, never hard-coded. At v1.29.0
+they total 320 links (30 / 140 / 28 / 33 / 27 / 29 / 33), which matches the
+roadmap.
 
 ## 2. Decisions already taken (with the user, 2026-10-17)
 
@@ -36,7 +37,7 @@ Counts are always read from the fixture files, never hard-coded. The roadmap's
 | Mapper location | **Approach A:** a library module, `sespy/r_template_mapper.py`. R's JSONs are sha256-pinned **test fixtures** and never ship to the server. P2's sync script reuses the function. |
 | Polarity seeding | ISA entry pre-fills polarity from the rule table when a source and target are chosen, and the user can override it (R's main entry path, `default_polarity_for_matrix`). |
 | Keyword polarity overrides | Not in P1a. R uses `infer_connection_polarity` only in the Graphical SES builder, so it moves to **P9**. |
-| Boolean ceiling | 20 nodes (R `DYNAMICS_MAX_BOOLEAN_NODES`). SESPy's default stays 12. |
+| Boolean ceiling | A server-side ceiling of 20 nodes (R `DYNAMICS_MAX_BOOLEAN_NODES`) for API callers. The UI keeps its maximum and default of 12 (§7). |
 
 **Deliberate divergences from R** (SESPy keeps more than R does):
 - R drops connection `description` on template load; it never reaches the
@@ -45,32 +46,46 @@ Counts are always read from the fixture files, never hard-coded. The roadmap's
 - R ignores element-level `type` labels and all extras
   (`json_elements_to_df`, `template_loader.R:40`). SESPy keeps them in
   `r_extra`.
+- R's Excel import maps `Measure` to responses without a marker. SESPy also
+  records `r_extra["r_kind"] = "measure"` (§8).
+
+**Divergences in the other direction** (R does more, deferred):
+- R's AI connection generator (`modules/ai_isa/connection_generator.R:625-640`)
+  also tries the extension pairs R→R, P→P and MPF→MPF. SESPy's scorer is its
+  port, but P1a derives suggestions from the canonical pairs only, as the
+  roadmap specifies. Extension suggestions move to the AI-wizard parity work.
+- The Boolean UI stays at 12 nodes, while R's slider goes to 20 (§7).
 
 ## 3. Link rules
 
 ### 3.1 Data: `sespy/constants.py`
 `DAPSIWRM_ADJACENCY_RULES`: a mapping from source type to a frozen record with:
 - `targets`: canonical pairs, offered as suggestions;
-- `extension_targets`: valid pairs that are never suggested;
-- `fallback_polarity`: used only when a pair has no polarity of its own.
+- `extension_targets`: valid pairs that are never suggested.
+
+R also stores a per-source `default_polarity`, but `get_rule_default_polarity`
+(`dapsiwrm_connection_rules.R:379-393`) only reaches it for a listed target
+that has no polarity of its own, and every listed target has one. It is
+therefore unreachable, and SESPy does not port it.
 
 Each target carries `(to_type, polarity, rule_id)`. Type names are SESPy's 7
 `DAPSIWRM_ELEMENTS`, the same strings R uses. Values are copied from
 `dapsiwrm_connection_rules.R:26-341`:
 
-| From | Canonical (polarity, rule) | Extension (polarity, rule) | Fallback |
-|---|---|---|---|
-| Drivers | Activities (+, 1) | Pressures (+, ExUP) | + |
-| Activities | Pressures (+, 2) | Activities (+, 18) | + |
-| Pressures | MPF (−, 3) | Pressures (+, 17) | − |
-| MPF | Ecosystem Services (+, 4) | MPF (+, 16) | + |
-| Ecosystem Services | Goods & Benefits (+, 5) | — | + |
-| Goods & Benefits | Drivers (+, 6/7), Responses (+, 8) | — | + |
-| Responses | Drivers (−, 9), Activities (−, 10), Pressures (−, 11), MPF (+, 12) | Responses (+, 14) | − |
+| From | Canonical (polarity, rule) | Extension (polarity, rule) |
+|---|---|---|
+| Drivers | Activities (+, 1) | Pressures (+, ExUP) |
+| Activities | Pressures (+, 2) | Activities (+, 18) |
+| Pressures | MPF (−, 3) | Pressures (+, 17) |
+| MPF | Ecosystem Services (+, 4) | MPF (+, 16) |
+| Ecosystem Services | Goods & Benefits (+, 5) | — |
+| Goods & Benefits | Drivers (+, 6/7), Responses (+, 8) | — |
+| Responses | Drivers (−, 9), Activities (−, 10), Pressures (−, 11), MPF (+, 12) | Responses (+, 14) |
 
 - Polarity is **per pair**: P→MPF is −, while P→P is +; R→MPF and R→R are +,
   while R→D/A/P are −. A per-source default would be wrong.
-- There is no Measures entry. R folds Measures into Responses; see §5.
+- There is no Measures entry. R folds Measures into Responses (§5), so the
+  framework document's Rule 13 (M→R) is covered by R→R (Rule 14).
 - D→GB (R's removed Rule 15) is off-rule.
 
 ### 3.2 Logic: `sespy/link_rules.py` (new; no Shiny import)
@@ -78,8 +93,8 @@ Each target carries `(to_type, polarity, rule_id)`. Type names are SESPy's 7
   The result is `"untyped"` whenever either type is `""`; QSEM themes are
   untyped, and they are never flagged.
 - `default_polarity(from_type, to_type) -> "+" | "-"`. It returns the pair's
-  polarity, else the source's fallback, else `"+"` (R's
-  `get_rule_default_polarity`).
+  polarity, else `"+"`, which is what R's `get_rule_default_polarity` returns in
+  practice. An off-rule P→D, R→ES or R→GB therefore seeds `+`, as in R.
 - `rule_id(from_type, to_type) -> str | None`.
 - `off_rule_message(from_label, to_label, translator)` returns the i18n text
   for the entry warning. It is translated into all 9 languages.
@@ -87,24 +102,55 @@ Each target carries `(to_type, polarity, rule_id)`. Type names are SESPy's 7
 ### 3.3 Derived topology
 `data_structure._CONN_TYPES` and `_VALID_TYPE_PAIRS` are **derived** from the
 canonical targets. The 10 pairs become 11, adding `("responses", "states",
-"responses_states")`. The slug order still follows DAPSI(W)R(M) layer flow.
-Consumers:
-- `connection_scorer.py`, the rule-based suggestion scorer;
-- `claude_backend.py`, which validates model-proposed pairs;
-- the comment in `network.py:970`.
+"responses_states")`. A test asserts the **explicit order**, which is today's
+order with the new pair placed right after `responses_activities`:
+D→A, A→P, P→S, S→I, I→W, R→P, R→D, R→A, **R→S**, W→D, W→R.
+Derivation must not reorder the existing pairs, because the scorer's output
+order follows this list.
+
+Consumers, each of which changes:
+- `claude_backend.py:144-146,224`. The system prompt says "10 valid" and lists
+  the pairs, so it becomes 11 and includes R->S. Without this, Claude never
+  proposes R→MPF.
+- `connection_scorer.py`:
+  - **keywords:** `connection_keywords.json` gains a `responses_states` entry.
+    R has no keyword file for this pair; its generator uses the target's
+    negative/positive vocabulary (`connection_generator.R:122-130`). The entry
+    lists restoration and protection terms (e.g. restoration, protection,
+    MPA, closure, recovery, habitat). Without it, `calculate_relevance` returns
+    a flat 0.5 (`connection_scorer.py:85`);
+  - **polarity:** port R's R→S branch. The target is negative-sounding → `−`;
+    positive-sounding → `+`; otherwise `+`. This is the branch the docstring at
+    `connection_scorer.py:163-169` says to add back.
+- `network.py:966-975`, `governance_gap`. Its rationale says MPF is
+  "unreachable at distance 1 by construction", which is no longer true. **The
+  headline `pressure_gap_fraction` keeps its Pressures-only denominator**, so a
+  published diagnostic does not change silently. MPF coverage is already
+  reported in `gaps_by_type`. Only the docstring is rewritten: R→MPF is now a
+  canonical pair, and the headline stays Pressures-only for continuity.
 
 Both suggestion backends will now **propose Responses → MPF links**. This is
-intended parity and gets an explicit test. Extension pairs are not suggested,
-as in R.
+intended parity and gets an explicit test. Extension pairs are not suggested
+(see the divergence in §2).
 
 ### 3.4 ISA data entry (`sespy/modules/isa_data_entry.py`)
-- When both a source and a target are chosen, the polarity select is set to
-  `default_polarity(...)`. The user can still change it before adding the link.
-  The selected source and target are restored with the `isolate()` pattern
-  already used in this module.
+- Polarity is an `input_radio_buttons` (`new_polarity`,
+  `isa_data_entry.py:80-85`). A new effect watches `input.new_source()` and
+  `input.new_target()`. When both are set, it reads `project_data` under
+  `isolate()` to find the two types and calls
+  `ui.update_radio_buttons("new_polarity", selected=default_polarity(...))`.
+  The user can still change it before adding the link. Changing either
+  endpoint re-seeds, overriding an earlier manual choice; that is R's
+  behaviour too.
+- The source and target pickers re-render on every `isa_change` with no
+  `selected=` (`isa_data_entry.py:125-139`). That existing behaviour is
+  unchanged. P1a does not add a restore.
 - An off-rule pair shows a yellow note under the form, naming the pair and why
   it is off-rule. The link still saves.
 - Untyped elements: no note, polarity `+`.
+- `Connection.description` gets **no UI in P1a**: the connections table
+  (`isa_data_entry.py:165-172`) neither shows nor edits it. The field is
+  kept and round-tripped. An editing UI is deferred to the P1b entry work.
 
 ### 3.5 Loading, templates and Excel import
 Off-rule links are accepted and logged (`link_rules` logger, one line per
@@ -127,19 +173,40 @@ existing projects behave exactly as before.
 - **`PROJECT_SCHEMA_VERSION = 7`.** A 1.12.3 reader opening a v7 file shows the
   P0b warning and disables autosave, because it would drop `description` and
   `r_extra`. That is intended.
-- **Stamping.** A new `SCHEMA_MIN_READER = {7: "1.13.0"}` table. On every save
-  (`project_to_bytes`, `save_project_atomic`, autosave), `min_sespy_version`
-  becomes the higher of the existing value and `SCHEMA_MIN_READER[current
-  schema]`, compared with `packaging.version`. It is **never lowered**, so a
-  file last written by a newer build keeps that build's higher stamp. An
-  unparsable existing stamp is replaced.
+- **Stamping.** A new `SCHEMA_MIN_READER = {7: "1.13.0"}` table. The stamp is
+  written in **`Project.to_dict()`**, the one path every writer goes through:
+  `project_to_bytes`, `save_project_atomic`, autosave, and MosaicSES, which
+  serialises embedded compartments with `c.project.to_dict()`
+  (`multises/data_structure.py:620`).
+  - Normally `min_sespy_version` becomes the higher of the existing value and
+    `SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]`, compared with
+    `packaging.version`. It is **never lowered**, so a file last written by a
+    newer build keeps that build's higher stamp. An unparsable stamp is
+    replaced.
+  - **Exception, for P0b's older-format save:** when `newer_build` is set, the
+    data from the newer build has already been dropped, so the stamp is
+    **reset** to `SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]`. Otherwise the
+    `…-older-format.json` copy would keep the newer stamp, be flagged again on
+    every load and lose autosave for good.
+  - `pims_project.py:156-170` rebuilds `ProjectMetadata` field by field, which
+    would drop `origin`, `r_template_version` and `min_sespy_version` on each
+    "Save project info". It changes to `dataclasses.replace(meta, ...)`. A test
+    pins that all three survive.
+  - **Ordering:** the version bump to 1.13.0 (`sespy/__init__.py`) lands in the
+    **first** P1a commit, not in §11. Otherwise every round trip on the branch
+    would stamp 1.13.0 while the build reports 1.12.3, and P0b would flag it.
 - **Serialisation.** `to_dict`/`from_dict` have explicit code for each new
   field; there is no reliance on `asdict`. A round-trip test covers every field.
-- **Load validation** (`persistent_storage.validate_project_payload`):
-  - `description` must be a string, or the load is rejected with a clear message
-    (the same treatment as a bad `polarity`);
-  - an `r_extra` that is not an object is **dropped with a logged warning**,
-    never fatal, because it is opaque passthrough data;
+- **Load handling.** MosaicSES loads compartments with `Project.from_dict`
+  (`multises/data_structure.py:708`) and never calls validation. So the
+  tolerant rules live in **`_isa_from_dict`**, and validation only adds the
+  strict one:
+  - in `_isa_from_dict`, an `r_extra` that is not an object is **dropped with a
+    logged warning**, never fatal, because it is opaque passthrough data. A
+    non-string `description` is coerced with `str()`;
+  - in `validate_project_payload` (the SESPy upload path), a non-string
+    `description` is rejected with a clear message, the same treatment as a
+    bad `polarity`;
   - the element type `"Measures"` is never written. The mapper folds it, and
     validation's type list does not change.
 - **`Project.replace()`** must keep both new fields through every editor path.
@@ -188,7 +255,12 @@ aliases: `states` for `marine_processes`, `impacts` for `ecosystem_services`,
 - `id` is kept (R ids are unique within a template; verified for all 7).
 - `name` → `label`; `description` → `description`; `confidence` = 3.
 - The **type comes from the category**, never from the element's `type`. That
-  field is missing in three templates, and Caribbean uses it for domain labels.
+  field is missing in four templates (Caribbean on all 66 non-pressure
+  elements; one element each in ClimateChange, Fisheries and OffshoreWind), and
+  Caribbean's pressures use it for domain labels such as "Climate change".
+  Caribbean carries 47 distinct element fields; the other six have only
+  `id`, `name`, `description` and `type`. Caribbean's `measures` list is empty
+  and it has no `regional_context.regional_sea`.
   The literal `type` is stored as `r_extra["r_type"]`. Every other field
   without a SESPy column goes into `r_extra` under its R name.
 
@@ -242,8 +314,13 @@ GB→R (canonical, Rule 8).
   clamps `max_nodes` to `[1, ceiling]` before the size check. P7 may pass a
   different `ceiling` explicitly.
 - `sespy/modules/analysis_boolean.py`: `input.max_nodes()` goes through
-  `safe_int(..., 12)` and is then clamped to `[1, ceiling]` on the server. The
-  UI input's `max` is the ceiling.
+  `safe_int(..., 12)` and is then clamped on the server to `[1, 12]`, the UI's
+  maximum. The UI's `max` **stays at 12**. `boolean_attractors` is a
+  pure-Python 2^N loop run synchronously in a `reactive.effect`
+  (`dynamics.py:271-283`, `analysis_boolean.py:90-102`). At 20 nodes that is 256×
+  today's worst case, and it would block the shared laguna worker. Raising the
+  UI limit needs an ExtendedTask or a vectorised search first, which is P7's
+  business.
 - Divergence: R maps a non-integer input to the ceiling, while SESPy keeps its
   existing fallback of 12, which is cheaper.
 
@@ -260,6 +337,12 @@ GB→R (canonical, Rule 8).
   `Ecosystem Service`, `Impact`, `Good and Benefit`, `Goods and Benefits`,
   `Welfare`, `Response`, `Measure`. They are matched case-insensitively. A
   `Measure` becomes Responses with `r_extra["r_kind"] = "measure"`.
+- **Polarity precedence:** an explicit polarity column wins. Without one, a
+  numeric FCM weight in the strength column decides the sign, as today
+  (`excel_import.py:141-146`). Only when neither is present does the Kumu
+  `Label` column decide.
+- The canonical plural type names stay accepted. An unrecognised type string
+  is still rejected by validation, as today.
 - Off-rule links import with a logged warning (§3.5).
 - **Not in P1a:** R's multi-sheet "Standard Entry" workbook (`Matrix_<key>`,
   `Linked*` columns). It is matrix-shaped like R projects and belongs with the
@@ -270,6 +353,9 @@ GB→R (canonical, Rule 8).
 MosaicSES builds `Project`/`Element`/`Connection` directly and embeds Projects
 in `.multises.json`.
 - The new fields are keyword-only with defaults, so construction is unchanged.
+- MosaicSES reuses `isa_data_entry_server` and `analysis_boolean_server` inside
+  compartments, so the polarity prefill, the off-rule note and the Boolean
+  clamp reach MosaicSES too. Its e2e suite covers both modules.
 - MosaicSES imports `_CONN_TYPES` nowhere (checked); it imports
   `sespy.constants` and `sespy.data_structure`, which are on its §9.3
   allow-list.
@@ -304,9 +390,20 @@ TDD throughout. New unit test files:
 - Additions to `tests/test_dynamics.py` (ceiling and clamp) and
   `tests/test_excel_import.py` (description, Kumu label, aliases, Measure).
 
-**Existing tests that change:** `test_schema_version_is_6` becomes 7, and the
-10-type expectations in `tests/test_connection_scorer.py` (lines 30 and 478)
-and `tests/test_claude_backend.py` go to 11.
+**Existing tests that change:**
+- `tests/test_data_structure.py`: `test_schema_version_is_6` (line 217) becomes
+  7, and the `_CONN_TYPES` length and the exact ordered list (lines 148 and
+  159-173) become 11.
+- `tests/test_connection_scorer.py`: the 10-type expectations (lines 30-38,
+  including the keyword-JSON key set, and 478) go to 11.
+- `tests/test_claude_backend.py`: lines 89-92 (the prompt's pair list) go to 11.
+
+**New unit tests for the round-1 additions:**
+- the stamp reset on a `newer_build` save;
+- `pims_project` keeping the three metadata fields;
+- `_isa_from_dict` tolerating a bad `r_extra`;
+- the scorer's R→S polarity branch;
+- `governance_gap`'s headline staying unchanged when an R→MPF link exists.
 
 **New e2e test, `tests/test_link_rules_e2e.py`:**
 - choosing a Pressure → MPF pair pre-fills polarity `−`;
