@@ -168,23 +168,35 @@ R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3. **Detailed spec:**
   R fields not carried over are listed in the spec.
 
 ### M — MosaicSES newer-build guard (MosaicSES release)
-Owner: whichever of K1 or P1b starts first. Depends on P1a. It ships as a
-**MosaicSES minor release** and must be **deployed before** the SESPy release
-that makes the first schema bump after P1a.
-- On load, MosaicSES shows a warning when any compartment (or the
-  `.multises.json` itself) carries `Project.newer_build`, naming the
-  compartment and the version it needs.
-- MosaicSES saves to the server, unlike SESPy's download. For a flagged file,
-  **Save never overwrites the source**: it writes an
-  `…-older-format.multises.json` copy beside it and says so. Recent-projects
-  registration and any automatic save are skipped for that file.
+Owner: whichever of K1 or P1b starts first; if that branch merges second, the
+branch that merges first ships M unless it is already deployed. Depends on
+P1a. It ships as a **MosaicSES minor release** and must be **deployed before**
+the SESPy release that makes the first schema bump after P1a.
+
+MosaicSES's save model, which M follows: the Save button only commits
+metadata to in-memory state (`multises_app/modules/project_setup.py:229-259`),
+and persistence is a **browser download** named `mosaicses-<timestamp>.json`
+(`:262-275`). There is no server-side project file and no autosave. The only
+server-side store is the recent-projects registry: it is filled on download,
+and on open with the raw uploaded text (`:295`), which is lossless.
+- On load, MosaicSES shows a warning when any compartment carries
+  `Project.newer_build`, naming the compartment and the version it needs. (A
+  MultiSES file with a newer `MULTISES_SCHEMA_VERSION` is already refused at
+  load, `multises/data_structure.py:667-670`.)
+- While a compartment is flagged, the **download is named
+  `…-older-format.json`** and shows the warning (P1a resets that compartment's
+  stamp, so the copy is honestly labelled). The download **skips
+  `add_recent_payload`**, so the older-format payload never enters the
+  registry. Open-time registration of the raw text is kept, since it is
+  lossless.
 - Scope note: on laguna MosaicSES runs the deployed SESPy package through its
   `sespy` symlink, so the two are always at the same version there. M protects
   files that move between installs at different versions (local ↔ server,
   older deployments).
-- **Done when:** a unit test and an e2e test load a compartment stamped with a
-  newer schema, see the warning, save, and find the source file unchanged and
-  an older-format copy written.
+- **Done when:** a unit test and an e2e test load a file whose compartment is
+  stamped with a newer schema, and check: the warning is shown; the
+  downloaded payload carries the reset stamp and the `…-older-format.json`
+  name; and no recent-projects entry is created for that downloaded payload.
 
 ### P1b — Response register + indicator fields
 R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4), 1.29.0 (`PestleTag`).
@@ -277,7 +289,7 @@ R source: `functions/ses_knowledge_db_loader.R`, `modules/ai_isa_knowledge_base.
   `.R` at runtime, so the override does not apply to these.
 - Writing `metadata.reference_data` (§3 provenance) adds a serialised field,
   so K1 **bumps the schema version**. If K1 merges before P1b, the MosaicSES
-  `newer_build` warning (node M, §3 MosaicSES) is K1's prerequisite.
+  `newer_build` guard (node M, §2) is K1's prerequisite.
 - **Owns `tests/parity/check_live.py`**, the live drift check against laguna,
   because K1 is the first sub-project that reads R data at runtime.
 - **Owns extension-pair suggestions** in the AI wizard (R→R, P→P, MPF→MPF), as
@@ -331,6 +343,9 @@ Depends on P1a (Python side); the R fixture capture can start after P0.
   leverage R.
 - Deterministic, i18n-templated "why this matters" narrative, using the
   **per-session** translator (never `T._lang`).
+- Results are computed, not stored: P3 **adds no serialised field**. (If its
+  spec decides to persist anything, the §3 schema-bump rule and the MosaicSES
+  gate apply.)
 - **Done when:** MICMAC and archetype output equal the R fixture on all 7 templates.
 
 ### P4 — Response Measures page + WP5 data layer
@@ -357,6 +372,9 @@ R source: 1.19.0, 1.22.0 (N48), 1.23.0, 1.24.0. Depends on P1b; loader from K1.
 R source: 1.24.0. Depends on P4.
 - As in R: D5.2 Table 19 range, the badged toolbox extensions, Excel export
   whose provenance is read from `metadata.reference_data` (see §3).
+- **Persistence is decided in the P5 spec:** if valuation inputs are saved
+  with the project, P5 bumps the schema and joins the MosaicSES gate; if not,
+  it states that it adds no serialised field.
 - **Done when:** 1 ha over 20 years gives €88,800 to €516,800.
 
 ### P6 — Impact assessment (three releases: 6a / 6b / 6c)
@@ -366,12 +384,11 @@ R source: 1.25.0, 1.26.0. Depends on P4, P5, P1c.
   `functions/impact_reference.R` through the §3 loader.
 - **6a data model:** as R `impact_assessment_model.R`, stored at
   `analysis.impact_assessment`, which replaces the P1c passthrough for this block.
-  This is a new serialised block, so 6a **bumps the schema version**. Entries
-  that cannot be mapped stay in `r_passthrough` and are reported (as for P8).
-  The only exception is R's own rule that an assessment failing to normalise
-  is dropped with a warning (below).
-  An assessment that fails to normalise is dropped on load with a warning, as R does
-  (`data_structure.R:990`).
+  This is a new serialised block, so 6a **bumps the schema version**.
+  **Boundary:** an assessment for which R's normaliser returns NULL is dropped
+  on load with a warning, exactly as R does (`data_structure.R:990`). Any other
+  entry that SESPy cannot map stays in `r_passthrough` and is reported (as for
+  P8).
 - **6b wizard**, **6c narrative + Word/Excel report**: Appendix B provenance is
   read from `metadata.reference_data`.
 - **Analysis-preservation rule** (R 1.25.0): an ISA change clears only loops
@@ -465,6 +482,9 @@ R source: 1.28.0. Depends on P7a, P8.
 ### P9 — Graphical SES creator
 R source: 1.20.0 N6 and the creator/network-builder modules. Depends on P1a, K1.
 - Canvas builder; "Export to ISA" produces canonical SESPy ISA data.
+- **Persistence is decided in the P9 spec:** the export writes ordinary ISA
+  data (no new field). If the canvas layout itself is saved with the project,
+  P9 bumps the schema and joins the MosaicSES gate.
 - Type suggestions come from K1's KB and synonyms, not torch.
 - **Owns `infer_connection_polarity`**, R's keyword polarity overrides
   (`dapsiwrm_connection_rules.R:438-494`), which R uses only in this builder.
