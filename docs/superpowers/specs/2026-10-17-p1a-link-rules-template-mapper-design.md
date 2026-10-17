@@ -136,8 +136,10 @@ and only when they need the default translator. A subprocess test imports
 `persistent_storage`, the mapper and P2's sync script Shiny-free.
 
 - `classify(from_type, to_type) -> "canonical" | "extension" | "off_rule" | "untyped"`.
-  The result is `"untyped"` whenever either type is `""`; QSEM themes are
-  untyped, and they are never flagged.
+  The result is `"untyped"` whenever either type is `""` **or is not one of the
+  7 `DAPSIWRM_ELEMENTS`** (e.g. a legacy `"Measures"` reaching MosaicSES through
+  an unvalidated `from_dict`). QSEM themes are untyped, and untyped pairs are
+  never flagged. A test covers an unknown type.
 - `default_polarity(from_type, to_type) -> "+" | "-"`. It returns the pair's
   polarity, else `"+"`, which is what R's `get_rule_default_polarity` returns in
   practice. An off-rule P→D, R→ES or R→GB therefore seeds `+`, as in R.
@@ -429,7 +431,8 @@ lists, plus a flat **top-level** `connections` list (not inside
 `dapsiwrm_framework`; true for all 7 fixtures). Legacy category keys are accepted as
 aliases: `states` for `marine_processes`, `impacts` for `ecosystem_services`,
 `welfare` for `goods_benefits` (R `.extract_template_elements`,
-`template_loader.R:165`). The older `elements` + `template_info` format raises
+`template_loader.R:165`). When a file has both, the **canonical key wins** and
+the alias is ignored, as R's `%||%` does. The older `elements` + `template_info` format raises
 `ValueError("unsupported legacy R template format")`: none of the 7 use it.
 
 **Categories → SESPy type:**
@@ -565,7 +568,7 @@ with the
 - A pure helper, `dynamics.clamp_max_nodes(value, *, lo, hi) -> int`, does the
   clamping for both layers, and its unit tests live in `tests/test_dynamics.py`.
 - `sespy/modules/analysis_boolean.py`: `input.max_nodes()` already goes through
-  `safe_int(..., 12)` (`analysis_boolean.py:99`). It is then clamped on the
+  `safe_int(..., 12)` (`analysis_boolean.py:102`). It is then clamped on the
   server with `clamp_max_nodes(v, lo=4, hi=12)` to `[4, 12]`, the UI's
   own range (`analysis_boolean.py:48` sets the slider minimum to 4). The UI's `max` **stays at 12**. `boolean_attractors` is a
   pure-Python 2^N loop run synchronously in a `reactive.effect`
@@ -607,8 +610,11 @@ with the
   Kumu `Label` column decide. Two changes from today, both deliberate:
   - the **polarity cell is stripped** before use, so `" -"` in that column is
     `-` (today it reaches validation as `" -"` and is rejected);
-  - a **whitespace-only** polarity cell now counts as empty and falls back to
-    `Label` (today it becomes `" "` and is rejected).
+  - a **whitespace-only** polarity cell now counts as empty. This happens per
+    column inside `_pick`, so another polarity alias column in the same row
+    (`Sign`, …) is used first, and only if all are empty does the row fall
+    back to `Label` (today it becomes `" "` and is rejected). A unit test
+    covers a row with a whitespace-only `polarity` and `Sign="-"` (→ `-`).
   The `Label` cell itself is not stripped, as in R (above).
 - The canonical type names stay accepted and are also matched
   case-insensitively (e.g. `drivers`). An unrecognised type string is still
