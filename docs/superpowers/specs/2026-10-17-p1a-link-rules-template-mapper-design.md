@@ -103,7 +103,7 @@ Each target carries `(to_type, polarity, rule_id)`. Type names are SESPy's 7
 - `off_rule_message(from_label, to_label, translator)` returns the i18n text
   for the entry warning. It is translated into all 9 languages.
 
-### 3.3 Derived topology
+### 3.3 Connection topology
 `data_structure._CONN_TYPES` **stays an explicit literal**, so its order is
 fixed and readable, and `_VALID_TYPE_PAIRS` is still projected from it. It gains
 one pair, `("responses", "states", "responses_states")`, placed right after
@@ -345,7 +345,7 @@ GB→R (canonical, Rule 8).
   different `ceiling` explicitly.
 - `sespy/modules/analysis_boolean.py`: `input.max_nodes()` goes through
   `safe_int(..., 12)` and is then clamped on the server to `[4, 12]`, the UI's
-  own range (`analysis_boolean.py:52` sets the slider minimum to 4). The UI's `max` **stays at 12**. `boolean_attractors` is a
+  own range (`analysis_boolean.py:48` sets the slider minimum to 4). The UI's `max` **stays at 12**. `boolean_attractors` is a
   pure-Python 2^N loop run synchronously in a `reactive.effect`
   (`dynamics.py:271-283`, `analysis_boolean.py:90-102`). At 20 nodes that is 256×
   today's worst case, and it would block the shared laguna worker. Raising the
@@ -403,7 +403,8 @@ TDD throughout. New unit test files:
 - `tests/test_link_rules.py`:
   - every row of §3.1;
   - classification, per-pair polarity, untyped exemption;
-  - the 11 derived `_CONN_TYPES`;
+  - `_CONN_TYPES` set-equal to the rule table's canonical targets, in the
+    explicit order of §3.3;
   - the scorer and the Claude backend accept R→MPF.
 - `tests/test_schema_v7.py`:
   - round-trip of `description`/`r_extra`;
@@ -427,8 +428,10 @@ TDD throughout. New unit test files:
 - Tests that hard-code schema 6 switch to `PROJECT_SCHEMA_VERSION` (except the
   one test pinning the constant, which asserts 7):
   `tests/test_data_structure.py:17` (`test_schema_version_is_6`) and `:217`
-  (a round-trip assert), and `tests/test_stakeholders.py:227,243,259`. The
-  plan greps for any others before the bump.
+  (a round-trip assert), and `tests/test_stakeholders.py:227,243,259,364,377`.
+  The two tests named `test_migrated_v3_saves_as_schema_6_on_disk` and
+  `test_migrated_v4_saves_as_schema_6_on_disk` (`:246`, `:367`) are renamed to
+  drop the number. The plan still greps for any others before the bump.
 - `tests/test_data_structure.py`: the `_CONN_TYPES` length and the exact
   ordered list (lines 148 and 159-173) become 11.
 - `tests/test_connection_scorer.py`: the 10-type expectations (lines 30-38,
@@ -436,9 +439,10 @@ TDD throughout. New unit test files:
 - `tests/test_claude_backend.py`: lines 89-92 (the prompt's pair list) go to 11.
 
 **New unit tests for the round-1 additions:**
-- the stamp reset on a `newer_build` save, and `to_dict()` leaving
-  `self.metadata` unchanged;
-- an int `min_sespy_version` being replaced, and the `SCHEMA_MIN_READER` guard;
+- in `tests/test_schema_v7.py` (with the other stamping tests, not duplicated
+  elsewhere): the stamp reset on a `newer_build` save, `to_dict()` leaving
+  `self.metadata` unchanged, an int `min_sespy_version` being replaced, and the
+  `SCHEMA_MIN_READER` guard;
 - the ISA entry note hidden in the default state (source == target), also
   checked in the e2e test;
 - `pims_project` keeping the three metadata fields;
