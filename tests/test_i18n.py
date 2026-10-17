@@ -211,6 +211,11 @@ def test_link_rules_keys_present(translations):
                 assert ph in text, (key, lang, ph)
 
 
+def test_entry_choose_element_key_present(translations):
+    assert "entry.choose_element" in translations
+    assert translations["entry.choose_element"]["en"] == "— choose —"
+
+
 def test_causal_paths_keys_present(translations):
     for key in ("metrics.paths", "metrics.paths_trace", "metrics.paths_source",
                 "metrics.paths_target", "metrics.paths_summary",

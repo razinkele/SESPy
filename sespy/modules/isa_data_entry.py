@@ -27,6 +27,7 @@ from ..constants import (
 from ..data_structure import Connection, Element, IsaData, Project
 from ..event_bus import EventBus
 from ..i18n import Translator, t
+from ..link_rules import note_for, seed_polarity
 from ..utils import next_id
 
 
@@ -93,6 +94,9 @@ def isa_data_entry_ui() -> ui.Tag:
                                        style="align-self: end;"),
                 col_widths=(3, 3, 2, 2, 2),
             ),
+            # Off-rule warning for the chosen pair (link_rules.note_for);
+            # empty for canonical/extension/untyped pairs. The link still saves.
+            ui.output_ui("off_rule_note"),
             ui.tags.div(
                 ui.output_data_frame("connections_table"),
                 ui.input_action_button("remove_connection", t("entry.remove_connection"),
@@ -122,21 +126,58 @@ def isa_data_entry_server(
 ) -> None:
 
     # ---- Element-type-aware label pickers for connections ---------------
+    # Both pickers re-render on every isa_change with no selected=, so they
+    # fall back to their first choice. That choice is an empty "— choose —"
+    # entry, so a half-chosen pair never seeds a polarity or shows a note.
+    def _picker_choices() -> dict[str, str]:
+        elements = project_data.get().isa_data.elements
+        if not elements:
+            return {"": "(no elements yet)"}
+        return {"": t("entry.choose_element"),
+                **{el.id: f"{el.id} · {el.label}" for el in elements}}
+
     @output
     @render.ui
     def source_picker():
         event_bus.isa_change.get()
-        choices = {el.id: f"{el.id} · {el.label}" for el in project_data.get().isa_data.elements}
-        return ui.input_select("new_source", t("entry.source"),
-                               choices or {"": "(no elements yet)"})
+        return ui.input_select("new_source", t("entry.source"), _picker_choices())
 
     @output
     @render.ui
     def target_picker():
         event_bus.isa_change.get()
-        choices = {el.id: f"{el.id} · {el.label}" for el in project_data.get().isa_data.elements}
-        return ui.input_select("new_target", t("entry.target"),
-                               choices or {"": "(no elements yet)"})
+        return ui.input_select("new_target", t("entry.target"), _picker_choices())
+
+    def _element(eid: str | None) -> Element | None:
+        if not eid:
+            return None
+        return next((el for el in project_data.get().isa_data.elements
+                     if el.id == eid), None)
+
+    def _chosen_pair() -> tuple[Element | None, Element | None]:
+        """The elements behind the two pickers; takes the picker
+        dependencies, looks the elements up without one."""
+        src_id, tgt_id = input.new_source(), input.new_target()
+        with reactive.isolate():
+            return _element(src_id), _element(tgt_id)
+
+    # ---- Polarity prefill from the link rules (R default_polarity_for_matrix)
+    @reactive.effect
+    def _seed_polarity():
+        src, tgt = _chosen_pair()
+        polarity = seed_polarity(src, tgt)
+        # Changing either endpoint re-seeds, overriding a manual choice (as R).
+        if polarity is not None:
+            ui.update_radio_buttons("new_polarity", selected=polarity)
+
+    @output
+    @render.ui
+    def off_rule_note():
+        src, tgt = _chosen_pair()
+        text = note_for(src, tgt, translator)
+        if text is None:
+            return None
+        return ui.div(text, class_="sespy-off-rule-note alert alert-warning")
 
     # ---- Tables ---------------------------------------------------------
     @output

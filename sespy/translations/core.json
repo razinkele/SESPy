@@ -913,6 +913,17 @@
       "no": "Fjern valgt forbindelse",
       "el": "Αφαίρεση επιλεγμένης σύνδεσης"
     },
+    "entry.choose_element": {
+      "en": "— choose —",
+      "es": "— elegir —",
+      "fr": "— choisir —",
+      "de": "— auswählen —",
+      "lt": "— pasirinkite —",
+      "pt": "— escolher —",
+      "it": "— scegli —",
+      "no": "— velg —",
+      "el": "— επιλέξτε —"
+    },
     "entry.off_rule_link": {
       "en": "{source} ({source_type}) → {target} ({target_type}) is not a standard DAPSI(W)R(M) link. You can still add it.",
       "es": "{source} ({source_type}) → {target} ({target_type}) no es una conexión DAPSI(W)R(M) estándar. Aun así, puede añadirla.",
