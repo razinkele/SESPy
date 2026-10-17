@@ -225,9 +225,24 @@ def create_boolean_rules(mat: np.ndarray) -> list[dict[str, Any]]:
     return rules
 
 
+# Server-side ceiling for library callers of boolean_attractors (R
+# DYNAMICS_MAX_BOOLEAN_NODES). The UI keeps its own [4, 12] range
+# (analysis_boolean.py): this pure-Python 2^N search runs synchronously, and
+# raising the UI limit needs an ExtendedTask or a vectorised search (P7a).
+BOOLEAN_MAX_NODES_CEILING = 20
+
+
+def clamp_max_nodes(value: int, *, lo: int, hi: int) -> int:
+    """Clamp a node cap to [lo, hi]. Shared by boolean_attractors (library
+    ceiling) and the Boolean module (UI range)."""
+    return max(lo, min(hi, int(value)))
+
+
 def boolean_attractors(
     rules: list[dict[str, Any]],
     max_nodes: int = 12,
+    *,
+    ceiling: int = BOOLEAN_MAX_NODES_CEILING,
 ) -> dict[str, Any]:
     """Exhaustive ``2^N`` state-space search for Boolean network attractors.
 
@@ -242,7 +257,10 @@ def boolean_attractors(
         Output of :func:`create_boolean_rules`.
     max_nodes
         Hard cap on ``len(rules)``; networks above it return an error sentinel
-        rather than running (2^N grows fast).
+        rather than running (2^N grows fast). Clamped to ``[1, ceiling]``
+        first; the sentinel reports the clamped value.
+    ceiling
+        Upper bound for ``max_nodes`` (default BOOLEAN_MAX_NODES_CEILING = 20).
 
     Returns
     -------
@@ -254,6 +272,7 @@ def boolean_attractors(
         Too-large: ``{"attractors": [], "error": "too_large", "n_nodes": int,
         "max_nodes": int, "total_states": 0}``.
     """
+    max_nodes = clamp_max_nodes(max_nodes, lo=1, hi=ceiling)
     n = len(rules)
     if n > max_nodes:
         return {

@@ -794,3 +794,51 @@ def test_token_diffusion_single_token_claims_no_certainty():
     assert all(x["net_sign"] == "~" for x in r["rows"])
     assert all(x["rank"] == 1 for x in r["rows"])
     assert all(x["margin"] == 0 for x in r["rows"])
+
+
+# ---- P1a: Boolean ceiling and clamp -----------------------------------------
+
+def _isolated_rules(n: int) -> list[dict]:
+    return [{"node_id": i, "activators": [], "inhibitors": [], "threshold": 0.0}
+            for i in range(n)]
+
+
+@pytest.mark.parametrize("value,lo,hi,want", [
+    (12, 4, 12, 12), (50, 4, 12, 12), (1, 4, 12, 4), (-3, 4, 12, 4),
+    (7, 4, 12, 7), (25, 1, 20, 20), (0, 1, 20, 1),
+])
+def test_clamp_max_nodes(value, lo, hi, want):
+    from sespy.dynamics import clamp_max_nodes
+    assert clamp_max_nodes(value, lo=lo, hi=hi) == want
+
+
+def test_boolean_ceiling_is_20():
+    from sespy.dynamics import BOOLEAN_MAX_NODES_CEILING
+    assert BOOLEAN_MAX_NODES_CEILING == 20
+
+
+def test_boolean_attractors_clamps_a_huge_cap_to_the_ceiling():
+    from sespy.dynamics import boolean_attractors
+    r = boolean_attractors(_isolated_rules(21), max_nodes=10_000)
+    assert r["error"] == "too_large"
+    assert r["n_nodes"] == 21
+    assert r["max_nodes"] == 20            # the clamped value actually applied
+
+
+def test_boolean_attractors_explicit_ceiling():
+    from sespy.dynamics import boolean_attractors
+    r = boolean_attractors(_isolated_rules(9), max_nodes=50, ceiling=8)
+    assert r["error"] == "too_large" and r["max_nodes"] == 8
+
+
+def test_boolean_attractors_zero_or_negative_cap_clamps_to_one():
+    from sespy.dynamics import boolean_attractors
+    r = boolean_attractors(_isolated_rules(2), max_nodes=0)
+    assert r["error"] == "too_large" and r["max_nodes"] == 1
+    assert "error" not in boolean_attractors(_isolated_rules(1), max_nodes=-5)
+
+
+def test_boolean_attractors_default_cap_unchanged():
+    from sespy.dynamics import boolean_attractors
+    assert boolean_attractors(_isolated_rules(13))["max_nodes"] == 12
+    assert "error" not in boolean_attractors(_isolated_rules(3))
