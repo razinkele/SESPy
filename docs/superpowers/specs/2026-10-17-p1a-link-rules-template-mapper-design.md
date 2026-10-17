@@ -58,6 +58,9 @@ roadmap.
 - R ignores element-level `type` labels and all extras
   (`json_elements_to_df`, `template_loader.R:40`). SESPy keeps them in
   `r_extra`.
+- R's template loader writes duplicate links into one matrix cell, so the
+  last one wins; SESPy's mapper rejects a duplicate `(from_id, to_id)` pair
+  (§5). No fixture has one.
 - R's Excel import maps `Measure` to responses without a marker. SESPy also
   records `r_extra["r_kind"] = "measure"` (§8).
 - R matches Excel type aliases case-sensitively; SESPy matches them
@@ -259,7 +262,8 @@ validation call logs once (template listing and autosave recovery validate
 more than once, so a whole flow may repeat the line; tests pin
 `validate_project_payload`, not whole flows). **Not** `Project.from_dict`:
 MosaicSES would log once per compartment, and `data_structure` stays free of
-logging policy and Shiny. Its only third-party import is `packaging`,
+off-rule logging and Shiny (its own warnings use the `sespy.data_structure`
+logger). Its only third-party import is `packaging`,
 imported lazily as P0b already does.
 
 ## 4. Schema v7 (`sespy/data_structure.py`)
@@ -319,10 +323,18 @@ imported lazily as P0b already does.
     "Save project info". It changes to `dataclasses.replace(meta, ...)`. A test
     pins that all three survive.
   - **Commit order (each commit leaves the unit gate green):**
-    1. version bump (`__init__`, `pyproject`, MANUAL line);
+    1. version bump to 1.13.0 in all three places (`sespy/__init__.py`,
+       `pyproject.toml`, the MANUAL version line). `tests/test_manual.py:29-31`
+       asserts the MANUAL line equals `__version__`, and doing it first means no
+       branch round trip ever stamps 1.13.0 while the build reports 1.12.3;
     2. schema v7 group (constant, `SCHEMA_MIN_READER`, the five fields and their
        serialisation, stamping, and the schema-6 test edits);
-    3. rule table + `link_rules` + the R-rules content-parity test;
+    3. rule table + `link_rules` (incl. wiring `log_off_rule_links` into
+       `validate_project_payload`) + copying the `.R` fixture to
+       `tests/parity/r_rules/` + the content-parity test in its **own file**,
+       `tests/parity/test_r_rules_parity.py`. Hash pinning (`r_sync.json`,
+       `R_SYNC.md`, `test_r_sync.py`) waits for commit 5, when all fixtures
+       exist;
     4. **topology group**, all at once: `_CONN_TYPES` (11), the Claude prompt,
        the scorer's R→S polarity branch, and the edits to
        `test_data_structure.py`, `test_connection_scorer.py` and
@@ -330,18 +342,10 @@ imported lazily as P0b already does.
        derives its expected set from `_CONN_TYPES`, so splitting this group
        turns the gate red. The set-equality test and the R→MPF suggestion test
        land here or later;
-    5. the rest, which all depend on commit 2: the mapper and fixtures,
-       `r_sync`, Excel import, `pims_project`, ISA entry, Boolean, and
-       `governance_gap` docs.
-  - **Ordering detail:** the version bump to 1.13.0 lands in the **first** P1a commit,
-    not in §11. The schema change (`PROJECT_SCHEMA_VERSION = 7`,
-    `SCHEMA_MIN_READER`, the five new fields and their serialisation, and the
-    edits to the tests that hard-code schema 6) lands **together in one
-    commit**, or the unit gate goes red in between. It covers all three places together: `sespy/__init__.py`,
-    `pyproject.toml` and the MANUAL version line. `tests/test_manual.py:29-31`
-    asserts that the MANUAL line equals `__version__`, so bumping only one of
-    them turns the unit gate red. Otherwise every round trip on the branch
-    would stamp 1.13.0 while the build reports 1.12.3, and P0b would flag it.
+    5. the rest, which all depend on commit 2: the mapper and the template
+       fixtures, `r_sync` (hashes for every fixture, including the `.R` file
+       from commit 3), Excel import, `pims_project`, ISA entry, Boolean, and
+       the `governance_gap` docstring.
 - **Serialisation.** `to_dict`/`from_dict` have explicit code for each new
   field; there is no reliance on `asdict`. A round-trip test covers every
   field. Because `to_dict()` now stamps `min_sespy_version`,
@@ -353,10 +357,13 @@ imported lazily as P0b already does.
   (`multises/data_structure.py:708`) and never calls validation. So the
   tolerant rules live in **`_isa_from_dict`**, and validation only adds the
   strict one:
-  - in `_isa_from_dict`, an `r_extra` that is not an object is **dropped with a
-    logged warning**, never fatal, because it is opaque passthrough data. A
-    non-string `description` is coerced with `str()`, except `None`, which
-    becomes `""`;
+  - in `_isa_from_dict`, an `r_extra` of `null` or absent is simply `{}`
+    (silent). Any other non-object `r_extra` is **dropped with a warning** on
+    the `sespy.data_structure` logger, never fatal, because it is opaque
+    passthrough data;
+  - in `_isa_from_dict`, a non-string **`Connection.description`** is coerced
+    with `str()`, except `None`, which becomes `""`. **`Element.description`
+    is unchanged** (today `None` loads as `None`); P1a does not touch it;
   - in `validate_project_payload` (the SESPy upload path), a non-string
     **`Connection.description`** is rejected (`Element.description` has never
     been validated and stays unvalidated, so old files keep loading) with a clear message, the same treatment as a
@@ -404,7 +411,8 @@ The mapper **does not log**. It only fills the report, and callers (P2's sync
 script, tests) decide what to log.
 
 **Input format.** R's current shape: `dapsiwrm_framework` holds per-category
-lists, plus a flat `connections` list. Legacy category keys are accepted as
+lists, plus a flat **top-level** `connections` list (not inside
+`dapsiwrm_framework`; true for all 7 fixtures). Legacy category keys are accepted as
 aliases: `states` for `marine_processes`, `impacts` for `ecosystem_services`,
 `welfare` for `goods_benefits` (R `.extract_template_elements`,
 `template_loader.R:165`). The older `elements` + `template_info` format raises
@@ -443,6 +451,11 @@ GB→R (canonical, Rule 8).
 
 **Connections.**
 - `from_id` → `source`, `to_id` → `target`.
+- **Absent** `polarity`, `strength` or `confidence` take R's defaults, `+`,
+  `medium` and 3 (`template_loader.R:119-121`). A value that is **present but
+  invalid** raises `ValueError` (failure modes below). `confidence` must be an
+  `int` and not a `bool` (so `"4"`, `4.5` and `True` are invalid) before it is
+  clamped. Matching is case-sensitive, so `"Strong"` is invalid.
 - `polarity` (`+`/`-`) and `strength` (`weak`/`medium`/`strong`) are kept
   as-is. `confidence` is kept as an integer clamped to 1–5. `description` is
   kept.
@@ -454,7 +467,8 @@ GB→R (canonical, Rule 8).
 template key and the offending item, for:
 - a connection endpoint id that does not exist;
 - a duplicate element id across categories, and a duplicate link, meaning
-  the same `(from_id, to_id)` pair (ISA entry's notion of "already exists");
+  the same `(from_id, to_id)` pair (ISA entry's notion of "already exists").
+  This is stricter than R, whose matrix cell keeps the last duplicate (§2);
 - a self-loop, which SESPy's validation also rejects
   (`persistent_storage.py:93-99`);
 - a `polarity` outside `+`/`-`, or a `strength` outside
@@ -655,8 +669,10 @@ TDD throughout. New unit test files:
 - `tests/test_data_structure.py`: the `_CONN_TYPES` length and the exact
   ordered list (lines 148 and 159-173), and `len(_VALID_TYPE_PAIRS) == 10`
   (line 184), become 11.
-- `tests/test_connection_scorer.py`: the 10-type expectations (lines 30-38,
-  including the keyword-JSON key set, and 478) go to 11.
+- `tests/test_connection_scorer.py`: lines 30-38 (the keyword-JSON key set)
+  **stay at 10**, because R→MPF has no keywords (§3.3). The test is renamed and
+  gains a comment saying so. Line 478 and every test that derives its set from
+  `_CONN_TYPES` go to 11.
 - `tests/test_claude_backend.py`: lines 89-92 (the prompt's pair list) go to 11.
 - `tests/test_connection_scorer.py:477` and following (each type reaches at
   least 0.6 confidence): `responses_states` is **excluded** from that bar,
@@ -692,7 +708,11 @@ TDD throughout. New unit test files:
   `pims_project_server`'s save handler (there are no pims unit tests today);
 - `_isa_from_dict` tolerating a bad `r_extra`;
 - the scorer's R→S polarity branch;
-- `governance_gap`'s headline staying unchanged when an R→MPF link exists;
+- `governance_gap`: `pressure_gap_fraction`, asserted **by name**, is
+  unchanged when an R→MPF link exists. This is a characterisation test, green
+  on today's code. `ecological_gap_fraction` does change, since it already
+  pools MPF, so the rewritten docstring must not claim MPF is "not pooled
+  into the headline";
 - the mapper's negative cases (§5 failure modes) and `load_r_template` with a
   BOM;
 - `sha256_norm` stability (key order, `ensure_ascii`, CRLF input), plus
@@ -702,17 +722,23 @@ TDD throughout. New unit test files:
 **New e2e test, `tests/test_link_rules_e2e.py`:**
 - it starts from the default sample project (`data/sample_ses.json`, loaded at
   startup), which has Drivers, Pressures, MPF and Goods & Benefits elements.
-  The pickers are plain `input_select`s (`isa_data_entry.py:130`), so the test
-  uses `select_option`;
+  The module id is `entry` (`app.py:140`), so every id is namespaced. The test
+  waits up to 60 s for `#sespy_nav_entry` (as `test_data_entry_e2e.py:37-38`
+  does), clicks it, then waits for `#entry-new_source`. The pickers
+  `#entry-new_source` and `#entry-new_target` are plain `input_select`s
+  (`isa_data_entry.py:130`), so the test uses `select_option`;
 - choosing a Pressure → MPF pair pre-fills polarity `−`. The prefill is a
-  server round-trip (`update_radio_buttons`), so the test **waits** for the
-  scoped selector `input[name$="new_polarity"][value="-"]:checked` before
-  asserting or clicking Add. The sample already has P001→MPF1, P002→MPF2 and
-  P003→MPF1, so a test that adds the link uses a **free pair** (e.g.
-  P001→MPF2); otherwise it gets "already exists" and nothing saves;
-- choosing Drivers → Goods & Benefits shows `#off_rule_note
-  .sespy-off-rule-note`, and the link still saves (D001→GB01 is a free pair in
-  the sample);
+  server round-trip (`update_radio_buttons`), so the test **waits** for
+  `input[name="entry-new_polarity"][value="-"]:checked` before asserting or
+  clicking Add. The sample already has P001→MPF1, P002→MPF2 and P003→MPF1, so a
+  test that adds the link uses a **free pair** (e.g. P001→MPF2); otherwise it
+  gets "already exists" and nothing saves;
+- choosing Drivers → Goods & Benefits shows
+  `#entry-off_rule_note .sespy-off-rule-note`, and the link still saves
+  (D001→GB01 is a free pair in the sample);
+- after Add the pickers re-render to `""`, so each save is proved by the
+  connection count in `#entry-status_line` (20 → 21 → 22), not by the pickers
+  or the note;
 - choosing only a source shows no note;
 - selectors are scoped (memory: e2e text-selector collisions).
 
