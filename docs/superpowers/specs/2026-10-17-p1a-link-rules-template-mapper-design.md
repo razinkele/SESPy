@@ -410,7 +410,10 @@ Report fields, exactly:
 - `off_rule_links`: `(source_id, target_id)` pairs, in input order.
 - `type_mismatches`: strings of the form
   `"connections[{i}] {from_id}->{to_id}: from_type '{x}' vs category '{y}'"`
-  (or `to_type`), in input order.
+  (or `to_type`), in input order. The comparison is against the endpoint's
+  **R category before folding** (`measure` ↔ `measures`), so a Measure
+  endpoint labelled `measure` is not a mismatch. All 7 fixtures give 0
+  mismatches, and the done-when test pins that.
 - `extra_fields`: the **sorted union** of the R field names moved into
   `r_extra`, listed under their R names (so `type`, not `r_type`).
 - `template_meta`: a nested dict copied from the R file:
@@ -597,11 +600,16 @@ with the
   `Marine Process and Functioning`, `State`, `State Change`,
   `Ecosystem Service`, `Impact`, `Good and Benefit`, `Goods and Benefits`,
   `Welfare`, `Response`, `Measure`. A `Measure` becomes Responses with `r_extra["r_kind"] = "measure"`.
-- **Polarity precedence, unchanged from today:** a numeric FCM weight in the
-  strength column decides the sign first (`excel_import.py:141-146`, pinned by
+- **Polarity precedence:** a numeric FCM weight in the strength column decides
+  the sign first, as today (`excel_import.py:141-146`, pinned by
   `tests/test_excel_import.py`'s "numeric weight wins" case). Without a numeric
   weight, the polarity column decides. Only when neither is present does the
-  Kumu `Label` column decide. The Label rule is the only new step.
+  Kumu `Label` column decide. Two changes from today, both deliberate:
+  - the **polarity cell is stripped** before use, so `" -"` in that column is
+    `-` (today it reaches validation as `" -"` and is rejected);
+  - a **whitespace-only** polarity cell now counts as empty and falls back to
+    `Label` (today it becomes `" "` and is rejected).
+  The `Label` cell itself is not stripped, as in R (above).
 - The canonical type names stay accepted and are also matched
   case-insensitively (e.g. `drivers`). An unrecognised type string is still
   rejected by validation, as today.
@@ -719,8 +727,10 @@ TDD throughout. New unit test files:
   `selected="-"`, and choosing only a source **with `new_target=""` set
   explicitly** calls nothing. (Action-button inputs in `test_server` must be
   set to 0 and then 1, because of `ignore_init`.);
-- the rendered source and target pickers contain `<option value=""
-  selected>` (the empty first choice);
+- the rendered source and target pickers start with an empty, selected first
+  choice. Shiny renders it as `<option value="" selected="">`, so the test
+  asserts the substring `<option value="" selected` (no closing `>`), or
+  parses the HTML and checks that the `""` option carries `selected`;
 - the subprocess test that `sespy.link_rules` imports without Shiny;
 - `_add_connection` refusing an empty endpoint (a characterisation test: it
   already passes on today's code);
@@ -756,8 +766,11 @@ TDD throughout. New unit test files:
   test that adds the link uses a **free pair** (e.g. P001→MPF2); otherwise it
   gets "already exists" and nothing saves;
 - choosing Drivers → Goods & Benefits shows
-  `#entry-off_rule_note .sespy-off-rule-note`, and the link still saves
-  (D001→GB01 is a free pair in the sample);
+  `#entry-off_rule_note .sespy-off-rule-note`. The test waits for
+  `input[name="entry-new_polarity"][value="+"]:checked` (the seed for this
+  off-rule pair; the radio still shows `-` from the previous add until it
+  arrives) before clicking Add, and the link still saves (D001→GB01 is a free
+  pair in the sample);
 - after Add the pickers re-render to `""`, so each save is proved by the
   connection count in `#entry-status_line` (20 → 21 → 22), not by the pickers
   or the note;
