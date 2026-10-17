@@ -26,7 +26,8 @@ the template gallery; that is P2.
    equal to the R JSON. "Save → load" means the real upload path:
    `project_to_bytes` → `json.loads` → `validate_project_payload(...)`, which
    must be `.valid`, then the edge set is compared. The total element count
-   matches, and `counts_by_type["Responses"]` equals R's responses plus
+   matches, and the number of Responses elements **in the reloaded project**
+   (and in `ConversionReport.counts_by_type`) equals R's responses plus
    measures.
    The mapper reports **zero off-rule links** for all 7.
 2. The R fields not carried over are listed (§6).
@@ -122,10 +123,18 @@ only.
   polarity, else `"+"`, which is what R's `get_rule_default_polarity` returns in
   practice. An off-rule P→D, R→ES or R→GB therefore seeds `+`, as in R.
 - `rule_id(from_type, to_type) -> str | None`.
-- `off_rule_message(from_label, to_label, translator)` returns the i18n text
-  for the entry warning, from the new key `entry.off_rule_link` with
-  placeholders `{source}`, `{target}`, `{source_type}` and `{target_type}`. It
-  is translated into all 9 languages.
+- `off_rule_message(from_label, from_type, to_label, to_type, translator)`
+  returns the i18n text for the entry warning, from the new key
+  `entry.off_rule_link` with placeholders `{source}`, `{target}`,
+  `{source_type}` and `{target_type}`. The key is translated into all 9
+  languages. The type placeholders take the **raw canonical type names**, the
+  same strings the entry form's type dropdown shows
+  (`isa_data_entry.py:56-59`).
+- `note_for(src_el, tgt_el, translator) -> str | None` is the pure helper the
+  entry form calls. It returns `None` when either element is missing, when the
+  two ids are equal, or when `classify` is not `"off_rule"`, and otherwise
+  returns `off_rule_message(...)`. The default-state guard (§3.4) is therefore
+  unit-testable without Shiny.
 
 ### 3.3 Connection topology
 `data_structure._CONN_TYPES` **stays an explicit literal**, so its order is
@@ -441,8 +450,11 @@ with the
   becomes `""`, as for element descriptions (`excel_import.py:128`), so one
   numeric cell never fails a whole workbook.
 - **Kumu polarity.** When a row has no numeric weight and **no non-empty
-  polarity cell** (the column may be absent or the cell blank; `_pick` works
-  per cell, `excel_import.py:45-52`), that row's `Label`/`label` cell decides: a value of `-`, or one starting with `-`, is
+  polarity cell** (the column may be absent, or the cell blank or
+  whitespace-only, which is stripped first; `_pick` works per cell,
+  `excel_import.py:45-52`), that row's `Label`/`label` cell decides. A unit test
+  in `tests/test_excel_import.py` covers a blank polarity cell with `Label="-"`,
+  which imports as `-`: a value of `-`, or one starting with `-`, is
   negative; anything else is positive (R `excel_import_helpers.R:432-437`).
 - **Element type aliases**, taken from R's list (`excel_import_helpers.R:160-175`):
   `Driver`, `Activity`, `Pressure`, `Marine Process and Function`,
@@ -552,12 +564,14 @@ TDD throughout. New unit test files:
 - a `description` of `None` loading as `""`.
 
 **New e2e test, `tests/test_link_rules_e2e.py`:**
+- it starts from the default sample project (`data/sample_ses.json`, loaded at
+  startup), which has Drivers, Pressures, MPF and Goods & Benefits elements.
+  The pickers are plain `input_select`s (`isa_data_entry.py:130`), so the test
+  uses `select_option`;
 - choosing a Pressure → MPF pair pre-fills polarity `−`. The prefill is a
   server round-trip (`update_radio_buttons`), so the test **waits** for the
   scoped selector `input[name$="new_polarity"][value="-"]:checked` before
   asserting or clicking Add;
-- an Excel row with a blank polarity cell and `Label="-"` imports as `-`
-  (unit test in `tests/test_excel_import.py`);
 - choosing Drivers → Goods & Benefits shows the off-rule note, and the link
   still saves;
 - selectors are scoped (memory: e2e text-selector collisions).
