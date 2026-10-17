@@ -135,6 +135,10 @@ only.
   two ids are equal, or when `classify` is not `"off_rule"`, and otherwise
   returns `off_rule_message(...)`. The default-state guard (§3.4) is therefore
   unit-testable without Shiny.
+- `translator` follows the module convention: `isa_data_entry_server` takes
+  `translator: Translator | None = None` and uses its module-level `t`. Both
+  helpers take `translator: Translator | None`, and `None` falls back to
+  `sespy.i18n`'s default translator, the same `t` the module already uses.
 
 ### 3.3 Connection topology
 `data_structure._CONN_TYPES` **stays an explicit literal**, so its order is
@@ -205,7 +209,8 @@ intended parity and gets an explicit test. Extension pairs are not suggested
   kept and round-tripped. An editing UI is deferred to the P1b entry work.
 
 ### 3.5 Loading, templates and Excel import
-Off-rule links are accepted and logged (`link_rules` logger, one line per
+Off-rule links are accepted and logged (logger
+`logging.getLogger("sespy.link_rules")`, i.e. `__name__` of the module; one line per
 project with the count and the first few pairs). They are never rejected, so
 existing projects behave exactly as before. **Call sites:** only
 `persistent_storage.validate_project_payload` and the mapper's report.
@@ -285,7 +290,8 @@ imported lazily as P0b already does.
     non-string `description` is coerced with `str()`, except `None`, which
     becomes `""`;
   - in `validate_project_payload` (the SESPy upload path), a non-string
-    `description` is rejected with a clear message, the same treatment as a
+    **`Connection.description`** is rejected (`Element.description` has never
+    been validated and stays unvalidated, so old files keep loading) with a clear message, the same treatment as a
     bad `polarity`. `None` (or an absent key) is **skipped**, following the
     file's convention for optional fields (`persistent_storage.py:20-22,
     103-104`), and `_isa_from_dict` turns it into `""`;
@@ -502,8 +508,8 @@ TDD throughout. New unit test files:
 - `tests/test_link_rules.py`:
   - every row of §3.1;
   - classification, per-pair polarity, untyped exemption;
-  - `_CONN_TYPES` set-equal to the rule table's canonical targets, in the
-    explicit order of §3.3;
+  - `_CONN_TYPES` **set-equal** to the rule table's canonical targets (the
+    order is pinned separately, by `tests/test_data_structure.py:159-173`);
   - the scorer and the Claude backend accept R→MPF.
 - `tests/test_schema_v7.py`:
   - round-trip of `description`/`r_extra`;
@@ -528,7 +534,7 @@ TDD throughout. New unit test files:
 **Existing tests that change:**
 - Tests that hard-code schema 6 switch to `PROJECT_SCHEMA_VERSION` (except the
   one test pinning the constant, which asserts 7):
-  `tests/test_data_structure.py:17` (`test_schema_version_is_6`) and `:217`
+  `tests/test_data_structure.py:17-18` (`test_schema_version_is_6`) and `:217`
   (a round-trip assert), and `tests/test_stakeholders.py:227,243,259,364,377`.
   The two tests named `test_migrated_v3_saves_as_schema_6_on_disk` and
   `test_migrated_v4_saves_as_schema_6_on_disk` (`:246`, `:367`) are renamed to
@@ -571,7 +577,9 @@ TDD throughout. New unit test files:
 - choosing a Pressure → MPF pair pre-fills polarity `−`. The prefill is a
   server round-trip (`update_radio_buttons`), so the test **waits** for the
   scoped selector `input[name$="new_polarity"][value="-"]:checked` before
-  asserting or clicking Add;
+  asserting or clicking Add. The sample already has P001→MPF1, P002→MPF2 and
+  P003→MPF1, so a test that adds the link uses a **free pair** (e.g.
+  P001→MPF2); otherwise it gets "already exists" and nothing saves;
 - choosing Drivers → Goods & Benefits shows the off-rule note, and the link
   still saves;
 - selectors are scoped (memory: e2e text-selector collisions).
