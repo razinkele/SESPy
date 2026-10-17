@@ -8,6 +8,10 @@ reads are unchanged since the roadmap baseline `e3c3b77`: the 7
 `data/*_SES_Template.json`, `functions/dapsiwrm_connection_rules.R`,
 `functions/template_loader.R` and `modules/template_ses_module.R`.
 R source releases ported: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3.
+**Deployed R on laguna** (`/srv/shiny-server/marinesabres`) was verified on
+2026-10-17. It is also v1.29.0, and the 7 templates and the rules file have
+`sha256_norm` identical to the local checkout. This pin amends the roadmap's
+baseline (v1.28.0 @ `e3c3b77`); the P1a files are unchanged between the two.
 **Target release:** SESPy **v1.13.0**.
 
 ## 1. Purpose and success
@@ -19,8 +23,10 @@ the template gallery; that is P2.
 **Done when:**
 1. All 7 R templates convert with the mapper, and SESPy save → load keeps every
    link's `(source, target, polarity, strength, confidence, description)`
-   equal to the R JSON. Element counts also match. The mapper reports **zero
-   off-rule links** for all 7.
+   equal to the R JSON. "Save → load" means the real upload path:
+   `project_to_bytes` → `json.loads` → `validate_project_payload(...)`, which
+   must be `.valid`, then the edge set is compared. Element counts also match.
+   The mapper reports **zero off-rule links** for all 7.
 2. The R fields not carried over are listed (§6).
 3. The full unit and e2e gates pass, and so does MosaicSES's suite against the
    branch.
@@ -49,9 +55,14 @@ roadmap.
 - R's Excel import maps `Measure` to responses without a marker. SESPy also
   records `r_extra["r_kind"] = "measure"` (§8).
 
-**Amendment to the roadmap:** `min_sespy_version` is "stamped, never
-lowered", *except* that it is reset when a P0b newer-build project is written
-in the older format (§4).
+**Amendments to the roadmap:**
+- `min_sespy_version` is "stamped, never lowered", *except* that it is reset
+  when a P0b newer-build project is written in the older format (§4).
+- **Any release that adds a serialised field bumps `PROJECT_SCHEMA_VERSION`**
+  and adds a `SCHEMA_MIN_READER` entry. The roadmap's option for P1b/P1c to
+  "add fields within v7" is withdrawn. Otherwise a 1.13 build would read a file
+  carrying P1b fields without flagging it, drop those fields and autosave over
+  them, which defeats P0b.
 
 **Divergences in the other direction** (R does more, deferred):
 - R's AI connection generator (`modules/ai_isa/connection_generator.R:625-640`)
@@ -73,8 +84,14 @@ that has no polarity of its own, and every listed target has one. It is
 therefore unreachable, and SESPy does not port it.
 
 Each target carries `(to_type, polarity, rule_id)`. Type names are SESPy's 7
-`DAPSIWRM_ELEMENTS`, the same strings R uses. Values are copied from
-`dapsiwrm_connection_rules.R:26-341`:
+`DAPSIWRM_ELEMENTS`, the same strings R uses. Targets and polarities are copied
+from `dapsiwrm_connection_rules.R:26-341`. **R's table holds no rule ids.** They
+come from R's `DAPSIWRM_FRAMEWORK_RULES.md` (Valid Connection Rules), and are
+stored as these exact strings: `"1"`, `"2"`, `"3"`, `"4"`, `"5"`, `"6-7"`
+(GB→D; the document collapses Rules 6 and 7), `"8"`, `"9"`, `"10"`, `"11"`,
+`"12"`, `"14"`, `"16"`, `"17"`, `"18"` and `"ExUP"` (D→P). Polarity values are
+the ASCII strings `"+"` and `"-"`. The `−` in the table below is typography
+only.
 
 | From | Canonical (polarity, rule) | Extension (polarity, rule) |
 |---|---|---|
@@ -83,7 +100,7 @@ Each target carries `(to_type, polarity, rule_id)`. Type names are SESPy's 7
 | Pressures | MPF (−, 3) | Pressures (+, 17) |
 | MPF | Ecosystem Services (+, 4) | MPF (+, 16) |
 | Ecosystem Services | Goods & Benefits (+, 5) | — |
-| Goods & Benefits | Drivers (+, 6/7), Responses (+, 8) | — |
+| Goods & Benefits | Drivers (+, 6-7), Responses (+, 8) | — |
 | Responses | Drivers (−, 9), Activities (−, 10), Pressures (−, 11), MPF (+, 12) | Responses (+, 14) |
 
 - Polarity is **per pair**: P→MPF is −, while P→P is +; R→MPF and R→R are +,
@@ -116,7 +133,7 @@ table is therefore the single source of truth, and the literal cannot drift
 from it.
 
 Docstrings and comments that assume 10 types are updated:
-`connection_scorer.py:74,349,356,374`, `wizard.py:74` and
+`connection_scorer.py:74,166,258,349,356,374`, `wizard.py:74` and
 `data_structure.py:64`. The scorer can now return up to 165 suggestions
 (11 × 15). The Claude backend's `maxItems` of 150 is a separate limit and is
 unchanged.
@@ -173,7 +190,12 @@ intended parity and gets an explicit test. Extension pairs are not suggested
 ### 3.5 Loading, templates and Excel import
 Off-rule links are accepted and logged (`link_rules` logger, one line per
 project with the count and the first few pairs). They are never rejected, so
-existing projects behave exactly as before.
+existing projects behave exactly as before. **Call sites:** only
+`persistent_storage.validate_project_payload` (SESPy upload, recent projects,
+templates), `excel_import.parse_excel` and the mapper's report. **Not**
+`Project.from_dict`: MosaicSES would log once per compartment, and
+`data_structure` must not import `link_rules`, which imports `constants`. That
+keeps the import graph acyclic.
 
 ## 4. Schema v7 (`sespy/data_structure.py`)
 
@@ -233,7 +255,8 @@ existing projects behave exactly as before.
   strict one:
   - in `_isa_from_dict`, an `r_extra` that is not an object is **dropped with a
     logged warning**, never fatal, because it is opaque passthrough data. A
-    non-string `description` is coerced with `str()`;
+    non-string `description` is coerced with `str()`, except `None`, which
+    becomes `""`;
   - in `validate_project_payload` (the SESPy upload path), a non-string
     `description` is rejected with a clear message, the same treatment as a
     bad `polarity`;
@@ -307,8 +330,22 @@ GB→R (canonical, Rule 8).
 - R's `from_type`/`to_type` labels (driver, activity, pressure, state, impact,
   welfare, response, measure) are checked against each endpoint's category.
   A mismatch goes into `type_mismatches` and is not fatal.
-- A connection whose endpoint id does not exist raises `ValueError`. This
-  cannot happen with the 7 fixtures, which were verified.
+**Failure modes.** The mapper raises `ValueError`, with a message naming the
+template key and the offending item, for:
+- a connection endpoint id that does not exist;
+- a duplicate element id across categories, and a duplicate link;
+- a self-loop, which SESPy's validation also rejects
+  (`persistent_storage.py:93-99`);
+- a `polarity` outside `+`/`-`, or a `strength` outside
+  `weak`/`medium`/`strong`. These are rejected rather than kept as-is, because
+  a value such as `"positive"` would produce a project SESPy cannot load;
+- a category value that is not a list;
+- an element without `id` or `name`.
+
+None of these occur in the 7 fixtures (verified). Each has a negative test.
+A companion `load_r_template(path) -> dict` reads files with the
+`utf-8-sig` encoding, so a BOM is tolerated, and CRLF is harmless to
+`json.loads`.
 
 **Metadata.**
 - `name` = `template_name`; `description` = `template_description`;
@@ -321,9 +358,20 @@ GB→R (canonical, Rule 8).
 - The 7 files are copied to `tests/parity/r_templates/` with their R file
   names: Aquaculture, Caribbean, ClimateChange, Fisheries, OffshoreWind,
   Pollution, Tourism. `Caribbean_SES_Template_backup.json` is excluded.
-- New `docs/parity/R_SYNC.md` records the R tag and commit (v1.29.0,
-  `e33faea`) and each file's `sha256_norm`. That is the sha256 of the parsed
-  JSON re-serialised with sorted keys, UTF-8 and LF (roadmap §3).
+- New `docs/parity/R_SYNC.md` records:
+  - the R tag and commit (v1.29.0, `e33faea`) and each file's `sha256_norm`;
+  - the laguna verification: the deployed R was v1.29.0 on 2026-10-17, and the
+    7 templates and the rules file are identical;
+  - that it amends the roadmap baseline;
+  - that `tests/parity/check_live.py` (live drift against laguna) is deferred
+    to K1/P2, since P1a uses the files only as test fixtures.
+- **One hashing helper**, `sespy/r_sync.py::sha256_norm(obj)`, returns
+  `sha256(json.dumps(obj, sort_keys=True, ensure_ascii=False,
+  separators=(",", ":")).encode("utf-8")).hexdigest()`. The obj is the parsed
+  JSON, so CRLF and a BOM never reach the hash. `test_r_sync`, P2's sync
+  script, `check_live.py` and K1's provenance all use this function, so their
+  hashes always agree. For the rules `.R` file, which is not JSON,
+  `sha256_text_norm(text)` hashes the text with CRLF normalised to LF.
 - `tests/parity/test_r_sync.py` asserts the hashes. A new R release is adopted
   by re-copying the fixtures and updating `R_SYNC.md` in the same commit.
 
@@ -367,10 +415,11 @@ GB→R (canonical, Rule 8).
   `Ecosystem Service`, `Impact`, `Good and Benefit`, `Goods and Benefits`,
   `Welfare`, `Response`, `Measure`. They are matched case-insensitively. A
   `Measure` becomes Responses with `r_extra["r_kind"] = "measure"`.
-- **Polarity precedence:** an explicit polarity column wins. Without one, a
-  numeric FCM weight in the strength column decides the sign, as today
-  (`excel_import.py:141-146`). Only when neither is present does the Kumu
-  `Label` column decide.
+- **Polarity precedence, unchanged from today:** a numeric FCM weight in the
+  strength column decides the sign first (`excel_import.py:141-146`, pinned by
+  `tests/test_excel_import.py`'s "numeric weight wins" case). Without a numeric
+  weight, the polarity column decides. Only when neither is present does the
+  Kumu `Label` column decide. The Label rule is the only new step.
 - The canonical plural type names stay accepted. An unrecognised type string
   is still rejected by validation, as today.
 - Off-rule links import with a logged warning (§3.5).
@@ -433,7 +482,8 @@ TDD throughout. New unit test files:
   `test_migrated_v4_saves_as_schema_6_on_disk` (`:246`, `:367`) are renamed to
   drop the number. The plan still greps for any others before the bump.
 - `tests/test_data_structure.py`: the `_CONN_TYPES` length and the exact
-  ordered list (lines 148 and 159-173) become 11.
+  ordered list (lines 148 and 159-173), and `len(_VALID_TYPE_PAIRS) == 10`
+  (line 184), become 11.
 - `tests/test_connection_scorer.py`: the 10-type expectations (lines 30-38,
   including the keyword-JSON key set, and 478) go to 11.
 - `tests/test_claude_backend.py`: lines 89-92 (the prompt's pair list) go to 11.
@@ -448,7 +498,12 @@ TDD throughout. New unit test files:
 - `pims_project` keeping the three metadata fields;
 - `_isa_from_dict` tolerating a bad `r_extra`;
 - the scorer's R→S polarity branch;
-- `governance_gap`'s headline staying unchanged when an R→MPF link exists.
+- `governance_gap`'s headline staying unchanged when an R→MPF link exists;
+- the mapper's negative cases (§5 failure modes) and `load_r_template` with a
+  BOM;
+- `sha256_norm` stability (key order, `ensure_ascii`, CRLF input), plus
+  `sha256_text_norm` on a CRLF file;
+- a `description` of `None` loading as `""`.
 
 **New e2e test, `tests/test_link_rules_e2e.py`:**
 - choosing a Pressure → MPF pair pre-fills polarity `−`;
