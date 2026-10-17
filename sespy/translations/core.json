@@ -1144,6 +1144,28 @@
       "no": "Detaljer: {note}. Data som denne versjonen ikke forstår, ble utelatt, og autolagring er slått av for dette prosjektet. Behold originalfilen: Lagre prosjekt lager en separat kopi i det eldre formatet.",
       "el": "Λεπτομέρειες: {note}. Τα δεδομένα που δεν αναγνωρίζει αυτή η έκδοση παραλείφθηκαν και η αυτόματη αποθήκευση είναι απενεργοποιημένη για αυτό το έργο. Κρατήστε το αρχικό αρχείο: η Αποθήκευση έργου δημιουργεί ξεχωριστό αντίγραφο στην παλαιότερη μορφή."
     },
+    "ui.quickactions.newer_build_schema": {
+      "en": "file format {schema}, this version reads up to {schema_max}",
+      "es": "formato de archivo {schema}; esta versión lee hasta el {schema_max}",
+      "fr": "format de fichier {schema} ; cette version lit jusqu'au {schema_max}",
+      "de": "Dateiformat {schema}; diese Version liest bis Format {schema_max}",
+      "lt": "failo formatas {schema}; ši versija skaito iki {schema_max}",
+      "pt": "formato de ficheiro {schema}; esta versão lê até ao {schema_max}",
+      "it": "formato file {schema}; questa versione legge fino al {schema_max}",
+      "no": "filformat {schema}; denne versjonen leser opptil {schema_max}",
+      "el": "μορφή αρχείου {schema}· αυτή η έκδοση διαβάζει έως τη {schema_max}"
+    },
+    "ui.quickactions.newer_build_version": {
+      "en": "requires SESPy {min_version} or newer, this is {running}",
+      "es": "requiere SESPy {min_version} o posterior; esta es la {running}",
+      "fr": "nécessite SESPy {min_version} ou plus récent ; celle-ci est la {running}",
+      "de": "erfordert SESPy {min_version} oder neuer; dies ist {running}",
+      "lt": "reikia SESPy {min_version} ar naujesnės; ši versija yra {running}",
+      "pt": "requer SESPy {min_version} ou mais recente; esta é a {running}",
+      "it": "richiede SESPy {min_version} o successiva; questa è la {running}",
+      "no": "krever SESPy {min_version} eller nyere; dette er {running}",
+      "el": "απαιτεί SESPy {min_version} ή νεότερο· αυτή είναι η {running}"
+    },
     "ui.quickactions.saved_older_format": {
       "en": "Saved in this version's format. Data from the newer SESPy is not in this copy; keep the original file.",
       "es": "Guardado en el formato de esta versión. Esta copia no contiene los datos de la versión más reciente de SESPy; conserve el archivo original.",

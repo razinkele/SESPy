@@ -50,6 +50,20 @@ async def wait_token(page) -> str:
     raise AssertionError("browser token never appeared in localStorage")
 
 
+async def indicator_text(page) -> str:
+    return await page.evaluate(
+        "() => document.querySelector('.sespy-autosave-indicator')?.textContent || ''"
+    )
+
+
+async def wait_for_autosave(page, path: Path) -> None:
+    for _ in range(60):          # up to 30 s
+        if path.exists() and "Auto-saved" in await indicator_text(page):
+            return
+        await page.wait_for_timeout(500)
+    raise AssertionError(f"normal project was not autosaved to {path}")
+
+
 async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch()
@@ -70,41 +84,56 @@ async def main():
         # Let the recovery check finish: autosave is off until it has run.
         await page.wait_for_timeout(3000)
 
-        # ---- Upload a newer-build file: warning, and no autosave ----------
+        # ---- Positive control: a normal project autosaves -----------------
+        await page.click("#new_project")
+        await wait_for_autosave(page, path)
+        good = path.read_bytes()
+        print("normal project: autosaved, indicator shown")
+
         with tempfile.TemporaryDirectory() as tmp:
-            fixture = newer_build_file(Path(tmp) / "future.json")
-            await page.set_input_files("#load_project", str(fixture))
+            # ---- Upload a newer-build file: warning, and no autosave ------
+            await page.set_input_files(
+                "#load_project", str(newer_build_file(Path(tmp) / "future.json")))
             await page.wait_for_selector(WARNING, timeout=30000)
-        text = await page.locator(WARNING).text_content() or ""
-        print(f"warning: {text.strip()[:160]!r}")
-        assert "newer SESPy" in text, f"unexpected warning text: {text!r}"
-        assert "99" in text, "warning does not say which version is needed"
+            text = await page.locator(WARNING).text_content() or ""
+            print(f"warning: {text.strip()[:160]!r}")
+            assert "newer SESPy" in text, f"unexpected warning text: {text!r}"
+            assert "99" in text, "warning does not say which version is needed"
 
-        await page.wait_for_timeout(5000)
-        assert not path.exists(), "a newer-build project was autosaved"
-        indicator = await page.evaluate(
-            "() => document.querySelector('.sespy-autosave-indicator')?.textContent || ''"
-        )
-        assert "Auto-saved" not in indicator, f"indicator claims a save: {indicator!r}"
-        print("newer-build project: warning shown, autosave skipped")
+            await page.wait_for_timeout(5000)
+            assert path.read_bytes() == good, "a newer-build project was autosaved"
+            assert "Auto-saved" not in await indicator_text(page),                 "indicator still claims this project is autosaved"
+            print("newer-build project: warning shown, autosave skipped")
 
-        # ---- Save writes a clearly named older-format copy ----------------
-        async with page.expect_download(timeout=30000) as dl_info:
-            await page.click("#save_project")
-        download = await dl_info.value
-        name = download.suggested_filename
-        print(f"save filename: {name}")
-        assert name.endswith("-older-format.json"), f"unexpected filename {name!r}"
-        await page.screenshot(path="tests/screenshots/newer_build.png")
+            # ---- Save writes a clearly named copy; earlier autosave kept ---
+            async with page.expect_download(timeout=30000) as dl_info:
+                await page.click("#save_project")
+            download = await dl_info.value
+            name = download.suggested_filename
+            print(f"save filename: {name}")
+            assert name.endswith("-older-format.json"), f"unexpected filename {name!r}"
+            await page.wait_for_timeout(1000)
+            assert path.exists(), "saving the older-format copy deleted the autosave"
+            await page.screenshot(path="tests/screenshots/newer_build.png")
+
+            # ---- Closing the warning, then loading another such file ------
+            # must warn again (same stamps, so the same details).
+            await page.click(f"{WARNING} .shiny-notification-close")
+            await page.wait_for_selector(WARNING, state="detached", timeout=10000)
+            await page.set_input_files(
+                "#load_project", str(newer_build_file(Path(tmp) / "future2.json")))
+            await page.wait_for_selector(WARNING, timeout=30000)
+            print("second newer-build load: warning shown again")
 
         # ---- A normal project clears the warning and resumes autosave -----
+        before = path.stat().st_mtime_ns     # read first: autosave may be fast
         await page.click("#new_project")
         await page.wait_for_selector(WARNING, state="detached", timeout=30000)
         for _ in range(60):          # up to 30 s
-            if path.exists():
+            if path.exists() and path.stat().st_mtime_ns != before:
                 break
             await page.wait_for_timeout(500)
-        assert path.exists(), "autosave did not resume after a normal project loaded"
+        assert path.stat().st_mtime_ns != before,             "autosave did not resume after a normal project loaded"
         print("normal project: warning cleared, autosave resumed")
 
         clear_autosave(token=token)

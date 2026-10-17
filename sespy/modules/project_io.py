@@ -117,8 +117,10 @@ def quick_actions_server(
     it; Load and New write to it (and emit `isa_change` so analysis modules
     invalidate their caches, mirroring `server/project_io.R`).
     """
-    def t(key: str, fallback: str) -> str:
-        return translator.t(key) if translator else fallback
+    def t(key: str, fallback: str, **fmt) -> str:
+        if translator:
+            return translator.t(key, **fmt)
+        return fallback.format(**fmt) if fmt else fallback
 
     # Tracks the moment of the last successful autosave write — drives
     # the "Auto-saved at HH:MM" indicator.
@@ -149,9 +151,11 @@ def quick_actions_server(
         if token is None or not checked:
             return
         proj = project_data.get()
-        if proj.newer_build_note:
+        if proj.newer_build:
             # Written by a newer SESPy; write_autosave would refuse anyway.
-            # Return before the indicator claims a save that never happened.
+            # Clear the indicator too: an earlier project's "Auto-saved"
+            # time must not suggest this one is being saved.
+            autosave_time.set("")
             return
         try:
             write_autosave(proj, token=token)
@@ -225,21 +229,25 @@ def quick_actions_server(
 
     # ---- NEWER-BUILD WARNING --------------------------------------------
     # A project from a newer SESPy loads with the data this build does not
-    # understand dropped (Project.newer_build_note). Warn once per such
-    # project, whichever path loaded it (upload, recent projects, restore),
-    # and clear the warning when a normal project replaces it. Edits keep the
-    # same note, so they do not re-raise the toast.
-    shown_note = {"value": ""}
+    # understand dropped (Project.newer_build). Warn on every load of such a
+    # project, whichever path loaded it (upload, recent projects), and clear
+    # the warning when a normal project replaces it. Edits keep the same
+    # `newer_build` and do not emit project_loaded, so they do not re-raise
+    # a toast the user has closed.
+    last_warned: dict = {"info": {}, "loads": None}
 
     @reactive.effect
     def _newer_build_warning():
-        note = project_data.get().newer_build_note
-        if note == shown_note["value"]:
+        info = project_data.get().newer_build
+        loads = event_bus.project_loaded.get()
+        if not info:
+            if last_warned["info"]:
+                ui.notification_remove(_NEWER_BUILD_TOAST)
+            last_warned.update(info={}, loads=loads)
             return
-        shown_note["value"] = note
-        if not note:
-            ui.notification_remove(_NEWER_BUILD_TOAST)
+        if info == last_warned["info"] and loads == last_warned["loads"]:
             return
+        last_warned.update(info=info, loads=loads)
         ui.notification_show(
             ui.tags.div(
                 ui.tags.strong(t("ui.quickactions.newer_build_title",
@@ -248,19 +256,31 @@ def quick_actions_server(
                               "Details: {note}. Data this version does not "
                               "understand was left out, and autosave is off for "
                               "this project. Keep your original file: Save Project "
-                              "writes a separate copy in the older format.")
-                            .replace("{note}", note)),
+                              "writes a separate copy in the older format.",
+                              note=_newer_build_details(info))),
             ),
             type="warning",
             duration=None,
             id=_NEWER_BUILD_TOAST,
         )
 
+    def _newer_build_details(info: dict) -> str:
+        parts = []
+        if "schema" in info:
+            parts.append(t("ui.quickactions.newer_build_schema",
+                           "file format {schema}, this version reads up to {schema_max}",
+                           schema=info["schema"], schema_max=info["schema_max"]))
+        if "min_version" in info:
+            parts.append(t("ui.quickactions.newer_build_version",
+                           "requires SESPy {min_version} or newer, this is {running}",
+                           min_version=info["min_version"], running=info["running"]))
+        return "; ".join(parts)
+
     # ---- SAVE -----------------------------------------------------------
     def _save_filename() -> str:
         stem = f"sespy-project-{datetime.now():%Y%m%d-%H%M%S}"
         # Download handlers run isolated, so this read takes no dependency.
-        if project_data.get().newer_build_note:
+        if project_data.get().newer_build:
             stem += "-older-format"
         return f"{stem}.json"
 
@@ -268,7 +288,7 @@ def quick_actions_server(
     def save_project():
         # project_to_bytes calls .with_modified_now() internally; don't double-stamp.
         proj = project_data.get()
-        if proj.newer_build_note:
+        if proj.newer_build:
             ui.notification_show(
                 t("ui.quickactions.saved_older_format",
                   "Saved in this version's format. Data from the newer "
@@ -277,7 +297,11 @@ def quick_actions_server(
                 duration=8,
             )
         try:
-            clear_autosave(token=browser_token())
+            # A newer-build project is never autosaved, so the autosave on
+            # disk belongs to an earlier project; this lossy copy does not
+            # make it obsolete.
+            if not proj.newer_build:
+                clear_autosave(token=browser_token())
         except OSError as e:
             logger.warning("quick_actions.clear_autosave status=error reason=%s", type(e).__name__)
             ui.notification_show(

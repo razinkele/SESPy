@@ -89,12 +89,12 @@ def write_autosave(project_or_isa: Project | IsaData, *, token: str) -> Path | N
     Accepts either a Project or a raw IsaData (wrapped on the fly).
 
     Returns None without writing for a project loaded from a newer SESPy
-    (`newer_build_note`): this build has already dropped the data it does
+    (`Project.newer_build`): this build has already dropped the data it does
     not understand, and an autosave would make that loss look like the
     user's last good state."""
     if isinstance(project_or_isa, IsaData):
         project_or_isa = Project.from_isa(project_or_isa, name="Autosave")
-    if project_or_isa.newer_build_note:
+    if project_or_isa.newer_build:
         logger.info("autosave.write status=skipped reason=newer_build")
         return None
     path = autosave_path(token)

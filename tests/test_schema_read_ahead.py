@@ -61,7 +61,9 @@ def test_missing_stamps_have_no_note():
 
 def test_newer_schema_version_sets_note():
     proj = Project.from_dict(_payload(schema_version=PROJECT_SCHEMA_VERSION + 1))
-    assert proj.newer_build_note
+    assert proj.newer_build == {
+        "schema": PROJECT_SCHEMA_VERSION + 1, "schema_max": PROJECT_SCHEMA_VERSION,
+    }
     assert str(PROJECT_SCHEMA_VERSION + 1) in proj.newer_build_note
     # from_dict still upgrades the object's own stamp to the running build.
     assert proj.metadata.schema_version == PROJECT_SCHEMA_VERSION
@@ -70,7 +72,18 @@ def test_newer_schema_version_sets_note():
 def test_newer_min_sespy_version_sets_note(monkeypatch):
     monkeypatch.setattr(sespy, "__version__", "1.12.3")
     proj = Project.from_dict(_payload(min_sespy_version="1.13.0"))
+    assert proj.newer_build == {"min_version": "1.13.0", "running": "1.12.3"}
     assert "1.13.0" in proj.newer_build_note
+
+
+def test_missing_packaging_never_blocks_a_load(monkeypatch):
+    """`packaging` arrives through shiny; if it were ever absent, a file
+    carrying min_sespy_version must still load."""
+    import sys
+    monkeypatch.setitem(sys.modules, "packaging.version", None)
+    proj = Project.from_dict(_payload(min_sespy_version="99.0.0"))
+    assert proj.newer_build == {}
+    assert proj.isa_data.element_count() == 2
 
 
 def test_equal_or_older_min_sespy_version_has_no_note(monkeypatch):
@@ -104,20 +117,23 @@ def test_non_dict_metadata_does_not_crash():
 
 def test_note_survives_edits():
     proj = Project.from_dict(_payload(schema_version=PROJECT_SCHEMA_VERSION + 1))
-    assert proj.replace(stakeholders=[]).newer_build_note == proj.newer_build_note
-    assert proj.with_modified_now().newer_build_note == proj.newer_build_note
+    assert proj.newer_build
+    assert proj.replace(stakeholders=[]).newer_build == proj.newer_build
+    assert proj.with_modified_now().newer_build == proj.newer_build
 
 
 def test_note_is_not_serialised():
     proj = Project.from_dict(_payload(schema_version=PROJECT_SCHEMA_VERSION + 1))
     d = proj.to_dict()
-    assert "newer_build_note" not in d
-    assert "newer_build_note" not in d["metadata"]
+    for key in ("newer_build", "newer_build_note"):
+        assert key not in d
+        assert key not in d["metadata"]
 
 
 def test_note_field_is_keyword_only_with_default():
     """MosaicSES builds Project(metadata, isa_data) positionally."""
     proj = Project(ds.ProjectMetadata(), ds.IsaData())
+    assert proj.newer_build == {}
     assert proj.newer_build_note == ""
 
 

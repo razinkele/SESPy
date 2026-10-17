@@ -11,6 +11,7 @@ dependencies = [
     "scipy>=1.10",          # required by networkx for pagerank / eigenvector centrality (network.py)
     "htmltools>=0.5",
     "pandas>=2.0",
+    "packaging>=20.9",      # project-file version checks (data_structure.py); also shiny-transitive
     "numpy>=1.24",          # dynamics.py / Boolean + simulation matrices (also pandas-transitive, declared explicitly)
     # pyvis>=0.3 keeps the pip/library layer + CI installable from PyPI (upstream
     # 0.3.x). The full app's CLD/graph view needs `pyvis.shiny`, which lives in

@@ -258,9 +258,11 @@ def _running_version() -> str:
     return __version__
 
 
-def newer_build_note(raw: Any) -> str:
+def newer_build_info(raw: Any) -> dict[str, Any]:
     """Return why a raw project payload needs a newer SESPy than this one,
-    or "" if it does not.
+    as data (empty if it does not):
+      - "schema", "schema_max": the file's format vs the newest this build reads;
+      - "min_version", "running": the SESPy version the file asks for vs this one.
 
     Reads the payload's own stamps — `Project.from_dict` overwrites
     `schema_version` with the running build's, so the loaded object cannot
@@ -269,23 +271,40 @@ def newer_build_note(raw: Any) -> str:
     """
     meta = raw.get("metadata") if isinstance(raw, dict) else None
     if not isinstance(meta, dict):
-        return ""
-    reasons: list[str] = []
+        return {}
+    info: dict[str, Any] = {}
     schema = meta.get("schema_version")
+    # Only a real int counts. SESPy writes ints; a float such as 7.0 or a
+    # bool is treated as malformed, i.e. "not newer".
     if isinstance(schema, int) and not isinstance(schema, bool) \
             and schema > PROJECT_SCHEMA_VERSION:
-        reasons.append(
-            f"file format {schema}, this version reads up to {PROJECT_SCHEMA_VERSION}"
-        )
+        info.update(schema=schema, schema_max=PROJECT_SCHEMA_VERSION)
     wanted = meta.get("min_sespy_version")
     if isinstance(wanted, str) and wanted:
-        from packaging.version import InvalidVersion, Version
+        try:
+            from packaging.version import InvalidVersion, Version
+        except ImportError:
+            return info
         try:
             running = _running_version()
             if Version(wanted) > Version(running):
-                reasons.append(f"requires SESPy {wanted} or newer, this is {running}")
+                info.update(min_version=wanted, running=running)
         except InvalidVersion:
             pass
+    return info
+
+
+def newer_build_note(info: dict[str, Any]) -> str:
+    """English one-line summary of `newer_build_info()` for logs."""
+    reasons: list[str] = []
+    if "schema" in info:
+        reasons.append(
+            f"file format {info['schema']}, this version reads up to {info['schema_max']}"
+        )
+    if "min_version" in info:
+        reasons.append(
+            f"requires SESPy {info['min_version']} or newer, this is {info['running']}"
+        )
     return "; ".join(reasons)
 
 
@@ -298,10 +317,18 @@ class Project:
     engagements: list["Engagement"] = field(default_factory=list)
     communications: list["Communication"] = field(default_factory=list)
     # Runtime only, never serialised: set by from_dict when the file came
-    # from a newer SESPy (see newer_build_note()). Data this build does not
+    # from a newer SESPy (see newer_build_info()). Data this build does not
     # understand was dropped on load, so autosave refuses such a project.
-    # dataclasses.replace() carries it across every edit.
-    newer_build_note: str = field(default="", kw_only=True, compare=False)
+    # dataclasses.replace() carries it across every edit; rebuilding a
+    # Project from parts would drop it, so always edit through .replace().
+    newer_build: dict[str, Any] = field(
+        default_factory=dict, kw_only=True, compare=False
+    )
+
+    @property
+    def newer_build_note(self) -> str:
+        """English summary of `newer_build` ("" for a normal project)."""
+        return newer_build_note(self.newer_build)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -346,9 +373,10 @@ class Project:
             for c in (raw.get("communications") or [])
         ]
         # Read before the stamp below is overwritten.
-        note = newer_build_note(raw)
-        if note:
-            _log.warning("Project was written by a newer SESPy: %s", note)
+        newer = newer_build_info(raw)
+        if newer:
+            _log.warning("Project was written by a newer SESPy: %s",
+                         newer_build_note(newer))
         meta.schema_version = PROJECT_SCHEMA_VERSION   # upgrade-on-load (no down-convert)
         return cls(
             metadata=meta,
@@ -356,7 +384,7 @@ class Project:
             stakeholders=stakeholders,
             engagements=engagements,
             communications=communications,
-            newer_build_note=note,
+            newer_build=newer,
         )
 
     @classmethod
