@@ -37,7 +37,7 @@ roadmap.
 | Mapper location | **Approach A:** a library module, `sespy/r_template_mapper.py`. R's JSONs are sha256-pinned **test fixtures** and never ship to the server. P2's sync script reuses the function. |
 | Polarity seeding | ISA entry pre-fills polarity from the rule table when a source and target are chosen, and the user can override it (R's main entry path, `default_polarity_for_matrix`). |
 | Keyword polarity overrides | Not in P1a. R uses `infer_connection_polarity` only in the Graphical SES builder, so it moves to **P9**. |
-| Boolean ceiling | A server-side ceiling of 20 nodes (R `DYNAMICS_MAX_BOOLEAN_NODES`) for API callers. The UI keeps its maximum and default of 12 (§7). |
+| Boolean ceiling | A server-side ceiling of 20 nodes (R `DYNAMICS_MAX_BOOLEAN_NODES`) for library callers of `boolean_attractors`. The UI keeps its maximum and default of 12 (§7). |
 
 **Deliberate divergences from R** (SESPy keeps more than R does):
 - R drops connection `description` on template load; it never reaches the
@@ -48,6 +48,10 @@ roadmap.
   `r_extra`.
 - R's Excel import maps `Measure` to responses without a marker. SESPy also
   records `r_extra["r_kind"] = "measure"` (§8).
+
+**Amendment to the roadmap:** `min_sespy_version` is "stamped, never
+lowered", *except* that it is reset when a P0b newer-build project is written
+in the older format (§4).
 
 **Divergences in the other direction** (R does more, deferred):
 - R's AI connection generator (`modules/ai_isa/connection_generator.R:625-640`)
@@ -100,13 +104,22 @@ Each target carries `(to_type, polarity, rule_id)`. Type names are SESPy's 7
   for the entry warning. It is translated into all 9 languages.
 
 ### 3.3 Derived topology
-`data_structure._CONN_TYPES` and `_VALID_TYPE_PAIRS` are **derived** from the
-canonical targets. The 10 pairs become 11, adding `("responses", "states",
-"responses_states")`. A test asserts the **explicit order**, which is today's
-order with the new pair placed right after `responses_activities`:
+`data_structure._CONN_TYPES` **stays an explicit literal**, so its order is
+fixed and readable, and `_VALID_TYPE_PAIRS` is still projected from it. It gains
+one pair, `("responses", "states", "responses_states")`, placed right after
+`responses_activities`:
 D→A, A→P, P→S, S→I, I→W, R→P, R→D, R→A, **R→S**, W→D, W→R.
-Derivation must not reorder the existing pairs, because the scorer's output
-order follows this list.
+The scorer's output order follows this list, so the existing pairs are not
+reordered. A test asserts **set equality** between `_CONN_TYPES` (mapped to
+type names) and the canonical targets of `DAPSIWRM_ADJACENCY_RULES`. The rule
+table is therefore the single source of truth, and the literal cannot drift
+from it.
+
+Docstrings and comments that assume 10 types are updated:
+`connection_scorer.py:74,349,356,374`, `wizard.py:74` and
+`data_structure.py:64`. The scorer can now return up to 165 suggestions
+(11 × 15). The Claude backend's `maxItems` of 150 is a separate limit and is
+unchanged.
 
 Consumers, each of which changes:
 - `claude_backend.py:144-146,224`. The system prompt says "10 valid" and lists
@@ -147,6 +160,11 @@ intended parity and gets an explicit test. Extension pairs are not suggested
   unchanged. P1a does not add a restore.
 - An off-rule pair shows a yellow note under the form, naming the pair and why
   it is off-rule. The link still saves.
+- **No note and no seeding** when the source equals the target, or when either
+  id is empty. After every `isa_change` both pickers fall back to the first
+  element, so without this guard the default state (D→D, ES→ES, …) would show
+  a false off-rule note before the user picks anything. Self-loops are already
+  rejected by `_add_connection` (`isa_data_entry.py:240-243`).
 - Untyped elements: no note, polarity `+`.
 - `Connection.description` gets **no UI in P1a**: the connections table
   (`isa_data_entry.py:165-172`) neither shows nor edits it. The field is
@@ -178,16 +196,28 @@ existing projects behave exactly as before.
   `project_to_bytes`, `save_project_atomic`, autosave, and MosaicSES, which
   serialises embedded compartments with `c.project.to_dict()`
   (`multises/data_structure.py:620`).
+  - Stamping changes **only the output dict**. `to_dict()` never mutates
+    `self.metadata`, because `Project` equality includes metadata and a
+    newer-build object must keep its raw stamp. A test pins this.
   - Normally `min_sespy_version` becomes the higher of the existing value and
     `SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]`, compared with
     `packaging.version`. It is **never lowered**, so a file last written by a
-    newer build keeps that build's higher stamp. An unparsable stamp is
-    replaced.
+    newer build keeps that build's higher stamp. A stamp that is **not a
+    string, or not a valid version**, is replaced. `min_sespy_version` becomes a
+    declared field, so an int such as `13` now reaches metadata, and
+    `Version(13)` raises `TypeError`, not `InvalidVersion`. A test covers the
+    int case.
+  - A guard test asserts `SCHEMA_MIN_READER` has an entry for
+    `PROJECT_SCHEMA_VERSION`, so a future schema bump cannot make the lookup
+    raise `KeyError`.
   - **Exception, for P0b's older-format save:** when `newer_build` is set, the
     data from the newer build has already been dropped, so the stamp is
     **reset** to `SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]`. Otherwise the
     `…-older-format.json` copy would keep the newer stamp, be flagged again on
-    every load and lose autosave for good.
+    every load and lose autosave for good. Reloading that copy unflagged is
+    intended, and matches the P0b toast ("Save Project writes a separate copy
+    in the older format"). **This amends the roadmap's "stamped, never
+    lowered"** (P1a, roadmap line 137); see §2.
   - `pims_project.py:156-170` rebuilds `ProjectMetadata` field by field, which
     would drop `origin`, `r_template_version` and `min_sespy_version` on each
     "Save project info". It changes to `dataclasses.replace(meta, ...)`. A test
@@ -314,8 +344,8 @@ GB→R (canonical, Rule 8).
   clamps `max_nodes` to `[1, ceiling]` before the size check. P7 may pass a
   different `ceiling` explicitly.
 - `sespy/modules/analysis_boolean.py`: `input.max_nodes()` goes through
-  `safe_int(..., 12)` and is then clamped on the server to `[1, 12]`, the UI's
-  maximum. The UI's `max` **stays at 12**. `boolean_attractors` is a
+  `safe_int(..., 12)` and is then clamped on the server to `[4, 12]`, the UI's
+  own range (`analysis_boolean.py:52` sets the slider minimum to 4). The UI's `max` **stays at 12**. `boolean_attractors` is a
   pure-Python 2^N loop run synchronously in a `reactive.effect`
   (`dynamics.py:271-283`, `analysis_boolean.py:90-102`). At 20 nodes that is 256×
   today's worst case, and it would block the shared laguna worker. Raising the
@@ -362,7 +392,10 @@ in `.multises.json`.
 - **Gate:** MosaicSES unit tests and its full suite run against the SESPy
   branch before merge, and the live MosaicSES is checked after deploy.
 - Known follow-up, not in P1a: MosaicSES does not yet warn about P0b's
-  `newer_build` on compartments.
+  `newer_build` on compartments. With P1a's stamp reset, a compartment from a
+  newer SESPy is re-saved **in the older format without any notice**, and its
+  newer-only data is lost silently. That raises the follow-up's priority:
+  MosaicSES should warn before P1b, the next schema bump.
 
 ## 10. Testing
 
@@ -391,15 +424,23 @@ TDD throughout. New unit test files:
   `tests/test_excel_import.py` (description, Kumu label, aliases, Measure).
 
 **Existing tests that change:**
-- `tests/test_data_structure.py`: `test_schema_version_is_6` (line 217) becomes
-  7, and the `_CONN_TYPES` length and the exact ordered list (lines 148 and
-  159-173) become 11.
+- Tests that hard-code schema 6 switch to `PROJECT_SCHEMA_VERSION` (except the
+  one test pinning the constant, which asserts 7):
+  `tests/test_data_structure.py:17` (`test_schema_version_is_6`) and `:217`
+  (a round-trip assert), and `tests/test_stakeholders.py:227,243,259`. The
+  plan greps for any others before the bump.
+- `tests/test_data_structure.py`: the `_CONN_TYPES` length and the exact
+  ordered list (lines 148 and 159-173) become 11.
 - `tests/test_connection_scorer.py`: the 10-type expectations (lines 30-38,
   including the keyword-JSON key set, and 478) go to 11.
 - `tests/test_claude_backend.py`: lines 89-92 (the prompt's pair list) go to 11.
 
 **New unit tests for the round-1 additions:**
-- the stamp reset on a `newer_build` save;
+- the stamp reset on a `newer_build` save, and `to_dict()` leaving
+  `self.metadata` unchanged;
+- an int `min_sespy_version` being replaced, and the `SCHEMA_MIN_READER` guard;
+- the ISA entry note hidden in the default state (source == target), also
+  checked in the e2e test;
 - `pims_project` keeping the three metadata fields;
 - `_isa_from_dict` tolerating a bad `r_extra`;
 - the scorer's R→S polarity branch;
