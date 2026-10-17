@@ -60,6 +60,10 @@ roadmap.
   `r_extra`.
 - R's Excel import maps `Measure` to responses without a marker. SESPy also
   records `r_extra["r_kind"] = "measure"` (§8).
+- R matches Excel type aliases case-sensitively; SESPy matches them
+  case-insensitively, after stripping whitespace (§8).
+- R's Kumu `Label` rule treats only `-` as negative; SESPy also accepts `−`
+  (U+2212), the sign its own polarity labels use (§8).
 
 **Amendments to the roadmap** (all applied to the roadmap on branch
 `docs/r-parity-roadmap`, commits `e45e3cb` and later):
@@ -172,7 +176,8 @@ table is therefore the single source of truth, and the literal cannot drift
 from it.
 
 Docstrings and comments that assume 10 types are updated:
-`connection_scorer.py` (around lines 74, 166, 258, 357 and 375; the plan
+`connection_scorer.py` (the module docstring at line 3, and around lines 74,
+166, 258, 357 and 375; the plan
 greps for every "10" type reference), `wizard.py:74` and
 `data_structure.py:64`. The scorer can now return up to 165 suggestions
 (11 × 15). The Claude backend's `maxItems` of 150 is a separate limit and is
@@ -183,12 +188,11 @@ Consumers, each of which changes:
   the pairs, so it becomes 11 and includes R->S. Without this, Claude never
   proposes R→MPF.
 - `connection_scorer.py`:
-  - **keywords:** `connection_keywords.json` gains a `responses_states` entry.
-    R has no keyword file for this pair; its generator uses the target's
-    negative/positive vocabulary (`connection_generator.R:122-130`). The entry
-    lists restoration and protection terms (e.g. restoration, protection,
-    MPA, closure, recovery, habitat). Without it, `calculate_relevance` returns
-    a flat 0.5 (`connection_scorer.py:85`);
+  - **relevance, R-exact:** R has no relevance keywords for R→MPF and scores
+    it at a flat 0.5 (`connection_generator.R:375`). SESPy does the same: no
+    `responses_states` keywords are invented. `connection_keywords.json` gets
+    **no** `responses_states` key, so `calculate_relevance` returns its flat
+    0.5 (`connection_scorer.py:85`). A test pins 0.5 for an R→MPF pair;
   - **polarity:** port R's R→S branch. The target is negative-sounding → `−`;
     positive-sounding → `+`; otherwise `+`. This is the branch the docstring at
     `connection_scorer.py:163-169` says to add back.
@@ -210,9 +214,16 @@ intended parity and gets an explicit test. Extension pairs are not suggested
   with that default target (e.g. P001→D001), seed a polarity and show a false
   off-rule note before the user has chosen a target. P1a gives **both pickers
   an empty first choice** (`""`, labelled with the new i18n key
-  `entry.choose_element`, "— choose —"), which is what they fall back to.
+  `entry.choose_element`, "— choose —", translated into all 9 languages),
+  which is what they fall back to.
   Seeding and the note only happen once both are actually chosen.
-  `_add_connection` refuses an empty endpoint with a notification. No existing
+  `_add_connection` already refuses an empty endpoint (`if not src or not
+  tgt`); a characterisation test pins that. With no elements, each picker
+  offers the single choice `{"": "(no elements yet)"}` exactly as today
+  (`isa_data_entry.py:131,139`; that hard-coded English label is unchanged in
+  P1a), and the
+  "choose" label is used only when elements exist, so the `""` key never
+  collides. No existing
   SESPy or MosaicSES e2e test drives these pickers (§9), so the change breaks
   nothing. P1a does not add a selection restore.
 - **Prefill.** Polarity is an `input_radio_buttons` (`new_polarity`,
@@ -307,7 +318,22 @@ imported lazily as P0b already does.
     would drop `origin`, `r_template_version` and `min_sespy_version` on each
     "Save project info". It changes to `dataclasses.replace(meta, ...)`. A test
     pins that all three survive.
-  - **Ordering:** the version bump to 1.13.0 lands in the **first** P1a commit,
+  - **Commit order (each commit leaves the unit gate green):**
+    1. version bump (`__init__`, `pyproject`, MANUAL line);
+    2. schema v7 group (constant, `SCHEMA_MIN_READER`, the five fields and their
+       serialisation, stamping, and the schema-6 test edits);
+    3. rule table + `link_rules` + the R-rules content-parity test;
+    4. **topology group**, all at once: `_CONN_TYPES` (11), the Claude prompt,
+       the scorer's R→S polarity branch, and the edits to
+       `test_data_structure.py`, `test_connection_scorer.py` and
+       `test_claude_backend.py`. `test_all_10_types_yield_high_confidence_suggestions`
+       derives its expected set from `_CONN_TYPES`, so splitting this group
+       turns the gate red. The set-equality test and the R→MPF suggestion test
+       land here or later;
+    5. the rest, which all depend on commit 2: the mapper and fixtures,
+       `r_sync`, Excel import, `pims_project`, ISA entry, Boolean, and
+       `governance_gap` docs.
+  - **Ordering detail:** the version bump to 1.13.0 lands in the **first** P1a commit,
     not in §11. The schema change (`PROJECT_SCHEMA_VERSION = 7`,
     `SCHEMA_MIN_READER`, the five new fields and their serialisation, and the
     edits to the tests that hard-code schema 6) lands **together in one
@@ -461,7 +487,9 @@ with the
 - R's `functions/dapsiwrm_connection_rules.R` is copied to
   `tests/parity/r_rules/`, so CI, which has no R checkout, can hash it.
 - **Machine-readable pin:** `tests/parity/r_sync.json` holds
-  `{"r_tag", "r_commit", "files": {<fixture path>: <hash>}}`. The JSON
+  `{"r_tag", "r_commit", "files": {<fixture path>: <hash>}}`. Fixture paths are
+  relative to the **repo root** and use forward slashes, e.g.
+  `tests/parity/r_templates/Fisheries_SES_Template.json`. The JSON
   fixtures use `sha256_norm`, and the `.R` fixture uses `sha256_text_norm`.
   `test_r_sync.py` reads only this file. `R_SYNC.md` is the human record: it
   links to `r_sync.json` and repeats the hashes for reading. The two are
@@ -500,9 +528,13 @@ with the
 - `sespy/dynamics.py`: a new `BOOLEAN_MAX_NODES_CEILING = 20`.
   `boolean_attractors(rules, max_nodes=12, *, ceiling=BOOLEAN_MAX_NODES_CEILING)`
   clamps `max_nodes` to `[1, ceiling]` before the size check. P7 may pass a
-  different `ceiling` explicitly.
-- `sespy/modules/analysis_boolean.py`: `input.max_nodes()` goes through
-  `safe_int(..., 12)` and is then clamped on the server to `[4, 12]`, the UI's
+  different `ceiling` explicitly. The `too_large` sentinel's `max_nodes`
+  reports the **clamped** value that was actually applied.
+- A pure helper, `dynamics.clamp_max_nodes(value, *, lo, hi) -> int`, does the
+  clamping for both layers, and its unit tests live in `tests/test_dynamics.py`.
+- `sespy/modules/analysis_boolean.py`: `input.max_nodes()` already goes through
+  `safe_int(..., 12)` (`analysis_boolean.py:99`). It is then clamped on the
+  server with `clamp_max_nodes(v, lo=4, hi=12)` to `[4, 12]`, the UI's
   own range (`analysis_boolean.py:48` sets the slider minimum to 4). The UI's `max` **stays at 12**. `boolean_attractors` is a
   pure-Python 2^N loop run synchronously in a `reactive.effect`
   (`dynamics.py:271-283`, `analysis_boolean.py:90-102`). At 20 nodes that is 256×
@@ -528,7 +560,10 @@ with the
   negative. Unit tests in `tests/test_excel_import.py` cover a blank polarity
   cell with `Label="-"` (→ `-`), a whitespace-only polarity cell with
   `Label="-"` (→ `-`), `Label=" -"` (→ `+`) and `Label="−"` (→ `-`).
-- **Element type aliases**, taken from R's list (`excel_import_helpers.R:160-175`):
+- **Element type aliases** are resolved in `parse_excel` **before** the payload
+  is built, because `validate_project_payload` rejects `driver` or `Measure`
+  today. The type cell is stripped, then matched case-insensitively against
+  R's list (`excel_import_helpers.R:160-175`):
   `Driver`, `Activity`, `Pressure`, `Marine Process and Function`,
   `Marine Process and Functioning`, `State`, `State Change`,
   `Ecosystem Service`, `Impact`, `Good and Benefit`, `Goods and Benefits`,
@@ -594,9 +629,18 @@ TDD throughout. New unit test files:
   - `r_type` capture;
   - report contents;
   - the legacy-format error and dangling-id error.
-- `tests/parity/test_r_sync.py`: fixture hashes against
-  `tests/parity/r_sync.json`, plus a check that every hash quoted in
-  `R_SYNC.md` matches `r_sync.json`.
+- `tests/parity/test_r_sync.py`:
+  - each fixture's hash against `tests/parity/r_sync.json`;
+  - **set equality** between the hashes found in `R_SYNC.md` (regex
+    `\b[0-9a-f]{64}\b`) and `r_sync.json["files"].values()`, so a row missing
+    from the markdown also fails;
+  - **content parity of the rule table:** a regex over the `targets`,
+    `extension_targets` and `target_polarities` entries of
+    `tests/parity/r_rules/dapsiwrm_connection_rules.R`, which handles the
+    two-line `Responses` block, reproduces the §3.1 table. The test asserts it
+    equals `DAPSIWRM_ADJACENCY_RULES` (targets, extension targets, per-pair
+    polarity). Rule ids are not in R, so they stay pinned by the spec. A hash
+    alone would let a hand-copy error pass.
 - Additions to `tests/test_dynamics.py` (ceiling and clamp) and
   `tests/test_excel_import.py` (description, Kumu label, aliases, Measure).
 
@@ -615,11 +659,15 @@ TDD throughout. New unit test files:
   including the keyword-JSON key set, and 478) go to 11.
 - `tests/test_claude_backend.py`: lines 89-92 (the prompt's pair list) go to 11.
 - `tests/test_connection_scorer.py:477` and following (each type reaches at
-  least 0.6 confidence): the fixture gains a Response and an MPF element whose
-  labels match the new `responses_states` keywords.
+  least 0.6 confidence): `responses_states` is **excluded** from that bar,
+  with a comment that R scores it at a flat 0.5. A separate test pins 0.5.
+- `tests/test_claude_backend.py:331` also says "10" and goes to 11.
+- `tests/test_i18n.py`: the per-feature key presence tests gain
+  `entry.off_rule_link` and `entry.choose_element`.
 - `tests/test_schema_read_ahead.py:46` uses `r_extra` as its example of an
-  *unknown* element key. After P1a that is a declared field, so the example
-  changes to a key that is still unknown (e.g. `future_field`).
+  *unknown* element key. It stays green after P1a, but no longer tests what
+  its name says, so the example changes to a key that is still unknown (e.g.
+  `future_field`). This is a cosmetic edit.
 
 **New unit tests for the round-1 additions:**
 - in `tests/test_schema_v7.py` (with the other stamping tests, not duplicated
@@ -630,12 +678,18 @@ TDD throughout. New unit test files:
   and off-rule pairs (pure unit tests);
 - the prefill effect in memory, using `shiny.testserver.test_server` with
   `shiny.ui.update_radio_buttons` monkeypatched: choosing P→MPF calls it with
-  `selected="-"`, and choosing only a source calls nothing;
+  `selected="-"`, and choosing only a source **with `new_target=""` set
+  explicitly** calls nothing. (Action-button inputs in `test_server` must be
+  set to 0 and then 1, because of `ignore_init`.);
+- the rendered source and target pickers contain `<option value=""
+  selected>` (the empty first choice);
 - the subprocess test that `sespy.link_rules` imports without Shiny;
-- `_add_connection` refusing an empty endpoint;
+- `_add_connection` refusing an empty endpoint (a characterisation test: it
+  already passes on today's code);
 - the ISA entry note hidden in the default state (both pickers empty), also
   checked in the e2e test via `.sespy-off-rule-note`;
-- `pims_project` keeping the three metadata fields;
+- `pims_project` keeping the three metadata fields, as a `test_server` test of
+  `pims_project_server`'s save handler (there are no pims unit tests today);
 - `_isa_from_dict` tolerating a bad `r_extra`;
 - the scorer's R→S polarity branch;
 - `governance_gap`'s headline staying unchanged when an R→MPF link exists;
