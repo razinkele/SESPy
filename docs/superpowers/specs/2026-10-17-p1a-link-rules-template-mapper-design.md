@@ -58,6 +58,9 @@ roadmap.
 **Amendments to the roadmap:**
 - `min_sespy_version` is "stamped, never lowered", *except* that it is reset
   when a P0b newer-build project is written in the older format (§4).
+- `_CONN_TYPES` stays an explicit literal, checked by a set-equality test
+  against the rule table, rather than being "derived" as the roadmap says
+  (§3.3). The rule table is still the single source of truth.
 - **Any release that adds a serialised field bumps `PROJECT_SCHEMA_VERSION`**
   and adds a `SCHEMA_MIN_READER` entry. The roadmap's option for P1b/P1c to
   "add fields within v7" is withdrawn. Otherwise a 1.13 build would read a file
@@ -118,7 +121,9 @@ only.
   practice. An off-rule P→D, R→ES or R→GB therefore seeds `+`, as in R.
 - `rule_id(from_type, to_type) -> str | None`.
 - `off_rule_message(from_label, to_label, translator)` returns the i18n text
-  for the entry warning. It is translated into all 9 languages.
+  for the entry warning, from the new key `entry.off_rule_link` with
+  placeholders `{source}`, `{target}`, `{source_type}` and `{target_type}`. It
+  is translated into all 9 languages.
 
 ### 3.3 Connection topology
 `data_structure._CONN_TYPES` **stays an explicit literal**, so its order is
@@ -133,7 +138,8 @@ table is therefore the single source of truth, and the literal cannot drift
 from it.
 
 Docstrings and comments that assume 10 types are updated:
-`connection_scorer.py:74,166,258,349,356,374`, `wizard.py:74` and
+`connection_scorer.py` (around lines 74, 166, 258, 357 and 375; the plan
+greps for every "10" type reference), `wizard.py:74` and
 `data_structure.py:64`. The scorer can now return up to 165 suggestions
 (11 × 15). The Claude backend's `maxItems` of 150 is a separate limit and is
 unchanged.
@@ -191,11 +197,11 @@ intended parity and gets an explicit test. Extension pairs are not suggested
 Off-rule links are accepted and logged (`link_rules` logger, one line per
 project with the count and the first few pairs). They are never rejected, so
 existing projects behave exactly as before. **Call sites:** only
-`persistent_storage.validate_project_payload` (SESPy upload, recent projects,
-templates), `excel_import.parse_excel` and the mapper's report. **Not**
-`Project.from_dict`: MosaicSES would log once per compartment, and
-`data_structure` must not import `link_rules`, which imports `constants`. That
-keeps the import graph acyclic.
+`persistent_storage.validate_project_payload` and the mapper's report.
+Validation already covers SESPy upload, recent projects, templates, Excel
+import (`excel_import.py:173`) and QSEM import (`qsem_import.py:195`), so each
+project logs exactly once. **Not** `Project.from_dict`: MosaicSES would log
+once per compartment, and `data_structure` is kept standard-library only.
 
 ## 4. Schema v7 (`sespy/data_structure.py`)
 
@@ -218,6 +224,9 @@ keeps the import graph acyclic.
   `project_to_bytes`, `save_project_atomic`, autosave, and MosaicSES, which
   serialises embedded compartments with `c.project.to_dict()`
   (`multises/data_structure.py:620`).
+  - `packaging` is a declared hard dependency (`pyproject.toml`), so
+    `to_dict()` imports it without the `ImportError` guard that P0b's read
+    path has.
   - Stamping changes **only the output dict**. `to_dict()` never mutates
     `self.metadata`, because `Project` equality includes metadata and a
     newer-build object must keep its raw stamp. A test pins this.
@@ -244,8 +253,11 @@ keeps the import graph acyclic.
     would drop `origin`, `r_template_version` and `min_sespy_version` on each
     "Save project info". It changes to `dataclasses.replace(meta, ...)`. A test
     pins that all three survive.
-  - **Ordering:** the version bump to 1.13.0 (`sespy/__init__.py`) lands in the
-    **first** P1a commit, not in §11. Otherwise every round trip on the branch
+  - **Ordering:** the version bump to 1.13.0 lands in the **first** P1a commit,
+    not in §11. It covers all three places together: `sespy/__init__.py`,
+    `pyproject.toml` and the MANUAL version line. `tests/test_manual.py:29-31`
+    asserts that the MANUAL line equals `__version__`, so bumping only one of
+    them turns the unit gate red. Otherwise every round trip on the branch
     would stamp 1.13.0 while the build reports 1.12.3, and P0b would flag it.
 - **Serialisation.** `to_dict`/`from_dict` have explicit code for each new
   field; there is no reliance on `asdict`. A round-trip test covers every field.
@@ -259,7 +271,9 @@ keeps the import graph acyclic.
     becomes `""`;
   - in `validate_project_payload` (the SESPy upload path), a non-string
     `description` is rejected with a clear message, the same treatment as a
-    bad `polarity`;
+    bad `polarity`. `None` (or an absent key) is **skipped**, following the
+    file's convention for optional fields (`persistent_storage.py:20-22,
+    103-104`), and `_isa_from_dict` turns it into `""`;
   - the element type `"Measures"` is never written. The mapper folds it, and
     validation's type list does not change.
 - **`Project.replace()`** must keep both new fields through every editor path.
@@ -279,7 +293,8 @@ class ConversionReport:
     type_mismatches: tuple[str, ...]          # from_type/to_type vs category
     extra_fields: tuple[str, ...]             # field names moved into r_extra
     template_meta: dict[str, Any]             # complexity, usage_notes, source,
-                                              # applicable_regions, regional_context
+                                              # applicable_regions, created_date,
+                                              # regional_context
 
 def convert_r_template(raw: dict, *, key: str) -> tuple[Project, ConversionReport]: ...
 ```
@@ -343,7 +358,8 @@ template key and the offending item, for:
 - an element without `id` or `name`.
 
 None of these occur in the 7 fixtures (verified). Each has a negative test.
-A companion `load_r_template(path) -> dict` reads files with the
+A companion `load_r_template(path) -> dict`, in the same module, reads files
+with the
 `utf-8-sig` encoding, so a BOM is tolerated, and CRLF is harmless to
 `json.loads`.
 
@@ -358,8 +374,17 @@ A companion `load_r_template(path) -> dict` reads files with the
 - The 7 files are copied to `tests/parity/r_templates/` with their R file
   names: Aquaculture, Caribbean, ClimateChange, Fisheries, OffshoreWind,
   Pollution, Tourism. `Caribbean_SES_Template_backup.json` is excluded.
+- R's `functions/dapsiwrm_connection_rules.R` is copied to
+  `tests/parity/r_rules/`, so CI, which has no R checkout, can hash it.
+- **Machine-readable pin:** `tests/parity/r_sync.json` holds
+  `{"r_tag", "r_commit", "files": {<fixture path>: <hash>}}`. The JSON
+  fixtures use `sha256_norm`, and the `.R` fixture uses `sha256_text_norm`.
+  `test_r_sync.py` reads only this file. `R_SYNC.md` is the human record: it
+  links to `r_sync.json` and repeats the hashes for reading. The two are
+  updated in the same commit.
 - New `docs/parity/R_SYNC.md` records:
-  - the R tag and commit (v1.29.0, `e33faea`) and each file's `sha256_norm`;
+  - the R tag and commit (v1.29.0, `e33faea`) and each fixture's hash (the 7
+    templates and the rules file), mirroring `tests/parity/r_sync.json`;
   - the laguna verification: the deployed R was v1.29.0 on 2026-10-17, and the
     7 templates and the rules file are identical;
   - that it amends the roadmap baseline;
@@ -372,8 +397,9 @@ A companion `load_r_template(path) -> dict` reads files with the
   script, `check_live.py` and K1's provenance all use this function, so their
   hashes always agree. For the rules `.R` file, which is not JSON,
   `sha256_text_norm(text)` hashes the text with CRLF normalised to LF.
-- `tests/parity/test_r_sync.py` asserts the hashes. A new R release is adopted
-  by re-copying the fixtures and updating `R_SYNC.md` in the same commit.
+- `tests/parity/test_r_sync.py` asserts each fixture's hash against
+  `r_sync.json`. A new R release is adopted by re-copying the fixtures and
+  updating `r_sync.json` and `R_SYNC.md` in the same commit.
 
 ## 6. R fields not carried over
 
@@ -405,7 +431,9 @@ A companion `load_r_template(path) -> dict` reads files with the
 ## 8. Excel import (`sespy/excel_import.py`)
 
 - `CONN_DESC_COLS = ("description", "Description", "rationale", "Rationale")`
-  is read into `Connection.description`.
+  is read into `Connection.description` as `str(...)`. An empty or NaN cell
+  becomes `""`, as for element descriptions (`excel_import.py:128`), so one
+  numeric cell never fails a whole workbook.
 - **Kumu polarity.** When no polarity column is present, a connection's
   `Label`/`label` column decides: a value of `-`, or one starting with `-`, is
   negative; anything else is positive (R `excel_import_helpers.R:432-437`).
@@ -487,6 +515,12 @@ TDD throughout. New unit test files:
 - `tests/test_connection_scorer.py`: the 10-type expectations (lines 30-38,
   including the keyword-JSON key set, and 478) go to 11.
 - `tests/test_claude_backend.py`: lines 89-92 (the prompt's pair list) go to 11.
+- `tests/test_connection_scorer.py:477` and following (each type reaches at
+  least 0.6 confidence): the fixture gains a Response and an MPF element whose
+  labels match the new `responses_states` keywords.
+- `tests/test_schema_read_ahead.py:46` uses `r_extra` as its example of an
+  *unknown* element key. After P1a that is a declared field, so the example
+  changes to a key that is still unknown (e.g. `future_field`).
 
 **New unit tests for the round-1 additions:**
 - in `tests/test_schema_v7.py` (with the other stamping tests, not duplicated
@@ -520,8 +554,8 @@ round finds no Critical or Important issues.
 
 - CHANGELOG `[1.13.0]` naming P1a and R 1.17.1 / 1.18.0 / 1.22.0 / 1.22.3, and
   listing the divergences (§2).
-- Version bumps in `pyproject.toml`, `sespy/__init__.py` and the MANUAL version
-  line.
+- Version bumps: already done in the first P1a commit (§4); check that they
+  are still 1.13.0.
 - MANUAL: link rules, the polarity default and the off-rule note.
 - Re-shoot only the ISA-entry screenshot.
 - Deploy and verify on laguna, including a server-side check that a v7 project
