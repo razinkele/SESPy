@@ -89,6 +89,7 @@ async def main():
         for attempt in range(3):
             await page.click("#new_project")
             if await wait_for_autosave(page, path, raise_on_timeout=attempt == 2):
+                print(f"positive control autosaved on click {attempt + 1}")
                 break
         good = path.read_bytes()
         print("normal project: autosaved, indicator shown")

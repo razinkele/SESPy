@@ -79,7 +79,7 @@ Loop Analysis finds five feedback loops in it. The three that close through dema
 
 **Autosave** writes the project on every change while it is enabled (Options dialog). Each browser has its own private autosave: the browser keeps a random token in its local storage, and the file is stored under `~/.sespy/autosaves/` keyed by a hash of that token, so other people using the same server never see it. On your next visit from the same browser, if your autosave is less than 24 hours old, a message offers to restore it. Autosaves older than 72 hours are deleted. Saving a project clears the autosave; you can also clear it from Options. With browser storage blocked (for example some private windows) there is no autosave.
 
-**Files from a newer SESPy.** A project file saved by a newer version of SESPy still loads, but the information this version does not understand is left out. A warning says so and names the file format or SESPy version the file needs. Autosave is off for that project. **Save Project** then writes a separate copy named `…-older-format.json`: keep your original file and open it in the newer version.
+**Files from a newer SESPy.** A project file saved by a newer version of SESPy still loads, but the information this version does not understand is left out. A warning says so and names the file format or SESPy version the file needs. Autosave is off for that project. **Save Project** then writes a separate copy named `…-older-format.json`, and leaves your earlier autosave in place: keep your original file and open it in the newer version.
 
 **Recent Projects** (section 22) lists files opened with Load Project.
 

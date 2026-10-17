@@ -235,7 +235,8 @@ def quick_actions_server(
     # `newer_build` and do not emit project_loaded, so they do not re-raise
     # a toast the user has closed.
     # A language switch changes the text (t() subscribes to the language),
-    # so an open warning is re-shown in the new language.
+    # so the warning is re-shown in the new language (even if it had been
+    # closed: the project is still the reduced copy).
     last_warned: dict = {"info": {}, "loads": None, "text": None}
 
     @reactive.effect
