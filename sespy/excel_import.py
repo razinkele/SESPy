@@ -18,7 +18,7 @@ from typing import Any, Sequence
 
 import pandas as pd
 
-from .constants import normalize_delay
+from .constants import DAPSIWRM_ELEMENTS, normalize_delay
 from .data_structure import Connection, Element
 from .persistent_storage import ValidationResult, validate_project_payload
 
@@ -37,19 +37,75 @@ CONN_POLARITY_COLS = ("polarity", "Polarity", "sign", "Sign")
 CONN_STRENGTH_COLS = ("strength", "Strength", "weight", "Weight")
 CONN_CONF_COLS     = ("confidence", "Confidence")
 CONN_DELAY_COLS    = ("delay", "Delay", "lag", "Lag")
+CONN_DESC_COLS     = ("description", "Description", "rationale", "Rationale")
+# Kumu's edge Label: decides polarity only when the row has neither a numeric
+# weight nor a non-empty polarity cell (R excel_import_helpers.R:432-437).
+CONN_LABEL_COLS    = ("Label", "label")
+
+_MPF = "Marine Processes & Functioning"
+# R's Excel type aliases (excel_import_helpers.R:160-175), matched
+# case-insensitively after stripping (R is case-sensitive: a divergence).
+# The canonical SESPy names are accepted the same way.
+_TYPE_ALIASES: dict[str, str] = {
+    **{t.lower(): t for t in DAPSIWRM_ELEMENTS},
+    "driver": "Drivers",
+    "activity": "Activities",
+    "pressure": "Pressures",
+    "marine process and function": _MPF,
+    "marine process and functioning": _MPF,
+    "state": _MPF,
+    "state change": _MPF,
+    "ecosystem service": "Ecosystem Services",
+    "impact": "Ecosystem Services",
+    "good and benefit": "Goods & Benefits",
+    "goods and benefits": "Goods & Benefits",
+    "welfare": "Goods & Benefits",
+    "response": "Responses",
+    "measure": "Responses",
+}
+# Kumu label prefixes that mean "-": ASCII (as R) plus U+2212, the sign
+# SESPy's own polarity labels use (a divergence).
+_NEGATIVE_LABEL_PREFIXES = ("-", "−")
 
 ELEMENTS_SHEET_NAMES    = ("Elements", "elements", "Nodes", "nodes")
 CONNECTIONS_SHEET_NAMES = ("Connections", "connections", "Edges", "edges", "Links", "links")
 
 
-def _pick(row: pd.Series, candidates: Sequence[str], default: Any = "") -> Any:
-    """Return the first candidate column value found in `row`, or `default`."""
+def _pick(row: pd.Series, candidates: Sequence[str], default: Any = "",
+          *, skip_blank: bool = False) -> Any:
+    """Return the first candidate column value found in `row`, or `default`.
+    With skip_blank, a whitespace-only string cell counts as empty, so the
+    next candidate column is tried (used for the polarity columns only)."""
     for name in candidates:
         if name in row.index:
             v = row[name]
             if pd.notna(v):
+                if skip_blank and isinstance(v, str) and not v.strip():
+                    continue
                 return v
     return default
+
+
+def _resolve_type(raw: Any) -> tuple[str, dict[str, Any]]:
+    """Map an Elements-sheet type cell to (SESPy type, r_extra). A Measure
+    becomes Responses with r_extra["r_kind"] = "measure". An unrecognised
+    string is returned stripped, and validation rejects it as before."""
+    text = str(raw).strip()
+    key = text.lower()
+    if key in _TYPE_ALIASES:
+        return _TYPE_ALIASES[key], ({"r_kind": "measure"} if key == "measure" else {})
+    return text, {}
+
+
+def _row_polarity(row: pd.Series) -> str:
+    """Polarity for a row without a numeric FCM weight: the first non-empty
+    polarity cell (stripped), else the Kumu Label cell (not stripped, as R:
+    a value starting with "-" or U+2212 is negative), else "+"."""
+    cell = _pick(row, CONN_POLARITY_COLS, default="", skip_blank=True)
+    if cell != "":
+        return str(cell).strip()
+    label = _pick(row, CONN_LABEL_COLS, default="")
+    return "-" if str(label).startswith(_NEGATIVE_LABEL_PREFIXES) else "+"
 
 
 def _resolve_sheet(workbook: pd.ExcelFile, candidates: Sequence[str]) -> str | None:
@@ -122,12 +178,16 @@ def parse_excel(path: Path | str) -> ValidationResult:
             errors.append(f"Elements row {i + 2}: missing id")
             continue
         el_conf = _pick(row, ELEMENT_CONF_COLS, default=3)
+        # Resolved before the payload is built: validation would reject
+        # "driver" or "Measure".
+        el_type, r_extra = _resolve_type(_pick(row, ELEMENT_TYPE_COLS, default=""))
         elements.append(Element(
             id=str(eid),
             label=str(_pick(row, ELEMENT_LABEL_COLS, default=eid)),
-            type=str(_pick(row, ELEMENT_TYPE_COLS, default="")),
+            type=el_type,
             description=str(_pick(row, ELEMENT_DESC_COLS, default="")),
             confidence=int(el_conf if el_conf is not None and el_conf != "" else 3),
+            r_extra=r_extra,
         ))
 
     connections: list[Connection] = []
@@ -139,10 +199,10 @@ def parse_excel(path: Path | str) -> ValidationResult:
             continue
         raw_strength = _pick(row, CONN_STRENGTH_COLS, default="")
         fcm = _try_float(raw_strength)
-        if fcm is not None:                       # numeric → FCM weight
+        if fcm is not None:                       # numeric → FCM weight decides the sign
             polarity, strength = fcm_weight_to_fields(fcm)
-        else:                                     # text/empty → categorical (unchanged)
-            polarity = str(_pick(row, CONN_POLARITY_COLS, default="+")) or "+"
+        else:                                     # polarity column, else Kumu Label
+            polarity = _row_polarity(row)
             strength = str(raw_strength) or "medium"
         conn_conf = _pick(row, CONN_CONF_COLS, default=3)
         connections.append(Connection(
@@ -152,6 +212,9 @@ def parse_excel(path: Path | str) -> ValidationResult:
             strength=strength,
             confidence=int(conn_conf if conn_conf is not None and conn_conf != "" else 3),
             delay=normalize_delay(_pick(row, CONN_DELAY_COLS, default="immediate")),
+            # An empty/NaN cell is "" (as for element descriptions), so one
+            # numeric cell never fails a whole workbook.
+            description=str(_pick(row, CONN_DESC_COLS, default="")),
         ))
 
     if errors:
