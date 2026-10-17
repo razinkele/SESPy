@@ -146,8 +146,10 @@ and only when they need the default translator. A subprocess test imports
   the entry form's prefill. It returns `None` when either element is `None`
   or the two ids are equal, and otherwise returns
   `default_polarity(src_el.type, tgt_el.type)`. Untyped pairs give `"+"`.
-- `log_off_rule_links(project_or_isa, *, context: str) -> int` logs one line on
-  the `sespy.link_rules` logger (§3.5) and returns the count. It is the single
+- `log_off_rule_links(project_or_isa, *, context: str) -> int` returns the
+  number of off-rule links and, **only when that count is above 0**, logs one
+  `WARNING` line on the `sespy.link_rules` logger (§3.5). A clean project logs
+  nothing. It is the single
   function the call sites use.
 - `off_rule_message(from_label, from_type, to_label, to_type, translator)`
   returns the i18n text for the entry warning, from the new key
@@ -295,8 +297,9 @@ imported lazily as P0b already does.
     newer-build object must keep its raw stamp. A test pins this.
   - Normally `min_sespy_version` becomes the higher of the existing value and
     `SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]`, compared with
-    `packaging.version`. It is **never lowered**, so a file last written by a
-    newer build keeps that build's higher stamp. A stamp that is **not a
+    `packaging.version`. It is **never lowered** for a project built in memory
+    or loaded from a same-or-older build. (A stamp above the running version
+    sets `newer_build` on load and takes the reset branch below.) A stamp that is **not a
     string, or not a valid version**, is replaced. `min_sespy_version` becomes a
     declared field, so an int such as `13` now reaches metadata, and
     `Version(13)` raises `TypeError`, not `InvalidVersion`. A test covers the
@@ -345,7 +348,7 @@ imported lazily as P0b already does.
        `test_claude_backend.py`. `test_all_10_types_yield_high_confidence_suggestions`
        derives its expected set from `_CONN_TYPES`, so splitting this group
        turns the gate red. The set-equality test and the R→MPF suggestion test
-       land here or later;
+       land in this commit;
     5. the rest, in any order: the mapper and the template fixtures, `r_sync`
        (hashes for every fixture, including the `.R` file from commit 3), Excel
        import and `pims_project` (these need commit 2), ISA entry with the
@@ -370,9 +373,9 @@ imported lazily as P0b already does.
     with `str()`, except `None`, which becomes `""`. **`Element.description`
     is unchanged** (today `None` loads as `None`); P1a does not touch it;
   - in `validate_project_payload` (the SESPy upload path), a non-string
-    **`Connection.description`** is rejected (`Element.description` has never
-    been validated and stays unvalidated, so old files keep loading) with a clear message, the same treatment as a
-    bad `polarity`. `None` (or an absent key) is **skipped**, following the
+    **`Connection.description`** is rejected with a clear message, the same
+    treatment as a bad `polarity` (`Element.description` has never been
+    validated and stays unvalidated, so old files keep loading). `None` (or an absent key) is **skipped**, following the
     file's convention for optional fields (`persistent_storage.py:20-22,
     103-104`), and `_isa_from_dict` turns it into `""`;
   - the element type `"Measures"` is never written. The mapper folds it, and
@@ -460,7 +463,9 @@ GB→R (canonical, Rule 8).
   `medium` and 3 (`template_loader.R:119-121`). A value that is **present but
   invalid** raises `ValueError` (failure modes below). `confidence` must be an
   `int` and not a `bool` (so `"4"`, `4.5` and `True` are invalid) before it is
-  clamped. Matching is case-sensitive, so `"Strong"` is invalid.
+  clamped. Matching is case-sensitive, so `"Strong"` is invalid. A JSON `null`
+  counts as **absent**. A connection `description` that is present but not a
+  string raises `ValueError`; absent or `null` becomes `""`.
 - `polarity` (`+`/`-`) and `strength` (`weak`/`medium`/`strong`) are kept
   as-is. `confidence` is kept as an integer clamped to 1–5. `description` is
   kept.
@@ -468,6 +473,7 @@ GB→R (canonical, Rule 8).
 - R's `from_type`/`to_type` labels (driver, activity, pressure, state, impact,
   welfare, response, measure) are checked against each endpoint's category.
   A mismatch goes into `type_mismatches` and is not fatal.
+
 **Failure modes.** The mapper raises `ValueError`, with a message naming the
 template key and the offending item, for:
 - a connection endpoint id that does not exist;
@@ -611,7 +617,8 @@ in `.multises.json`.
   compartments, so the polarity prefill, the off-rule note and the Boolean
   clamp reach MosaicSES too. No existing SESPy or MosaicSES e2e test drives
   `new_source`, `new_target`, `new_polarity` or `add_connection`, so the new
-  SESPy e2e test (§10) is the only UI coverage. The MosaicSES gate checks that
+  SESPy e2e test (§10) is the only browser-level UI coverage (§10 also has
+  in-memory `test_server` tests). The MosaicSES gate checks that
   nothing else regresses.
 - MosaicSES imports `_CONN_TYPES` nowhere (checked); it imports
   `sespy.constants` and `sespy.data_structure`, which are on its §9.3
