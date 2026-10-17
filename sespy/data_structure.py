@@ -139,7 +139,13 @@ def load_sample(path: Path | str) -> IsaData:
 
 
 def _isa_from_dict(raw: dict[str, Any]) -> IsaData:
-    elements = [Element(**e) for e in raw.get("elements", [])]
+    # Unknown element keys (fields a newer SESPy adds) are dropped, as for
+    # connections below, instead of raising TypeError in Element(**e).
+    el_keys = {f.name for f in fields(Element)}
+    elements = [
+        Element(**{k: v for k, v in e.items() if k in el_keys})
+        for e in raw.get("elements", [])
+    ]
     conn_keys = {f.name for f in fields(Connection)} - {"ratings"}
     rating_keys = {f.name for f in fields(Rating)}
     connections = []
@@ -246,6 +252,43 @@ class Communication:
     created_at: str = ""
 
 
+def _running_version() -> str:
+    # Lazy: sespy/__init__.py must stay importable without data_structure.
+    from . import __version__
+    return __version__
+
+
+def newer_build_note(raw: Any) -> str:
+    """Return why a raw project payload needs a newer SESPy than this one,
+    or "" if it does not.
+
+    Reads the payload's own stamps — `Project.from_dict` overwrites
+    `schema_version` with the running build's, so the loaded object cannot
+    answer this. A missing or malformed stamp counts as "not newer": a bad
+    stamp must never block an otherwise valid project from loading.
+    """
+    meta = raw.get("metadata") if isinstance(raw, dict) else None
+    if not isinstance(meta, dict):
+        return ""
+    reasons: list[str] = []
+    schema = meta.get("schema_version")
+    if isinstance(schema, int) and not isinstance(schema, bool) \
+            and schema > PROJECT_SCHEMA_VERSION:
+        reasons.append(
+            f"file format {schema}, this version reads up to {PROJECT_SCHEMA_VERSION}"
+        )
+    wanted = meta.get("min_sespy_version")
+    if isinstance(wanted, str) and wanted:
+        from packaging.version import InvalidVersion, Version
+        try:
+            running = _running_version()
+            if Version(wanted) > Version(running):
+                reasons.append(f"requires SESPy {wanted} or newer, this is {running}")
+        except InvalidVersion:
+            pass
+    return "; ".join(reasons)
+
+
 @dataclass
 class Project:
     """A complete saveable project: metadata + ISA data."""
@@ -254,6 +297,11 @@ class Project:
     stakeholders: list["Stakeholder"] = field(default_factory=list)
     engagements: list["Engagement"] = field(default_factory=list)
     communications: list["Communication"] = field(default_factory=list)
+    # Runtime only, never serialised: set by from_dict when the file came
+    # from a newer SESPy (see newer_build_note()). Data this build does not
+    # understand was dropped on load, so autosave refuses such a project.
+    # dataclasses.replace() carries it across every edit.
+    newer_build_note: str = field(default="", kw_only=True, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -297,6 +345,10 @@ class Project:
             Communication(**{k: v for k, v in c.items() if k in comm_keys})
             for c in (raw.get("communications") or [])
         ]
+        # Read before the stamp below is overwritten.
+        note = newer_build_note(raw)
+        if note:
+            _log.warning("Project was written by a newer SESPy: %s", note)
         meta.schema_version = PROJECT_SCHEMA_VERSION   # upgrade-on-load (no down-convert)
         return cls(
             metadata=meta,
@@ -304,6 +356,7 @@ class Project:
             stakeholders=stakeholders,
             engagements=engagements,
             communications=communications,
+            newer_build_note=note,
         )
 
     @classmethod

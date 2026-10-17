@@ -84,11 +84,19 @@ def autosave_path(token: str) -> Path:
     return private_subdir("autosaves") / f"{token_key(token)}.json"
 
 
-def write_autosave(project_or_isa: Project | IsaData, *, token: str) -> Path:
+def write_autosave(project_or_isa: Project | IsaData, *, token: str) -> Path | None:
     """Atomically write the current project to this browser's autosave.
-    Accepts either a Project or a raw IsaData (wrapped on the fly)."""
+    Accepts either a Project or a raw IsaData (wrapped on the fly).
+
+    Returns None without writing for a project loaded from a newer SESPy
+    (`newer_build_note`): this build has already dropped the data it does
+    not understand, and an autosave would make that loss look like the
+    user's last good state."""
     if isinstance(project_or_isa, IsaData):
         project_or_isa = Project.from_isa(project_or_isa, name="Autosave")
+    if project_or_isa.newer_build_note:
+        logger.info("autosave.write status=skipped reason=newer_build")
+        return None
     path = autosave_path(token)
     try:
         save_project_atomic(project_or_isa, path)
