@@ -95,7 +95,7 @@ Each sub-project gets its own brainstorm → spec → plan → subagent-TDD →
 full e2e gate → release cycle.
 
 ```
-P0 → P1a ─┬→ M ┄→ {K1, P1b}   (M must precede whichever merges first)
+P0 → P1a ─┬→ M ┄→ first schema bump after P1a (K1 or P1b, usually)
           ├→ P2   (soft: K1)
           ├→ K1 ─┬→ P4 (also P1b) → P5 → P6a (also P1c) → P6b → P6c
           │      └→ P9
@@ -168,9 +168,10 @@ R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3. **Detailed spec:**
   R fields not carried over are listed in the spec.
 
 ### M — MosaicSES newer-build guard (MosaicSES release)
-Owner: whichever of K1 or P1b starts first; if that branch merges second, the
-branch that merges first ships M unless it is already deployed. Depends on
-P1a. It ships as a **MosaicSES minor release** and must be **deployed before**
+Owner: the **first branch after P1a that bumps the schema**, in practice K1 or
+P1b, but P3, P5, P9 or P12 if one of them persists state and merges earlier.
+If the branch that started M merges second, the branch that merges first
+ships M unless it is already deployed. Depends on P1a. It ships as a **MosaicSES minor release** and must be **deployed before**
 the SESPy release that makes the first schema bump after P1a.
 
 MosaicSES's save model, which M follows: the Save button only commits
@@ -178,17 +179,18 @@ metadata to in-memory state (`multises_app/modules/project_setup.py:229-259`),
 and persistence is a **browser download** named `mosaicses-<timestamp>.json`
 (`:262-275`). There is no server-side project file and no autosave. The only
 server-side store is the recent-projects registry: it is filled on download,
-and on open with the raw uploaded text (`:295`), which is lossless.
+and with the raw payload on open (`:295`) and on re-open from the Recent list
+(`multises_app/modules/recent_projects.py:193`), both lossless.
 - On load, MosaicSES shows a warning when any compartment carries
   `Project.newer_build`, naming the compartment and the version it needs. (A
   MultiSES file with a newer `MULTISES_SCHEMA_VERSION` is already refused at
-  load, `multises/data_structure.py:667-670`.)
+  load, `multises/data_structure.py:668-671`.)
 - While a compartment is flagged, the **download is named
   `…-older-format.json`** and shows the warning (P1a resets that compartment's
   stamp, so the copy is honestly labelled). The download **skips
   `add_recent_payload`**, so the older-format payload never enters the
-  registry. Open-time registration of the raw text is kept, since it is
-  lossless.
+  registry. Both open-time registrations of the raw payload (upload and
+  re-open from Recent) are kept, since they are lossless.
 - Scope note: on laguna MosaicSES runs the deployed SESPy package through its
   `sespy` symlink, so the two are always at the same version there. M protects
   files that move between installs at different versions (local ↔ server,
@@ -201,9 +203,8 @@ and on open with the raw uploaded text (`:295`), which is lossless.
 ### P1b — Response register + indicator fields
 R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4), 1.29.0 (`PestleTag`).
 Depends on P1a.
-- **Prerequisite (MosaicSES), shared with K1:** node **M** (above) must be
-  deployed before the first schema bump after P1a, whichever of K1 or P1b
-  merges first. Without that, an older MosaicSES re-saves such a compartment
+- **Prerequisite (MosaicSES):** node **M** (above) must be deployed before the
+  first schema bump after P1a, if P1b is that bump. Without that, an older MosaicSES re-saves such a compartment
   in the older format (P1a resets the stamp) and silently loses the newer data.
 - The **Response register is a separate block**, as in R:
   `Project.response_measures = {measures, impacts, milestones, counter}`.
@@ -288,8 +289,8 @@ R source: `functions/ses_knowledge_db_loader.R`, `modules/ai_isa_knowledge_base.
   one-off R → JSON export, vendored and hash-checked. Python cannot read
   `.R` at runtime, so the override does not apply to these.
 - Writing `metadata.reference_data` (§3 provenance) adds a serialised field,
-  so K1 **bumps the schema version**. If K1 merges before P1b, the MosaicSES
-  `newer_build` guard (node M, §2) is K1's prerequisite.
+  so K1 **bumps the schema version**. If K1 is the first schema bump after
+  P1a, the MosaicSES `newer_build` guard (node M, §2) is K1's prerequisite.
 - **Owns `tests/parity/check_live.py`**, the live drift check against laguna,
   because K1 is the first sub-project that reads R data at runtime.
 - **Owns extension-pair suggestions** in the AI wizard (R→R, P→P, MPF→MPF), as
@@ -385,10 +386,18 @@ R source: 1.25.0, 1.26.0. Depends on P4, P5, P1c.
 - **6a data model:** as R `impact_assessment_model.R`, stored at
   `analysis.impact_assessment`, which replaces the P1c passthrough for this block.
   This is a new serialised block, so 6a **bumps the schema version**.
-  **Boundary:** an assessment for which R's normaliser returns NULL is dropped
-  on load with a warning, exactly as R does (`data_structure.R:990`). Any other
-  entry that SESPy cannot map stays in `r_passthrough` and is reported (as for
-  P8).
+  **Boundary (R-exact):** `analysis.impact_assessment` is one block, and SESPy
+  normalises it exactly as R's `normalize_impact_assessment` does
+  (`impact_assessment_model.R:424-441`):
+  - a malformed block (the normaliser returns NULL) is dropped with a warning
+    (`data_structure.R:986-996`);
+  - inside a kept block, the parts R's `.impact_normalize_body` discards
+    (invalid or duplicate scenario codes, scenarios beyond
+    `IMPACT_MAX_SCENARIOS`, unknown or duplicate criteria, cells for unknown
+    scenarios, disallowed sub-dimension notes) are discarded too, because R
+    shows the same file without them. Unlike R, SESPy **reports** each
+    discarded part in the load warning.
+  Once 6a takes the block over, nothing of it stays in `r_passthrough`.
 - **6b wizard**, **6c narrative + Word/Excel report**: Appendix B provenance is
   read from `metadata.reference_data`.
 - **Analysis-preservation rule** (R 1.25.0): an ISA change clears only loops
@@ -607,9 +616,10 @@ and embeds SESPy Projects in `.multises.json`. Every sub-project that
 P6a, P7a, P7b's Apply and P8; M is itself a MosaicSES release) runs MosaicSES's
 unit tests and full e2e against the SESPy branch **before merge**, and checks
 the live MosaicSES after deploy.
-- MosaicSES must warn on, and refuse to overwrite, compartments carrying
-  `Project.newer_build` **before the first schema bump after P1a**: node M
-  (§2), the prerequisite of whichever of K1 or P1b merges first.
+- MosaicSES must warn on compartments carrying `Project.newer_build`, and
+  download them only as an `…-older-format.json` copy kept out of the
+  recent-projects registry, **before the first schema bump after P1a**: node M
+  (§2).
 
 ### Testing and releases
 - Unit tests reproduce R's published numbers.
