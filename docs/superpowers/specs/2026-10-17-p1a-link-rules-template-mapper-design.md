@@ -12,6 +12,8 @@ R source releases ported: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3.
 2026-10-17. It is also v1.29.0, and the 7 templates and the rules file have
 `sha256_norm` identical to the local checkout. This pin amends the roadmap's
 baseline (v1.28.0 @ `e3c3b77`); the P1a files are unchanged between the two.
+v1.29.0 does change *later* inputs (a `PestleTag` register column for P1b, and
+the WP5 scenarios tab and data files for P8); the roadmap now assigns them.
 **Target release:** SESPy **v1.13.0**.
 
 ## 1. Purpose and success
@@ -74,7 +76,7 @@ roadmap.
 - R's AI connection generator (`modules/ai_isa/connection_generator.R:625-640`)
   also tries the extension pairs R→R, P→P and MPF→MPF. SESPy's scorer is its
   port, but P1a derives suggestions from the canonical pairs only, as the
-  roadmap specifies. Extension suggestions move to the AI-wizard parity work.
+  roadmap specifies. Extension suggestions are owned by **K1** (roadmap).
 - The Boolean UI stays at 12 nodes, while R's slider goes to 20 (§7).
 
 ## 3. Link rules
@@ -206,7 +208,7 @@ intended parity and gets an explicit test. Extension pairs are not suggested
 - Untyped elements: no note, polarity `+`.
 - `Connection.description` gets **no UI in P1a**: the connections table
   (`isa_data_entry.py:165-172`) neither shows nor edits it. The field is
-  kept and round-tripped. An editing UI is deferred to the P1b entry work.
+  kept and round-tripped. The editing UI is owned by **P1b** (roadmap).
 
 ### 3.5 Loading, templates and Excel import
 Off-rule links are accepted and logged (logger
@@ -409,8 +411,8 @@ with the
   - the laguna verification: the deployed R was v1.29.0 on 2026-10-17, and the
     7 templates and the rules file are identical;
   - that it amends the roadmap baseline;
-  - that `tests/parity/check_live.py` (live drift against laguna) is deferred
-    to K1/P2, since P1a uses the files only as test fixtures.
+  - that `tests/parity/check_live.py` (live drift against laguna) is owned
+    by **K1** (roadmap), since P1a uses the files only as test fixtures.
 - **One hashing helper**, `sespy/r_sync.py::sha256_norm(obj)`, returns
   `sha256(json.dumps(obj, sort_keys=True, ensure_ascii=False,
   separators=(",", ":")).encode("utf-8")).hexdigest()`. The obj is the parsed
@@ -444,8 +446,7 @@ with the
   pure-Python 2^N loop run synchronously in a `reactive.effect`
   (`dynamics.py:271-283`, `analysis_boolean.py:90-102`). At 20 nodes that is 256×
   today's worst case, and it would block the shared laguna worker. Raising the
-  UI limit needs an ExtendedTask or a vectorised search first, which is P7's
-  business.
+  UI limit needs an ExtendedTask or a vectorised search first, which the roadmap assigns to **P7a**.
 - Divergence: R maps a non-integer input to the ceiling, while SESPy keeps its
   existing fallback of 12, which is cheaper.
 
@@ -500,7 +501,8 @@ in `.multises.json`.
   `newer_build` on compartments. With P1a's stamp reset, a compartment from a
   newer SESPy is re-saved **in the older format without any notice**, and its
   newer-only data is lost silently. That raises the follow-up's priority:
-  MosaicSES should warn before P1b, the next schema bump.
+  MosaicSES should warn before P1b, the next schema bump. The roadmap now makes
+  this a **P1b prerequisite**.
 
 ## 10. Testing
 
