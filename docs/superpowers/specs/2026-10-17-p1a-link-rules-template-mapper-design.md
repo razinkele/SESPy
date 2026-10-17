@@ -179,8 +179,8 @@ table is therefore the single source of truth, and the literal cannot drift
 from it.
 
 Docstrings and comments that assume 10 types are updated:
-`connection_scorer.py` (the module docstring at line 3, and around lines 74,
-166, 258, 357 and 375; the plan
+`connection_scorer.py` (the module docstring at line 3, and lines 74, 166,
+349, 356 and 374; line 258 is about the 7 from-slugs and stays; the plan
 greps for every "10" type reference), `wizard.py:74` and
 `data_structure.py:64`. The scorer can now return up to 165 suggestions
 (11 × 15). The Claude backend's `maxItems` of 150 is a separate limit and is
@@ -328,11 +328,15 @@ imported lazily as P0b already does.
        asserts the MANUAL line equals `__version__`, and doing it first means no
        branch round trip ever stamps 1.13.0 while the build reports 1.12.3;
     2. schema v7 group (constant, `SCHEMA_MIN_READER`, the five fields and their
-       serialisation, stamping, and the schema-6 test edits);
+       serialisation, stamping, `_isa_from_dict` load handling, the
+       `validate_project_payload` description check, the schema-6 test edits,
+       and the cosmetic `test_schema_read_ahead.py:46` edit);
     3. rule table + `link_rules` (incl. wiring `log_off_rule_links` into
        `validate_project_payload`) + copying the `.R` fixture to
        `tests/parity/r_rules/` + the content-parity test in its **own file**,
-       `tests/parity/test_r_rules_parity.py`. Hash pinning (`r_sync.json`,
+       `tests/parity/test_r_rules_parity.py`, plus the `entry.off_rule_link`
+       i18n key and its `test_i18n` edit (the `off_rule_message` tests need
+       it). Hash pinning (`r_sync.json`,
        `R_SYNC.md`, `test_r_sync.py`) waits for commit 5, when all fixtures
        exist;
     4. **topology group**, all at once: `_CONN_TYPES` (11), the Claude prompt,
@@ -342,10 +346,11 @@ imported lazily as P0b already does.
        derives its expected set from `_CONN_TYPES`, so splitting this group
        turns the gate red. The set-equality test and the R→MPF suggestion test
        land here or later;
-    5. the rest, which all depend on commit 2: the mapper and the template
-       fixtures, `r_sync` (hashes for every fixture, including the `.R` file
-       from commit 3), Excel import, `pims_project`, ISA entry, Boolean, and
-       the `governance_gap` docstring.
+    5. the rest, in any order: the mapper and the template fixtures, `r_sync`
+       (hashes for every fixture, including the `.R` file from commit 3), Excel
+       import and `pims_project` (these need commit 2), ISA entry with the
+       `entry.choose_element` key (needs commits 2 and 3), and Boolean and the
+       `governance_gap` docstring (these need neither).
 - **Serialisation.** `to_dict`/`from_dict` have explicit code for each new
   field; there is no reliance on `asdict`. A round-trip test covers every
   field. Because `to_dict()` now stamps `min_sespy_version`,
@@ -533,8 +538,9 @@ with the
   used for the mismatch check.
 - **Elements:** none are lost; all go to `r_extra`.
 - **Template top level:** `complexity`, `usage_notes`, `metadata.source`,
-  `metadata.applicable_regions`, `metadata.created_date` and the rest of
-  `regional_context` are not stored in the project. They are available in
+  `metadata.applicable_regions` and the rest of `regional_context` are not
+  stored in the project. (`metadata.created_date` *is* used, as
+  `created_at`/`modified_at`, §5.) They are available in
   `ConversionReport.template_meta` for P2.
 
 ## 7. Boolean hardening
@@ -623,9 +629,11 @@ in `.multises.json`.
 ## 10. Testing
 
 TDD throughout. New unit test files:
-- `tests/test_link_rules.py`:
+- `tests/test_link_rules.py`, created in commit 3:
   - every row of §3.1;
-  - classification, per-pair polarity, untyped exemption;
+  - classification, per-pair polarity, untyped exemption.
+
+  Added to it in **commit 4** (they need the 11-pair topology):
   - `_CONN_TYPES` **set-equal** to the rule table's canonical targets (the
     order is pinned separately, by `tests/test_data_structure.py:159-173`);
   - the scorer and the Claude backend accept R→MPF.
@@ -643,18 +651,19 @@ TDD throughout. New unit test files:
   - `r_type` capture;
   - report contents;
   - the legacy-format error and dangling-id error.
-- `tests/parity/test_r_sync.py`:
+- `tests/parity/test_r_sync.py` (commit 5):
   - each fixture's hash against `tests/parity/r_sync.json`;
   - **set equality** between the hashes found in `R_SYNC.md` (regex
     `\b[0-9a-f]{64}\b`) and `r_sync.json["files"].values()`, so a row missing
     from the markdown also fails;
-  - **content parity of the rule table:** a regex over the `targets`,
-    `extension_targets` and `target_polarities` entries of
-    `tests/parity/r_rules/dapsiwrm_connection_rules.R`, which handles the
-    two-line `Responses` block, reproduces the §3.1 table. The test asserts it
-    equals `DAPSIWRM_ADJACENCY_RULES` (targets, extension targets, per-pair
-    polarity). Rule ids are not in R, so they stay pinned by the spec. A hash
-    alone would let a hand-copy error pass.
+- `tests/parity/test_r_rules_parity.py` (commit 3): **content parity of the
+  rule table.** A regex over the `targets`, `extension_targets` and
+  `target_polarities` entries of
+  `tests/parity/r_rules/dapsiwrm_connection_rules.R`, which handles the
+  two-line `Responses` block, reproduces the §3.1 table. The test asserts it
+  equals `DAPSIWRM_ADJACENCY_RULES` (targets, extension targets, per-pair
+  polarity). Rule ids are not in R, so they stay pinned by the spec. A hash
+  alone would let a hand-copy error pass.
 - Additions to `tests/test_dynamics.py` (ceiling and clamp) and
   `tests/test_excel_import.py` (description, Kumu label, aliases, Measure).
 
@@ -671,12 +680,16 @@ TDD throughout. New unit test files:
   (line 184), become 11.
 - `tests/test_connection_scorer.py`: lines 30-38 (the keyword-JSON key set)
   **stay at 10**, because R→MPF has no keywords (§3.3). The test is renamed and
-  gains a comment saying so. Line 478 and every test that derives its set from
-  `_CONN_TYPES` go to 11.
+  gains a comment saying so.
 - `tests/test_claude_backend.py`: lines 89-92 (the prompt's pair list) go to 11.
-- `tests/test_connection_scorer.py:477` and following (each type reaches at
-  least 0.6 confidence): `responses_states` is **excluded** from that bar,
-  with a comment that R scores it at a flat 0.5. A separate test pins 0.5.
+- `tests/test_connection_scorer.py:476` and following,
+  `test_all_10_types_yield_high_confidence_suggestions` (each type reaches at
+  least 0.6 confidence): its expected set becomes **`_CONN_TYPES` keys minus
+  `responses_states`**, with a comment that R scores that pair at a flat 0.5.
+  The test is renamed and its "10" docstring (line 478) fixed. A separate test
+  pins 0.5 for R→MPF.
+- `tests/test_connection_scorer.py:129`: the docstring says "all 10 valid
+  pairs present", which becomes false by design; it is updated.
 - `tests/test_claude_backend.py:331` also says "10" and goes to 11.
 - `tests/test_i18n.py`: the per-feature key presence tests gain
   `entry.off_rule_link` and `entry.choose_element`.
