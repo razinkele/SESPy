@@ -1,8 +1,13 @@
 # R → SESPy parity roadmap — design
 
-Date: 2026-10-16 (revised after review loops 1–3)
-Baseline: MarineSABRES_SES_Shiny **v1.28.0** (`e3c3b77`, 2026-10-16; live on
-laguna since 16:29) → SESPy **v1.12.1** + `[Unreleased]` fixes to `0543ed0`
+Date: 2026-10-16 (revised after review loops 1–3; amended 2026-10-17 after
+P0 shipped and the P1a spec converged)
+Baseline: MarineSABRES_SES_Shiny **v1.29.0** (`e33faea`; verified identical to
+the laguna deployment on 2026-10-17). The original baseline was v1.28.0
+(`e3c3b77`) against SESPy v1.12.1. SESPy is now at **v1.12.3** (P0 shipped).
+**Each sub-project re-pins** to the then-current R tag when its brainstorm
+starts, triages the R changes since the previous pin, and records the pin in
+`docs/parity/R_SYNC.md`.
 
 ## 1. Intent
 
@@ -11,7 +16,7 @@ the source of truth. SESPy's ports were taken against R ≈ v1.11–1.16
 (April–May 2026). Since then R has shipped v1.17 → v1.28.0. Those releases
 add the Responses/Measures arm, the Response register, Decision Lens, the
 reviewed curated templates, the WP5 suite and a deep-review hardening pass.
-This roadmap brings SESPy to feature parity with R v1.28.0. R keeps moving
+This roadmap brings SESPy to feature parity with R v1.29.0. R keeps moving
 (two releases on 2026-10-15/16 alone), so §3 defines how drift is tracked
 after the baseline.
 
@@ -42,12 +47,14 @@ removed to match R.
   isa_data, cld, analysis}}`, where `isa_data` holds category frames,
   `adjacency_matrices`, `matrix_dimnames` (the 1.20.0 sidecar) and
   `user_edited_matrices`.
-- **SESPy's loader is closed-world.** `Project.from_dict`/`to_dict`
+- **SESPy's loader is closed-world** (state before P0; line numbers as of
+  v1.12.1). `Project.from_dict`/`to_dict`
   (`sespy/data_structure.py:258-307`) handle five fixed blocks.
   `ProjectMetadata` drops unknown keys. `_isa_from_dict` builds `Element(**e)`
   *without* key filtering (`:142`), so a file whose elements carry new keys
   raises `TypeError` in older builds. `read_autosave` catches only
-  `ValueError`/`OSError` (`sespy/autosave.py:70`).
+  `ValueError`/`OSError` (`sespy/autosave.py:70`). **Both were fixed by P0**
+  (v1.12.2/v1.12.3).
 - **SESPy validation already exists** and is strict:
   `validate_project_payload` rejects connections with unknown endpoints and
   rejects **self-loops** (`sespy/persistent_storage.py:82-102`).
@@ -59,9 +66,11 @@ removed to match R.
   above the mean (`>`), and labels quadrants Relay / Influential / Dependent /
   Autonomous / Undifferentiated. SESPy (`network.py:1203`) is a weighted
   Vester sum with `>=` and its own labels (`undetermined` exists).
-- **Already at parity:** eigenvector-centrality fallback. Boolean cap 12
-  (R: 20); the server does not clamp `input.max_nodes()`
-  (`analysis_boolean.py:102`), which is the R N16 bug.
+- **Already at parity:** eigenvector-centrality fallback.
+- **Boolean limit differs:** SESPy's UI cap is 12, R's is 20, and the server
+  does not clamp `input.max_nodes()` (`analysis_boolean.py:102`), which is the
+  R N16 bug. P1a adds the clamp and a library ceiling of 20. The UI stays at
+  12 until P7a.
 - **No SESPy Connection field for link `description`.** All 320 R template
   links carry one. SESPy delay levels are immediate/short/long; R has
   immediate/short-term/medium-term/long-term plus a legacy numeric lag.
@@ -104,7 +113,8 @@ The per-section "Depends on" lines below match this graph.
 - **Data protection, not just tolerance:** read the **raw payload's**
   `metadata.min_sespy_version` and `metadata.schema_version` *before*
   `Project.from_dict` runs. `from_dict` overwrites `schema_version` with the
-  running build's (`data_structure.py:300`), so the loaded object cannot be used. If either is
+  running build's (`data_structure.py:300` at v1.12.1), so the loaded object
+  cannot be used. If either is
   newer than the running build, warn in the UI and **block overwrite saves and
   autosave** for that project (offer "save as" only). Otherwise a newer file
   would load with `response_measures` / `r_passthrough` silently dropped and
@@ -123,37 +133,62 @@ The per-section "Depends on" lines below match this graph.
   on tolerates the schema-v7 files that P1a onward will write.
 
 ### P1a — Link rules, template mapper (unblocks P2)
-R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3.
+R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3. **Detailed spec:**
+`docs/superpowers/specs/2026-10-17-p1a-link-rules-template-mapper-design.md`
+(it wins where the two differ; its §2 lists the amendments made here).
 - New `constants.DAPSIWRM_ADJACENCY_RULES`, mirroring R's: pairs + default
   polarity + rule id + `extension_targets` (R→R, MPF→MPF, P→P, A→A, the D→P
   exception) + R→MPF (Rule 12, `+`). ISA entry takes its default polarity
-  from it (P→MPF = `−`; R→MPF/R→R = `+`). `_CONN_TYPES` is derived from it.
+  from it (P→MPF = `−`; R→MPF/R→R = `+`). `_CONN_TYPES` stays an explicit
+  literal, gains R→S (11 pairs) and is test-checked as set-equal to the
+  table's canonical targets.
 - `Connection.description` (optional).
 - **Template mapper**: legacy type names → SESPy types; Measures merge into
   Responses (measure→response links become R→R); per-element R extras
   (Caribbean `category`, `intensity`, `related_issues`, `indicator`,
   `baseline`, …) are kept in `Element.r_extra: dict`.
 - `ProjectMetadata` gains declared fields `origin`, `r_template_version` and
-  `min_sespy_version` (stamped, never lowered).
+  `min_sespy_version` (stamped in `Project.to_dict()`, never lowered, except
+  that it is reset when a P0b newer-build project is saved in the older
+  format).
 - **`PROJECT_SCHEMA_VERSION` → 7 here**, because P1a is the first release to
-  write new fields. P1b and P1c add fields within v7 or bump again, and say so.
+  write new fields. From here on, **every release that adds a serialised field
+  bumps `PROJECT_SCHEMA_VERSION` and adds a `SCHEMA_MIN_READER` entry** (see
+  §3 Testing and releases). Adding fields "within v7" is not allowed: a 1.13
+  reader would load such a file unflagged, drop the fields and autosave over
+  them.
 - Boolean hardening: clamp `input.max_nodes()` on the server side; keep
   `dynamics.boolean_attractors`' existing default (`max_nodes=12`) and add a
-  module-level hard ceiling that P7 may override explicitly.
+  module-level library ceiling of 20 (R's value). The UI cap stays 12; P7a
+  raises it.
 - `excel_import.py` column mapping extended for the new fields and link types.
 - **Done when:** all 7 R templates convert, and SESPy save → load keeps their
   edge set **including** polarity, strength, confidence and description. The
   R fields not carried over are listed in the spec.
 
 ### P1b — Response register + indicator fields
-R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4). Depends on P1a.
+R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4), 1.29.0 (`PestleTag`).
+Depends on P1a.
+- **Prerequisite (MosaicSES):** before P1b ships its schema bump, MosaicSES
+  warns when a compartment carries `Project.newer_build`, and blocks
+  overwriting it. Without that, an older MosaicSES re-saves such a compartment
+  in the older format (P1a resets the stamp) and silently loses the newer data.
 - The **Response register is a separate block**, as in R:
   `Project.response_measures = {measures, impacts, milestones, counter}`.
   Measures use R's column names: `ID, Name, Type, Target, Description,
   Mechanism, TargetElement, Effectiveness, Feasibility, Cost, Status,
   Stakeholders, Barriers, DateAdded, Kind, EbmCode, GovernanceLevel,
   CompetentAuthority, LegalBasis, ImplementingStakeholders, PairedWith,
-  Tenet_<11 codes>`.
+  PestleTag, Tenet_<11 codes>` (`PestleTag` added in R 1.29.0,
+  `response_measures_schema.R:81`).
+- **Decide in the P1b spec:**
+  - whether Responses elements marked `r_extra["r_kind"] = "measure"` (folded
+    in by P1a's mapper and Excel import) are promoted into
+    `response_measures`;
+  - whether element extras such as `r_extra["indicator"]` and
+    `r_extra["baseline"]` migrate into the new `Indicator…` fields.
+- **`Connection.description` editing UI** in ISA entry (P1a stores and
+  round-trips the field but adds no UI).
 - Code lists ported from R (`RM_TYPE_CODES`, `RM_TARGET_CODES`,
   `RM_STATUS_CODES`, `GOVERNANCE_LEVELS` (7), `TENET_LEVELS`; "intermediate"
   only for `ecol_effective`). The label → code reverse map covers all 9
@@ -162,11 +197,12 @@ R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4). Depends on P1a.
   Data_Source, Registry_Id, Registry_Version`, on **all elements except
   Responses**.
 - Two version stamps, kept separate: SESPy's own `metadata.min_sespy_version`
-  (introduced in P1a, honoured by P0), and `metadata.r_min_app_version`
+  (introduced in P1a, honoured by P0b in v1.12.3), and `metadata.r_min_app_version`
   (copied from an R import's top-level `min_app_version`, used only for import
   diagnostics, never compared with SESPy's version).
-- Explicit `to_dict`/`from_dict` code for every new block. Bump the schema version if a
-  v7 reader would drop the block.
+- Explicit `to_dict`/`from_dict` code for every new block. P1b **bumps the
+  schema version** (it adds serialised fields) and adds its
+  `SCHEMA_MIN_READER` entry.
 
 ### P1c — R project importer + passthrough
 R source: 1.19.0, 1.20.0 (N4/N5), 1.21.0 (N24/N25/N27/N50), 1.22.0.
@@ -186,10 +222,10 @@ Depends on P1a/P1b.
   - Mismatches are reported *before* `validate_project_payload`. Diagonal
     (self-loop) cells are reported and kept out of the ISA.
 - `Project.r_passthrough: dict` (default `{}`) with explicit
-  `to_dict`/`from_dict` code. It holds R blocks SESPy does not support yet
+  `to_dict`/`from_dict` code. Adding it **bumps the schema version**. It holds R blocks SESPy does not support yet
   (`analysis.impact_assessment`, `analysis.scenarios`, `cld`, …). Legacy
   `data$scenarios` moves to `analysis.scenarios` (R `migrate_legacy_scenarios`).
-- **Prerequisite fixture:** save an R v1.28.0 project that contains register
+- **Prerequisite fixture:** save an R project at the then-current pin (≥ v1.29.0) that contains register
   measures with the WS-3a fields, R→MPF/R→R links, indicator fields, an
   impact assessment and a Designer-applied scenario with `links_modified`.
 - **Done when:** importing the fixture, editing through each module's
@@ -213,6 +249,13 @@ R source: `functions/ses_knowledge_db_loader.R`, `modules/ai_isa_knowledge_base.
 - **`SES_CONNECTION_DB`/`SES_SYNONYM_DB`** are live R code, so they get a
   one-off R → JSON export, vendored and hash-checked. Python cannot read
   `.R` at runtime, so the override does not apply to these.
+- Writing `metadata.reference_data` (§3 provenance) adds a serialised field,
+  so K1 **bumps the schema version**.
+- **Owns `tests/parity/check_live.py`**, the live drift check against laguna,
+  because K1 is the first sub-project that reads R data at runtime.
+- **Owns extension-pair suggestions** in the AI wizard (R→R, P→P, MPF→MPF), as
+  R's `modules/ai_isa/connection_generator.R:625-640` does. P1a suggests only
+  the canonical pairs.
 - **Done when:** for 3 contexts, SESPy's suggestions equal R's
   `get_context_elements(min_relevance = 0.5)`.
 
@@ -227,7 +270,12 @@ R source: 1.21.1, 1.22.1, 1.22.3. Depends on P1a; soft dependency on K1
   suffix (R's "Offshore Wind Energy" sits beside SESPy's "Offshore Wind Farm
   SES"). e2e selectors are scoped: `test_templates_e2e.py:33` currently
   matches the substring "Offshore Wind".
-- `scripts/sync_r_templates.py` re-converts the templates from a configured R checkout.
+- `scripts/sync_r_templates.py` re-converts the templates from a configured R
+  checkout using P1a's `load_r_template`/`convert_r_template`. In the same
+  commit it refreshes the test fixtures in `tests/parity/r_templates/`,
+  `tests/parity/r_sync.json` and `docs/parity/R_SYNC.md`. Gallery cards read
+  `ConversionReport.template_meta` (complexity, usage notes, source,
+  applicable regions).
 - **Done when:** each converted template's link count and signs equal the R JSON.
 
 ### P3 — Decision Lens (parallel track)
@@ -286,6 +334,7 @@ R source: 1.25.0, 1.26.0. Depends on P4, P5, P1c.
   `functions/impact_reference.R` through the §3 loader.
 - **6a data model:** as R `impact_assessment_model.R`, stored at
   `analysis.impact_assessment`, which replaces the P1c passthrough for this block.
+  This is a new serialised block, so 6a **bumps the schema version**.
   An assessment that fails to normalise is dropped on load with a warning, as R does
   (`data_structure.R:990`).
 - **6b wizard**, **6c narrative + Word/Excel report**: Appendix B provenance is
@@ -297,7 +346,11 @@ R source: 1.25.0, 1.26.0. Depends on P4, P5, P1c.
 
 ### P8 — Scenario Builder (moved before P7)
 R source: `scenario_builder_module.R` at v1.28.0 (1,381 lines), 1.21.0 N33,
-1.28.0 fixes. Depends on P1c.
+1.28.0 fixes, and the **"WP5 scenarios (D5.1)" tab added in R 1.29.0**, which
+reads `data/wp5_scenarios_ssp.json` and `data/wp5_worldview_matrix.json`
+(both added to the §3 allow-list). Depends on P1c.
+- Native scenarios are a new serialised block, so P8 **bumps the schema
+  version**.
 - R's schema:
   - A scenario is `{id, name, description, created, modified, results,
     modifications}`, plus `source` and `ops[]` **only on Designer-written
@@ -329,7 +382,10 @@ R source: 1.27.0. Depends on P1a, P3, P8.
 - 1,000 steps, judged on the last 100. Also-sustain defaults to all GB nodes.
 - Stability = all Laplacian eigenvalues real, checked first on rows passing
   (a) + (b), and stopped at 70% of the 600 s job budget with a partial notice.
-- Top 20. Boolean pre-check up to 20 nodes, using P1a's explicit ceiling override.
+- Top 20. Boolean pre-check up to 20 nodes, by passing `max_nodes=20` (P1a's
+  library ceiling is already 20).
+- **Raises the Boolean analysis UI cap from 12 to 20**, now that the worker
+  process below keeps a 2^20 search off the shared Shiny worker.
 - **Evidence priors:** `INTERVENTION_EVIDENCE_PRIORS` (e.g. behavioural
   0.25, regulatory 0.5) cap |level| per intervention type through
   `ses_evidence_prior_range()` (`constants.R:925`,
@@ -359,6 +415,9 @@ R source: 1.28.0. Depends on P7a, P8.
 R source: 1.20.0 N6 and the creator/network-builder modules. Depends on P1a, K1.
 - Canvas builder; "Export to ISA" produces canonical SESPy ISA data.
 - Type suggestions come from K1's KB and synonyms, not torch.
+- **Owns `infer_connection_polarity`**, R's keyword polarity overrides
+  (`dapsiwrm_connection_rules.R:438-494`), which R uses only in this builder.
+  Port it with R's tests.
 - **Done when:** a canvas model exports to ISA and renders in the CLD.
 
 ### P10 — Guidebook / tutorial
@@ -412,10 +471,15 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
 - **Allow-list (initial):** `ses_knowledge_db.json`,
   `country_governance_db.json`, `ses_knowledge_db_wp5_mechanisms.json`,
   `wp5_indicators.json`, `wp5_impact_reference.json`,
-  `wp5_intervention_ops.json`, `wp5_rm_synonyms.json`, the 7
-  `*_SES_Template.json` files (P2 only; converted, never read at runtime), plus the
-  vendored-only `SES_CONNECTION_DB`/`SES_SYNONYM_DB` export (K1) and
+  `wp5_intervention_ops.json`, `wp5_rm_synonyms.json`,
+  `wp5_scenarios_ssp.json` and `wp5_worldview_matrix.json` (P8, R 1.29.0),
+  plus the vendored-only `SES_CONNECTION_DB`/`SES_SYNONYM_DB` export (K1) and
   `wp5_vocabulary.json` (P4).
+- **Test fixtures are separate from vendored runtime data.** The 7
+  `*_SES_Template.json` files and R's `functions/dapsiwrm_connection_rules.R`
+  are copied into `tests/parity/` (`r_templates/`, `r_rules/`) from P1a on.
+  They are never read at runtime and never ship (`deploy.sh` excludes
+  `tests/`). Only files read at runtime go into `sespy/data/r_kb/`.
 - **Provenance in projects:** on save, SESPy writes
   `metadata.reference_data = {file: {source: vendored|shared, sha256_norm,
   version, vendored_r_tag}}`. On load, SESPy warns when that differs from
@@ -423,11 +487,17 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
   vendored copy nor the live copy, it says "reference data unavailable;
   results may differ". P5/P6 provenance appendices read it. R records nothing for the
   general KB, so SESPy adds this.
-- **Hashing:** `sha256_norm` = sha256 of the parsed JSON re-serialised with
-  sorted keys, UTF-8 and LF. Never raw bytes: the server files are CRLF, and the R
-  working tree mixes line endings.
-- **Drift check:** `tests/parity/` asserts the vendored files match the hashes
-  recorded in `docs/parity/R_SYNC.md`. `tests/parity/check_live.py`
+- **Hashing:** one helper, `sespy/r_sync.py::sha256_norm(obj)` =
+  `sha256(json.dumps(obj, sort_keys=True, ensure_ascii=False,
+  separators=(",", ":")).encode("utf-8"))` over the *parsed* JSON, and
+  `sha256_text_norm(text)` (CRLF → LF) for non-JSON files such as `.R`.
+  Never raw bytes: the server files are CRLF, and the R working tree mixes
+  line endings. Every hash in SESPy (drift tests, sync scripts,
+  `check_live.py`, provenance) uses these two functions.
+- **Drift check:** `tests/parity/` asserts fixtures and vendored files match
+  the machine-readable pin `tests/parity/r_sync.json`. `docs/parity/R_SYNC.md`
+  is its human mirror, updated in the same commit, and a test checks the two
+  agree. `tests/parity/check_live.py` (owned by K1)
   (read-only over SSH) compares the live laguna copies. `deploy/deploy.sh`
   runs it as a pre-flight step (SESPy has no `release.sh`, unlike MosaicSES),
   and it can also be run by hand after an R deploy.
@@ -437,8 +507,10 @@ R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
 
 ### Sync tracking
 `docs/parity/R_SYNC.md` records, for each ported feature, the R version and commit it
-matches (baseline v1.28.0 @ `e3c3b77`), plus each vendored file's
-`sha256_norm`. R releases after the baseline are triaged into it.
+matches (baseline v1.29.0 @ `e33faea`, verified against laguna on 2026-10-17),
+plus each fixture's and vendored file's hash (mirroring
+`tests/parity/r_sync.json`). R releases after the baseline are triaged into
+it when the next sub-project re-pins.
 
 ### R stays the source of truth for data
 Data is never re-typed. R's "toolbox extension" badges, "pre-final draft" badges
@@ -454,19 +526,29 @@ older strings are mapped explicitly. e2e selectors stay scoped and namespaced.
 ### MosaicSES
 MosaicSES builds `Project`/`Element`/`Connection` directly, reuses
 `isa_data_entry_server` and `analysis_boolean_server` inside compartments,
-and embeds SESPy Projects in `.multises.json`. Every **schema- or
-ISA-entry-touching** sub-project (P0, P1a–c, P4, P8) runs MosaicSES's unit
-tests and full e2e against the SESPy branch **before merge**, and checks the
-live MosaicSES after deploy.
+and embeds SESPy Projects in `.multises.json`. Every sub-project that
+**bumps the schema, changes `Project` serialisation or touches ISA entry**
+(so far P0, P1a, P1b, P1c, K1, P4, P6a, P7b's Apply and P8) runs MosaicSES's
+unit tests and full e2e against the SESPy branch **before merge**, and checks
+the live MosaicSES after deploy.
+- MosaicSES must warn on, and refuse to overwrite, compartments carrying
+  `Project.newer_build` **before the first schema bump after P1a** (P1b's
+  prerequisite).
 
 ### Testing and releases
 - Unit tests reproduce R's published numbers.
 - Every sub-project passes the **full** e2e gate, with no heavy jobs running
   concurrently on the 16 GB machine.
-- P0 = v1.12.2 (hotfix) + v1.12.3 (P0b). Then one minor release per sub-project, with **versions
-  assigned in merge order** (P3 or K1 may ship out of sequence; P6 takes three).
-  The CHANGELOG names the sub-project and the R version it matches. Bump the MANUAL
-  version line and re-run the screenshots.
+- P0 = v1.12.2 (hotfix) + v1.12.3 (P0b); P1a = v1.13.0. Then one minor release
+  per sub-project (P3 or K1 may ship out of sequence; P6 takes three).
+- **Version and schema numbers are fixed when a branch starts**, because the
+  first commit bumps `__version__`, `pyproject.toml` and the MANUAL line
+  together, and a schema bump keys `SCHEMA_MIN_READER` on that version. If two
+  branches run in parallel (e.g. K1 and P1b) and both claim the same numbers,
+  the one that merges second rebases and renumbers its release version, its
+  schema number and its `SCHEMA_MIN_READER` entry.
+  The CHANGELOG names the sub-project and the R version it matches. Re-run the
+  screenshots that the change affects.
 
 ## 4. Out of scope
 
@@ -498,7 +580,8 @@ Already equivalent: `local_storage` ≈ autosave/persistent_storage;
 
 ## 6. Risks
 
-- **R keeps moving.** The baseline was overtaken within hours (v1.27 → v1.28).
+- **R keeps moving.** The baseline was overtaken within hours (v1.27 → v1.28),
+  and again the next day (v1.29.0).
   R_SYNC.md and `check_live.py` make that drift visible.
 - **WP5 content is still moving.** The mechanism catalogue was released before
   partner sign-off (R 1.23 Q1); the EBM-code mapping in
