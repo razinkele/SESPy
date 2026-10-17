@@ -4,6 +4,66 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-10-17
+
+Roadmap P1a (link rules, schema v7, R template mapper; R-parity roadmap §2
+P1a). Ports R MarineSABRES 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62) and 1.22.3,
+against R v1.29.0 (`e33faea`).
+
+### Added
+
+- **DAPSI(W)R(M) link rules.** SESPy now knows R's rule table: which type
+  pairs are canonical (offered as suggestions), which are valid extensions
+  (A→A, P→P, MPF→MPF, R→R, D→P) and the default polarity of each pair.
+- **Edit Data pre-fills polarity** when you pick a source and a target
+  (for example Pressures → MPF is "−"). You can change it before adding the
+  link; changing either end re-seeds it. Both pickers now start on
+  "— choose —".
+- **Off-rule links are allowed, with a warning.** Edit Data shows a note for
+  a pair outside the framework (for example Drivers → Goods & Benefits); the
+  link still saves. Loading a project, a template or an Excel/QSEM import
+  accepts such links and logs them, as R does.
+- **Responses → Marine Processes & Functioning** is a canonical pair
+  (Rule 12). The rule-based and Claude suggestion backends now propose it.
+- **Project schema v7.** Connections keep a free-text `description`, and
+  elements keep fields SESPy has no column for in `r_extra`. Both are written
+  only when non-empty. Project metadata gains `origin`, `r_template_version`
+  and `min_sespy_version`, which every save stamps so an older SESPy warns
+  before dropping data.
+- **R template mapper** (`sespy.r_template_mapper`), a library function that
+  converts R `*_SES_Template.json` files without loss. The 7 R templates are
+  test fixtures pinned by hash (`docs/parity/R_SYNC.md`); adding them to the
+  gallery is P2.
+- **Excel import** reads connection `description`/`rationale` columns,
+  Kumu's `Label` column for polarity, and R's element type names (Driver,
+  State, Welfare, Measure, ...).
+
+### Changed
+
+- Boolean analysis clamps the node limit on the server to the slider's
+  range (4–12), and library callers to at most 20 nodes.
+- "Save project info" keeps every other project field.
+
+### Deliberate differences from R
+
+- SESPy keeps connection descriptions from templates (R drops them).
+- SESPy keeps element `type` labels and extra fields in `r_extra` (R ignores
+  them).
+- The mapper rejects a duplicate link in a template (R keeps the last one).
+- Excel import marks an imported Measure with `r_kind = "measure"`.
+- Excel type names match case-insensitively, after trimming spaces.
+- A Kumu `Label` starting with "−" (U+2212) also counts as negative.
+- R's AI generator also suggests the extension pairs R→R, P→P and MPF→MPF;
+  SESPy suggests canonical pairs only (extensions are planned for K1).
+- The Boolean slider stays at 12 nodes (R allows 20) until P7a makes the
+  search non-blocking.
+
+### Compatibility
+
+- SESPy 1.12.3 opens a 1.13.0 project with its "newer SESPy" warning and
+  without autosave, because it would drop the new fields. A native project
+  with no descriptions or `r_extra` still opens in 1.12.2.
+
 ## [1.12.3] — 2026-10-17
 
 Roadmap P0b (forward compatibility; R-parity roadmap §2 P0).
