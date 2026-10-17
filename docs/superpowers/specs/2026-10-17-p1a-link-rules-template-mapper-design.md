@@ -265,8 +265,8 @@ more than once, so a whole flow may repeat the line; tests pin
 `validate_project_payload`, not whole flows). **Not** `Project.from_dict`:
 MosaicSES would log once per compartment, and `data_structure` stays free of
 off-rule logging and Shiny (its own warnings use the `sespy.data_structure`
-logger). Its only third-party import is `packaging`,
-imported lazily as P0b already does.
+logger). `data_structure`'s only third-party import is `packaging`, imported
+inside functions; `to_dict()` imports it without a guard (§4).
 
 ## 4. Schema v7 (`sespy/data_structure.py`)
 
@@ -308,8 +308,10 @@ imported lazily as P0b already does.
     running version sets `newer_build` and takes the reset branch below. So the
     never-lowered test builds the project **in memory**, e.g.
     `Project(ProjectMetadata(min_sespy_version="99.0.0"), IsaData())`, and
-    asserts that `to_dict()["metadata"]["min_sespy_version"] == "99.0.0"`. A
-    second test does the same with a stamp at or below the running version.
+    asserts that `to_dict()["metadata"]["min_sespy_version"] == "99.0.0"`.
+    A second test uses a stamp equal to `SCHEMA_MIN_READER[7]` (`"1.13.0"`)
+    and asserts it is kept. A third uses `"1.0.0"` and asserts it is **raised**
+    to `"1.13.0"`.
   - A guard test asserts `SCHEMA_MIN_READER` has an entry for
     `PROJECT_SCHEMA_VERSION`, so a future schema bump cannot make the lookup
     raise `KeyError`.
@@ -353,7 +355,8 @@ imported lazily as P0b already does.
        (hashes for every fixture, including the `.R` file from commit 3), Excel
        import and `pims_project` (these need commit 2), ISA entry with the
        `entry.choose_element` key (needs commits 2 and 3), and Boolean and the
-       `governance_gap` docstring (these need neither).
+       `governance_gap` docstring (Boolean needs neither; the docstring is
+       written after commit 4, since it says R→MPF is now canonical).
 - **Serialisation.** `to_dict`/`from_dict` have explicit code for each new
   field; there is no reliance on `asdict`. A round-trip test covers every
   field. Because `to_dict()` now stamps `min_sespy_version`,
@@ -593,8 +596,7 @@ with the
   `Driver`, `Activity`, `Pressure`, `Marine Process and Function`,
   `Marine Process and Functioning`, `State`, `State Change`,
   `Ecosystem Service`, `Impact`, `Good and Benefit`, `Goods and Benefits`,
-  `Welfare`, `Response`, `Measure`. They are matched case-insensitively. A
-  `Measure` becomes Responses with `r_extra["r_kind"] = "measure"`.
+  `Welfare`, `Response`, `Measure`. A `Measure` becomes Responses with `r_extra["r_kind"] = "measure"`.
 - **Polarity precedence, unchanged from today:** a numeric FCM weight in the
   strength column decides the sign first (`excel_import.py:141-146`, pinned by
   `tests/test_excel_import.py`'s "numeric weight wins" case). Without a numeric
