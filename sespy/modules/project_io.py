@@ -234,7 +234,9 @@ def quick_actions_server(
     # the warning when a normal project replaces it. Edits keep the same
     # `newer_build` and do not emit project_loaded, so they do not re-raise
     # a toast the user has closed.
-    last_warned: dict = {"info": {}, "loads": None}
+    # A language switch changes the text (t() subscribes to the language),
+    # so an open warning is re-shown in the new language.
+    last_warned: dict = {"info": {}, "loads": None, "text": None}
 
     @reactive.effect
     def _newer_build_warning():
@@ -243,22 +245,23 @@ def quick_actions_server(
         if not info:
             if last_warned["info"]:
                 ui.notification_remove(_NEWER_BUILD_TOAST)
-            last_warned.update(info={}, loads=loads)
+            last_warned.update(info={}, loads=loads, text=None)
             return
-        if info == last_warned["info"] and loads == last_warned["loads"]:
+        title = t("ui.quickactions.newer_build_title",
+                  "This project was saved by a newer SESPy.")
+        body = t("ui.quickactions.newer_build_body",
+                 "Details: {note}. Data this version does not "
+                 "understand was left out, and autosave is off for "
+                 "this project. Keep your original file: Save Project "
+                 "writes a separate copy in the older format.",
+                 note=_newer_build_details(info))
+        text = (title, body)
+        if (info == last_warned["info"] and loads == last_warned["loads"]
+                and text == last_warned["text"]):
             return
-        last_warned.update(info=info, loads=loads)
+        last_warned.update(info=info, loads=loads, text=text)
         ui.notification_show(
-            ui.tags.div(
-                ui.tags.strong(t("ui.quickactions.newer_build_title",
-                                 "This project was saved by a newer SESPy.")),
-                ui.tags.div(t("ui.quickactions.newer_build_body",
-                              "Details: {note}. Data this version does not "
-                              "understand was left out, and autosave is off for "
-                              "this project. Keep your original file: Save Project "
-                              "writes a separate copy in the older format.",
-                              note=_newer_build_details(info))),
-            ),
+            ui.tags.div(ui.tags.strong(title), ui.tags.div(body)),
             type="warning",
             duration=None,
             id=_NEWER_BUILD_TOAST,

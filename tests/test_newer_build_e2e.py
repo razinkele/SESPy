@@ -56,12 +56,14 @@ async def indicator_text(page) -> str:
     )
 
 
-async def wait_for_autosave(page, path: Path) -> None:
-    for _ in range(60):          # up to 30 s
+async def wait_for_autosave(page, path: Path, *, raise_on_timeout: bool) -> bool:
+    for _ in range(30):          # up to 15 s
         if path.exists() and "Auto-saved" in await indicator_text(page):
-            return
+            return True
         await page.wait_for_timeout(500)
-    raise AssertionError(f"normal project was not autosaved to {path}")
+    if raise_on_timeout:
+        raise AssertionError(f"normal project was not autosaved to {path}")
+    return False
 
 
 async def main():
@@ -81,12 +83,13 @@ async def main():
         token = await wait_token(page)
         clear_autosave(token=token)
         path = autosave_path(token)
-        # Let the recovery check finish: autosave is off until it has run.
-        await page.wait_for_timeout(3000)
-
         # ---- Positive control: a normal project autosaves -----------------
-        await page.click("#new_project")
-        await wait_for_autosave(page, path)
+        # Autosave stays off until the session's recovery check has run; on a
+        # loaded machine that can outlast the first click, so retry New.
+        for attempt in range(3):
+            await page.click("#new_project")
+            if await wait_for_autosave(page, path, raise_on_timeout=attempt == 2):
+                break
         good = path.read_bytes()
         print("normal project: autosaved, indicator shown")
 
