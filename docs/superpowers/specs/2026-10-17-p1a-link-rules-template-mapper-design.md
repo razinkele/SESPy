@@ -119,7 +119,15 @@ only.
   framework document's Rule 13 (M→R) is covered by R→R (Rule 14).
 - D→GB (R's removed Rule 15) is off-rule.
 
-### 3.2 Logic: `sespy/link_rules.py` (new; no Shiny import)
+### 3.2 Logic: `sespy/link_rules.py` (new; Shiny-free at import)
+`sespy/i18n.py` imports `shiny.reactive` (`i18n.py:24`), so this module never
+imports `sespy.i18n` at module level. `classify`, `default_polarity`,
+`rule_id`, `seed_polarity` and `log_off_rule_links` use only `constants`.
+`off_rule_message` and `note_for` import `sespy.i18n` **inside the function**,
+and only when they need the default translator. A subprocess test imports
+`sespy.link_rules` and asserts `"shiny" not in sys.modules`. That keeps
+`persistent_storage`, the mapper and P2's sync script Shiny-free.
+
 - `classify(from_type, to_type) -> "canonical" | "extension" | "off_rule" | "untyped"`.
   The result is `"untyped"` whenever either type is `""`; QSEM themes are
   untyped, and they are never flagged.
@@ -127,6 +135,13 @@ only.
   polarity, else `"+"`, which is what R's `get_rule_default_polarity` returns in
   practice. An off-rule P→D, R→ES or R→GB therefore seeds `+`, as in R.
 - `rule_id(from_type, to_type) -> str | None`.
+- `seed_polarity(src_el, tgt_el) -> "+" | "-" | None` is the pure helper behind
+  the entry form's prefill. It returns `None` when either element is `None`
+  or the two ids are equal, and otherwise returns
+  `default_polarity(src_el.type, tgt_el.type)`. Untyped pairs give `"+"`.
+- `log_off_rule_links(project_or_isa, *, context: str) -> int` logs one line on
+  the `sespy.link_rules` logger (§3.5) and returns the count. It is the single
+  function the call sites use.
 - `off_rule_message(from_label, from_type, to_label, to_type, translator)`
   returns the i18n text for the entry warning, from the new key
   `entry.off_rule_link` with placeholders `{source}`, `{target}`,
@@ -135,9 +150,9 @@ only.
   same strings the entry form's type dropdown shows
   (`isa_data_entry.py:56-59`).
 - `note_for(src_el, tgt_el, translator) -> str | None` is the pure helper the
-  entry form calls. It returns `None` when either element is missing, when the
+  entry form calls. It returns `None` when either element is `None`, when the
   two ids are equal, or when `classify` is not `"off_rule"`, and otherwise
-  returns `off_rule_message(...)`. The default-state guard (§3.4) is therefore
+  returns `off_rule_message(...)`. The guards (§3.4) are therefore
   unit-testable without Shiny.
 - `translator` follows the module convention: `isa_data_entry_server` takes
   `translator: Translator | None = None` and uses its module-level `t`. Both
@@ -189,25 +204,32 @@ intended parity and gets an explicit test. Extension pairs are not suggested
 (see the divergence in §2).
 
 ### 3.4 ISA data entry (`sespy/modules/isa_data_entry.py`)
-- Polarity is an `input_radio_buttons` (`new_polarity`,
+- **Empty first choice.** The source and target pickers re-render on every
+  `isa_change` with no `selected=` (`isa_data_entry.py:125-139`), so today both
+  fall back to the first element. Choosing only a source would then pair it
+  with that default target (e.g. P001→D001), seed a polarity and show a false
+  off-rule note before the user has chosen a target. P1a gives **both pickers
+  an empty first choice** (`""`, labelled with the new i18n key
+  `entry.choose_element`, "— choose —"), which is what they fall back to.
+  Seeding and the note only happen once both are actually chosen.
+  `_add_connection` refuses an empty endpoint with a notification. No existing
+  SESPy or MosaicSES e2e test drives these pickers (§9), so the change breaks
+  nothing. P1a does not add a selection restore.
+- **Prefill.** Polarity is an `input_radio_buttons` (`new_polarity`,
   `isa_data_entry.py:80-85`). A new effect watches `input.new_source()` and
-  `input.new_target()`. When both are set, it reads `project_data` under
-  `isolate()` to find the two types and calls
-  `ui.update_radio_buttons("new_polarity", selected=default_polarity(...))`.
+  `input.new_target()`, reads `project_data` under `isolate()` to look up the
+  two elements, and calls `seed_polarity(src, tgt)`. When that returns a value,
+  the effect calls `ui.update_radio_buttons("new_polarity", selected=...)`.
   The user can still change it before adding the link. Changing either
-  endpoint re-seeds, overriding an earlier manual choice; that is R's
-  behaviour too.
-- The source and target pickers re-render on every `isa_change` with no
-  `selected=` (`isa_data_entry.py:125-139`). That existing behaviour is
-  unchanged. P1a does not add a restore.
-- An off-rule pair shows a yellow note under the form, naming the pair and why
-  it is off-rule. The link still saves.
-- **No note and no seeding** when the source equals the target, or when either
-  id is empty. After every `isa_change` both pickers fall back to the first
-  element, so without this guard the default state (D→D, ES→ES, …) would show
-  a false off-rule note before the user picks anything. Self-loops are already
-  rejected by `_add_connection` (`isa_data_entry.py:240-243`).
-- Untyped elements: no note, polarity `+`.
+  endpoint re-seeds, overriding an earlier manual choice, as R does. This also
+  applies to untyped pairs, which seed `+`.
+- **Note.** A new `ui.output_ui("off_rule_note")` sits directly after the
+  connections `layout_columns`. It renders `note_for(src, tgt, translator)` as
+  `ui.div(text, class_="sespy-off-rule-note alert alert-warning")`, or nothing
+  when that returns `None`. The link still saves. Self-loops are already
+  rejected by `_add_connection` (`isa_data_entry.py:240-243`), and the same-id
+  guard in the helpers mirrors that.
+- Untyped elements: no note.
 - `Connection.description` gets **no UI in P1a**: the connections table
   (`isa_data_entry.py:165-172`) neither shows nor edits it. The field is
   kept and round-tripped. The editing UI is owned by **P1b** (roadmap).
@@ -216,8 +238,10 @@ intended parity and gets an explicit test. Extension pairs are not suggested
 Off-rule links are accepted and logged (logger
 `logging.getLogger("sespy.link_rules")`, i.e. `__name__` of the module; one line per
 project with the count and the first few pairs). They are never rejected, so
-existing projects behave exactly as before. **Call sites:** only
-`persistent_storage.validate_project_payload` and the mapper's report.
+existing projects behave exactly as before. **Call site:** only
+`persistent_storage.validate_project_payload`, through
+`link_rules.log_off_rule_links`. The mapper does not log; it records off-rule
+links in its report (§5).
 Validation already covers SESPy upload, recent projects, templates, Excel
 import (`excel_import.py:173`) and QSEM import (`qsem_import.py:195`), so each
 validation call logs once (template listing and autosave recovery validate
@@ -262,6 +286,12 @@ imported lazily as P0b already does.
     declared field, so an int such as `13` now reaches metadata, and
     `Version(13)` raises `TypeError`, not `InvalidVersion`. A test covers the
     int case.
+  - **Testing "never lowered":** loading a file whose stamp is above the
+    running version sets `newer_build` and takes the reset branch below. So the
+    never-lowered test builds the project **in memory**, e.g.
+    `Project(ProjectMetadata(min_sespy_version="99.0.0"), IsaData())`, and
+    asserts that `to_dict()["metadata"]["min_sespy_version"] == "99.0.0"`. A
+    second test does the same with a stamp at or below the running version.
   - A guard test asserts `SCHEMA_MIN_READER` has an entry for
     `PROJECT_SCHEMA_VERSION`, so a future schema bump cannot make the lookup
     raise `KeyError`.
@@ -278,13 +308,21 @@ imported lazily as P0b already does.
     "Save project info". It changes to `dataclasses.replace(meta, ...)`. A test
     pins that all three survive.
   - **Ordering:** the version bump to 1.13.0 lands in the **first** P1a commit,
-    not in §11. It covers all three places together: `sespy/__init__.py`,
+    not in §11. The schema change (`PROJECT_SCHEMA_VERSION = 7`,
+    `SCHEMA_MIN_READER`, the five new fields and their serialisation, and the
+    edits to the tests that hard-code schema 6) lands **together in one
+    commit**, or the unit gate goes red in between. It covers all three places together: `sespy/__init__.py`,
     `pyproject.toml` and the MANUAL version line. `tests/test_manual.py:29-31`
     asserts that the MANUAL line equals `__version__`, so bumping only one of
     them turns the unit gate red. Otherwise every round trip on the branch
     would stamp 1.13.0 while the build reports 1.12.3, and P0b would flag it.
 - **Serialisation.** `to_dict`/`from_dict` have explicit code for each new
-  field; there is no reliance on `asdict`. A round-trip test covers every field.
+  field; there is no reliance on `asdict`. A round-trip test covers every
+  field. Because `to_dict()` now stamps `min_sespy_version`,
+  `Project.from_dict(p.to_dict()) == p` no longer holds for a fresh project.
+  Round-trip tests therefore compare `isa_data` and named metadata fields, not
+  whole `Project`s. A grep found no existing SESPy or MosaicSES test that
+  compares whole Projects.
 - **Load handling.** MosaicSES loads compartments with `Project.from_dict`
   (`multises/data_structure.py:708`) and never calls validation. So the
   tolerant rules live in **`_isa_from_dict`**, and validation only adds the
@@ -305,7 +343,7 @@ imported lazily as P0b already does.
   Editors already edit through `replace()`, and a test pins this for
   `description` and `r_extra`.
 
-## 5. R template mapper (`sespy/r_template_mapper.py`, new; no Shiny import)
+## 5. R template mapper (`sespy/r_template_mapper.py`, new; Shiny-free)
 
 ```python
 @dataclass(frozen=True)
@@ -317,12 +355,27 @@ class ConversionReport:
     off_rule_links: tuple[tuple[str, str], ...]
     type_mismatches: tuple[str, ...]          # from_type/to_type vs category
     extra_fields: tuple[str, ...]             # field names moved into r_extra
-    template_meta: dict[str, Any]             # complexity, usage_notes, source,
-                                              # applicable_regions, created_date,
-                                              # regional_context
+    template_meta: dict[str, Any]             # see below
 
 def convert_r_template(raw: dict, *, key: str) -> tuple[Project, ConversionReport]: ...
 ```
+
+Report fields, exactly:
+- `counts_by_type`: keys are the SESPy type names (`DAPSIWRM_ELEMENTS`) that
+  occur, with no zero entries. Responses includes the folded Measures.
+- `off_rule_links`: `(source_id, target_id)` pairs, in input order.
+- `type_mismatches`: strings of the form
+  `"connections[{i}] {from_id}->{to_id}: from_type '{x}' vs category '{y}'"`
+  (or `to_type`), in input order.
+- `extra_fields`: the **sorted union** of the R field names moved into
+  `r_extra`, listed under their R names (so `type`, not `r_type`).
+- `template_meta`: a nested dict copied from the R file:
+  `{"complexity", "usage_notes", "version", "created_date", "source",
+  "applicable_regions", "regional_context"}`. `regional_context` is R's
+  whole dict, including `regional_sea`. Keys absent in R are absent here.
+
+The mapper **does not log**. It only fills the report, and callers (P2's sync
+script, tests) decide what to log.
 
 **Input format.** R's current shape: `dapsiwrm_framework` holds per-category
 lists, plus a flat `connections` list. Legacy category keys are accepted as
@@ -354,8 +407,9 @@ aliases: `states` for `marine_processes`, `impacts` for `ecosystem_services`,
   Caribbean carries 47 distinct element fields; the other six have only
   `id`, `name`, `description` and `type`. Caribbean's `measures` list is empty
   and it has no `regional_context.regional_sea`.
-  The literal `type` is stored as `r_extra["r_type"]`. Every other field
-  without a SESPy column goes into `r_extra` under its R name.
+  The literal `type` is stored as `r_extra["r_type"]` **only when the
+  element has one**; otherwise `r_type` is omitted. Every other field without
+  a SESPy column goes into `r_extra` under its R name.
 
 **Measures fold into Responses** (as R does, `template_loader.R:103,189-190`).
 As a result, M→R links become R→R (extension, Rule 14), and GB→M links become
@@ -373,7 +427,8 @@ GB→R (canonical, Rule 8).
 **Failure modes.** The mapper raises `ValueError`, with a message naming the
 template key and the offending item, for:
 - a connection endpoint id that does not exist;
-- a duplicate element id across categories, and a duplicate link;
+- a duplicate element id across categories, and a duplicate link, meaning
+  the same `(from_id, to_id)` pair (ISA entry's notion of "already exists");
 - a self-loop, which SESPy's validation also rejects
   (`persistent_storage.py:93-99`);
 - a `polarity` outside `+`/`-`, or a `strength` outside
@@ -392,6 +447,10 @@ with the
 - `name` = `template_name`; `description` = `template_description`;
   `regional_sea` = `regional_context.regional_sea` when present.
 - `origin = "r_template"`; `r_template_version` = `metadata.version`.
+- `created_at` = `modified_at` = R's `metadata.created_date` as given, or `""`
+  when absent. The mapper never uses the clock, so converting the same file
+  twice gives identical output, and P2's committed templates and hashes are
+  deterministic. (Saving later stamps `modified_at` as usual.)
 - Gallery-only facts go into `report.template_meta` for P2's card, not into
   the project.
 
@@ -461,10 +520,14 @@ with the
 - **Kumu polarity.** When a row has no numeric weight and **no non-empty
   polarity cell** (the column may be absent, or the cell blank or
   whitespace-only, which is stripped first; `_pick` works per cell,
-  `excel_import.py:45-52`), that row's `Label`/`label` cell decides. A unit test
-  in `tests/test_excel_import.py` covers a blank polarity cell with `Label="-"`,
-  which imports as `-`: a value of `-`, or one starting with `-`, is
-  negative; anything else is positive (R `excel_import_helpers.R:432-437`).
+  `excel_import.py:45-52`), that row's `Label`/`label` cell decides. A value
+  that **starts with** `-` is negative and anything else is positive, as R
+  does (`excel_import_helpers.R:432-437`). The Label cell is **not stripped**,
+  so `" -"` is positive, as in R. One deliberate divergence: a value starting
+  with `−` (U+2212), the sign SESPy's own polarity labels use, is also
+  negative. Unit tests in `tests/test_excel_import.py` cover a blank polarity
+  cell with `Label="-"` (→ `-`), a whitespace-only polarity cell with
+  `Label="-"` (→ `-`), `Label=" -"` (→ `+`) and `Label="−"` (→ `-`).
 - **Element type aliases**, taken from R's list (`excel_import_helpers.R:160-175`):
   `Driver`, `Activity`, `Pressure`, `Marine Process and Function`,
   `Marine Process and Functioning`, `State`, `State Change`,
@@ -476,8 +539,9 @@ with the
   `tests/test_excel_import.py`'s "numeric weight wins" case). Without a numeric
   weight, the polarity column decides. Only when neither is present does the
   Kumu `Label` column decide. The Label rule is the only new step.
-- The canonical plural type names stay accepted. An unrecognised type string
-  is still rejected by validation, as today.
+- The canonical type names stay accepted and are also matched
+  case-insensitively (e.g. `drivers`). An unrecognised type string is still
+  rejected by validation, as today.
 - Off-rule links import with a logged warning (§3.5).
 - **Not in P1a:** R's multi-sheet "Standard Entry" workbook (`Matrix_<key>`,
   `Linked*` columns). It is matrix-shaped like R projects, and the roadmap
@@ -562,8 +626,15 @@ TDD throughout. New unit test files:
   elsewhere): the stamp reset on a `newer_build` save, `to_dict()` leaving
   `self.metadata` unchanged, an int `min_sespy_version` being replaced, and the
   `SCHEMA_MIN_READER` guard;
-- the ISA entry note hidden in the default state (source == target), also
-  checked in the e2e test;
+- `seed_polarity` and `note_for` with `None` endpoints, equal ids, untyped
+  and off-rule pairs (pure unit tests);
+- the prefill effect in memory, using `shiny.testserver.test_server` with
+  `shiny.ui.update_radio_buttons` monkeypatched: choosing P→MPF calls it with
+  `selected="-"`, and choosing only a source calls nothing;
+- the subprocess test that `sespy.link_rules` imports without Shiny;
+- `_add_connection` refusing an empty endpoint;
+- the ISA entry note hidden in the default state (both pickers empty), also
+  checked in the e2e test via `.sespy-off-rule-note`;
 - `pims_project` keeping the three metadata fields;
 - `_isa_from_dict` tolerating a bad `r_extra`;
 - the scorer's R→S polarity branch;
@@ -585,8 +656,10 @@ TDD throughout. New unit test files:
   asserting or clicking Add. The sample already has P001→MPF1, P002→MPF2 and
   P003→MPF1, so a test that adds the link uses a **free pair** (e.g.
   P001→MPF2); otherwise it gets "already exists" and nothing saves;
-- choosing Drivers → Goods & Benefits shows the off-rule note, and the link
-  still saves;
+- choosing Drivers → Goods & Benefits shows `#off_rule_note
+  .sespy-off-rule-note`, and the link still saves (D001→GB01 is a free pair in
+  the sample);
+- choosing only a source shows no note;
 - selectors are scoped (memory: e2e text-selector collisions).
 
 **Gates:** the CI unit command; the full e2e gate with nothing heavy running
