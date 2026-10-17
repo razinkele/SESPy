@@ -26,8 +26,12 @@ def test_keywords_json_loads():
     assert "polarity_signals" in kw
 
 
-def test_all_10_connection_types_present():
-    """Set-equality on connection_types keys against the 10 expected slugs."""
+def test_keyword_json_has_10_keys_for_the_11_pairs():
+    """Set-equality on connection_types keys against the 10 keyword slugs.
+
+    Stays at 10 although _CONN_TYPES has 11 pairs: R has no relevance
+    keywords for responses_states (R->MPF) and scores it at a flat 0.5
+    (connection_generator.R:375), so SESPy invents none (spec §3.3)."""
     from sespy.connection_scorer import _KW
     expected = {
         "drivers_activities", "activities_pressures", "pressures_states",
@@ -126,8 +130,8 @@ def test_relevance_unknown_pair_returns_05():
     """Unknown (from_slug, to_slug) pair → 0.5 (R's defensive default at line 376).
 
     Pins the defensive path so a future removal is a deliberate decision.
-    Schema test guarantees all 10 valid pairs are present, so this only
-    fires on coding errors.
+    It is also the normal path for responses_states (R->MPF), which has no
+    keywords by design (see test_r_to_mpf_relevance_is_flat_05).
     """
     from sespy.connection_scorer import calculate_relevance
     # "garbage_bogus" is not a valid slug pair; the lookup falls through to 0.5.
@@ -473,9 +477,11 @@ def test_per_type_cap_honored_end_to_end():
     assert da_count == 15
 
 
-def test_all_10_types_yield_high_confidence_suggestions():
+def test_every_keyword_type_yields_high_confidence_suggestions():
     """Designed-to-overlap reference fixture: ≥2 elements per type with
-    keyword-rich labels. Assert that for each of the 10 connection types,
+    keyword-rich labels. Assert that for each of the 10 keyword-scored
+    connection types (all _CONN_TYPES except responses_states, which R
+    scores at a flat 0.5 and so can never reach 0.6),
     at least one suggestion has confidence >= 0.6 (i.e., ≥ 1 keyword match
     across both names).
 
@@ -525,7 +531,8 @@ def test_all_10_types_yield_high_confidence_suggestions():
             if s.source.startswith(from_prefix) and s.target.startswith(to_prefix):
                 high_conf_seen.add(key)
                 break
-    expected = {key for _, _, key in _CONN_TYPES}
+    # responses_states: no keywords, flat 0.5 relevance (R parity).
+    expected = {key for _, _, key in _CONN_TYPES} - {"responses_states"}
     missing = expected - high_conf_seen
     assert not missing, (
         f"Missing high-confidence (>=0.6) suggestions for: {sorted(missing)}. "
@@ -619,3 +626,27 @@ def test_no_wizard_import_in_connection_scorer():
                         f"connection_scorer.py:{node.lineno} imports "
                         f"sespy.wizard -- re-introduces the import cycle"
                     )
+
+
+# ---------------------------------------------------------------------------
+# P1a: responses_states (R->MPF) — flat relevance + ported polarity branch
+# ---------------------------------------------------------------------------
+
+def test_r_to_mpf_relevance_is_flat_05():
+    """R has no relevance keywords for R->MPF and scores it at a flat 0.5
+    (connection_generator.R:375); SESPy invents none."""
+    from sespy.connection_scorer import _KW, calculate_relevance
+    assert "responses_states" not in _KW["connection_types"]
+    assert calculate_relevance("Seagrass restoration", "Seagrass meadow extent",
+                               "responses", "states") == 0.5
+
+
+@pytest.mark.parametrize("to_label,want", [
+    ("Hypoxia extent", "-"),          # negative-sounding target: reduces a bad state
+    ("Fish stock recovery", "+"),     # positive-sounding target: increases a good state
+    ("Seabed sediment", "+"),         # neither: default "+"
+])
+def test_detect_polarity_responses_to_states(to_label, want):
+    from sespy.connection_scorer import detect_polarity
+    assert detect_polarity("Marine protected area", to_label,
+                           "responses", "states") == want

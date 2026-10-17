@@ -141,9 +141,9 @@ a system map.
 Given a project's element list grouped by DAPSI(W)R(M) type plus
 regional context, propose plausible connections following these rules:
 
-1. Allowed type-pair directions (10 valid):
+1. Allowed type-pair directions (11 valid):
    D->A, A->P, P->S, S->I, I->W,
-   R->P, R->D, R->A, W->D, W->R.
+   R->P, R->D, R->A, R->S, W->D, W->R.
    Connections in any other direction are NOT VALID. Don't neglect
    the feedback-direction pairs (R->*, W->*) — they are often the
    most useful suggestions.
@@ -221,7 +221,7 @@ You would emit (among others):
 You would NOT emit:
   - any suggestion using "coastal population growth" in the source
     field (use the id "d1")
-  - {"source": "a1", "target": "d1", ...} - A->D is not in the 10
+  - {"source": "a1", "target": "d1", ...} - A->D is not in the 11
     allowed directions
   - confidence values other than {0.3, 0.5, 0.7, 0.9}
   - duplicate (source, target) pairs (any variation)

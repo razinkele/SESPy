@@ -228,3 +228,51 @@ def test_validate_project_payload_clean_project_is_silent(caplog):
     with caplog.at_level(logging.WARNING, logger="sespy.link_rules"):
         assert validate_project_payload(raw).valid
     assert not [r for r in caplog.records if r.name == "sespy.link_rules"]
+
+
+# ---- topology (commit 4: needs the 11-pair _CONN_TYPES) ------------------
+
+def test_conn_types_set_equal_to_rule_table_canonical_targets():
+    from sespy.data_structure import _CONN_TYPES, ELEMENT_TYPE_MAP
+    got = {(ELEMENT_TYPE_MAP[f], ELEMENT_TYPE_MAP[t]) for f, t, _ in _CONN_TYPES}
+    want = {(src, t.to_type) for src, r in DAPSIWRM_ADJACENCY_RULES.items()
+            for t in r.targets}
+    assert got == want
+
+
+def test_rule_based_scorer_suggests_r_to_mpf():
+    from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import WizardState
+    state = WizardState(elements=[
+        Element("R001", "Seagrass restoration", "Responses"),
+        Element("MPF1", "Seagrass meadow extent", MPF),
+    ])
+    pairs = {(s.source, s.target) for s in suggest_connections(state)}
+    assert ("R001", "MPF1") in pairs
+
+
+def test_scorer_never_suggests_extension_pairs():
+    from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import WizardState
+    state = WizardState(elements=[
+        Element("R001", "Fishing quota", "Responses"),
+        Element("R002", "Fishing licence", "Responses"),
+        Element("P001", "Nutrient load", "Pressures"),
+        Element("P002", "Nutrient runoff", "Pressures"),
+    ])
+    by_id = {e.id: e for e in state.elements}
+    sugs = suggest_connections(state)
+    assert sugs                       # R->P is canonical: something to check
+    for s in sugs:
+        assert classify(by_id[s.source].type, by_id[s.target].type) == "canonical"
+
+
+def test_claude_backend_accepts_r_to_mpf():
+    from sespy.claude_backend import _validate_and_coerce
+    elements = [Element("R001", "Seagrass restoration", "Responses"),
+                Element("MPF1", "Seagrass meadow extent", MPF)]
+    sug = {"source": "R001", "target": "MPF1", "polarity": "+",
+           "confidence": 0.7, "rationale": "restoration expands seagrass meadows"}
+    out = _validate_and_coerce([sug], {"R001", "MPF1"}, elements)
+    assert [(s.source, s.target) for s in out.suggestions] == [("R001", "MPF1")]
+    assert out.drops_by_reason["invalid_pair"] == 0

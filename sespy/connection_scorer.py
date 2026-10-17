@@ -1,6 +1,6 @@
 """Connection scoring backend for the AI-ISA wizard (SP3).
 
-Pure-Python rule-based scoring across all 10 DAPSI(W)R(M) connection
+Pure-Python rule-based scoring across all 11 DAPSI(W)R(M) connection
 types. Loads a keyword JSON eagerly at module import; exposes
 suggest_connections(state) as the SP3 contract — same signature as
 SP1's stub, replacing it via sespy/wizard.py.
@@ -70,8 +70,10 @@ def calculate_relevance(
     """Return one of {0.3, 0.6, 0.9} based on keyword-substring-match
     count across both names (0 matches → 0.3 floor, 1 → 0.6, 2+ → 0.9).
     Returns 0.5 if the (from_slug, to_slug) pair is missing from the
-    keyword JSON (defensive default at R line 376; schema test pins all
-    10 pairs present so 0.5 doesn't fire in normal operation).
+    keyword JSON (R line 376). That is the normal path for responses_states
+    (R->MPF): R has no keywords for it and scores it at a flat 0.5, so the
+    keyword JSON deliberately has no responses_states key (10 keys for the
+    11 pairs).
 
     Slug params are lowercase (e.g., "drivers", "states"), NOT human
     Element.type strings.
@@ -154,6 +156,7 @@ def detect_polarity(
 
     Step B: Per-pair dispatch over (from_slug, to_slug):
       - ("responses", "pressures"): always "-" (R line 117).
+      - ("responses", "states"): to-flag-aware, default "+" (R 122-130).
       - ("activities", "pressures"): mitigation-aware (R 133-138).
       - ("pressures", "states"): to-flag-aware (R 143-150).
       - ("states", "impacts"): negation-flip + matrix (R 153-167).
@@ -161,12 +164,9 @@ def detect_polarity(
       - All other pairs: default "+" (R line 186).
 
     R's KB-lookup branch (R 63-75) and ML-scoring branch are not
-    ported per the rule-based-only scope decision. R also has an
-    11th branch ("responses", "states") at R 122-130 that SP3 does
-    NOT port: _CONN_TYPES (Task 3) only generates 10 type-pairs and
-    "responses" -> "states" is not among them, so the branch would
-    be unreachable dead code. SP4 can re-add it with a test if
-    needed (see spec §5 dispatch-table prose).
+    ported per the rule-based-only scope decision. The
+    ("responses", "states") branch (R 122-130) is ported since P1a made
+    R->MPF a canonical pair in _CONN_TYPES.
     """
     from_lower = from_name.lower()
     to_lower = to_name.lower()
@@ -193,6 +193,14 @@ def detect_polarity(
     # ("responses", "pressures") — R line 117: always "-".
     if from_slug == "responses" and to_slug == "pressures":
         return "-"
+
+    # ("responses", "states") — R lines 122-130.
+    if from_slug == "responses" and to_slug == "states":
+        if to_is_negative:
+            return "-"  # reduces a bad state
+        if to_is_positive:
+            return "+"  # increases a good state
+        return "+"  # default: responses improve states
 
     # ("activities", "pressures") — R lines 133-138.
     if from_slug == "activities" and to_slug == "pressures":
@@ -346,14 +354,14 @@ def _generate_smart_connections(
 
 
 def suggest_connections(state: WizardState) -> list[ConnectionSuggestion]:
-    """SP3 contract: rule-based scoring across all 10 connection types.
+    """SP3 contract: rule-based scoring across all 11 connection types.
     Same signature as SP1's stub at sespy/wizard.py:92.
 
     Top-level orchestrator (R lines 755-1001; constants MAX_PER_TYPE=15
     and MIN_RELEVANCE=0.3 at R 757-758). KB-seed and ML-scoring
     branches dropped per rule-based-only scope.
 
-    Returns a flat list of <=150 (10 types x 15 cap) ConnectionSuggestions
+    Returns a flat list of <=165 (11 types x 15 cap) ConnectionSuggestions
     sorted globally by source group order (per _CONN_TYPES iteration)
     and within each group by confidence descending.
     """
@@ -371,7 +379,7 @@ def suggest_connections(state: WizardState) -> list[ConnectionSuggestion]:
             continue
         grouped[slug].append(el)
 
-    # 2. For each of the 10 connection-type pairs, generate suggestions.
+    # 2. For each of the 11 connection-type pairs, generate suggestions.
     # _CONN_TYPES is a 3-tuple list (from_slug, to_slug, conn_type_key);
     # we destructure the 3rd field but don't pass it -- calculate_relevance
     # rebuilds the conn_type_key from (from_slug, to_slug) internally.

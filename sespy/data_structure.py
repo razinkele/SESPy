@@ -67,8 +67,12 @@ Slug = Literal[
     "impacts", "welfare", "responses",
 ]
 
-# 10 type-pairs as (from_slug, to_slug, conn_type_key) 3-tuples.
-# Iteration order matches DAPSI(W)R(M) layer flow.
+# 11 type-pairs as (from_slug, to_slug, conn_type_key) 3-tuples: the
+# canonical targets of constants.DAPSIWRM_ADJACENCY_RULES (the single source
+# of truth; tests/test_link_rules.py asserts set equality). Kept as an
+# explicit literal so the order (which the scorer's output follows) is fixed
+# and readable. responses_states (R->MPF, Rule 12) was added in P1a after
+# responses_activities, so the existing pairs keep their order.
 _CONN_TYPES: list[tuple[Slug, Slug, str]] = [
     ("drivers", "activities", "drivers_activities"),
     ("activities", "pressures", "activities_pressures"),
@@ -78,6 +82,7 @@ _CONN_TYPES: list[tuple[Slug, Slug, str]] = [
     ("responses", "pressures", "responses_pressures"),
     ("responses", "drivers", "responses_drivers"),
     ("responses", "activities", "responses_activities"),
+    ("responses", "states", "responses_states"),
     ("welfare", "drivers", "welfare_drivers"),
     ("welfare", "responses", "welfare_responses"),
 ]
