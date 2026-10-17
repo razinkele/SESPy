@@ -305,7 +305,8 @@ TDD throughout. New unit test files:
   `tests/test_excel_import.py` (description, Kumu label, aliases, Measure).
 
 **Existing tests that change:** `test_schema_version_is_6` becomes 7, and the
-scorer and Claude-backend pair-count tests go from 10 to 11.
+10-type expectations in `tests/test_connection_scorer.py` (lines 30 and 478)
+and `tests/test_claude_backend.py` go to 11.
 
 **New e2e test, `tests/test_link_rules_e2e.py`:**
 - choosing a Pressure → MPF pair pre-fills polarity `−`;
