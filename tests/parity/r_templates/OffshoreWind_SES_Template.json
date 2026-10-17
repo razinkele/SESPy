@@ -1,0 +1,447 @@
+{
+  "template_name": "Offshore Wind Energy",
+  "template_description": "Social-ecological system template for offshore wind energy development, covering construction and operation pressures on marine ecosystems, energy production benefits, and spatial planning responses.",
+  "complexity": "complex",
+  "regional_context": {
+    "regional_sea": "north_sea",
+    "habitat": "offshore",
+    "main_issues": [
+      "offshore wind energy ses template"
+    ]
+  },
+  "metadata": {
+    "created_date": "2026-04-08",
+    "version": "2.2",
+    "source": "Rebuilt from ses_knowledge_db.json context: north_sea_offshore",
+    "applicable_regions": [
+      "north_sea"
+    ]
+  },
+  "dapsiwrm_framework": {
+    "drivers": [
+      {
+        "id": "D001",
+        "name": "Offshore wind energy policy targets (EU, UK)",
+        "type": "Driver",
+        "description": "Offshore wind energy policy targets (EU, UK)"
+      },
+      {
+        "id": "D004",
+        "name": "Industrial-scale fisheries demand (sandeel, herring)",
+        "type": "Driver",
+        "description": "Industrial-scale fisheries demand (sandeel, herring)"
+      }
+    ],
+    "activities": [
+      {
+        "id": "A001",
+        "name": "Offshore wind farm construction (monopile, jacket)",
+        "type": "Activity",
+        "description": "Offshore wind farm construction (monopile, jacket)"
+      },
+      {
+        "id": "A003",
+        "name": "Sandeel industrial fishery",
+        "type": "Activity",
+        "description": "Sandeel industrial fishery"
+      },
+      {
+        "id": "A004",
+        "name": "Beam trawling for flatfish (sole, plaice)",
+        "type": "Activity",
+        "description": "Beam trawling for flatfish (sole, plaice)"
+      }
+    ],
+    "pressures": [
+      {
+        "id": "P001",
+        "name": "Seabed habitat loss from wind farm foundations",
+        "type": "Pressure",
+        "description": "Seabed habitat loss from wind farm foundations"
+      },
+      {
+        "id": "P002",
+        "name": "Underwater noise from pile-driving",
+        "type": "Pressure",
+        "description": "Underwater noise from pile-driving"
+      },
+      {
+        "id": "P003",
+        "name": "Sandeel stock depletion affecting seabirds",
+        "type": "Pressure",
+        "description": "Sandeel stock depletion affecting seabirds"
+      },
+      {
+        "id": "P004",
+        "name": "Chronic hydrocarbon contamination from platforms",
+        "type": "Pressure",
+        "description": "Chronic hydrocarbon contamination from platforms"
+      },
+      {
+        "id": "P005",
+        "name": "Seabed disturbance from beam trawling",
+        "type": "Pressure",
+        "description": "Seabed disturbance from beam trawling"
+      }
+    ],
+    "marine_processes": [
+      {
+        "id": "MPF001",
+        "name": "Sandeel stock abundance and distribution",
+        "type": "State Change",
+        "description": "Sandeel stock abundance and distribution"
+      },
+      {
+        "id": "MPF002",
+        "name": "Seabird breeding success (kittiwake, puffin, tern)",
+        "type": "State Change",
+        "description": "Seabird breeding success (kittiwake, puffin, tern)"
+      },
+      {
+        "id": "MPF003",
+        "name": "Harbour porpoise and minke whale abundance",
+        "type": "State Change",
+        "description": "Harbour porpoise and minke whale abundance"
+      }
+    ],
+    "ecosystem_services": [
+      {
+        "id": "ES001",
+        "name": "Fish stock provisioning for human consumption",
+        "type": "Provisioning",
+        "description": "Fish stock provisioning for human consumption"
+      },
+      {
+        "id": "ES002",
+        "name": "Marine biodiversity and artificial reef habitat provision",
+        "description": "Habitat creation around turbine foundations supporting marine biodiversity through artificial reef effects"
+      }
+    ],
+    "goods_benefits": [
+      {
+        "id": "GB001",
+        "name": "Fishing industry employment and revenue",
+        "type": "Welfare",
+        "description": "Fishing industry employment and revenue"
+      },
+      {
+        "id": "GB002",
+        "name": "Energy security and carbon reduction benefits",
+        "type": "Welfare",
+        "description": "Energy security and carbon reduction benefits"
+      },
+      {
+        "id": "GB004",
+        "name": "Renewable energy generation capacity",
+        "type": "Welfare",
+        "description": "Renewable energy generation capacity"
+      }
+    ],
+    "responses": [
+      {
+        "id": "R001",
+        "name": "Sandeel fishery closure zones (UK, Denmark)",
+        "type": "Response",
+        "description": "Sandeel fishery closure zones (UK, Denmark)"
+      },
+      {
+        "id": "R002",
+        "name": "Maritime spatial planning (North Sea)",
+        "type": "Response",
+        "description": "Maritime spatial planning (North Sea)"
+      },
+      {
+        "id": "R003",
+        "name": "Underwater noise mitigation requirements (bubble curtains)",
+        "type": "Response",
+        "description": "Underwater noise mitigation requirements (bubble curtains)"
+      }
+    ],
+    "measures": [
+      {
+        "id": "M001",
+        "name": "Bubble curtain noise mitigation",
+        "type": "Measure",
+        "description": "Air bubble curtains around pile-driving operations to reduce underwater noise propagation"
+      },
+      {
+        "id": "M002",
+        "name": "Artificial reef habitat compensation",
+        "type": "Measure",
+        "description": "Engineered reef structures to compensate for seabed habitat loss from wind farm foundations"
+      }
+    ]
+  },
+  "connections": [
+    {
+      "from_id": "D001",
+      "to_id": "A001",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Government targets directly drive massive investment in offshore wind construction"
+    },
+    {
+      "from_id": "A001",
+      "to_id": "P002",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Monopile installation generates high-intensity impulsive noise harmful to cetaceans"
+    },
+    {
+      "from_id": "A003",
+      "to_id": "P003",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Industrial sandeel fishing reduces prey availability for surface-feeding seabirds. Fishing mortality above sustainable levels reduces spawning stock biomass, lowering reproductive output and population resilience"
+    },
+    {
+      "from_id": "P003",
+      "to_id": "MPF002",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Sandeel shortage causes chick starvation and breeding failure in kittiwakes and puffins"
+    },
+    {
+      "from_id": "P003",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Overfishing directly reduces sandeel biomass in the North Sea. Fishing mortality above sustainable levels reduces spawning stock biomass, lowering reproductive output and population resilience"
+    },
+    {
+      "from_id": "P002",
+      "to_id": "MPF003",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Pile-driving noise causes harbour porpoise displacement and potential hearing damage"
+    },
+    {
+      "from_id": "A004",
+      "to_id": "P005",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Beam trawls physically scrape and flatten seabed habitats. Bottom trawling physically disrupts benthic habitat structure, removing biogenic features."
+    },
+    {
+      "from_id": "MPF001",
+      "to_id": "ES001",
+      "from_type": "state",
+      "to_type": "impact",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Sandeel abundance supports both direct fishery and prey base for commercial fish. Fishing mortality above sustainable levels reduces spawning stock biomass, lowering reproductive output and population resilience"
+    },
+    {
+      "from_id": "R001",
+      "to_id": "P003",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Closure zones protect sandeel spawning and feeding areas from fishing mortality. Fishing mortality above sustainable levels reduces spawning stock biomass, lowering reproductive output and population resilience"
+    },
+    {
+      "from_id": "R003",
+      "to_id": "P002",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Bubble curtains reduce noise propagation during pile-driving by 10-20 dB. The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+    },
+    {
+      "from_id": "D004",
+      "to_id": "A003",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Industrial demand for fishmeal and fish oil drives sandeel fishery targeting and catch volumes"
+    },
+    {
+      "from_id": "P001",
+      "to_id": "P005",
+      "from_type": "pressure",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Wind farm exclusion zones preventing beam trawling is well-documented in North Sea. Multiple studies confirm fisheries displacement from wind farm areas. Confidence raised from 3 to 4."
+    },
+    {
+      "from_id": "MPF001",
+      "to_id": "MPF002",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Sandeel availability is the critical prey resource determining breeding success for most North Sea seabird colonies"
+    },
+    {
+      "from_id": "ES001",
+      "to_id": "GB001",
+      "from_type": "impact",
+      "to_type": "welfare",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Fish stock productivity directly determines fishing fleet revenue and coastal community employment. Fishing mortality above sustainable levels reduces spawning stock biomass, lowering reproductive output and population resilience"
+    },
+    {
+      "from_id": "R001",
+      "to_id": "A003",
+      "from_type": "response",
+      "to_type": "activity",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Spatial closure zones directly exclude sandeel fishing from key areas, reducing total industrial catch"
+    },
+    {
+      "from_id": "R002",
+      "to_id": "A004",
+      "from_type": "response",
+      "to_type": "activity",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Maritime spatial planning designates areas for wind energy and nature protection that exclude beam trawling"
+    },
+    {
+      "from_id": "P004",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Chronic hydrocarbon contamination from oil/gas platforms harms sandeel through toxic effects on eggs, larvae, and prey organisms. Polarity corrected from + to - (contamination reduces, not increases, sandeel abundance)."
+    },
+    {
+      "from_id": "M001",
+      "to_id": "R003",
+      "from_type": "measure",
+      "to_type": "response",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Bubble curtains are the standard technical measure for pile-driving noise mitigation requirements"
+    },
+    {
+      "from_id": "M002",
+      "to_id": "R002",
+      "from_type": "measure",
+      "to_type": "response",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Habitat compensation schemes are part of maritime spatial planning EIA requirements"
+    },
+    {
+      "from_id": "GB001",
+      "to_id": "D004",
+      "from_type": "welfare",
+      "to_type": "driver",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Fishing industry employment and revenue reinforces industrial-scale fisheries demand"
+    },
+    {
+      "from_id": "GB002",
+      "to_id": "D001",
+      "from_type": "welfare",
+      "to_type": "driver",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Energy security and carbon reduction benefits reinforce offshore wind energy policy targets"
+    },
+    {
+      "from_id": "GB004",
+      "to_id": "D001",
+      "from_type": "welfare",
+      "to_type": "driver",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Renewable energy generation capacity reinforces offshore wind energy policy targets"
+    },
+    {
+      "from_id": "P002",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Pile-driving noise displaces and injures sandeel and disturbs their sandy burrowing habitat: more noise, lower sandeel abundance."
+    },
+    {
+      "from_id": "P005",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Seabed disturbance from beam trawling connects to Sandeel stock abundance and distribution"
+    },
+    {
+      "from_type": "state",
+      "from_id": "MPF003",
+      "to_type": "impact",
+      "to_id": "ES002",
+      "description": "Harbour porpoise and whale abundance contributes to marine biodiversity provision",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3
+    },
+    {
+      "from_type": "impact",
+      "from_id": "ES002",
+      "to_type": "welfare",
+      "to_id": "GB002",
+      "description": "Marine biodiversity around wind farms contributes to environmental and carbon benefits",
+      "polarity": "+",
+      "strength": "weak",
+      "confidence": 2
+    },
+    {
+      "from_id": "GB004",
+      "to_id": "R002",
+      "from_type": "welfare",
+      "to_type": "response",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 2,
+      "description": "Growing offshore wind capacity creates space conflicts with fisheries and nature protection that North Sea maritime spatial plans are drawn up to resolve: more capacity, more spatial planning."
+    }
+  ]
+}

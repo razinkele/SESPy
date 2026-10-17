@@ -1,0 +1,498 @@
+{
+  "template_name": "Pollution",
+  "template_description": "Social-ecological system template for marine pollution, covering chemical and nutrient contamination, habitat degradation, human welfare impacts, and environmental regulation responses. Applicable to estuarine and coastal systems.",
+  "complexity": "simple",
+  "regional_context": {
+    "regional_sea": "baltic",
+    "habitat": "estuary",
+    "main_issues": [
+      "marine pollution ses template"
+    ]
+  },
+  "metadata": {
+    "created_date": "2026-04-08",
+    "version": "2.3",
+    "source": "Rebuilt from ses_knowledge_db.json context: baltic_estuary",
+    "applicable_regions": [
+      "baltic"
+    ]
+  },
+  "dapsiwrm_framework": {
+    "drivers": [
+      {
+        "id": "D001",
+        "name": "Salmon and sea trout fishery demand",
+        "type": "Driver",
+        "description": "Salmon and sea trout fishery demand"
+      },
+      {
+        "id": "D002",
+        "name": "Port and harbour expansion pressure",
+        "type": "Driver",
+        "description": "Port and harbour expansion pressure"
+      }
+    ],
+    "activities": [
+      {
+        "id": "A001",
+        "name": "Navigation channel dredging",
+        "type": "Activity",
+        "description": "Navigation channel dredging"
+      },
+      {
+        "id": "A002",
+        "name": "Salmon stocking and hatchery operations",
+        "type": "Activity",
+        "description": "Salmon stocking and hatchery operations"
+      },
+      {
+        "id": "A003",
+        "name": "Industrial and municipal wastewater discharge",
+        "type": "Activity",
+        "description": "Industrial and municipal wastewater discharge"
+      },
+      {
+        "id": "A004",
+        "name": "Recreational salmon fishing",
+        "type": "Activity",
+        "description": "Recreational salmon fishing"
+      },
+      {
+        "id": "A005",
+        "name": "Flood defence construction and maintenance",
+        "type": "Activity",
+        "description": "Flood defence construction and maintenance"
+      },
+      {
+        "id": "A006",
+        "name": "Sand and gravel extraction from river bed",
+        "type": "Activity",
+        "description": "Sand and gravel extraction from river bed"
+      }
+    ],
+    "pressures": [
+      {
+        "id": "P001",
+        "name": "Nutrient enrichment from agricultural sources",
+        "type": "Pressure",
+        "description": "Nutrient enrichment from agricultural sources"
+      },
+      {
+        "id": "P002",
+        "name": "Heavy metal contamination from industrial legacy",
+        "type": "Pressure",
+        "description": "Heavy metal contamination from industrial legacy"
+      },
+      {
+        "id": "P003",
+        "name": "Physical habitat loss from channelisation",
+        "type": "Pressure",
+        "description": "Physical habitat loss from channelisation"
+      },
+      {
+        "id": "P004",
+        "name": "Blocked fish migration routes (dams, weirs)",
+        "type": "Pressure",
+        "description": "Blocked fish migration routes (dams, weirs)"
+      },
+      {
+        "id": "P005",
+        "name": "Altered salinity gradient from flow regulation",
+        "type": "Pressure",
+        "description": "Altered salinity gradient from flow regulation"
+      },
+      {
+        "id": "P006",
+        "name": "Sediment resuspension from dredging",
+        "type": "Pressure",
+        "description": "Sediment resuspension from dredging"
+      }
+    ],
+    "marine_processes": [
+      {
+        "id": "MPF001",
+        "name": "Atlantic salmon migration success",
+        "type": "State Change",
+        "description": "Atlantic salmon migration success"
+      },
+      {
+        "id": "MPF002",
+        "name": "Dissolved oxygen levels in stratified waters",
+        "type": "State Change",
+        "description": "Dissolved oxygen levels in stratified waters"
+      },
+      {
+        "id": "MPF003",
+        "name": "Estuarine benthic invertebrate communities",
+        "type": "State Change",
+        "description": "Estuarine benthic invertebrate communities"
+      }
+    ],
+    "ecosystem_services": [
+      {
+        "id": "ES001",
+        "name": "Salmon fishery productivity",
+        "type": "Provisioning",
+        "description": "Salmon fishery productivity"
+      },
+      {
+        "id": "ES003",
+        "name": "Nursery function for coastal fish species",
+        "type": "Provisioning",
+        "description": "Nursery function for coastal fish species"
+      }
+    ],
+    "goods_benefits": [
+      {
+        "id": "GB001",
+        "name": "Recreational fishing tourism revenue",
+        "type": "Welfare",
+        "description": "Recreational fishing tourism revenue"
+      },
+      {
+        "id": "GB005",
+        "name": "Port and navigation accessibility",
+        "type": "Welfare",
+        "description": "Port and navigation accessibility"
+      }
+    ],
+    "responses": [
+      {
+        "id": "R001",
+        "name": "Fish passage restoration (dam removal, fish ladders)",
+        "type": "Response",
+        "description": "Fish passage restoration (dam removal, fish ladders)"
+      },
+      {
+        "id": "R002",
+        "name": "Wastewater treatment plant upgrades",
+        "type": "Response",
+        "description": "Wastewater treatment plant upgrades"
+      },
+      {
+        "id": "R003",
+        "name": "Salmon stock recovery plans (HELCOM)",
+        "type": "Response",
+        "description": "Salmon stock recovery plans (HELCOM)"
+      },
+      {
+        "id": "R004",
+        "name": "River basin nutrient management plans",
+        "type": "Response",
+        "description": "River basin nutrient management plans"
+      },
+      {
+        "id": "R005",
+        "name": "Contaminated sediment remediation programmes",
+        "type": "Response",
+        "description": "Contaminated sediment remediation programmes"
+      }
+    ],
+    "measures": [
+      {
+        "id": "M001",
+        "name": "Industrial pre-treatment systems",
+        "type": "Measure",
+        "description": "On-site treatment of industrial effluents before discharge to municipal wastewater systems"
+      },
+      {
+        "id": "M002",
+        "name": "Green infrastructure for nutrient retention",
+        "type": "Measure",
+        "description": "Constructed wetlands, buffer strips, and retention ponds for diffuse nutrient removal"
+      }
+    ]
+  },
+  "connections": [
+    {
+      "from_id": "D001",
+      "to_id": "A002",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Salmon and sea trout fishery demand affects Salmon stocking and hatchery operations"
+    },
+    {
+      "from_id": "D002",
+      "to_id": "A001",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Expanding port capacity requires deepening and maintaining navigation channels. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+    },
+    {
+      "from_id": "A001",
+      "to_id": "P006",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Dredging operations directly resuspend contaminated sediments and increase turbidity"
+    },
+    {
+      "from_id": "A003",
+      "to_id": "P002",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Ongoing discharges add to legacy contamination in estuarine sediments. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+    },
+    {
+      "from_id": "P004",
+      "to_id": "MPF001",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Dams and weirs block upstream migration, preventing salmon from reaching spawning grounds"
+    },
+    {
+      "from_id": "P001",
+      "to_id": "MPF002",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Excessive nutrients fuel algal growth; decomposition consumes oxygen in stratified estuary waters. Nutrient loading (particularly nitrogen and phosphorus from agricultural runoff and municipal wastewater) drives phytoplankton and cyanobacterial bloom formation"
+    },
+    {
+      "from_id": "MPF001",
+      "to_id": "ES001",
+      "from_type": "state",
+      "to_type": "impact",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Atlantic salmon migration success affects Salmon fishery productivity"
+    },
+    {
+      "from_id": "ES001",
+      "to_id": "GB001",
+      "from_type": "impact",
+      "to_type": "welfare",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Productive salmon runs attract recreational anglers and generate local tourism income. Marine tourism generates substantial economic value — reef tourism alone contributes ~USD 36 billion/year globally"
+    },
+    {
+      "from_id": "R001",
+      "to_id": "P004",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Removing dams or installing fish ladders directly eliminates migration barriers. The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+    },
+    {
+      "from_id": "R002",
+      "to_id": "P002",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Modern treatment removes heavy metals from effluent, reducing ongoing contamination"
+    },
+    {
+      "from_id": "P003",
+      "to_id": "MPF003",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Channelisation removes natural substrate and flow variability, reducing benthic habitat quality"
+    },
+    {
+      "from_id": "MPF003",
+      "to_id": "ES003",
+      "from_type": "state",
+      "to_type": "impact",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Healthy benthic communities provide prey for juvenile fish in estuarine nurseries. Bottom trawling physically disrupts benthic habitat structure, removing biogenic features."
+    },
+    {
+      "from_id": "D001",
+      "to_id": "A004",
+      "from_type": "driver",
+      "to_type": "activity",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Growing angler demand for salmon and sea trout drives recreational fishing participation and effort in Baltic estuaries"
+    },
+    {
+      "from_id": "P001",
+      "to_id": "P005",
+      "from_type": "pressure",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "High nutrient loading changes water density and stratification, interacting with flow regulation to alter the estuarine salinity gradient"
+    },
+    {
+      "from_id": "MPF002",
+      "to_id": "MPF003",
+      "from_type": "state",
+      "to_type": "state",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 5,
+      "description": "Bottom-water oxygen levels directly control benthic invertebrate survival and community composition in stratified estuaries"
+    },
+    {
+      "from_id": "ES003",
+      "to_id": "GB001",
+      "from_type": "impact",
+      "to_type": "welfare",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Nursery function for coastal fish species affects Recreational fishing tourism revenue"
+    },
+    {
+      "from_id": "R004",
+      "to_id": "A003",
+      "from_type": "response",
+      "to_type": "activity",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "River basin nutrient management plans impose discharge limits that reduce industrial and municipal wastewater nutrient loads"
+    },
+    {
+      "from_id": "A005",
+      "to_id": "P001",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "weak",
+      "confidence": 3,
+      "description": "Flood defence construction has only indirect effects on nutrient enrichment through altered hydrology. The link is tenuous. Strength reduced from medium to weak."
+    },
+    {
+      "from_id": "A006",
+      "to_id": "P001",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "weak",
+      "confidence": 3,
+      "description": "Sand and gravel extraction may resuspend some nutrients from sediments but is not a significant source of nutrient enrichment compared to agricultural/wastewater sources. Strength reduced to weak."
+    },
+    {
+      "from_id": "R003",
+      "to_id": "P001",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Salmon stock recovery plans (HELCOM) focus on fish passage restoration, stocking, and fishing regulation, not nutrient reduction. Only indirect link through broader ecosystem management. Strength and confidence reduced."
+    },
+    {
+      "from_id": "R005",
+      "to_id": "P001",
+      "from_type": "response",
+      "to_type": "pressure",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Contaminated sediment remediation targets heavy metals and organic pollutants, not nutrient enrichment. May even temporarily increase nutrient release during disturbance. Strength and confidence reduced."
+    },
+    {
+      "from_id": "M001",
+      "to_id": "R002",
+      "from_type": "measure",
+      "to_type": "response",
+      "polarity": "+",
+      "strength": "strong",
+      "confidence": 4,
+      "description": "Industrial pre-treatment reduces pollutant load entering wastewater treatment plants"
+    },
+    {
+      "from_id": "M002",
+      "to_id": "R004",
+      "from_type": "measure",
+      "to_type": "response",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 4,
+      "description": "Green infrastructure implements river basin nutrient management plan objectives"
+    },
+    {
+      "from_id": "GB005",
+      "to_id": "D002",
+      "from_type": "welfare",
+      "to_type": "driver",
+      "polarity": "+",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Port and navigation accessibility reinforces Port and harbour expansion pressure"
+    },
+    {
+      "from_id": "P002",
+      "to_id": "MPF002",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Metal-contaminated sediments degrade the benthic community and can add to oxygen demand when disturbed: more contamination, lower dissolved oxygen."
+    },
+    {
+      "from_id": "P006",
+      "to_id": "MPF002",
+      "from_type": "pressure",
+      "to_type": "state",
+      "polarity": "-",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Dredging resuspends organic-rich sediment whose decomposition consumes oxygen: more resuspension, lower dissolved oxygen."
+    },
+    {
+      "from_id": "A004",
+      "to_id": "P001",
+      "from_type": "activity",
+      "to_type": "pressure",
+      "polarity": "+",
+      "strength": "weak",
+      "confidence": 2,
+      "description": "Recreational salmon fishing connects to Nutrient enrichment from agricultural sources"
+    },
+    {
+      "from_id": "GB001",
+      "to_id": "R001",
+      "from_type": "welfare",
+      "to_type": "response",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 3,
+      "description": "Declining recreational salmon fishing revenue increases support for fish passage restoration (dam removal, fish ladders): less revenue, more restoration."
+    },
+    {
+      "from_id": "GB001",
+      "to_id": "R003",
+      "from_type": "welfare",
+      "to_type": "response",
+      "polarity": "-",
+      "strength": "medium",
+      "confidence": 2,
+      "description": "Declining salmon angling revenue signals a weak salmon run and adds pressure for HELCOM salmon river recovery plans: less revenue, stronger recovery effort."
+    }
+  ]
+}
