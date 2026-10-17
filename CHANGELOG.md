@@ -4,6 +4,27 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.12.3] — 2026-10-17
+
+Roadmap P0b (forward compatibility; R-parity roadmap §2 P0).
+
+### Fixed
+
+- **A project saved by a newer SESPy is no longer silently stripped.**
+  Such a file still loads, but the fields this version does not understand
+  are lost on load. A warning now says so, and names the file format or
+  SESPy version the file needs. It appears on every load of such a file,
+  from Load Project or Recent Projects. Autosave is off for that project,
+  so it cannot replace your last good autosave with the reduced copy. Save
+  Project still works, but warns and names the copy
+  `…-older-format.json`, so it is not mistaken for the original. Saving it
+  does not clear an earlier autosave.
+- An element field from a newer SESPy no longer makes the whole file fail
+  to load; unknown element fields are skipped, as connection fields
+  already were. A malformed version stamp never blocks a load.
+- `packaging` is now a declared dependency (it was only arriving through
+  Shiny).
+
 ## [1.12.2] — 2026-10-16
 
 ### Security

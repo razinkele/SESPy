@@ -1122,6 +1122,61 @@
       "no": "Autolagring mislyktes.",
       "el": "Η αυτόματη αποθήκευση απέτυχε."
     },
+    "ui.quickactions.newer_build_title": {
+      "en": "This project was saved by a newer SESPy.",
+      "es": "Este proyecto se guardó con una versión más reciente de SESPy.",
+      "fr": "Ce projet a été enregistré avec une version plus récente de SESPy.",
+      "de": "Dieses Projekt wurde mit einer neueren SESPy-Version gespeichert.",
+      "lt": "Šis projektas išsaugotas naujesne SESPy versija.",
+      "pt": "Este projeto foi guardado com uma versão mais recente do SESPy.",
+      "it": "Questo progetto è stato salvato con una versione più recente di SESPy.",
+      "no": "Dette prosjektet ble lagret med en nyere versjon av SESPy.",
+      "el": "Αυτό το έργο αποθηκεύτηκε με νεότερη έκδοση του SESPy."
+    },
+    "ui.quickactions.newer_build_body": {
+      "en": "Details: {note}. Data this version does not understand was left out, and autosave is off for this project. Keep your original file: Save Project writes a separate copy in the older format.",
+      "es": "Detalles: {note}. Se omitieron los datos que esta versión no entiende y el autoguardado está desactivado para este proyecto. Conserve el archivo original: Guardar proyecto crea una copia aparte en el formato anterior.",
+      "fr": "Détails : {note}. Les données que cette version ne comprend pas ont été ignorées et la sauvegarde automatique est désactivée pour ce projet. Conservez le fichier d'origine : Enregistrer le projet crée une copie distincte dans l'ancien format.",
+      "de": "Details: {note}. Daten, die diese Version nicht versteht, wurden ausgelassen, und das automatische Speichern ist für dieses Projekt deaktiviert. Behalten Sie die Originaldatei: „Projekt speichern“ erstellt eine separate Kopie im älteren Format.",
+      "lt": "Išsami informacija: {note}. Duomenys, kurių ši versija nesupranta, praleisti, o automatinis įrašymas šiam projektui išjungtas. Išsaugokite originalų failą: „Išsaugoti projektą“ sukuria atskirą kopiją senesniu formatu.",
+      "pt": "Detalhes: {note}. Os dados que esta versão não reconhece foram omitidos e a gravação automática está desativada para este projeto. Guarde o ficheiro original: Guardar projeto cria uma cópia separada no formato anterior.",
+      "it": "Dettagli: {note}. I dati che questa versione non riconosce sono stati omessi e il salvataggio automatico è disattivato per questo progetto. Conserva il file originale: Salva progetto crea una copia separata nel formato precedente.",
+      "no": "Detaljer: {note}. Data som denne versjonen ikke forstår, ble utelatt, og autolagring er slått av for dette prosjektet. Behold originalfilen: Lagre prosjekt lager en separat kopi i det eldre formatet.",
+      "el": "Λεπτομέρειες: {note}. Τα δεδομένα που δεν αναγνωρίζει αυτή η έκδοση παραλείφθηκαν και η αυτόματη αποθήκευση είναι απενεργοποιημένη για αυτό το έργο. Κρατήστε το αρχικό αρχείο: η Αποθήκευση έργου δημιουργεί ξεχωριστό αντίγραφο στην παλαιότερη μορφή."
+    },
+    "ui.quickactions.newer_build_schema": {
+      "en": "file format {schema}, this version reads up to {schema_max}",
+      "es": "formato de archivo {schema}; esta versión lee hasta el {schema_max}",
+      "fr": "format de fichier {schema} ; cette version lit jusqu'au {schema_max}",
+      "de": "Dateiformat {schema}; diese Version liest bis Format {schema_max}",
+      "lt": "failo formatas {schema}; ši versija skaito iki {schema_max}",
+      "pt": "formato de ficheiro {schema}; esta versão lê até ao {schema_max}",
+      "it": "formato file {schema}; questa versione legge fino al {schema_max}",
+      "no": "filformat {schema}; denne versjonen leser opptil {schema_max}",
+      "el": "μορφή αρχείου {schema}· αυτή η έκδοση διαβάζει έως τη {schema_max}"
+    },
+    "ui.quickactions.newer_build_version": {
+      "en": "requires SESPy {min_version} or newer, this is {running}",
+      "es": "requiere SESPy {min_version} o posterior; esta es la {running}",
+      "fr": "nécessite SESPy {min_version} ou plus récent ; celle-ci est la {running}",
+      "de": "erfordert SESPy {min_version} oder neuer; dies ist {running}",
+      "lt": "reikia SESPy {min_version} ar naujesnės; ši versija yra {running}",
+      "pt": "requer SESPy {min_version} ou mais recente; esta é a {running}",
+      "it": "richiede SESPy {min_version} o successiva; questa è la {running}",
+      "no": "krever SESPy {min_version} eller nyere; dette er {running}",
+      "el": "απαιτεί SESPy {min_version} ή νεότερο· αυτή είναι η {running}"
+    },
+    "ui.quickactions.saved_older_format": {
+      "en": "Saved in this version's format. Data from the newer SESPy is not in this copy; keep the original file.",
+      "es": "Guardado en el formato de esta versión. Esta copia no contiene los datos de la versión más reciente de SESPy; conserve el archivo original.",
+      "fr": "Enregistré au format de cette version. Cette copie ne contient pas les données de la version plus récente de SESPy ; conservez le fichier d'origine.",
+      "de": "Im Format dieser Version gespeichert. Diese Kopie enthält nicht die Daten der neueren SESPy-Version; behalten Sie die Originaldatei.",
+      "lt": "Išsaugota šios versijos formatu. Šioje kopijoje nėra naujesnės SESPy versijos duomenų; išsaugokite originalų failą.",
+      "pt": "Guardado no formato desta versão. Esta cópia não contém os dados da versão mais recente do SESPy; guarde o ficheiro original.",
+      "it": "Salvato nel formato di questa versione. Questa copia non contiene i dati della versione più recente di SESPy; conserva il file originale.",
+      "no": "Lagret i denne versjonens format. Denne kopien inneholder ikke data fra den nyere SESPy-versjonen; behold originalfilen.",
+      "el": "Αποθηκεύτηκε στη μορφή αυτής της έκδοσης. Αυτό το αντίγραφο δεν περιέχει τα δεδομένα της νεότερης έκδοσης του SESPy· κρατήστε το αρχικό αρχείο."
+    },
     "ui.quickactions.clear_autosave_failed": {
       "en": "Could not clear autosaved data.",
       "es": "No se pudieron borrar los datos autoguardados.",
