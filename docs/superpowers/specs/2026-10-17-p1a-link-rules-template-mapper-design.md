@@ -10,8 +10,9 @@ reads are unchanged since the roadmap baseline `e3c3b77`: the 7
 R source releases ported: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3.
 **Deployed R on laguna** (`/srv/shiny-server/marinesabres`) was verified on
 2026-10-17. It is also v1.29.0, and the 7 templates and the rules file have
-`sha256_norm` identical to the local checkout. This pin amends the roadmap's
-baseline (v1.28.0 @ `e3c3b77`); the P1a files are unchanged between the two.
+`sha256_norm` identical to the local checkout. The roadmap's baseline is now
+also v1.29.0 (it was v1.28.0 @ `e3c3b77`; the P1a files are unchanged between
+the two).
 v1.29.0 does change *later* inputs (a `PestleTag` register column for P1b, and
 the WP5 scenarios tab and data files for P8); the roadmap now assigns them.
 **Target release:** SESPy **v1.13.0**.
@@ -411,7 +412,7 @@ with the
     templates and the rules file), mirroring `tests/parity/r_sync.json`;
   - the laguna verification: the deployed R was v1.29.0 on 2026-10-17, and the
     7 templates and the rules file are identical;
-  - that it amends the roadmap baseline;
+  - that the roadmap's baseline moved from v1.28.0 to v1.29.0;
   - that `tests/parity/check_live.py` (live drift against laguna) is owned
     by **K1** (roadmap), since P1a uses the files only as test fixtures.
 - **One hashing helper**, `sespy/r_sync.py::sha256_norm(obj)`, returns
@@ -479,8 +480,8 @@ with the
   is still rejected by validation, as today.
 - Off-rule links import with a logged warning (§3.5).
 - **Not in P1a:** R's multi-sheet "Standard Entry" workbook (`Matrix_<key>`,
-  `Linked*` columns). It is matrix-shaped like R projects and belongs with the
-  R project import.
+  `Linked*` columns). It is matrix-shaped like R projects, and the roadmap
+  assigns it to **P1c** (the R project importer).
 
 ## 9. MosaicSES
 
@@ -502,8 +503,9 @@ in `.multises.json`.
   `newer_build` on compartments. With P1a's stamp reset, a compartment from a
   newer SESPy is re-saved **in the older format without any notice**, and its
   newer-only data is lost silently. That raises the follow-up's priority:
-  MosaicSES should warn before P1b, the next schema bump. The roadmap now makes
-  this a **P1b prerequisite**.
+  MosaicSES must warn before the next schema bump. The roadmap defines this
+  as node **M**, a MosaicSES release deployed before whichever of K1 or P1b
+  merges first.
 
 ## 10. Testing
 
@@ -608,4 +610,5 @@ round finds no Critical or Important issues.
 - Gallery entries for the 7 templates and `scripts/sync_r_templates.py` (P2).
 - Response register and indicator fields (P1b/P1c).
 - Keyword polarity overrides (P9).
-- R project import and the Standard Entry workbook.
+- R project import and the Standard Entry workbook (P1c).
+- The MosaicSES newer-build guard (node M).
