@@ -7,6 +7,7 @@ so existing project files would load (subject to camelCase/snake_case fixups).
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 from dataclasses import asdict, dataclass, field, fields
@@ -17,7 +18,12 @@ from typing import Any, Iterable, Literal
 
 _log = logging.getLogger(__name__)
 
-PROJECT_SCHEMA_VERSION = 6
+PROJECT_SCHEMA_VERSION = 7
+
+# Oldest SESPy release that reads each schema without dropping data.
+# Project.to_dict() stamps metadata.min_sespy_version from this table, so a
+# schema bump must add an entry (guarded by tests/test_schema_v7.py).
+SCHEMA_MIN_READER: dict[int, str] = {7: "1.13.0"}
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +96,9 @@ class Element:
     type: str  # one of DAPSIWRM_ELEMENTS
     description: str = ""
     confidence: int = 3
+    # Opaque passthrough for fields SESPy has no column for (R template
+    # extras, r_type, r_kind). Serialised only when non-empty (schema v7).
+    r_extra: dict[str, Any] = field(default_factory=dict, kw_only=True)
 
 
 @dataclass
@@ -112,6 +121,9 @@ class Connection:
     confidence: int = 3
     delay: str = "immediate"
     ratings: list["Rating"] = field(default_factory=list)
+    # Free-text rationale (R template connection descriptions, Excel
+    # description/rationale columns). Serialised only when non-empty (v7).
+    description: str = field(default="", kw_only=True)
 
 
 @dataclass
@@ -141,12 +153,22 @@ def load_sample(path: Path | str) -> IsaData:
 def _isa_from_dict(raw: dict[str, Any]) -> IsaData:
     # Unknown element keys (fields a newer SESPy adds) are dropped, as for
     # connections below, instead of raising TypeError in Element(**e).
-    el_keys = {f.name for f in fields(Element)}
-    elements = [
-        Element(**{k: v for k, v in e.items() if k in el_keys})
-        for e in raw.get("elements", [])
-    ]
-    conn_keys = {f.name for f in fields(Connection)} - {"ratings"}
+    el_keys = {f.name for f in fields(Element)} - {"r_extra"}
+    elements = []
+    for e in raw.get("elements", []):
+        el_fields = {k: v for k, v in e.items() if k in el_keys}
+        r_extra = e.get("r_extra")
+        if r_extra is None:                 # absent or null: silently {}
+            r_extra = {}
+        elif not isinstance(r_extra, dict):
+            # Opaque passthrough data: never fatal, but say it was lost.
+            _log.warning(
+                "element %r: r_extra is %s, not an object; dropped",
+                e.get("id"), type(r_extra).__name__,
+            )
+            r_extra = {}
+        elements.append(Element(**el_fields, r_extra=dict(r_extra)))
+    conn_keys = {f.name for f in fields(Connection)} - {"ratings", "description"}
     rating_keys = {f.name for f in fields(Rating)}
     connections = []
     for c in raw.get("connections", []):
@@ -155,8 +177,35 @@ def _isa_from_dict(raw: dict[str, Any]) -> IsaData:
             for r in (c.get("ratings") or [])
         ]
         conn_fields = {k: v for k, v in c.items() if k in conn_keys}
-        connections.append(Connection(ratings=ratings, **conn_fields))
+        desc = c.get("description")
+        if desc is None:
+            desc = ""
+        elif not isinstance(desc, str):
+            desc = str(desc)
+        connections.append(
+            Connection(ratings=ratings, description=desc, **conn_fields))
     return IsaData(elements=elements, connections=connections)
+
+
+def _element_to_dict(e: Element) -> dict[str, Any]:
+    d: dict[str, Any] = {
+        "id": e.id, "label": e.label, "type": e.type,
+        "description": e.description, "confidence": e.confidence,
+    }
+    if e.r_extra:                       # omitted when empty: v6 element shape
+        d["r_extra"] = copy.deepcopy(e.r_extra)
+    return d
+
+
+def _connection_to_dict(c: Connection) -> dict[str, Any]:
+    d: dict[str, Any] = {
+        "source": c.source, "target": c.target, "polarity": c.polarity,
+        "strength": c.strength, "confidence": c.confidence, "delay": c.delay,
+        "ratings": [asdict(r) for r in c.ratings],
+    }
+    if c.description:                   # omitted when empty: v6 connection shape
+        d["description"] = c.description
+    return d
 
 
 def empty() -> IsaData:
@@ -186,6 +235,12 @@ class ProjectMetadata:
     created_at: str = ""
     modified_at: str = ""
     schema_version: int = PROJECT_SCHEMA_VERSION
+    # Schema v7, always serialised. origin: e.g. "r_template".
+    # r_template_version: R's metadata.version. min_sespy_version: stamped
+    # by Project.to_dict() (see _min_reader_stamp), never by hand.
+    origin: str = field(default="", kw_only=True)
+    r_template_version: str = field(default="", kw_only=True)
+    min_sespy_version: str = field(default="", kw_only=True)
 
     @staticmethod
     def new(name: str = "Untitled Project") -> "ProjectMetadata":
@@ -308,6 +363,29 @@ def newer_build_note(info: dict[str, Any]) -> str:
     return "; ".join(reasons)
 
 
+def _min_reader_stamp(current: Any, *, newer_build: bool) -> str:
+    """The `min_sespy_version` that `Project.to_dict()` writes.
+
+    Normally the higher of `current` and SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]
+    (compared with packaging.version), so it is never lowered. A stamp that
+    is not a string or not a valid version is replaced by the floor. When the
+    project came from a newer build (`newer_build`), that build's data is
+    already gone, so the stamp is RESET to the floor: otherwise the
+    "-older-format" copy would be flagged again on every load.
+    """
+    # packaging is a declared hard dependency (pyproject.toml); imported
+    # here, not at module top, so data_structure stays stdlib-only at import.
+    from packaging.version import InvalidVersion, Version
+
+    floor = SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]
+    if newer_build or not isinstance(current, str):
+        return floor
+    try:
+        return current if Version(current) >= Version(floor) else floor
+    except InvalidVersion:
+        return floor
+
+
 @dataclass
 class Project:
     """A complete saveable project: metadata + ISA data."""
@@ -331,11 +409,19 @@ class Project:
         return newer_build_note(self.newer_build)
 
     def to_dict(self) -> dict[str, Any]:
+        # Stamping changes only the output dict, never self.metadata:
+        # Project equality includes metadata, and a newer-build object must
+        # keep its raw stamp.
+        meta = asdict(self.metadata)
+        meta["min_sespy_version"] = _min_reader_stamp(
+            self.metadata.min_sespy_version, newer_build=bool(self.newer_build))
         return {
-            "metadata": asdict(self.metadata),
+            "metadata": meta,
             "isa_data": {
-                "elements": [asdict(e) for e in self.isa_data.elements],
-                "connections": [asdict(c) for c in self.isa_data.connections],
+                "elements": [_element_to_dict(e) for e in self.isa_data.elements],
+                "connections": [
+                    _connection_to_dict(c) for c in self.isa_data.connections
+                ],
             },
             "stakeholders": [asdict(s) for s in self.stakeholders],
             "engagements": [asdict(e) for e in self.engagements],

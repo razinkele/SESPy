@@ -14,8 +14,8 @@ from sespy.data_structure import (
 )
 
 
-def test_schema_version_is_6():
-    assert PROJECT_SCHEMA_VERSION == 6
+def test_schema_version_is_7():
+    assert PROJECT_SCHEMA_VERSION == 7
 
 
 def test_metadata_has_pims_fields_with_empty_defaults():
@@ -214,7 +214,7 @@ def test_v5_project_loads_without_ratings():
     c = restored.isa_data.connections[0]
     assert c.ratings == []
     assert (c.polarity, c.strength, c.confidence, c.delay) == ("-", "weak", 2, "short")
-    assert restored.metadata.schema_version == 6
+    assert restored.metadata.schema_version == PROJECT_SCHEMA_VERSION
 
 
 def test_connection_unknown_keys_filtered():

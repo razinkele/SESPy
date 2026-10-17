@@ -118,6 +118,15 @@ def validate_project_payload(raw: dict[str, Any]) -> ValidationResult:
                     f"connection[{i}] has invalid delay {delay!r} "
                     f"(expected one of {sorted(_VALID_DELAYS)})"
                 )
+            # Schema v7. None/absent is skipped like every optional field;
+            # _isa_from_dict turns it into "". Element.description is not
+            # validated (it never was), so old files keep loading.
+            desc = c.get("description")
+            if desc is not None and not isinstance(desc, str):
+                errors.append(
+                    f"connection[{i}] has invalid description {desc!r} "
+                    f"(expected a string)"
+                )
             if len(errors) >= 10:
                 break
 

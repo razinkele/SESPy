@@ -43,7 +43,7 @@ def isolated_home(tmp_path, monkeypatch):
 def test_unknown_element_keys_are_dropped_not_fatal():
     raw = _payload()
     raw["isa_data"]["elements"][0]["indicator"] = "SST"
-    raw["isa_data"]["elements"][0]["r_extra"] = {"category": "x"}
+    raw["isa_data"]["elements"][0]["future_field"] = {"category": "x"}
     proj = Project.from_dict(raw)
     assert proj.isa_data.elements[0].id == "A"
     assert not hasattr(proj.isa_data.elements[0], "indicator")
