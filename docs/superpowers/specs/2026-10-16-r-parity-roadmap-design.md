@@ -137,7 +137,7 @@ The per-section "Depends on" lines below match this graph.
 R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3. **Detailed spec:**
 `docs/superpowers/specs/2026-10-17-p1a-link-rules-template-mapper-design.md`
 (it wins where the two differ; its §2 lists the amendments made here).
-- New `constants.DAPSIWRM_ADJACENCY_RULES`, mirroring R's: pairs + default
+- New `constants.DAPSIWRM_ADJACENCY_RULES`, mirroring R's: pairs + per-pair
   polarity + rule id + `extension_targets` (R→R, MPF→MPF, P→P, A→A, the D→P
   exception) + R→MPF (Rule 12, `+`). ISA entry takes its default polarity
   from it (P→MPF = `−`; R→MPF/R→R = `+`). `_CONN_TYPES` stays an explicit
