@@ -66,7 +66,7 @@ roadmap.
 - `min_sespy_version` is "stamped, never lowered", *except* that it is reset
   when a P0b newer-build project is written in the older format (§4).
 - `_CONN_TYPES` stays an explicit literal, checked by a set-equality test
-  against the rule table, rather than being "derived" as the roadmap says
+  against the rule table, rather than being "derived" as the roadmap originally said
   (§3.3). The rule table is still the single source of truth.
 - **Any release that adds a serialised field bumps `PROJECT_SCHEMA_VERSION`**
   and adds a `SCHEMA_MIN_READER` entry. The roadmap's option for P1b/P1c to
