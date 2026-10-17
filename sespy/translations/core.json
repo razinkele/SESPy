@@ -913,6 +913,17 @@
       "no": "Fjern valgt forbindelse",
       "el": "Αφαίρεση επιλεγμένης σύνδεσης"
     },
+    "entry.off_rule_link": {
+      "en": "{source} ({source_type}) → {target} ({target_type}) is not a standard DAPSI(W)R(M) link. You can still add it.",
+      "es": "{source} ({source_type}) → {target} ({target_type}) no es una conexión DAPSI(W)R(M) estándar. Aun así, puede añadirla.",
+      "fr": "{source} ({source_type}) → {target} ({target_type}) n'est pas une connexion DAPSI(W)R(M) standard. Vous pouvez quand même l'ajouter.",
+      "de": "{source} ({source_type}) → {target} ({target_type}) ist keine Standardverbindung in DAPSI(W)R(M). Sie können sie trotzdem hinzufügen.",
+      "lt": "{source} ({source_type}) → {target} ({target_type}) nėra standartinis DAPSI(W)R(M) ryšys. Vis tiek galite jį pridėti.",
+      "pt": "{source} ({source_type}) → {target} ({target_type}) não é uma conexão DAPSI(W)R(M) padrão. Ainda assim, pode adicioná-la.",
+      "it": "{source} ({source_type}) → {target} ({target_type}) non è una connessione DAPSI(W)R(M) standard. Puoi comunque aggiungerla.",
+      "no": "{source} ({source_type}) → {target} ({target_type}) er ikke en standard DAPSI(W)R(M)-forbindelse. Du kan likevel legge den til.",
+      "el": "Η σύνδεση {source} ({source_type}) → {target} ({target_type}) δεν είναι τυπική σύνδεση DAPSI(W)R(M). Μπορείτε να την προσθέσετε παρ' όλα αυτά."
+    },
     "loops.max_length": {
       "en": "Max loop length",
       "es": "Longitud máx del bucle",
