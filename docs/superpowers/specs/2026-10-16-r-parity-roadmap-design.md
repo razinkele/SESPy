@@ -110,8 +110,17 @@ The per-section "Depends on" lines below match this graph.
   would load with `response_measures` / `r_passthrough` silently dropped and
   then be overwritten.
 - New dataclass fields from here on are keyword-only with defaults.
-- Ships as **v1.12.2** together with the `[Unreleased]` fixes, so every
-  deployed build tolerates the schema-v7 files that P1a onward will write.
+- Shipped in two patch releases (amended 2026-10-17). **v1.12.2** went out
+  first as the shared-autosave security hotfix (per-browser token) together
+  with the `[Unreleased]` fixes and the `read_autosave` tolerance.
+  **v1.12.3** ("P0b") adds the element-key filtering and the read-ahead
+  protection. Mapping onto SESPy's I/O: Save is a browser download, so it is
+  always "save as"; for a newer-build project it is allowed but warns and
+  names the copy `…-older-format.json`. Autosave refuses the project, and a
+  persistent toast with translated details appears on every load of one.
+  The flag is a runtime field (`Project.newer_build`, never serialised,
+  carried by `.replace()`). Either way, every deployed build from v1.12.3
+  on tolerates the schema-v7 files that P1a onward will write.
 
 ### P1a — Link rules, template mapper (unblocks P2)
 R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3.
@@ -454,7 +463,7 @@ live MosaicSES after deploy.
 - Unit tests reproduce R's published numbers.
 - Every sub-project passes the **full** e2e gate, with no heavy jobs running
   concurrently on the 16 GB machine.
-- P0 = v1.12.2. Then one minor release per sub-project, with **versions
+- P0 = v1.12.2 (hotfix) + v1.12.3 (P0b). Then one minor release per sub-project, with **versions
   assigned in merge order** (P3 or K1 may ship out of sequence; P6 takes three).
   The CHANGELOG names the sub-project and the R version it matches. Bump the MANUAL
   version line and re-run the screenshots.
