@@ -60,7 +60,8 @@ roadmap.
 - R's Excel import maps `Measure` to responses without a marker. SESPy also
   records `r_extra["r_kind"] = "measure"` (§8).
 
-**Amendments to the roadmap:**
+**Amendments to the roadmap** (all applied to the roadmap on branch
+`docs/r-parity-roadmap`, commits `e45e3cb` and later):
 - `min_sespy_version` is "stamped, never lowered", *except* that it is reset
   when a P0b newer-build project is written in the older format (§4).
 - `_CONN_TYPES` stays an explicit literal, checked by a set-equality test
@@ -270,7 +271,7 @@ imported lazily as P0b already does.
     every load and lose autosave for good. Reloading that copy unflagged is
     intended, and matches the P0b toast ("Save Project writes a separate copy
     in the older format"). **This amends the roadmap's "stamped, never
-    lowered"** (P1a, roadmap line 137); see §2.
+    lowered"** (roadmap §2 P1a, `ProjectMetadata` bullet); see §2.
   - `pims_project.py:156-170` rebuilds `ProjectMetadata` field by field, which
     would drop `origin`, `r_template_version` and `min_sespy_version` on each
     "Save project info". It changes to `dataclasses.replace(meta, ...)`. A test
