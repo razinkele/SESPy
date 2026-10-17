@@ -22,14 +22,15 @@ against R v1.29.0 (`e33faea`).
 - **Off-rule links are allowed, with a warning.** Edit Data shows a note for
   a pair outside the framework (for example Drivers → Goods & Benefits); the
   link still saves. Loading a project, a template or an Excel/QSEM import
-  accepts such links and logs them, as R does.
+  accepts such links, as R does, and logs them.
 - **Responses → Marine Processes & Functioning** is a canonical pair
   (Rule 12). The rule-based and Claude suggestion backends now propose it.
 - **Project schema v7.** Connections keep a free-text `description`, and
   elements keep fields SESPy has no column for in `r_extra`. Both are written
   only when non-empty. Project metadata gains `origin`, `r_template_version`
-  and `min_sespy_version`, which every save stamps so an older SESPy warns
-  before dropping data.
+  and `min_sespy_version`. Every save stamps `min_sespy_version`, so an older
+  SESPy warns before dropping data; `origin` and `r_template_version` are
+  recorded by the R template mapper.
 - **R template mapper** (`sespy.r_template_mapper`), a library function that
   converts R `*_SES_Template.json` files without loss. The 7 R templates are
   test fixtures pinned by hash (`docs/parity/R_SYNC.md`); adding them to the

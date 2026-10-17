@@ -57,6 +57,15 @@ def test_schema_min_reader_has_entry_for_current_schema():
     assert SCHEMA_MIN_READER[7] == "1.13.0"
 
 
+def test_min_reader_floor_not_newer_than_running_build():
+    """A schema bump before the version bump would stamp a floor newer than
+    this build, so it would flag its own saved files as newer."""
+    import sespy
+    from packaging.version import Version
+
+    assert Version(FLOOR) <= Version(sespy.__version__)
+
+
 def test_new_fields_are_keyword_only_with_defaults():
     # MosaicSES constructs these positionally; the new fields must not shift.
     assert Element("A", "a", "Drivers", "d", 4).r_extra == {}

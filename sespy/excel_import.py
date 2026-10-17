@@ -65,7 +65,7 @@ _TYPE_ALIASES: dict[str, str] = {
 }
 # Kumu label prefixes that mean "-": ASCII (as R) plus U+2212, the sign
 # SESPy's own polarity labels use (a divergence).
-_NEGATIVE_LABEL_PREFIXES = ("-", "−")
+_NEGATIVE_LABEL_PREFIXES = ("-", "\u2212")
 
 ELEMENTS_SHEET_NAMES    = ("Elements", "elements", "Nodes", "nodes")
 CONNECTIONS_SHEET_NAMES = ("Connections", "connections", "Edges", "edges", "Links", "links")
