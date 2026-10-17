@@ -504,8 +504,8 @@ in `.multises.json`.
   newer SESPy is re-saved **in the older format without any notice**, and its
   newer-only data is lost silently. That raises the follow-up's priority:
   MosaicSES must warn before the next schema bump. The roadmap defines this
-  as node **M**, a MosaicSES release deployed before whichever of K1 or P1b
-  merges first.
+  as node **M**, a MosaicSES release deployed before the first schema bump
+  after P1a (usually K1 or P1b).
 
 ## 10. Testing
 
