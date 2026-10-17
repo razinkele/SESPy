@@ -95,12 +95,11 @@ Each sub-project gets its own brainstorm → spec → plan → subagent-TDD →
 full e2e gate → release cycle.
 
 ```
-            M = MosaicSES newer_build warning (prerequisite of the first
-                schema bump after P1a: whichever of K1 / P1b merges first)
-P0 → P1a ─┬→ P2   (soft: K1)
+P0 → P1a ─┬→ M ┄→ {K1, P1b}   (M must precede whichever merges first)
+          ├→ P2   (soft: K1)
           ├→ K1 ─┬→ P4 (also P1b) → P5 → P6a (also P1c) → P6b → P6c
           │      └→ P9
-          ├→ P1b → P1c → P8 (also P1b) → P7a (also P3) → P7b
+          ├→ P1b → P1c → P8 → P7a (also P3) → P7b
           └→ P3 (Python side)
 P3's R-fixture capture can start at P0; its Python side needs P1a's
 template mapper and link types. P10, then P11–P14 (§5); P12 may be
@@ -168,13 +167,31 @@ R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3. **Detailed spec:**
   edge set **including** polarity, strength, confidence and description. The
   R fields not carried over are listed in the spec.
 
+### M — MosaicSES newer-build guard (MosaicSES release)
+Owner: whichever of K1 or P1b starts first. Depends on P1a. It ships as a
+**MosaicSES minor release** and must be **deployed before** the SESPy release
+that makes the first schema bump after P1a.
+- On load, MosaicSES shows a warning when any compartment (or the
+  `.multises.json` itself) carries `Project.newer_build`, naming the
+  compartment and the version it needs.
+- MosaicSES saves to the server, unlike SESPy's download. For a flagged file,
+  **Save never overwrites the source**: it writes an
+  `…-older-format.multises.json` copy beside it and says so. Recent-projects
+  registration and any automatic save are skipped for that file.
+- Scope note: on laguna MosaicSES runs the deployed SESPy package through its
+  `sespy` symlink, so the two are always at the same version there. M protects
+  files that move between installs at different versions (local ↔ server,
+  older deployments).
+- **Done when:** a unit test and an e2e test load a compartment stamped with a
+  newer schema, see the warning, save, and find the source file unchanged and
+  an older-format copy written.
+
 ### P1b — Response register + indicator fields
 R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4), 1.29.0 (`PestleTag`).
 Depends on P1a.
-- **Prerequisite (MosaicSES), shared with K1:** before the *first* schema
-  bump after P1a ships, whichever of K1 or P1b merges first, MosaicSES warns
-  when a compartment carries `Project.newer_build` and blocks overwriting it
-  (node M in the §2 graph). Without that, an older MosaicSES re-saves such a compartment
+- **Prerequisite (MosaicSES), shared with K1:** node **M** (above) must be
+  deployed before the first schema bump after P1a, whichever of K1 or P1b
+  merges first. Without that, an older MosaicSES re-saves such a compartment
   in the older format (P1a resets the stamp) and silently loses the newer data.
 - The **Response register is a separate block**, as in R:
   `Project.response_measures = {measures, impacts, milestones, counter}`.
@@ -224,6 +241,10 @@ Depends on P1a/P1b.
   - Legacy keys `p_mp`/`mp_es`, plus `r_mpf`/`r_r`.
   - Mismatches are reported *before* `validate_project_payload`. Diagonal
     (self-loop) cells are reported and kept out of the ISA.
+- **R "Standard Entry" Excel workbook** (`functions/standard_entry_excel_import.R`:
+  one sheet per element type, `Matrix_<key>` sheets, `Linked*` columns, a
+  `Responses_Measures` sheet). It is matrix-shaped like R projects, so it
+  reuses this importer's matrix → connection converter.
 - `Project.r_passthrough: dict` (default `{}`) with explicit
   `to_dict`/`from_dict` code. Adding it **bumps the schema version**. It holds R blocks SESPy does not support yet
   (`analysis.impact_assessment`, `analysis.scenarios`, `cld`, …). Legacy
@@ -280,7 +301,8 @@ R source: 1.21.1, 1.22.1, 1.22.3. Depends on P1a; soft dependency on K1
   matches the substring "Offshore Wind".
 - `scripts/sync_r_templates.py` re-converts the templates from a configured R
   checkout using P1a's `load_r_template`/`convert_r_template`. In the same
-  commit it refreshes the test fixtures in `tests/parity/r_templates/`,
+  commit it refreshes the test fixtures in `tests/parity/r_templates/` and
+  `tests/parity/r_rules/`,
   `tests/parity/r_sync.json` and `docs/parity/R_SYNC.md`. Gallery cards read
   `ConversionReport.template_meta` (complexity, usage notes, source,
   applicable regions).
@@ -288,6 +310,7 @@ R source: 1.21.1, 1.22.1, 1.22.3. Depends on P1a; soft dependency on K1
 
 ### P3 — Decision Lens (parallel track)
 R source: 1.19.0, 1.20.0 (N17), 1.21.0 (N35/N36), 1.22.0 (N37/N52).
+Depends on P1a (Python side); the R fixture capture can start after P0.
 - **First task:** run the re-pinned R tag's `calculate_micmac_safe()` and
   `detect_archetypes()` on all 7 templates and commit the output as a test
   fixture.
@@ -322,8 +345,9 @@ R source: 1.19.0, 1.22.0 (N48), 1.23.0, 1.24.0. Depends on P1b; loader from K1.
   outside `data/`, so it is **always vendored** (never overridden).
 - "Linked WP5 mechanisms" pane, filtered by demonstration area (single resolver
   mirroring `wp5_da_for_project()`).
-- WP5 indicator picker (snapshot + `Registry_Version`). On load, warn when the
-  registry entry has changed since the copy.
+- WP5 indicator picker (snapshot + `Registry_Version`). The snapshot is P1b's
+  five indicator fields, so **P4 adds no serialised field** and does not bump
+  the schema. On load, warn when the registry entry has changed since the copy.
 - Model-check warnings (`wp5_typing_lint.R`).
 - **Done when:** loaded asset counts and ids equal the vendored copy, and, when
   the override is set, the live copy too (integration test, skipped in CI).
@@ -342,7 +366,10 @@ R source: 1.25.0, 1.26.0. Depends on P4, P5, P1c.
   `functions/impact_reference.R` through the §3 loader.
 - **6a data model:** as R `impact_assessment_model.R`, stored at
   `analysis.impact_assessment`, which replaces the P1c passthrough for this block.
-  This is a new serialised block, so 6a **bumps the schema version**.
+  This is a new serialised block, so 6a **bumps the schema version**. Entries
+  that cannot be mapped stay in `r_passthrough` and are reported (as for P8).
+  The only exception is R's own rule that an assessment failing to normalise
+  is dropped with a warning (below).
   An assessment that fails to normalise is dropped on load with a warning, as R does
   (`data_structure.R:990`).
 - **6b wizard**, **6c narrative + Word/Excel report**: Appendix B provenance is
@@ -362,12 +389,15 @@ reads `data/wp5_scenarios_ssp.json` and `data/wp5_worldview_matrix.json`
 `translations/modules/wp5_scenarios.json`, which lives outside `data/` and is
 always vendored, like `wp5_vocabulary.json`. The tab filters the register's
 `PestleTag` (`wp5_scenarios.R:70-79`), so it needs P1b's column. Depends on
-P1c and P1b.
+P1c (and through it P1b).
 - Native scenarios are a new serialised block, so P8 **bumps the schema
   version**. P8 **replaces the P1c passthrough for `analysis.scenarios`**: on
-  load it migrates them into the native block and drops the passthrough key,
-  so scenarios are never stored twice (the same pattern as P6a for
-  `analysis.impact_assessment`).
+  load it migrates them into the native block and removes **only the migrated
+  entries** from the passthrough, so scenarios are never stored twice. An entry
+  that cannot be mapped (an R CLD id that does not resolve, keys outside R's
+  schema) **stays in `r_passthrough`** under the same key and is reported, so
+  imported R data is never lost. P6a follows the same rule for
+  `analysis.impact_assessment`.
 - R's schema:
   - A scenario is `{id, name, description, created, modified, results,
     modifications}`, plus `source` and `ops[]` **only on Designer-written
@@ -401,7 +431,8 @@ R source: 1.27.0. Depends on P1a, P3, P8.
   (a) + (b), and stopped at 70% of the 600 s job budget with a partial notice.
 - Top 20. Boolean pre-check up to 20 nodes, by passing `max_nodes=20` (P1a's
   library ceiling is already 20).
-- **Raises the Boolean analysis UI cap from 12 to 20.** This requires moving
+- **Raises the Boolean analysis UI cap and the server clamp from 12 to 20**
+  (`analysis_boolean.py` clamps to `[4, 20]`). This requires moving
   `analysis_boolean_server`'s attractor search onto the worker-process pattern
   below (or an ExtendedTask), so a 2^20 search never runs on the shared Shiny
   worker. The designer's worker alone is not enough. MosaicSES compartments
@@ -442,7 +473,8 @@ R source: 1.20.0 N6 and the creator/network-builder modules. Depends on P1a, K1.
 
 ### P10 — Guidebook / tutorial
 R source: `guidebook/guidebook_{9 langs}.Rmd`, `modules/tutorial_system.R`
-(show-once tutorials per feature).
+(show-once tutorials per feature). Depends on: none (best done after the
+ported pages exist).
 - The guidebook content goes into SESPy's Manual (About → Manual). Show-once
   tutorials go into the contextual Help offcanvas. No parallel help system.
 - **Done when:** the guided tour runs across the main pages in all 9 languages.
@@ -552,12 +584,12 @@ MosaicSES builds `Project`/`Element`/`Connection` directly, reuses
 and embeds SESPy Projects in `.multises.json`. Every sub-project that
 **bumps the schema, changes `Project` serialisation or touches ISA entry**
 **or changes a module MosaicSES reuses** (so far P0, P1a, P1b, P1c, K1, P4,
-P6a, P7a, P7b's Apply and P8) runs MosaicSES's
+P6a, P7a, P7b's Apply and P8; M is itself a MosaicSES release) runs MosaicSES's
 unit tests and full e2e against the SESPy branch **before merge**, and checks
 the live MosaicSES after deploy.
 - MosaicSES must warn on, and refuse to overwrite, compartments carrying
-  `Project.newer_build` **before the first schema bump after P1a**, which is
-  the prerequisite of whichever of K1 or P1b merges first (node M).
+  `Project.newer_build` **before the first schema bump after P1a**: node M
+  (§2), the prerequisite of whichever of K1 or P1b merges first.
 
 ### Testing and releases
 - Unit tests reproduce R's published numbers.
