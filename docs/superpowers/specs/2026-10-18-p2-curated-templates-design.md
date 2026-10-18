@@ -1,7 +1,8 @@
 # P2 — Curated R templates in the SESPy gallery
 
 Status: design approved section by section with the user (2026-10-18); review
-round 1 (fresh read, cross-spec, dry run) applied; spec awaiting user review.
+rounds 1 (fresh read, cross-spec, dry run) and 2 (fresh read, dry run with a
+working prototype) applied; spec awaiting user review.
 Roadmap: `docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md`
 (branch `docs/r-parity-roadmap`), section "P2 — Curated templates".
 Builds on P1a (SESPy v1.13.0): `sespy/r_template_mapper.py`,
@@ -42,30 +43,45 @@ Taken in review round 1 (rulings, recorded so the user can revisit):
 
 | Topic | Ruling | Why |
 |---|---|---|
-| Off-rule links / type mismatches in a future R release | Reported; the sync **fails unless** `--accept-warnings` is passed, and accepted warnings are listed in `R_SYNC.md`. | P1a's decision is allow-and-warn; a hard fail would block adopting R data. Today all 7 have 0 of both. |
+| Off-rule links / type mismatches in a future R release | Reported; the sync **fails unless** `--accept-warnings` is passed. Accepted warnings are persisted in `tests/parity/r_sync.json` (`"accepted_warnings": []` today) and listed in `R_SYNC.md`; a `--check` / `--from-fixtures` run treats exactly those as accepted. | P1a's decision is allow-and-warn; a hard fail would block adopting R data, and a prose-only record would leave CI red. Today all 7 have 0 of both. |
 | `metadata.regional_sea` in shipped projects | **R's slug** (`north_sea`), as P1a's mapper writes it. The display label lives only in the catalogue and on the card. | SESPy's AI ISA wizard writes slugs into the same field (`ai_isa_wizard.py:85-92,574`); K1 keys contexts by sea slug. |
-| `metadata.ecosystem_type` | Mapped from R's habitat through an explicit table to `regional_seas.json` vocabulary (§3.3); unmapped → `""`. | Re-entering the wizard on a loaded template then shows the habitat selected. |
-| Line endings | Comparisons in `--check` and tests normalise CRLF → LF (JSON compared parsed; text via `sha256_text_norm`). No `.gitattributes` change. | The user's checkout has `core.autocrlf=true`; blobs are LF, working files CRLF. |
-| Where the logic lives | `sespy/r_template_catalogue.py` (pure, Shiny-free); `scripts/sync_r_templates.py` is a thin CLI wrapper. | Testable by import; avoids the `scripts/` namespace-package and stray `tests` package shadowing. |
-| `template_loader.R` | Added as a 9th pinned, hashed file (the category port's source). | Drift in R's category rule must be visible. |
+| `metadata.ecosystem_type` | Left `""`. R's habitat is not mapped. | Nothing in SESPy reads it for templates (the wizard starts from empty answers); K1 owns sea × habitat keys and will decide. YAGNI. |
+| Line endings | Comparisons in `--check` and tests normalise CRLF → LF (JSON compared parsed; text via `sha256_text_norm`). Writes use `Path.write_bytes(text.encode("utf-8"))` (LF). No `.gitattributes` change. | The user's checkout has `core.autocrlf=true`; blobs are LF, working files CRLF; `write_text` would write CRLF on Windows. |
+| Where the logic lives | `sespy/r_template_catalogue.py` (pure, Shiny-free); `scripts/sync_r_templates.py` is a thin CLI wrapper run as `python -m scripts.sync_r_templates` from the repo root. | Testable by import; avoids the `scripts/` namespace-package and stray `tests` package shadowing; `-m` from the root uses this checkout's `sespy`, not the editable install's. |
+| `template_loader.R` | Added as a 9th pinned, hashed file, **and** a content-parity test (`tests/parity/test_r_category_parity.py`) compares R's `.determine_template_category` with the Python port. | A hash alone is rewritten by the sync; the parity test makes drift in R's category rule fail. |
+| Empty R `complexity` | `""` (R keeps it, `%||%` only replaces NULL) → `"simple"`, R's stated default. | Keeps "always non-empty" true. |
+| i18n namespace | New keys live under `templates.*` in `core.json`, not R's `modules.*` per-module files. | R has no keys for categories/complexity (it shows the English value); SESPy's existing templates keys are `templates.*`. The roadmap's §3 i18n rule gets a note (§9). |
+| Card regional label without a slug | Falls back to R's `regional_context.region` text (Caribbean → "Caribbean Sea"), label only. | Keeps the roadmap's "applicable regions" visible on every card without changing project metadata. |
 
 ## 3. Sync
 
 ### 3.1 CLI — `scripts/sync_r_templates.py`
 
 ```
-micromamba run -n shiny python scripts/sync_r_templates.py --r-root <R app dir> [--rev <tag>] [--check] [--accept-warnings]
-micromamba run -n shiny python scripts/sync_r_templates.py --from-fixtures [--check]
+micromamba run -n shiny python -m scripts.sync_r_templates --r-root <R app dir> [--rev <tag>] [--check] [--accept-warnings]
+micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures [--check]
 ```
+(run from the repo root)
 
-- Thin wrapper: parses arguments, calls `sespy.r_template_catalogue.sync(...)`,
-  prints its report, exits with its code. `scripts/` gets an `__init__.py`.
+- Thin wrapper: parses arguments, calls
+  `sespy.r_template_catalogue.sync(...)`, prints `result.lines`, exits with
+  `result.code`. `scripts/` gets an `__init__.py`.
+- API:
+  `sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
+  from_fixtures: bool = False, check: bool = False,
+  accept_warnings: bool = False) -> SyncResult` where
+  `SyncResult(code: int, lines: list[str])` (frozen dataclass). **Every read
+  of SESPy files and every write is under `repo_root`**, so tests point it at
+  a `tmp_path` copy. `r_root` is required unless `from_fixtures`.
+  `lines` names each written / differing path, each changed pinned-file hash
+  (old → new), and every warning.
 - `--r-root` is the R app directory (`.../SESToolbox/MarineSABRES_SES_Shiny`),
   inside a larger git repo; paths are resolved with
   `git -C <r-root> rev-parse --show-prefix`.
 - Inputs are read with `git -C <r-root> show <rev>:<prefix><path>` — **never
   checkout, switch or stash** in the R repo. `--rev` defaults to the tag in
-  `tests/parity/r_sync.json`; the recorded commit is `<rev>^{commit}`, short.
+  `tests/parity/r_sync.json`; the recorded commit is
+  `git rev-parse --short=7 <rev>^{commit}` (fixed width).
 - `--from-fixtures` reads the inputs from `tests/parity/` instead (tests and
   offline runs); fixture, pin and hash writing is then skipped and
   `r_tag`/`r_commit` come from `tests/parity/r_sync.json`.
@@ -84,31 +100,44 @@ silent.
 1. Read all inputs.
 2. Convert each template with `convert_r_template(raw, key=<file stem>)`.
    A `ValueError` → exit 1, **nothing written**. Collect each report's
-   `off_rule_links` and `type_mismatches`; if any exist and
-   `--accept-warnings` is not set → exit 1, nothing written, all listed.
+   `off_rule_links` and `type_mismatches`; any not in
+   `r_sync.json["accepted_warnings"]` and `--accept-warnings` not set →
+   exit 1, nothing written, all listed. With `--accept-warnings` they are
+   added to `accepted_warnings`.
 3. Post-process each Project (module code; the mapper stays R-exact):
-   - `metadata.name = template_name + " (MarineSABRES)"`;
-   - `metadata.regional_sea` unchanged (R's slug, as the mapper sets it);
-   - `metadata.ecosystem_type = HABITAT_TO_ECOSYSTEM.get(habitat, "")`, with
-     the explicit table `{"lagoon": "Coastal lagoon", "offshore": "Offshore waters",
-     "sea_ice": "Sea ice", "estuary": "Estuary", "rocky_shore": "Rocky shore"}`.
-     A unit test asserts each fixture's mapped value is in that sea's
-     `ecosystem_types` in `regional_seas.json`; an unknown habitat → `""`.
-4. Serialise each project with **`project.to_json() + "\n"`** (UTF-8, LF).
-   Never `persistent_storage.project_to_bytes` or `save_project_atomic`: both
-   stamp `modified_at` with the run time. `created_at`/`modified_at` stay R's
-   `created_date`; `to_json` still stamps `min_sespy_version`.
+   `metadata.name = template_name + " (MarineSABRES)"`. Everything else is the
+   mapper's output unchanged (`regional_sea` = R's slug; `ecosystem_type`
+   stays `""`).
+4. Serialise each project with **`project.to_json() + "\n"`**, written with
+   `Path.write_bytes(text.encode("utf-8"))`. Never
+   `persistent_storage.project_to_bytes` or `save_project_atomic`: both stamp
+   `modified_at` with the run time. `created_at`/`modified_at` stay R's
+   `created_date`; `to_json` stamps `min_sespy_version` at the schema floor
+   (1.13.0), not the running version.
 5. Build `catalogue.json` (§4), serialised `json.dumps(..., indent=2,
-   ensure_ascii=False) + "\n"`.
-6. Unless `--from-fixtures`: build the fixture copies (raw bytes as read), the
-   new `tests/parity/r_sync.json` (9 files: the 7 templates, the rules `.R`,
-   `template_loader.R` under `tests/parity/r_source/`) and the **generated
-   block** of `docs/parity/R_SYNC.md` (the pin line and hash table between
-   `<!-- r-sync:begin -->` / `<!-- r-sync:end -->` markers; prose outside the
-   markers is never touched by the script).
-7. `--check`: compare every output with what is on disk — JSON parsed, text
-   with CRLF → LF — print each differing path, exit 1 if any differ, write
-   nothing. Otherwise write all outputs, then exit 0.
+   ensure_ascii=False) + "\n"`. If any always-non-empty field (§4) would be
+   empty → exit 1, nothing written.
+6. Unless `--from-fixtures`: build the fixture copies (raw bytes as read; the
+   7 templates stay in `tests/parity/r_templates/`, the rules file stays in
+   `tests/parity/r_rules/`, and only `template_loader.R` goes to the new
+   `tests/parity/r_source/`), the new `tests/parity/r_sync.json` (9 files,
+   plus `accepted_warnings`) and the **generated block** of
+   `docs/parity/R_SYNC.md`. The block is everything between
+   `<!-- r-sync:begin -->` and `<!-- r-sync:end -->`, exactly:
+   ```
+   - **R release:** MarineSABRES_SES_Shiny **v1.31.0**, commit `4b53b7d`.
+
+   | File | sha256_norm |
+   |---|---|
+   | `tests/parity/r_templates/Aquaculture_SES_Template.json` | `<64 hex>` |
+   ... (one row per pinned file, sorted by path)
+   ```
+   The markers are added by hand (§9) before the first real sync; missing or
+   duplicated markers → exit 1, nothing written. Prose outside the markers is
+   never touched.
+7. `--check`: compare every output with what is under `repo_root` — JSON
+   parsed, text with CRLF → LF — list each differing path, exit 1 if any
+   differ, write nothing. Otherwise write all outputs, then exit 0.
 
 Outputs: `sespy/templates/marinesabres/<stem>.json` (7),
 `sespy/templates/marinesabres/catalogue.json`, plus (not `--from-fixtures`)
@@ -146,7 +175,9 @@ the fixtures, `r_sync.json` and the R_SYNC.md block.
   `regional_sea_label` (Caribbean has no regional sea), `source`,
   `usage_notes` (only Caribbean has notes).
 - `regional_sea_label`: `get_regional_seas()[slug]["name"]` for a known slug;
-  an unknown slug title-cased with `_` → space; no slug → `""`.
+  an unknown slug title-cased with `_` → space; no slug → R's
+  `regional_context.region` if it is a non-empty string (Caribbean →
+  "Caribbean Sea"), else `""`.
 - `category`: exact port of R's `.determine_template_category`
   (`functions/template_loader.R:359-371` at v1.31.0): `main_issues` NULL →
   "General"; more than one element → "Multi-Stressor"; otherwise R's regex
@@ -156,8 +187,9 @@ the fixtures, `r_sync.json` and the R_SYNC.md block.
   falls through to "General". Expected today: Aquaculture Production,
   Caribbean Multi-Stressor, ClimateChange Climate, Fisheries Extraction,
   OffshoreWind Energy, Pollution Pollution, Tourism Recreation.
-- `complexity` = R `complexity`, default `"simple"` as R.
-- `source` / `usage_notes` = R's text or `""`.
+- `complexity` = R `complexity`; absent, NULL or `""` → `"simple"`.
+- `source` = R `metadata.source` or `""`; `usage_notes` = R `usage_notes` or
+  `""`.
 - Counts = the converted project's element / connection counts (Measures
   folded into Responses).
 
@@ -184,8 +216,12 @@ Each case gets a unit test that fails today for the stated reason.
   Existing callers use keywords, so nothing else changes.
 - New `list_catalogue() -> list[TemplateInfo]` reads `catalogue.json` only (no
   project parsing at list time); `group="marinesabres"`, `da_site=""`,
-  `file` = absolute path. Each entry is validated: required keys present,
-  `(dir / file).resolve()` inside `dir`, and `is_file()`. A bad entry is
+  `file` = absolute path. Each entry is validated: the §4 keys present (all
+  of `file, name, description, category, complexity, version,
+  regional_sea_label, source, usage_notes, element_count, connection_count`),
+  `(dir / file).resolve().is_relative_to(dir.resolve())` (both sides
+  resolved, so 8.3 short paths and a symlinked `sespy/` work), and
+  `is_file()`. A bad entry is
   skipped with a WARNING on the module logger; a missing or unparsable
   catalogue → `[]` + WARNING.
 - `list_templates()` keeps globbing top-level `*.json` only (the subdirectory
@@ -199,10 +235,12 @@ Each case gets a unit test that fails today for the stated reason.
 - The calc returns `list_catalogue() + list_templates()`; the combined index
   drives the pre-wired buttons (`MAX_TEMPLATES` stays 16; a unit test asserts
   the combined length ≤ 16).
-- Two group headers (`h4`) with ids created by `session.ns(...)` /
-  `resolve_id(...)` so they render namespaced: `templates-group_marinesabres`,
-  `templates-group_sespy` (a plain `id=` inside `render.ui` is **not**
-  namespaced). A group with no entries renders no header.
+- Two group headers (`h4`) with ids from `session.ns("group_marinesabres")`
+  / `session.ns("group_sespy")` (as `cld_visualization.py:317` does), so they
+  render `templates-group_marinesabres`, `templates-group_sespy` (a plain
+  `id=` inside `render.ui` is **not** namespaced). A group with no entries
+  renders no header. The list contains no `h5` other than card names
+  (several e2e scripts find a card's index from the `h5` list).
 - Card, same structure as today: `h5` name; for MarineSABRES cards a badge row
   `div.sespy-template-badges` of `span.badge` (category, complexity label,
   `v<version>`, regional sea label when set); counts line (existing rule:
@@ -218,14 +256,16 @@ New SESPy keys (R has none for these — it passes the English category through
 `templates.group_sespy`, `templates.about`, `templates.complexity_simple`,
 `templates.complexity_complex`, and `templates.category_<slug>` for
 `multi_stressor, extraction, recreation, production, pollution, climate,
-energy, general`. Slug = `value.lower().replace("-", "_")`. A value with no key
-(e.g. a future R complexity "moderate") shows the raw R value, never the key
-string. Template names, descriptions, source and notes stay English.
+energy, general`. Slug = `value.lower().replace("-", "_")`. `t()` returns the
+key on a miss (`i18n.py:98`), so the module checks `t(k) == k` and then shows
+the raw R value (e.g. a future R complexity "moderate"), never the key string;
+a unit test pins this. Template names, descriptions, source and notes stay
+English.
 
 ## 7. A loaded R template
 
 - Metadata: suffixed name; R description; `origin = "r_template"`;
-  `r_template_version`; `regional_sea` = R slug; `ecosystem_type` per §3.3;
+  `r_template_version`; `regional_sea` = R slug; `ecosystem_type` = `""`;
   `created_at`/`modified_at` = R `created_date`; other fields empty.
 - ISA: exactly P1a's conversion (Measures folded into Responses with
   `r_extra["r_kind"]="measure"`, R types in `r_extra["r_type"]`, descriptions
@@ -260,8 +300,19 @@ TDD throughout.
   - category port: the 7 expected values (§4) plus synthetic cases for NULL,
     empty list, scalar string, >1 issues, each regex branch, and order
     precedence ("wind farm" → Production);
-  - habitat table: each fixture's value is in its sea's `ecosystem_types`;
-    unknown → `""`; regional-sea label: known, unknown, absent.
+  - regional-sea label: known slug, unknown slug, no slug with a `region`
+    (Caribbean → "Caribbean Sea"), neither → `""`;
+  - complexity `""` / absent → "simple";
+  - an empty always-non-empty field → exit 1, nothing written;
+  - markers missing or duplicated in R_SYNC.md (non-fixture mode, with a fake
+    `r_root` built from the fixtures) → exit 1, nothing written;
+  - `accepted_warnings` round trip: an accepted off-rule link passes a later
+    `check=True`;
+  - written files are LF on disk (read bytes, no `\r\n`).
+- `tests/parity/test_r_category_parity.py`: extract `.determine_template_category`
+  from `tests/parity/r_source/template_loader.R` and assert its regex table,
+  order and branches (NULL → General, length > 1 → Multi-Stressor, fallback
+  General) equal the Python port's constants.
 - `tests/test_templates.py` additions: `list_catalogue()` returns 7 entries
   with the always-non-empty fields of §4 set; names unique across both groups;
   every MarineSABRES name ends with `" (MarineSABRES)"`; every catalogue file
@@ -278,7 +329,10 @@ TDD throughout.
   `tests/test_isa_entry_link_rules.py`: patch `ui.notification_show`, set
   `load_template_0` to 0 then 1): both group headers render with namespaced
   ids; the first card shows its badges; loading index 0 sets a project named
-  exactly "Caribbean Island - Comprehensive SES Template (MarineSABRES)".
+  exactly "Caribbean Island - Comprehensive SES Template (MarineSABRES)"
+  (read `project_data` inside `reactive.isolate()`); a category/complexity
+  value with no translation key renders the raw value.
+- `list_catalogue()` with an unresolved / 8.3-short `dir` still returns all 7.
 
 **e2e:**
 - `tests/test_templates_e2e.py`: clicks the "Coastal Tourism SES" card's Load
@@ -300,19 +354,32 @@ Critical/Important.
 ## 9. Docs, R triage and release
 
 - Commit order: (1) version bump to 1.14.0 (`__init__`, `pyproject`, MANUAL
-  line); (2) mapper hardening (§5); then the rest.
+  line); (2) mapper hardening (§5); (3) the R_SYNC.md hand edits that add the
+  markers (below); (4) `sespy/r_template_catalogue.py` + script + tests;
+  (5) the first real run, `python -m scripts.sync_r_templates --r-root <R>
+  --rev v1.31.0`, committed as the re-pin + shipped templates + catalogue (so
+  nothing ever ships stamped v1.29.0); then the gallery, e2e and docs.
 - `docs/parity/R_SYNC.md` (hand edits, outside the markers):
+  - wrap only the pin line and the hash table of "## Current pin" in
+    `<!-- r-sync:begin -->` / `<!-- r-sync:end -->`; move the "Adopted in" and
+    "Roadmap baseline" bullets outside the block;
   - intro: R files under `tests/parity/` still never ship; the 7 templates
     ship as SESPy projects converted from them;
   - "Adopted in SESPy 1.14.0", laguna verification after deploy;
   - "Adopting a new R release" → run the sync script, review the diff, triage
     R's changes, run the gates;
-  - **R changes v1.29.0 → v1.31.0 triage**: one row per changed path from
-    `git diff --stat e33faea v1.31.0` (42 files), each with an owner
-    sub-project or "not relevant", e.g. `country_governance_db.json` → K1,
-    `wp5_governance_profiles.json` / `wp5_readiness_items.json` and the WS-9b
-    readiness page → P4, `Policy_Target` indicator field and stakeholder roles
-    → P1b. Complete = every path listed.
+  - **R changes v1.29.0 → v1.31.0 triage**: one row per path from
+    `git diff --name-status e33faea v1.31.0` (42 rows; `--stat` truncates
+    paths), each with an owner sub-project or "not relevant", e.g.
+    `country_governance_db.json` → K1 (97 → 99 countries, 8 → 15 regional
+    conventions), `wp5_governance_profiles.json` / `wp5_readiness_items.json`
+    and the WS-9b readiness page → P4, `Policy_Target` indicator field and
+    stakeholder roles → P1b, R's new `.gitattributes` → not relevant. Also
+    note R commit `33ddd96` (duplicate rows on a second stakeholder / measure)
+    as a check item for SESPy's stakeholders page. Complete = every path
+    listed.
+  - the 9 pinned files are identical at v1.29.0 and v1.31.0, so a laguna R
+    still at v1.29.0 does not affect them;
   - accepted sync warnings (none today).
 - `docs/MANUAL.md` templates paragraph: 11 templates in two groups, badges,
   the "(MarineSABRES)" suffix, and that "Coastal Lagoon (MarineSABRES)" is R's
@@ -329,7 +396,8 @@ Critical/Important.
   flow; the triage owners above (K1 country count re-check — R v1.30.0 added
   Greenland and the Faroe Islands; P1b `Policy_Target` and stakeholder roles;
   P4 WP5 governance profiles, readiness items and readiness page; §3
-  allow-list gains the two WP5 data files).
+  allow-list gains the two WP5 data files); §3 i18n gains a note that
+  SESPy-only UI keys with no R counterpart may live in `core.json`.
 - Release: merge onto `origin/main`, tag v1.14.0, deploy to laguna, live check
   that the gallery shows both groups and an R template loads (this also proves
   the new JSONs reached the server); recheck live MosaicSES. Each step with
