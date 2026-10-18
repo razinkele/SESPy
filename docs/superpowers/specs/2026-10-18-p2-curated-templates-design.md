@@ -3,7 +3,8 @@
 Status: design approved section by section with the user (2026-10-18); review
 rounds 1 (fresh read, cross-spec, dry run), 2 (fresh read, dry run with a
 working prototype) and 3 (coherence read, prototype incl. a real sync against
-R v1.31.0) applied; spec awaiting user review.
+R v1.31.0) applied; round 4 (convergence read) found no Critical/Important —
+**converged**; its minors applied. Spec awaiting user review.
 Roadmap: `docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md`
 (branch `docs/r-parity-roadmap`), section "P2 — Curated templates".
 Builds on P1a (SESPy v1.13.0): `sespy/r_template_mapper.py`,
@@ -24,7 +25,8 @@ R by a script and a drift test, and re-pins R.
 - each R template loads, and its link count and every link's sign equal the
   **raw R JSON** (checked directly, not only via the mapper), and its ISA
   equals the mapper's conversion of the pinned file;
-- `scripts/sync_r_templates.py --check` reports no drift against the pin;
+- `python -m scripts.sync_r_templates --r-root <R app dir> --check` (and
+  `--from-fixtures --check`) reports no drift against the pin;
 - R is re-pinned to v1.31.0 in `tests/parity/r_sync.json` and
   `docs/parity/R_SYNC.md`, and R's changes since v1.29.0 are triaged there
   (§9).
@@ -52,7 +54,7 @@ Taken in review round 1 (rulings, recorded so the user can revisit):
 | `template_loader.R` | Added as a 9th pinned, hashed file, **and** a content-parity test (`tests/parity/test_r_category_parity.py`) compares R's `.determine_template_category` with the Python port. | A hash alone is rewritten by the sync; the parity test makes drift in R's category rule fail. |
 | Empty R `complexity` | `""` (R keeps it, `%||%` only replaces NULL) → `"simple"`, R's stated default. | Keeps "always non-empty" true. |
 | i18n namespace | New keys live under `templates.*` in `core.json`, not R's `modules.*` per-module files. | R has no keys for categories/complexity (it shows the English value); SESPy's existing templates keys are `templates.*`. The roadmap's §3 i18n rule gets a note (§9). |
-| Card regional label without a slug | Falls back to R's `regional_context.region` text (Caribbean → "Caribbean Sea"), label only. | Keeps the roadmap's "applicable regions" visible on every card without changing project metadata. |
+| Card regional label without a slug | Falls back to R's `regional_context.region` text (Caribbean → "Caribbean Sea"), label only. | The card shows a regional-sea label instead of R's `metadata.applicable_regions` list (they agree for all 7 today), so every card shows its region without changing project metadata. |
 
 ## 3. Sync
 
@@ -104,7 +106,9 @@ silent.
 
 ### 3.3 `sync()` — all in memory, then write
 
-1. Read all inputs.
+1. Read all inputs (`--from-fixtures`: only the 7 templates from
+   `tests/parity/r_templates/`). A failed `git show` (bad rev, path missing at
+   the rev) → exit 1, nothing written, the failing path listed.
 2. Convert each template with `convert_r_template(raw, key=<file stem>)`.
    A `ValueError` → exit 1, **nothing written**. Collect each report's
    `off_rule_links` and `type_mismatches` as warning entries
@@ -116,9 +120,7 @@ silent.
    `--accept-warnings` they are accepted. When `r_sync.json` is written,
    `accepted_warnings` = exactly the entries that occur in this run (accepted
    ones that no longer occur are dropped), sorted by
-   `(template, kind, from, to, text)`.
-   A failed `git show` (bad rev, path missing at the rev) → exit 1, nothing
-   written, the failing path listed.
+   `(template, kind, from, to, text)`, a missing field sorting as `""`.
 3. Post-process each Project (module code; the mapper stays R-exact):
    `metadata.name = <mapper's metadata.name> + " (MarineSABRES)"` (the mapper
    already applies R's name fallbacks). Everything else is the
@@ -150,9 +152,15 @@ silent.
 
    **Accepted sync warnings:** none.
    ```
-   (the last line lists each accepted entry as `- <template>: <kind> <from> -> <to>`
-   or `- <template>: <kind> <text>` when there are any). The block between
-   the markers is `\n` + the text above + `\n`.
+   The hash column holds the same values as `r_sync.json` (`sha256_norm` for
+   `.json`, `sha256_text_norm` for `.R`). With accepted warnings, the last
+   line becomes a header followed by one bullet per entry, e.g.:
+   ```
+   **Accepted sync warnings:**
+   - Tourism_SES_Template: off_rule_link GB01 -> A01
+   - Fisheries_SES_Template: type_mismatch connections[3] D001->P002: ...
+   ```
+   The block between the markers is `\n` + the text above + `\n`.
    The markers are added by hand (§9) before the first real sync; missing or
    duplicated markers → exit 1, nothing written. Prose outside the markers is
    never touched.
@@ -208,6 +216,9 @@ the fixtures, `r_sync.json` and the R_SYNC.md block.
   falls through to "General". Expected today: Aquaculture Production,
   Caribbean Multi-Stressor, ClimateChange Climate, Fisheries Extraction,
   OffshoreWind Energy, Pollution Pollution, Tourism Recreation.
+- `description` = the mapper's `metadata.description` (R
+  `template_description`); `version` = R `metadata.version` (= the mapper's
+  `r_template_version`).
 - `complexity` = R `complexity`; absent, NULL or `""` → `"simple"`.
 - `source` = R `metadata.source` or `""`; `usage_notes` = R `usage_notes` or
   `""`.
@@ -279,7 +290,8 @@ New SESPy keys (R has none for these — it passes the English category through
 `templates.group_sespy`, `templates.about`, `templates.complexity_simple`,
 `templates.complexity_complex`, and `templates.category_<slug>` for
 `multi_stressor, extraction, recreation, production, pollution, climate,
-energy, general`. Slug = `value.lower().replace("-", "_")`. `t()` returns the
+energy, general`. Slug = `value.lower().replace("-", "_")` for both
+categories and complexity (`templates.complexity_<slug>`). `t()` returns the
 key on a miss (`i18n.py:98`), so the module checks `t(k) == k` and then shows
 the raw R value (e.g. a future R complexity "moderate"), never the key string;
 a unit test pins this. Template names, descriptions, source and notes stay
@@ -318,8 +330,9 @@ TDD throughout.
     including when the files on disk are CRLF (test writes a CRLF copy into
     `tmp_path` and points the check there);
   - atomicity: a fixture made to raise `ValueError` → exit 1 and no file in
-    `tmp_path` changed; an off-rule link without `accept_warnings` → exit 1,
-    with it → 0;
+    `tmp_path` changed; in non-fixture mode (the fake git `r_root` below), an
+    off-rule link without `accept_warnings` → exit 1, with it → 0;
+    `from_fixtures` + `accept_warnings` → exit 1;
   - category port: the 7 expected values (§4) plus synthetic cases for NULL,
     empty list, scalar string, >1 issues, each regex branch, and order
     precedence ("wind farm" → Production);
@@ -365,8 +378,9 @@ TDD throughout.
   `load_template_0` to 0 then 1): both group headers render with namespaced
   ids; the first card shows its badges; loading index 0 sets a project named
   exactly "Caribbean Island - Comprehensive SES Template (MarineSABRES)"
-  (read `project_data` inside `reactive.isolate()`); a category/complexity
-  value with no translation key renders the raw value.
+  (read `project_data` inside `reactive.isolate()`); with `list_catalogue`
+  monkeypatched to return an entry whose category/complexity has no
+  translation key, the card renders the raw value.
 
 **e2e:**
 - `tests/test_templates_e2e.py`: clicks the "Coastal Tourism SES" card's Load
@@ -423,7 +437,8 @@ Critical/Important.
     `country_governance_db.json` → K1 (97 → 99 countries, 8 → 15 regional
     conventions), `wp5_governance_profiles.json` / `wp5_readiness_items.json`
     and the WS-9b readiness page → P4, `Policy_Target` indicator field and
-    stakeholder roles → P1b, R's new `.gitattributes` → not relevant. Also
+    stakeholder roles → P1b, R's modified `.gitattributes` (adds `eol=lf`
+    for the two WP5 files) → not relevant. Also
     note R commit `33ddd96` (duplicate rows on a second stakeholder / measure)
     as a check item for SESPy's stakeholders page. Complete = every path
     listed.
@@ -440,7 +455,10 @@ Critical/Important.
   header pin / SESPy version; P2 section (R source v1.31.0 + `template_loader.R`;
   replace "ship them in `sespy/templates/` beside SESPy's 4" with
   `sespy/templates/marinesabres/` + `catalogue.json`; replace "gallery cards
-  read `ConversionReport.template_meta`" with "cards read `catalogue.json`";
+  read `ConversionReport.template_meta` (complexity, usage notes, source,
+  applicable regions)" with "cards read `catalogue.json` (category,
+  complexity, version, regional-sea label; source and usage notes under
+  About)";
   v1.14.0);
   P12 gains R's template complexity filter (`template_ses_module.R:125-141`,
   deferred from P2); P13 gains R's template preview / customise-before-load
