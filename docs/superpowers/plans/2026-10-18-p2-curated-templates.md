@@ -102,13 +102,13 @@ git switch -c feat/p2-curated-templates
 git status --short            # expect only LITERATURE/ entries (user's, never staged)
 ```
 
-- [ ] **Step 2: Record the R repo state (it must be identical after Task 5)**
+- [ ] **Step 2: Record the R repo state** (the user works in R concurrently, so its branch and status may change during P2 on their own; what must hold is that **the sync adds nothing** — it only runs `git show` / `rev-parse`, which write neither the reflog nor the working tree)
 
 ```powershell
 $R = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny'
-git -C $R rev-parse --abbrev-ref HEAD          # main
-git -C $R status --short | Measure-Object -Line # note the count (the user's own files)
-git -C $R rev-parse --short=7 'v1.31.0^{commit}' # 4b53b7d
+git -C $R rev-parse --short=7 'v1.31.0^{commit}'         # 4b53b7d
+git -C $R reflog -n 1 --date=iso --format='%gd %cd %gs'   # note this newest reflog entry
+Get-Date -Format o                                         # note T0
 ```
 
 - [ ] **Step 3: Confirm the baseline is green**
@@ -1091,9 +1091,10 @@ def test_cli_passes_arguments_and_the_repo_root(monkeypatch, capsys):
 
 
 def test_cli_runs_as_a_module_from_the_repo_root():
-    # Refused before any read or write, so this is safe on the real tree.
+    # Refused before any read or write; --check as a second guard, so even a
+    # broken refusal can never write into the real tree.
     r = subprocess.run([sys.executable, "-m", "scripts.sync_r_templates",
-                        "--from-fixtures", "--accept-warnings"],
+                        "--from-fixtures", "--accept-warnings", "--check"],
                        cwd=ROOT, capture_output=True, text=True)
     assert r.returncode == 1 and "--accept-warnings needs --r-root" in r.stdout
 
@@ -1107,7 +1108,7 @@ def test_catalogue_module_imports_without_shiny():
 
 - [ ] **Step 2: Run — RED**
 
-`micromamba run -n shiny python -m pytest tests/test_r_template_catalogue.py -q` → collection error `ModuleNotFoundError: No module named 'sespy.r_template_catalogue'`.
+`micromamba run -n shiny python -m pytest tests/test_r_template_catalogue.py -q` → collection error `ImportError: cannot import name 'r_template_catalogue' from 'sespy'` (the test imports `from sespy import r_template_catalogue as C`).
 
 - [ ] **Step 3: Create `sespy/r_template_catalogue.py`**
 
@@ -1785,13 +1786,13 @@ No `warning` line (0 off-rule links, 0 type mismatches) and no other `hash` line
 $R = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny'
 micromamba run -n shiny python -m scripts.sync_r_templates --r-root $R --check     # no output, exit 0
 micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check  # no output, exit 0
-git -C $R rev-parse --abbrev-ref HEAD           # main (as in Task 0)
-git -C $R status --short | Measure-Object -Line  # same count as in Task 0
+git -C $R reflog -n 10 --date=iso --format='%gd %cd %gs'   # entries newer than Task 0's must all be the user's own checkout:/commit: lines
 ```
+The sync never checks out or commits, so it cannot add a reflog entry; a new entry is the user working in R, not P2. Do not compare `HEAD` / `status` counts (they move with the user's work).
 
 - [ ] **Step 7: Review the diff**
 
-`git status --short` (besides `LITERATURE/`) shows only `M docs/parity/R_SYNC.md`, `M tests/parity/r_sync.json`, `M tests/parity/test_r_sync.py`, `M tests/test_r_template_catalogue.py`, `?? sespy/templates/marinesabres/`, `?? tests/parity/r_source/`, `?? tests/parity/test_r_category_parity.py`. The 8 rewritten fixtures are written LF and are content-equal to their LF blobs, so under `core.autocrlf=true` they stay clean; if any shows `M`, `git diff --ignore-cr-at-eol -- tests/parity/r_templates tests/parity/r_rules` must print nothing. `git diff -- docs/parity/R_SYNC.md` (ignoring CR) is exactly: the pin line `**v1.29.0**, commit `e33faea`` → `**v1.31.0**, commit `4b53b7d``, plus one added row ``| `tests/parity/r_source/template_loader.R` | `3ebe6c83…02d3` |``. `tests/parity/r_sync.json` gains `r_tag`/`r_commit` v1.31.0/4b53b7d, the `template_loader.R` entry, files sorted by path, and `"accepted_warnings": []`.
+`git status --short` (besides `LITERATURE/`) shows only `M docs/parity/R_SYNC.md`, `M tests/parity/r_sync.json`, `M tests/parity/test_r_sync.py`, `M tests/test_r_template_catalogue.py`, `?? sespy/templates/marinesabres/`, `?? tests/parity/r_source/`, `?? tests/parity/test_r_category_parity.py`. The 8 rewritten fixtures are written LF over a CRLF working copy, so on this `core.autocrlf=true` checkout **expect all 8 to show `M`** (dry run): `git diff --ignore-cr-at-eol -- tests/parity/r_templates tests/parity/r_rules` must print nothing, and after `git add` they drop out of the commit (content-equal to their LF blobs). Stage them anyway with the rest, or `git checkout -- tests/parity/r_templates tests/parity/r_rules` first; either way the commit holds no fixture change. `git diff -- docs/parity/R_SYNC.md` (ignoring CR) is exactly: the pin line `**v1.29.0**, commit `e33faea`` → `**v1.31.0**, commit `4b53b7d``, plus one added row ``| `tests/parity/r_source/template_loader.R` | `3ebe6c83…02d3` |``. `tests/parity/r_sync.json` gains `r_tag`/`r_commit` v1.31.0/4b53b7d, the `template_loader.R` entry, files sorted by path, and `"accepted_warnings": []`.
 
 - [ ] **Step 8: Run — GREEN**
 
@@ -2979,16 +2980,40 @@ asyncio.run(main())
 
 - [ ] **Step 4: Run each solo against a fresh server** (port 8000 must be free; nothing heavy alongside)
 
+Run them the way the gate does (SHINY_TESTMODE, PYTHONPATH, throwaway feedback DB, warm-up session), through `run_e2e.py`'s own functions. `run_e2e.py` has no single-script option, so write `<scratchpad>\e2e_solo.py` (loaded by path: `from tests.run_e2e` would hit the stray site-packages `tests`):
+```python
+"""Run named e2e scripts solo, exactly as tests/run_e2e.py runs them.
+Usage (from the SESPy repo root): python e2e_solo.py tests/test_a_e2e.py [...]"""
+import importlib.util
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("run_e2e", Path("tests/run_e2e.py").resolve())
+E = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(E)
+url = "http://127.0.0.1:8000/"
+if E.port_busy(url):
+    sys.exit("port 8000 is busy: kill it first")
+proc = E.start_server(8000, {})
+code = 0
+try:
+    if not E.wait_ready(url):
+        sys.exit("server never answered")
+    E.warm_session(url)
+    for s in sys.argv[1:]:
+        r = E.run_script(E.ROOT / s)
+        print(f"{'PASS' if r.returncode == 0 else 'FAIL'} {s}\n{r.stdout[-1500:]}{r.stderr[-1500:]}")
+        code |= r.returncode != 0
+finally:
+    E.stop_server(proc)
+sys.exit(code)
+```
 ```powershell
 Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue   # must print nothing
-$srv = Start-Process micromamba.exe -ArgumentList "run -n shiny python -m shiny run --port 8000 app.py" -PassThru -WindowStyle Hidden
-Start-Sleep -Seconds 40          # cold server needs ~32 s before the nav renders
-micromamba run -n shiny python tests/test_r_templates_e2e.py
-micromamba run -n shiny python tests/test_templates_e2e.py
-Get-NetTCPConnection -LocalPort 8000 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
-Stop-Process -Id $srv.Id -Force -ErrorAction SilentlyContinue
+micromamba run -n shiny python -I '<scratchpad>\e2e_solo.py' tests/test_r_templates_e2e.py tests/test_templates_e2e.py
+Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue   # must print nothing again
 ```
-Expected last lines: `r-templates e2e: all assertions passed` and `templates e2e assertions pass`. Stop the server **by port** (the micromamba launcher is not the listener). (The red step for this behaviour is Task 8's in-memory module test; on pre-Task-8 code `test_r_templates_e2e.py` times out waiting for `#templates-group_marinesabres`.)
+(`-I` is safe here: `run_e2e.py` is loaded by absolute path and the scripts run in child processes with `PYTHONPATH` set.) Expected: `PASS` for both, with last lines `r-templates e2e: all assertions passed` and `templates e2e assertions pass`. If 8000 is still held afterwards, stop it **by port**. (The red step for this behaviour is Task 8's in-memory module test; on pre-Task-8 code `test_r_templates_e2e.py` times out waiting for `#templates-group_marinesabres`.)
 
 - [ ] **Step 5: Run the CI unit command** → green (the e2e files are ignored by it).
 
