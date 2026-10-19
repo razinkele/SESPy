@@ -18,7 +18,7 @@
 - Every commit message ends with exactly this trailer line (the model name may be the implementer's own):
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 - Commit messages are multi-line: use the **PowerShell tool** with a single-quoted here-string (`git commit -m @'...'@` with `'@` at column 0). Never a PowerShell here-string in the Bash tool (it leaks a literal `@`).
-- CI unit command (every task must end green on it): `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q` (≈6 min; baseline measured while planning on `1e3b49e`: **1052 passed, 1 skipped**; ≈**1221 passed, 1 skipped** at the end — `tests/test_r_template_catalogue.py` alone is ≈60 s because it builds real git repos).
+- CI unit command (every task must end green on it): `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q` (≈6 min; baseline measured while planning on `1e3b49e`: **1052 passed, 1 skipped**; ≈**1223 passed, 1 skipped** at the end — `tests/test_r_template_catalogue.py` alone is ≈60 s because it builds real git repos).
 - **Shell state does not persist between tool calls**: every PowerShell / Bash call starts in the repo root with no variables. Each code block below is meant as **one** call and defines every variable it uses (`$R`, `$W`, `$log`, …); never rely on a `cd` or a variable from an earlier block. `<scratchpad>` means the session scratchpad's absolute path (substitute it literally).
 - Lint is part of CI: `micromamba run -n shiny python -m ruff check sespy tests app.py scripts` must be clean at every commit (CI runs `ruff check sespy tests app.py`; `scripts/` is new, keep it clean too).
 - Edits are placed by **quoted anchor**, never by line number (the working copy is CRLF under `core.autocrlf=true`; the Edit tool handles that).
@@ -709,6 +709,8 @@ def test_build_is_deterministic_lf_and_newline_terminated():
     assert set(a) == {f"{C.OUT_DIR}/{f}" for f in C.TEMPLATE_FILES} | {C.CATALOGUE_PATH}
     for data in a.values():
         assert data.endswith(b"}\n") and b"\r" not in data
+    cat = a[C.CATALOGUE_PATH]          # spec §3.3 step 5: indent=2, ensure_ascii=False
+    assert cat == (json.dumps(json.loads(cat), indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 
 @pytest.mark.parametrize("fname", C.TEMPLATE_FILES)
@@ -735,6 +737,11 @@ def test_catalogue_shape():
             assert isinstance(r[k], str) and r[k], (r["file"], k)
         assert r["element_count"] > 0 and r["connection_count"] > 0
     by_stem = {r["file"][: -len("_SES_Template.json")]: r for r in rows}
+    for s, r in by_stem.items():                                  # §4: straight from R
+        raw = RAW[f"{s}_SES_Template.json"]
+        assert r["description"] == raw["template_description"], s
+        assert r["version"] == str(raw["metadata"]["version"]), s
+        assert r["source"] == str(raw["metadata"].get("source") or ""), s
     assert {s: r["category"] for s, r in by_stem.items()} == EXPECTED_CATEGORY
     assert by_stem["Caribbean"]["regional_sea_label"] == "Caribbean Sea"
     assert by_stem["OffshoreWind"]["regional_sea_label"] == "North Sea"
@@ -863,7 +870,11 @@ def test_off_rule_link_in_fixture_mode_fails_and_cannot_be_accepted(tmp_path):
     assert res.code == 1 and _snap(root) == before
 
 
-@pytest.mark.parametrize("pin", [{"files": {}}, {"r_tag": "", "r_commit": "x"}, []])
+@pytest.mark.parametrize("pin", [
+    {"files": {}}, {"r_tag": "", "r_commit": "x"}, [],
+    {"r_tag": "v1.31.0", "r_commit": "4b53b7d", "files": []},
+    {"r_tag": "v1.31.0", "r_commit": "4b53b7d", "files": {}, "accepted_warnings": "x"},
+])
 def test_malformed_pin_exits_1_and_writes_nothing(tmp_path, pin):
     root = _tree(tmp_path)
     (root / C.PIN_PATH).write_bytes(json.dumps(pin).encode("utf-8"))
@@ -931,7 +942,7 @@ def test_check_in_git_mode_passes_on_a_crlf_copy(tmp_path, r_app):
     assert res.code == 0, res.lines
 
 
-@pytest.mark.parametrize("rev", ["main", "HEAD", "v1.31", "1.31.0", "v1.31.0-rc1"])
+@pytest.mark.parametrize("rev", ["main", "HEAD", "v1.31", "1.31.0", "v1.31.0-rc1", "v1.31.0\n"])
 def test_rev_must_be_a_release_tag(tmp_path, r_app, rev):
     root, app = _tree(tmp_path), r_app
     before = _snap(root)
@@ -982,9 +993,14 @@ def test_off_rule_link_needs_accept_warnings_and_is_persisted(tmp_path):
     assert res.code == 1 and _snap(root) == before
     assert f"warning (unaccepted): Tourism_SES_Template: off_rule_link {gb} -> {act}" in res.lines
 
+    fixture = "tests/parity/r_templates/Tourism_SES_Template.json"
+    old_hash = _pin(root)["files"][fixture]
     res = C.sync(repo_root=root, r_root=app, rev="v1.32.0", accept_warnings=True)
     assert res.code == 0, res.lines
     assert _pin(root)["accepted_warnings"] == [entry]
+    new_hash = _pin(root)["files"][fixture]
+    assert old_hash != new_hash
+    assert f"hash {fixture}: {old_hash} -> {new_hash}" in res.lines      # §3.1 old -> new
     assert _md_block(root).endswith(
         f"**Accepted sync warnings:**\n- Tourism_SES_Template: off_rule_link {gb} -> {act}\n")
     # Accepted from now on, without the flag, in both modes.
@@ -1376,9 +1392,13 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
         pin_old = _read_json(repo_root / PIN_PATH)
     except (OSError, ValueError) as e:
         return SyncResult(1, [f"cannot read {PIN_PATH}: {e}"])
-    if not isinstance(pin_old, dict) or not all(
-            isinstance(pin_old.get(k), str) and pin_old[k] for k in ("r_tag", "r_commit")):
-        return SyncResult(1, [f"{PIN_PATH}: needs non-empty string r_tag and r_commit"])
+    if not (isinstance(pin_old, dict)
+            and all(isinstance(pin_old.get(k), str) and pin_old[k] for k in ("r_tag", "r_commit"))
+            and isinstance(pin_old.get("files", {}), dict)
+            and isinstance(pin_old.get("accepted_warnings", []), list)
+            and all(isinstance(w, dict) for w in pin_old.get("accepted_warnings", []))):
+        return SyncResult(1, [f"{PIN_PATH}: needs non-empty string r_tag and r_commit, "
+                              "a files object and an accepted_warnings list of objects"])
     accepted_old = list(pin_old.get("accepted_warnings", []))
 
     raw_bytes: dict[str, bytes] = {}
@@ -1392,7 +1412,7 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
                     return SyncResult(1, [f"cannot read {fixture}: {e}"])
     else:
         r_tag = rev or pin_old["r_tag"]
-        if not TAG_RE.match(r_tag):
+        if not TAG_RE.fullmatch(r_tag):        # fullmatch: "$" alone accepts a trailing "\n"
             return SyncResult(1, [f"--rev must be a release tag like v1.31.0, got {r_tag!r}"])
         try:
             prefix = _git(r_root, "rev-parse", "--show-prefix").decode().strip()
@@ -1477,7 +1497,8 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
 
 Run from the SESPy repo root (so `-m` imports this checkout's `sespy`):
 
-    micromamba run -n shiny python -m scripts.sync_r_templates --r-root <R app dir> [--rev vX.Y.Z] [--check] [--accept-warnings]
+    micromamba run -n shiny python -m scripts.sync_r_templates --r-root <R app dir>
+        [--rev vX.Y.Z] [--check] [--accept-warnings]
     micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures [--check]
 
 <R app dir> is .../SESToolbox/MarineSABRES_SES_Shiny. The R repo is only read
@@ -1520,7 +1541,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 6: Run — GREEN**
 
-`micromamba run -n shiny python -m pytest tests/test_r_template_catalogue.py -q` → `83 passed` (≈60 s: about 15 real git repos and ~40 syncs).
+`micromamba run -n shiny python -m pytest tests/test_r_template_catalogue.py -q` → `86 passed` (≈60 s: about 15 real git repos and ~40 syncs).
 
 - [ ] **Step 7: Run the CI unit command** → green. (`--from-fixtures --check` on the real tree would still exit 1 here — nothing is shipped yet; no test asserts it before Task 5.)
 
@@ -1747,7 +1768,7 @@ def test_shipped_project_loads_without_off_rule_warnings(fname, caplog):
 
 - [ ] **Step 4: Run — RED**
 
-`micromamba run -n shiny python -m pytest tests/parity tests/test_r_template_catalogue.py -q` → `30 failed, 99 passed`: the 5 `test_r_category_parity.py` tests (`FileNotFoundError` for `tests/parity/r_source/template_loader.R`), `test_pin_shape` (`assert 8 == 9`), and the 24 shipped-tree tests (no `sespy/templates/marinesabres/`). `test_r_sync_md_pin_line_equals_the_pin` already passes (Task 3's block reads v1.29.0 = the current pin).
+`micromamba run -n shiny python -m pytest tests/parity tests/test_r_template_catalogue.py -q` → `30 failed, 102 passed`: the 5 `test_r_category_parity.py` tests (`FileNotFoundError` for `tests/parity/r_source/template_loader.R`), `test_pin_shape` (`assert 8 == 9`), and the 24 shipped-tree tests (no `sespy/templates/marinesabres/`). `test_r_sync_md_pin_line_equals_the_pin` already passes (Task 3's block reads v1.29.0 = the current pin).
 
 - [ ] **Step 5: Run the sync against R v1.31.0** (from the repo root)
 
@@ -1755,7 +1776,7 @@ def test_shipped_project_loads_without_off_rule_warnings(fname, caplog):
 $R = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny'
 micromamba run -n shiny python -m scripts.sync_r_templates --r-root $R --rev v1.31.0
 ```
-Expected exit 0 and exactly these 19 lines (verified while planning):
+Expected exit 0 and exactly these 20 lines (verified while planning):
 ```
 hash tests/parity/r_source/template_loader.R: (none) -> 3ebe6c83a737ead8e91936f9f11ca5cfa4244d56d52f1644fc7df2af131d02d3
 wrote sespy/templates/marinesabres/Aquaculture_SES_Template.json
@@ -1796,7 +1817,7 @@ The sync never checks out or commits, so it cannot add a reflog entry; a new ent
 
 - [ ] **Step 8: Run — GREEN**
 
-`micromamba run -n shiny python -m pytest tests/parity tests/test_r_template_catalogue.py tests/test_r_template_mapper.py -q` → `197 passed`.
+`micromamba run -n shiny python -m pytest tests/parity tests/test_r_template_catalogue.py tests/test_r_template_mapper.py -q` → `200 passed`.
 
 - [ ] **Step 9: Run the CI unit command** → green.
 
@@ -1865,11 +1886,14 @@ def test_list_catalogue_has_the_seven_r_templates():
         assert r.element_count > 0 and r.connection_count > 0
 
 
-def test_list_catalogue_parses_no_project(monkeypatch):
-    def boom(*a, **k):
-        raise AssertionError("list_catalogue must read catalogue.json only")
-    monkeypatch.setattr(tpl, "load_project", boom)
-    assert len(tpl.list_catalogue()) == 7
+def test_list_catalogue_parses_no_project(tmp_path):
+    # Unparsable project files cannot matter if only catalogue.json is read.
+    d = tmp_path / "marinesabres"
+    shutil.copytree(CAT_DIR, d)
+    for p in d.glob("*_SES_Template.json"):
+        p.write_bytes(b"not json")
+    rows = tpl.list_catalogue(d)
+    assert len(rows) == 7 and rows[0].element_count == 78
 
 
 def test_every_catalogue_file_loads_with_the_listed_counts():
@@ -2760,7 +2784,7 @@ def templates_server(
 
 - [ ] **Step 4: Run — GREEN**
 
-`micromamba run -n shiny python -m pytest tests/test_templates_module.py tests/test_templates.py -q` → `39 passed`.
+`micromamba run -n shiny python -m pytest tests/test_templates_module.py tests/test_templates.py -q` → `40 passed` (39 where 8.3 short names are disabled and that test skips).
 
 - [ ] **Step 5: Run the CI unit command** → green.
 
@@ -3336,7 +3360,7 @@ Pushing `docs/r-parity-roadmap` happens in Task 13 Step 7, with the user's go-ah
 
 ### Task 12: Gates — CI unit, sync check, full e2e, MosaicSES, reviews (README count commit only)
 
-- [ ] **Step 1: CI unit command** on the branch tip → green (≈1221 passed, 1 skipped).
+- [ ] **Step 1: CI unit command** on the branch tip → green (≈1223 passed, 1 skipped).
 
 - [ ] **Step 2: Sync check at the pin**
 
