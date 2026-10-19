@@ -13,13 +13,14 @@
 ## Global Constraints
 
 - Python: always `micromamba run -n shiny python ...`. Never `pip install`, never a venv, never `python - <<EOF` or a bare `python -` (both leave spinning stdin orphans), never a multi-line `python -c "..."` on Windows (it splits per line and creates stray files) — use a `.py` file in the scratchpad.
-- Branch: cut `feat/p2-curated-templates` from the current HEAD of `docs/p2-design` (commit `1e3b49e`, which carries the spec and has the v1.13.0 code). Local `main` may be behind `origin/main`; do not use it.
+- Branch: cut `feat/p2-curated-templates` from the current HEAD of `docs/p2-design` (commit `b5c903a`, which carries the spec, this plan and the v1.13.0 code). Local `main` may be behind `origin/main`; do not use it.
 - Never `git commit -a` / `git add -A` / `git add .`: the user's `LITERATURE/proposed-issues.md` is modified and `LITERATURE/*.md` are untracked; they are **never staged**. Stage explicit paths only.
-- Every commit message ends with exactly these two trailer lines (the model name may be the implementer's own):
+- Every commit message ends with exactly this trailer line (the model name may be the implementer's own):
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
-  `Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX`
 - Commit messages are multi-line: use the **PowerShell tool** with a single-quoted here-string (`git commit -m @'...'@` with `'@` at column 0). Never a PowerShell here-string in the Bash tool (it leaks a literal `@`).
-- CI unit command (every task must end green on it): `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q` (≈6 min; baseline measured while planning on `1e3b49e`: **1052 passed, 1 skipped**; ≈**1209 passed, 1 skipped** at the end — `tests/test_r_template_catalogue.py` alone is ≈60 s because it builds real git repos).
+- CI unit command (every task must end green on it): `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q` (≈6 min; baseline measured while planning on `1e3b49e`: **1052 passed, 1 skipped**; ≈**1221 passed, 1 skipped** at the end — `tests/test_r_template_catalogue.py` alone is ≈60 s because it builds real git repos).
+- **Shell state does not persist between tool calls**: every PowerShell / Bash call starts in the repo root with no variables. Each code block below is meant as **one** call and defines every variable it uses (`$R`, `$W`, `$log`, …); never rely on a `cd` or a variable from an earlier block. `<scratchpad>` means the session scratchpad's absolute path (substitute it literally).
+- Lint is part of CI: `micromamba run -n shiny python -m ruff check sespy tests app.py scripts` must be clean at every commit (CI runs `ruff check sespy tests app.py`; `scripts/` is new, keep it clean too).
 - Edits are placed by **quoted anchor**, never by line number (the working copy is CRLF under `core.autocrlf=true`; the Edit tool handles that).
 - Version: **1.14.0** in `sespy/__init__.py`, `pyproject.toml`, `docs/MANUAL.md` line 3 — first commit. **No schema bump**: `PROJECT_SCHEMA_VERSION` stays 7; the shipped projects carry `min_sespy_version` `1.13.0` (the schema floor that `Project.to_json()` stamps), never the running version.
 - R reference: MarineSABRES_SES_Shiny **v1.31.0, commit `4b53b7d`** (2026-10-18), app directory `C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny` (written `<R>` below; its git prefix is `MarineSABRES_SES_Shiny/`). The R repo is **read-only**: only `git show`, `git rev-parse`, `git diff`, `git log`; never checkout, switch, stash, commit, or touch its working tree (it is on `main` with the user's own uncommitted files). The 9 pinned files are identical at v1.29.0 and v1.31.0 (`git diff --quiet e33faea v1.31.0 -- <9 paths>` exits 0).
@@ -33,8 +34,8 @@
 ## Review Focus
 
 1. **Line endings** — the sync writes LF only (`write_bytes`), and `--check` / the parity extraction tolerate a CRLF working copy (JSON compared parsed, text CRLF → LF). Owning tasks: **Task 4** (`test_build_is_deterministic_lf_and_newline_terminated`, `test_check_passes_on_a_crlf_copy`, `test_check_in_git_mode_passes_on_a_crlf_copy`, `test_real_run_writes_everything_then_checks_clean`) and **Task 5** (`test_committed_tree_has_no_drift`, `test_committed_tree_has_no_drift_as_crlf`, `test_r_category_parity.py`: `test_null_branch`, `test_multi_issue_branch`, `test_regex_table_and_order`, `test_fallback`, `test_no_unparsed_branch`, all reading R through the CRLF-normalising `_function_body`).
-2. **Nothing written on any failure** — mapper `ValueError`, an empty always-non-empty field, missing/duplicated markers, a bad `--rev`, an unknown tag, a path missing at the rev, an unaccepted warning, argument errors: exit 1 and a byte-identical tree. Owning task: **Task 4** (`test_value_error_writes_nothing`, `test_empty_always_non_empty_field_writes_nothing`, `test_markers_missing_or_duplicated_write_nothing`, `test_rev_must_be_a_release_tag`, `test_unknown_tag_and_missing_path_write_nothing`, `test_argument_errors_write_nothing`, all via `_snap`).
-3. **Accepted-warning semantics** — exact-field match, scoped per template, persisted only by a git-mode run, dropped when it no longer occurs, sorted by `(template, kind, from, to, text)`, fixture mode cannot accept. Owning task: **Task 4** (`test_off_rule_link_needs_accept_warnings_and_is_persisted`, `test_accepted_warning_is_scoped_to_its_template`, `test_accepted_warning_that_no_longer_occurs_is_dropped`, `test_type_mismatch_entries_and_sort_order`, `test_off_rule_link_in_fixture_mode_fails_and_cannot_be_accepted`).
+2. **Nothing written on any failure** — mapper `ValueError`, an empty always-non-empty field, missing/duplicated markers, a bad `--rev`, an unknown tag, a path missing at the rev, an unaccepted warning, argument errors: exit 1 and a byte-identical tree. Owning task: **Task 4** (`test_value_error_writes_nothing`, `test_empty_always_non_empty_field_writes_nothing`, `test_markers_missing_or_duplicated_write_nothing`, `test_rev_must_be_a_release_tag`, `test_unknown_tag_and_missing_path_write_nothing`, `test_argument_errors_write_nothing`, `test_malformed_pin_exits_1_and_writes_nothing`, `test_non_object_template_exits_1_and_writes_nothing`, all via `_snap`).
+3. **Accepted-warning semantics** — exact-field match, scoped per template, persisted only by a git-mode run, dropped when it no longer occurs, sorted by `(template, kind, from, to, text)`, fixture mode cannot accept. Owning task: **Task 4** (`test_off_rule_link_needs_accept_warnings_and_is_persisted`, `test_accepted_warning_matches_only_on_every_field`, `test_accepted_warning_that_no_longer_occurs_is_dropped`, `test_type_mismatch_entries_and_sort_order`, `test_persisted_warnings_are_sorted_not_in_production_order`, `test_warning_sort_key_literal_order`, `test_off_rule_link_in_fixture_mode_fails_and_cannot_be_accepted`).
 4. **`list_catalogue` robustness** — escaping / absolute / dangling / empty `file`, bool / str / zero counts, a wrong-typed may-be-empty field, an unparsable catalogue, a relative and an 8.3-short directory. Owning task: **Task 6** (`test_bad_entry_is_skipped_with_a_warning` (12 cases), `test_unparsable_catalogue_gives_empty_and_warns`, `test_relative_directory_still_lists_all_seven`, `test_short_8dot3_directory_still_lists_all_seven`).
 5. **Category precedence and the untranslated fallback** — R's first-match order ("wind farm" → Production, "fish farm" → Extraction, scalar / empty / NULL issues), content parity with R's source, and a category or complexity without a key rendering the raw R value, never a key string. Owning tasks: **Task 4** (`test_category_synthetic`), **Task 5** (`test_regex_table_and_order`, `test_no_unparsed_branch`), **Task 8** (`test_untranslated_category_and_complexity_show_the_raw_value`, `test_tr_value_on_a_key_miss_returns_the_value`).
 
@@ -96,7 +97,7 @@ Gallery indices: 0–6 above, then SESPy's examples 7–10 (`list_templates()` o
 
 ```powershell
 git switch docs/p2-design
-git log --oneline -1          # expect 1e3b49e docs(p2): review round 4 minors (loop converged)
+git log --oneline -1          # expect b5c903a docs(p2): implementation plan (or a later docs(p2) plan-review commit)
 git switch -c feat/p2-curated-templates
 git status --short            # expect only LITERATURE/ entries (user's, never staged)
 ```
@@ -146,7 +147,6 @@ chore(release): bump version to 1.14.0 (P2)
 First P2 commit (spec §9). No schema bump: P2 writes only schema-7 fields.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -316,7 +316,6 @@ Endpoints are str()-coerced like element ids, so integer ids match, and an
 element id of 0 is accepted.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -499,7 +498,6 @@ all 42 paths of git diff --name-status e33faea v1.31.0 with owners
 (K1, P1b, P4, not relevant) plus the 33ddd96 stakeholder check item.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -747,6 +745,44 @@ def test_catalogue_shape():
     assert sum(r["connection_count"] for r in rows) == 320
 
 
+def test_catalogue_sort_is_case_insensitive():
+    raw = {f: json.loads(json.dumps(r)) for f, r in RAW.items()}
+    raw["Aquaculture_SES_Template.json"]["template_name"] = "coastal lagoon"
+    cat = json.loads(C.build_outputs(raw, r_tag="v1.31.0", r_commit="4b53b7d")[0][C.CATALOGUE_PATH])
+    # A case-sensitive sort would put "coastal" after "Tourism".
+    assert [r["name"] for r in cat["templates"]][2] == "coastal lagoon (MarineSABRES)"
+
+
+def test_render_block_golden():
+    files = {"tests/parity/r_templates/b.json": "2" * 64, "tests/parity/r_rules/a.R": "1" * 64}
+    assert C.render_block("v1.31.0", "4b53b7d", files, []) == (
+        "- **R release:** MarineSABRES_SES_Shiny **v1.31.0**, commit `4b53b7d`.\n"
+        "\n"
+        "| File | Hash |\n"
+        "|---|---|\n"
+        f"| `tests/parity/r_rules/a.R` | `{'1' * 64}` |\n"
+        f"| `tests/parity/r_templates/b.json` | `{'2' * 64}` |\n"
+        "\n"
+        "**Accepted sync warnings:** none.")
+    accepted = [{"template": "Tourism_SES_Template", "kind": "off_rule_link",
+                 "from": "GB001", "to": "A001"},
+                {"template": "Tourism_SES_Template", "kind": "type_mismatch",
+                 "text": "connections[0] x"}]
+    assert C.render_block("v1.31.0", "4b53b7d", files, accepted).endswith(
+        "\n\n**Accepted sync warnings:**\n"
+        "- Tourism_SES_Template: off_rule_link GB001 -> A001\n"
+        "- Tourism_SES_Template: type_mismatch connections[0] x")
+
+
+def test_warning_sort_key_literal_order():
+    a = {"template": "A", "kind": "type_mismatch", "text": "z"}
+    b = {"template": "B", "kind": "off_rule_link", "from": "X", "to": "Y"}
+    c = {"template": "B", "kind": "off_rule_link"}                 # missing from/to sort as ""
+    d = {"template": "B", "kind": "off_rule_link", "from": "X", "to": "W"}
+    e = {"template": "B", "kind": "type_mismatch", "text": "a"}
+    assert sorted([e, b, d, c, a], key=C.warning_sort_key) == [a, c, d, b, e]
+
+
 # ---- fixture mode (§3.1, §3.3 step 7) -----------------------------------------
 
 def test_fixture_mode_writes_projects_and_catalogue_only(tmp_path):
@@ -805,6 +841,7 @@ def test_value_error_writes_nothing(tmp_path):
 @pytest.mark.parametrize("change,line", [
     (lambda d: d["metadata"].update(version=""), "Fisheries_SES_Template.json: empty version"),
     (lambda d: d.update(template_description=""), "Fisheries_SES_Template.json: empty description"),
+    (lambda d: d.update(connections=[]), "Fisheries_SES_Template.json: connection_count is 0"),
 ])
 def test_empty_always_non_empty_field_writes_nothing(tmp_path, change, line):
     root = _tree(tmp_path)
@@ -824,6 +861,23 @@ def test_off_rule_link_in_fixture_mode_fails_and_cannot_be_accepted(tmp_path):
                for line in res.lines)
     res = C.sync(repo_root=root, from_fixtures=True, accept_warnings=True)
     assert res.code == 1 and _snap(root) == before
+
+
+@pytest.mark.parametrize("pin", [{"files": {}}, {"r_tag": "", "r_commit": "x"}, []])
+def test_malformed_pin_exits_1_and_writes_nothing(tmp_path, pin):
+    root = _tree(tmp_path)
+    (root / C.PIN_PATH).write_bytes(json.dumps(pin).encode("utf-8"))
+    before = _snap(root)
+    res = C.sync(repo_root=root, from_fixtures=True)
+    assert res.code == 1 and "r_tag and r_commit" in res.lines[0] and _snap(root) == before
+
+
+def test_non_object_template_exits_1_and_writes_nothing(tmp_path):
+    root = _tree(tmp_path)
+    (root / "tests/parity/r_templates/Tourism_SES_Template.json").write_bytes(b"[1, 2]")
+    before = _snap(root)
+    res = C.sync(repo_root=root, from_fixtures=True)
+    assert res.code == 1 and res.lines[-1].startswith("conversion failed: ") and _snap(root) == before
 
 
 @pytest.mark.parametrize("kwargs", [
@@ -956,18 +1010,49 @@ def test_type_mismatch_entries_and_sort_order(tmp_path):
         ("Tourism_SES_Template", "off_rule_link")]
     assert set(acc[0]) == {"template", "kind", "text"}
     assert acc[0]["text"].startswith("connections[0] ") and "to_type 'welfare'" in acc[0]["text"]
-    assert acc == sorted(acc, key=C.warning_sort_key)
 
 
-def test_accepted_warning_is_scoped_to_its_template(tmp_path):
+def test_persisted_warnings_are_sorted_not_in_production_order(tmp_path):
+    # The mapper reports in connection order: GB002 first, then GB001, then
+    # the type mismatch on connections[0]. The pin must hold the
+    # (template, kind, from, to, text) order instead.
+    root, app = _tree(tmp_path), _fake_r(tmp_path)
+    tourism = app / "data" / "Tourism_SES_Template.json"
+
+    def edit_tourism(d):
+        fw = d["dapsiwrm_framework"]
+        for gb in (fw["goods_benefits"][1], fw["goods_benefits"][0]):
+            d["connections"].append({"from_id": gb["id"], "to_id": fw["activities"][0]["id"],
+                                     "polarity": "+"})
+        d["connections"][0]["to_type"] = "welfare"
+    _r_release(app, "v1.32.0", lambda a: _edit_json(tourism, edit_tourism))
+    fw = json.loads(tourism.read_bytes())["dapsiwrm_framework"]
+    gb1, gb2 = fw["goods_benefits"][0]["id"], fw["goods_benefits"][1]["id"]
+    act = fw["activities"][0]["id"]
+    assert gb1 < gb2
+    res = C.sync(repo_root=root, r_root=app, rev="v1.32.0", accept_warnings=True)
+    assert res.code == 0, res.lines
+    acc = _pin(root)["accepted_warnings"]
+    assert [(w["kind"], w.get("from"), w.get("to")) for w in acc] == [
+        ("off_rule_link", gb1, act), ("off_rule_link", gb2, act), ("type_mismatch", None, None)]
+
+
+@pytest.mark.parametrize("variant", ["other_template", "other_to", "extra_key"])
+def test_accepted_warning_matches_only_on_every_field(tmp_path, variant):
     root, app = _tree(tmp_path), _fake_r(tmp_path)
     tourism = app / "data" / "Tourism_SES_Template.json"
     _r_release(app, "v1.32.0", lambda a: _edit_json(tourism, _add_off_rule))
     fw = json.loads(tourism.read_bytes())["dapsiwrm_framework"]
+    entry = {"template": "Tourism_SES_Template", "kind": "off_rule_link",
+             "from": fw["goods_benefits"][0]["id"], "to": fw["activities"][0]["id"]}
+    if variant == "other_template":
+        entry["template"] = "Fisheries_SES_Template"       # ids like A001 repeat across templates
+    elif variant == "other_to":
+        entry["to"] = fw["activities"][1]["id"]
+    else:
+        entry["note"] = "x"
     pin = _pin(root)
-    pin["accepted_warnings"] = [{"template": "Fisheries_SES_Template", "kind": "off_rule_link",
-                                 "from": fw["goods_benefits"][0]["id"],
-                                 "to": fw["activities"][0]["id"]}]
+    pin["accepted_warnings"] = [entry]
     (root / C.PIN_PATH).write_bytes(json.dumps(pin, indent=2).encode("utf-8"))
     before = _snap(root)
     res = C.sync(repo_root=root, r_root=app, rev="v1.32.0")
@@ -976,11 +1061,13 @@ def test_accepted_warning_is_scoped_to_its_template(tmp_path):
 
 def test_accepted_warning_that_no_longer_occurs_is_dropped(tmp_path, r_app):
     root, app = _tree(tmp_path), r_app
+    assert C.sync(repo_root=root, r_root=app, rev="v1.31.0").code == 0     # clean baseline
     pin = _pin(root)
     pin["accepted_warnings"] = [{"template": "Tourism_SES_Template", "kind": "off_rule_link",
                                  "from": "GB01", "to": "A01"}]
     (root / C.PIN_PATH).write_bytes(json.dumps(pin, indent=2).encode("utf-8"))
-    assert C.sync(repo_root=root, r_root=app, rev="v1.31.0", check=True).code == 1   # pin differs
+    res = C.sync(repo_root=root, r_root=app, rev="v1.31.0", check=True)
+    assert res.code == 1 and res.lines == [f"differs: {C.PIN_PATH}"]      # only the stale entry
     res = C.sync(repo_root=root, r_root=app, rev="v1.31.0")
     assert res.code == 0, res.lines
     assert _pin(root)["accepted_warnings"] == []
@@ -1288,6 +1375,9 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
         pin_old = _read_json(repo_root / PIN_PATH)
     except (OSError, ValueError) as e:
         return SyncResult(1, [f"cannot read {PIN_PATH}: {e}"])
+    if not isinstance(pin_old, dict) or not all(
+            isinstance(pin_old.get(k), str) and pin_old[k] for k in ("r_tag", "r_commit")):
+        return SyncResult(1, [f"{PIN_PATH}: needs non-empty string r_tag and r_commit"])
     accepted_old = list(pin_old.get("accepted_warnings", []))
 
     raw_bytes: dict[str, bytes] = {}
@@ -1321,8 +1411,10 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
         raw_by_file = {f: json.loads(raw_bytes[f"data/{f}"].decode("utf-8-sig"))
                        for f in TEMPLATE_FILES}
         outputs, warnings, errors = build_outputs(raw_by_file, r_tag=r_tag, r_commit=r_commit)
-    except ValueError as e:                     # JSON or mapper error
-        return SyncResult(1, [f"conversion failed: {e}"])
+    except (ValueError, KeyError, TypeError, AttributeError) as e:
+        # JSON or mapper error, or a template that is not the expected shape
+        # (e.g. not an object): exit 1, never a traceback.
+        return SyncResult(1, [f"conversion failed: {type(e).__name__}: {e}"])
 
     lines: list[str] = []
     unaccepted = [w for w in warnings if w not in accepted_old]
@@ -1427,7 +1519,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 6: Run — GREEN**
 
-`micromamba run -n shiny python -m pytest tests/test_r_template_catalogue.py -q` → `72 passed` (≈60 s: about 15 real git repos and ~40 syncs).
+`micromamba run -n shiny python -m pytest tests/test_r_template_catalogue.py -q` → `83 passed` (≈60 s: about 15 real git repos and ~40 syncs).
 
 - [ ] **Step 7: Run the CI unit command** → green. (`--from-fixtures --check` on the real tree would still exit 1 here — nothing is shipped yet; no test asserts it before Task 5.)
 
@@ -1448,7 +1540,6 @@ with python -m from the repo root. Tests run against tmp_path copies and a
 real fake R git repo.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -1655,7 +1746,7 @@ def test_shipped_project_loads_without_off_rule_warnings(fname, caplog):
 
 - [ ] **Step 4: Run — RED**
 
-`micromamba run -n shiny python -m pytest tests/parity tests/test_r_template_catalogue.py -q` → `30 failed, 88 passed`: the 5 `test_r_category_parity.py` tests (`FileNotFoundError` for `tests/parity/r_source/template_loader.R`), `test_pin_shape` (`assert 8 == 9`), and the 24 shipped-tree tests (no `sespy/templates/marinesabres/`). `test_r_sync_md_pin_line_equals_the_pin` already passes (Task 3's block reads v1.29.0 = the current pin).
+`micromamba run -n shiny python -m pytest tests/parity tests/test_r_template_catalogue.py -q` → `30 failed, 99 passed`: the 5 `test_r_category_parity.py` tests (`FileNotFoundError` for `tests/parity/r_source/template_loader.R`), `test_pin_shape` (`assert 8 == 9`), and the 24 shipped-tree tests (no `sespy/templates/marinesabres/`). `test_r_sync_md_pin_line_equals_the_pin` already passes (Task 3's block reads v1.29.0 = the current pin).
 
 - [ ] **Step 5: Run the sync against R v1.31.0** (from the repo root)
 
@@ -1691,6 +1782,7 @@ No `warning` line (0 off-rule links, 0 type mismatches) and no other `hash` line
 - [ ] **Step 6: Check, twice, and confirm R is untouched**
 
 ```powershell
+$R = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny'
 micromamba run -n shiny python -m scripts.sync_r_templates --r-root $R --check     # no output, exit 0
 micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check  # no output, exit 0
 git -C $R rev-parse --abbrev-ref HEAD           # main (as in Task 0)
@@ -1703,7 +1795,7 @@ git -C $R status --short | Measure-Object -Line  # same count as in Task 0
 
 - [ ] **Step 8: Run — GREEN**
 
-`micromamba run -n shiny python -m pytest tests/parity tests/test_r_template_catalogue.py tests/test_r_template_mapper.py -q` → `186 passed`.
+`micromamba run -n shiny python -m pytest tests/parity tests/test_r_template_catalogue.py tests/test_r_template_mapper.py -q` → `197 passed`.
 
 - [ ] **Step 9: Run the CI unit command** → green.
 
@@ -1725,7 +1817,6 @@ committed-tree --check, the category content-parity test, and a
 non-literal pin test with 9 files.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -1771,6 +1862,13 @@ def test_list_catalogue_has_the_seven_r_templates():
             v = r.file.name if k == "file" else getattr(r, k)
             assert isinstance(v, str) and v, (r.name, k)
         assert r.element_count > 0 and r.connection_count > 0
+
+
+def test_list_catalogue_parses_no_project(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("list_catalogue must read catalogue.json only")
+    monkeypatch.setattr(tpl, "load_project", boom)
+    assert len(tpl.list_catalogue()) == 7
 
 
 def test_every_catalogue_file_loads_with_the_listed_counts():
@@ -1842,7 +1940,7 @@ def test_unparsable_catalogue_gives_empty_and_warns(tmp_path, caplog, text):
     lambda e: e.update(element_count=True),          # bool is not a count
     lambda e: e.update(file="missing.json"),         # dangling
     lambda e: e.update(file="../catalogue.json"),    # escaping
-    lambda e: e.update(file="..\\..\\x.json"),
+    lambda e: e.update(file="..\\catalogue.json"),   # Windows escape to the {} target
     lambda e: e.update(file=str(CAT_DIR.parent / "minimal_demo.json")),   # absolute, outside
     lambda e: e.update(file=""),
 ], ids=["missing-key", "empty-name", "null-category", "int-source", "zero-count",
@@ -1891,7 +1989,7 @@ def test_package_data_ships_the_marinesabres_templates():
 
 - [ ] **Step 2: Run — RED**
 
-`micromamba run -n shiny python -m pytest tests/test_templates.py -q` → `25 failed, 6 passed`: `AttributeError: module 'sespy.templates' has no attribute 'list_catalogue'` (list/load/names/bad-entry/relative/short-path tests), `AttributeError: 'TemplateInfo' object has no attribute 'group'` (the two field tests), and `test_package_data_ships_the_marinesabres_templates` (`'templates/marinesabres/*.json' in [...]` fails).
+`micromamba run -n shiny python -m pytest tests/test_templates.py -q` → `26 failed, 6 passed`: `AttributeError: module 'sespy.templates' has no attribute 'list_catalogue'` (list/no-parse/load/names/bad-entry/relative/short-path tests), `AttributeError: 'TemplateInfo' object has no attribute 'group'` (the two field tests), and `test_package_data_ships_the_marinesabres_templates` (`'templates/marinesabres/*.json' in [...]` fails).
 
 - [ ] **Step 3: Replace `sespy/templates/__init__.py` with**
 
@@ -2059,7 +2157,7 @@ sespy = ["*.json", "translations/*.json", "templates/*.json", "templates/marines
 
 - [ ] **Step 5: Run — GREEN**
 
-`micromamba run -n shiny python -m pytest tests/test_templates.py -q` → `31 passed` (on Windows with 8.3 names enabled the short-path test runs; elsewhere it skips).
+`micromamba run -n shiny python -m pytest tests/test_templates.py -q` → `32 passed` (on Windows with 8.3 names enabled the short-path test runs; elsewhere it skips).
 
 - [ ] **Step 6: Run the CI unit command** → green.
 
@@ -2078,7 +2176,6 @@ bad one with a warning. list_templates() still globs top-level *.json.
 pyproject ships templates/marinesabres/*.json.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -2302,7 +2399,6 @@ untranslated, so there is no R key to adopt). A test derives the expected
 keys from the category port, so a new R category needs a key.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -2316,7 +2412,7 @@ Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 
 **Interfaces:**
 - Consumes: `list_catalogue`, `list_templates`, `TemplateInfo` (Task 6); the Task 7 keys.
-- Produces: calc `templates()` = `list_catalogue() + list_templates()` (index 0–6 MarineSABRES, 7–10 SESPy; `MAX_TEMPLATES` stays 16); output ids `templates-group_marinesabres`, `templates-group_sespy` (`h4`, via `session.ns`, as `cld_visualization.py` does — a plain `id=` inside `render.ui` is not namespaced); card `h5` = name only (the only `h5`s in the list); `div.sespy-template-badges` of `span.badge` (category, complexity, `v<version>`, regional-sea label when set); `<details>` "About this template" when source or usage notes are set; toast unchanged `t("templates.loaded") + f" ({info.name})"`; `_tr_value(kind, value)` shows the raw value on a key miss. Settled: groups render in `GROUPS = ("marinesabres", "sespy")` order; badge classes `badge bg-secondary me-1`.
+- Produces: calc `templates()` = `list_catalogue() + list_templates()` (index 0–6 MarineSABRES, 7–10 SESPy; `MAX_TEMPLATES` stays 16); output ids `templates-group_marinesabres`, `templates-group_sespy` (`h4`, via `session.ns`, (the same `session.ns(...)` call `cld_visualization.py` uses for its controller id) — a plain `id=` inside `render.ui` is not namespaced); card `h5` = name only (the only `h5`s in the list); `div.sespy-template-badges` of `span.badge` (category, complexity, `v<version>`, regional-sea label when set); `<details>` "About this template" when source or usage notes are set; toast unchanged `t("templates.loaded") + f" ({info.name})"`; `_tr_value(kind, value)` shows the raw value on a key miss. Settled: groups render in `GROUPS = ("marinesabres", "sespy")` order; badge classes `badge bg-secondary me-1`.
 
 - [ ] **Step 1: Write the failing test file `tests/test_templates_module.py`**
 
@@ -2682,7 +2778,6 @@ pre-wired Load buttons. A category or complexity without a translation key
 shows R's raw value.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -2744,6 +2839,8 @@ async def main():
         # Load the Coastal Tourism SES card, found by its exact h5 text (index
         # 0 is now the Caribbean MarineSABRES template).
         idx = cards.index(TARGET)
+        # The h5s render before Shiny binds the buttons; an unbound click is lost.
+        await page.wait_for_selector(f"#templates-load_template_{idx}.shiny-bound-input", timeout=15000)
         await page.click(f"#templates-load_template_{idx}")
         # The load can only be proven by its own success toast. Coastal
         # Tourism SES (sespy/templates/coastal_tourism.json) is graph-identical
@@ -2763,7 +2860,8 @@ async def main():
             timeout=30000,
         )
 
-        # Switch to CLD: it shows the loaded template's 17 elements.
+        # Sanity check only (the toast above is the proof): the CLD still
+        # shows 17 nodes, as it would for the seeded sample.
         await page.click("#sespy_nav_cld")
         n = None
         for _ in range(30):
@@ -2775,7 +2873,7 @@ async def main():
                 break
             await page.wait_for_timeout(500)
         print(f"CLD nodes after template load: {n}")
-        assert n == 17, f"CLD should show Coastal Tourism SES's 17 elements: {n} nodes"
+        assert n == 17, f"CLD should show 17 nodes after loading Coastal Tourism SES: {n}"
 
         await page.screenshot(path="tests/screenshots/templates.png")
         print("\ntemplates e2e assertions pass")
@@ -2848,6 +2946,8 @@ async def main():
         print(f"card {idx}: {NAME} badges {badges}")
 
         # ---- Load: toast with the name, then exactly 23 CLD nodes ------------
+        # The h5s render before Shiny binds the buttons; an unbound click is lost.
+        await page.wait_for_selector(f"#templates-load_template_{idx}.shiny-bound-input", timeout=15000)
         await page.click(f"#templates-load_template_{idx}")
         await page.wait_for_function(
             """(name) => Array.from(document.querySelectorAll('.shiny-notification'))
@@ -2906,7 +3006,6 @@ group headers, the Offshore Wind Energy (MarineSABRES) badges, the toast,
 and exactly 23 CLD nodes after loading it.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -2930,7 +3029,7 @@ with
 ```
 **Controls.** 11 templates in two groups: "MarineSABRES templates" (the 7 curated templates of the R MarineSABRES SES Toolbox) and "SESPy examples" (SESPy's own 4). One card per template with its name, size and description, and a "Load" button. A MarineSABRES card also shows badges for its category, its complexity ("Simple" or "Complex"), its template version and its regional sea, and a collapsed "About this template" section with the template's source and usage notes. A SESPy example shows its demonstration area instead. Loading replaces the current project, so save first if you want to keep your work; the panel says so at the top.
 
-**Shipped templates: MarineSABRES.** R's template names with " (MarineSABRES)" appended, so they never clash with SESPy's examples: Caribbean Island - Comprehensive SES Template (78 elements, 140 connections, Caribbean Sea, complex), Climate Change (25 and 28, Arctic Ocean), Coastal Lagoon (28 and 30, Baltic Sea), Fisheries (26 and 33, Baltic Sea), Offshore Wind Energy (23 and 27, North Sea, complex), Pollution (28 and 29, Baltic Sea), Tourism (26 and 33, Mediterranean Sea). "Coastal Lagoon (MarineSABRES)" is R's aquaculture template: R names it "Coastal Lagoon", and SESPy keeps R's name. The templates are converted from R release v1.31.0 without loss: R's Measures appear as Responses, and every link keeps its sign, strength, confidence and description. The Caribbean template is large; analyses with a node limit (Boolean allows at most 12 nodes) say so instead of running.
+**Shipped templates: MarineSABRES.** R's template names with " (MarineSABRES)" appended, so they never clash with SESPy's examples: Caribbean Island - Comprehensive SES Template (78 elements, 140 connections, Caribbean Sea, complex), Climate Change (25 and 28, Arctic Ocean), Coastal Lagoon (28 and 30, Baltic Sea), Fisheries (26 and 33, Baltic Sea), Offshore Wind Energy (23 and 27, North Sea, complex), Pollution (28 and 29, Baltic Sea), Tourism (26 and 33, Mediterranean Sea). "Coastal Lagoon (MarineSABRES)" is R's aquaculture template: R names it "Coastal Lagoon", and SESPy keeps R's name. The templates are converted from R release v1.31.0: R's Measures appear as Responses, every link keeps its sign, strength and description, and its confidence (kept within SESPy's 1–5 scale); R records no delays, so every link starts as "immediate". The Caribbean template is large; analyses with a node limit (Boolean allows at most 12 nodes) say so instead of running.
 
 **Shipped templates: SESPy examples.** Coastal Tourism SES (17 elements, 20 connections, Tuscan Archipelago), Minimal Demo (5 and 6, a positive three-cycle plus a mutually activating pair, useful for learning the analyses), Offshore Wind Farm SES (19 and 21, Macaronesia), Small-scale Coastal Fisheries SES (18 and 22, Arctic Northeast Atlantic).
 ```
@@ -3033,7 +3132,6 @@ git commit -m @'
 docs(release): 1.14.0 changelog, manual templates section, templates screenshot (P2)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -3204,7 +3302,6 @@ stakeholder roles, P4 D5.4 governance and readiness, allow-list WP5 files,
 i18n note for SESPy-only core.json keys.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 git worktree remove <scratchpad>\p2-roadmap
 ```
@@ -3214,13 +3311,15 @@ Pushing `docs/r-parity-roadmap` happens in Task 13 Step 7, with the user's go-ah
 
 ### Task 12: Gates — CI unit, sync check, full e2e, MosaicSES, reviews (README count commit only)
 
-- [ ] **Step 1: CI unit command** on the branch tip → green (≈1209 passed, 1 skipped).
+- [ ] **Step 1: CI unit command** on the branch tip → green (≈1221 passed, 1 skipped).
 
 - [ ] **Step 2: Sync check at the pin**
 
 ```powershell
+$R = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny'
 micromamba run -n shiny python -m scripts.sync_r_templates --r-root $R --check     # exit 0, no output
 micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check  # exit 0, no output
+micromamba run -n shiny python -m ruff check sespy tests app.py scripts             # All checks passed!
 ```
 
 - [ ] **Step 3: Full e2e gate, detached** (the Bash tool kills anything past 10 min even backgrounded). Port 8000 free, nothing heavy running:
@@ -3229,7 +3328,7 @@ Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
 $log = "<scratchpad>\e2e-p2.log"
 Start-Process micromamba.exe -ArgumentList "run -n shiny python -u tests/run_e2e.py" -RedirectStandardOutput $log -RedirectStandardError "$log.err" -WindowStyle Hidden
 ```
-Poll in bounded PowerShell calls (`Start-Sleep -Seconds 240; Get-Content $log -Tail 15`) until the summary prints; do not park on a background monitor. Expected: every script PASS, including the new `test_r_templates_e2e.py` and the updated `test_templates_e2e.py` (one more script than the last green run). Any red: rerun that script **solo** (Task 9 Step 4 procedure) before believing it; green solo = load flake, red solo = regression (new i18n labels can collide with another module's selector: scope it). After the run: port 8000 free, `git status --short` shows only the user's `LITERATURE/` entries, and sweep orphans:
+Poll in bounded PowerShell calls (`Start-Sleep -Seconds 240; Get-Content '<scratchpad>\e2e-p2.log' -Tail 15` — literal path, `$log` is gone in a new call) until the summary prints; do not park on a background monitor. Expected: every script PASS, including the new `test_r_templates_e2e.py` and the updated `test_templates_e2e.py` (one more script than the last green run). Any red: rerun that script **solo** (Task 9 Step 4 procedure) before believing it; green solo = load flake, red solo = regression (new i18n labels can collide with another module's selector: scope it). After the run: port 8000 free, `git status --short` shows only the user's `LITERATURE/` entries, and sweep orphans:
 ```powershell
 Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.CreationDate -gt (Get-Date).AddHours(-2) } | Select-Object ProcessId, CreationDate, CommandLine
 ```
@@ -3243,7 +3342,6 @@ git commit -m @'
 docs(readme): e2e script count after P2's test_r_templates_e2e.py
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
 
@@ -3253,9 +3351,9 @@ Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
 $mlog = "<scratchpad>\mosaicses-p2.log"
 Start-Process micromamba.exe -ArgumentList "run -n shiny python -m pytest tests -q -p no:cacheprovider" -WorkingDirectory "C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\MosaicSES" -RedirectStandardOutput $mlog -RedirectStandardError "$mlog.err" -WindowStyle Hidden
 ```
-Poll with bounded `Start-Sleep -Seconds 240; Get-Content $mlog -Tail 5` calls. Expected: all green. Never gate MosaicSES on `-k "not e2e"`. P2 changes no serialisation and no module MosaicSES reuses (MosaicSES does not import `sespy.templates`), so a red here is environmental until shown otherwise — rerun the failing test solo, then triage.
+Poll with bounded `Start-Sleep -Seconds 240; Get-Content '<scratchpad>\mosaicses-p2.log' -Tail 5` calls (literal path). Expected: all green. Never gate MosaicSES on `-k "not e2e"`. P2 changes no serialisation and no module MosaicSES reuses (MosaicSES does not import `sespy.templates`), so a red here is environmental until shown otherwise — rerun the failing test solo, then triage.
 
-- [ ] **Step 6: Implementation review loop** — superpowers:requesting-code-review over `1e3b49e..HEAD`, repeated until a round finds no Critical or Important issues; each fix is its own commit followed by the CI unit command (and `--check`).
+- [ ] **Step 6: Implementation review loop** — superpowers:requesting-code-review over `docs/p2-design..HEAD` (the implementation commits only, not the spec/plan), repeated until a round finds no Critical or Important issues; each fix is its own commit followed by the CI unit command (and `--check`).
 
 ---
 
@@ -3263,30 +3361,31 @@ Poll with bounded `Start-Sleep -Seconds 240; Get-Content $mlog -Tail 5` calls. E
 
 - [ ] **Step 1 (user go-ahead): Merge onto `origin/main` in a temp worktree** (local `main` may be behind, and the untracked `LITERATURE/` files block a fast-forward in the main checkout):
 ```powershell
+$W = '<scratchpad>\sespy-release'
 git fetch origin
-git -c core.longpaths=true worktree add <scratchpad>\sespy-release origin/main
-cd <scratchpad>\sespy-release
-git switch -c release/1.14.0
-git merge --no-ff feat/p2-curated-templates -m @'
+git -c core.longpaths=true worktree add $W origin/main
+git -C $W switch -c release/1.14.0
+git -C $W merge --no-ff feat/p2-curated-templates -m @'
 Merge v1.14.0 (P2: curated R templates in the gallery) into main
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Qp36XeWVVjTmQinjy7ZtUX
 '@
 ```
-Conflicts are possible only in `CHANGELOG.md`/`LITERATURE/` (origin/main carries literature-alert commits); keep both sides. Then in the worktree run the CI unit command → green, and `micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check` → exit 0.
+Conflicts are possible only in `CHANGELOG.md`/`LITERATURE/` (origin/main carries literature-alert commits); keep both sides. Set the `## [1.14.0]` date in `CHANGELOG.md` to the actual release date if it differs (amend nothing: a separate commit in the worktree). Then, in **one** PowerShell call starting with `Set-Location '<scratchpad>\sespy-release'`, run the CI unit command → green, and `micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check` → exit 0.
 
 - [ ] **Step 2 (user go-ahead): Push and tag**
 ```powershell
-git push origin release/1.14.0:main
-git tag -a v1.14.0 -m "v1.14.0 — P2: curated R templates in the gallery"
-git push origin v1.14.0
+$W = '<scratchpad>\sespy-release'
+git -C $W push origin release/1.14.0:main
+git -C $W tag -a v1.14.0 -m "v1.14.0 — P2: curated R templates in the gallery"
+git -C $W push origin v1.14.0
 ```
 
 - [ ] **Step 3 (user go-ahead): Deploy from the worktree**
 ```powershell
-Copy-Item "C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESPy\deploy\config.env" deploy\config.env   # gitignored, not in the worktree
-bash deploy/deploy.sh
+$W = '<scratchpad>\sespy-release'
+Copy-Item "C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESPy\deploy\config.env" "$W\deploy\config.env"   # gitignored, not in the worktree
+Set-Location $W; bash deploy/deploy.sh
 ```
 Expected: `==> Deploying SESPy v1.14.0 to ...`. `deploy.sh` ships the whole `sespy/` (so `templates/marinesabres/` goes too) and not `scripts/`/`tests/`. The deployed `sespy/` is symlinked into the live MosaicSES, so this deploy changes MosaicSES immediately.
 
@@ -3311,10 +3410,10 @@ assert (p.isa_data.element_count(), p.isa_data.connection_count()) == (23, 27)
 assert p.metadata.origin == "r_template" and p.metadata.r_template_version == "2.2"
 print("P2 gallery OK:", sespy.__file__, wind.file)
 ```
-Then, in the **Bash tool** from the worktree (`config.env` is bash syntax; scratchpad path with forward slashes):
+Then, in **one** Bash tool call (`config.env` is bash syntax; scratchpad path with forward slashes; the `cd` must be in the same command because the cwd resets between calls):
 ```bash
-source deploy/config.env
-scp "<scratchpad>/verify_p2.py" "$DEPLOY_SERVER:/tmp/verify_p2.py"
+cd "<scratchpad>/sespy-release" && source deploy/config.env && \
+scp "<scratchpad>/verify_p2.py" "$DEPLOY_SERVER:/tmp/verify_p2.py" && \
 ssh "$DEPLOY_SERVER" "cd '$DEPLOY_DIR' && /opt/micromamba/envs/shiny/bin/python3 -s /tmp/verify_p2.py; rm -f /tmp/verify_p2.py"
 ```
 Expected: `P2 gallery OK: <DEPLOY_DIR>/sespy/__init__.py <DEPLOY_DIR>/sespy/templates/marinesabres/OffshoreWind_SES_Template.json` (this also proves the new JSONs reached the server). Then open the live SESPy app in a browser → Templates: both group headers show, the Caribbean card shows its badges, and loading "Offshore Wind Energy (MarineSABRES)" gives the toast and a 23-node CLD.
@@ -3323,9 +3422,8 @@ Expected: `P2 gallery OK: <DEPLOY_DIR>/sespy/__init__.py <DEPLOY_DIR>/sespy/temp
 
 - [ ] **Step 6: Recheck the live MosaicSES**
 ```powershell
-cd ..\MosaicSES
+Set-Location 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\MosaicSES'
 micromamba run -n shiny python deploy/verify_live.py
-cd ..\SESPy
 ```
 Expected: all checks pass (HTTP 200, nav renders, scenario authored, sibling apps answer).
 
@@ -3334,9 +3432,9 @@ Expected: all checks pass (HTTP 200, nav renders, scenario authored, sibling app
 git push origin docs/r-parity-roadmap
 ```
 
-- [ ] **Step 8: Clean up**
+- [ ] **Step 8 (user go-ahead: it deletes a branch and moves `main`): Clean up** — from the SESPy repo root (a fresh call starts there; never from inside the worktree being removed)
 ```powershell
-git worktree remove <scratchpad>\sespy-release
+git worktree remove '<scratchpad>\sespy-release'
 git fetch origin
 git log --oneline origin/main..feat/p2-curated-templates   # must print nothing (all merged)
 git branch -D feat/p2-curated-templates                    # -D: local main never received the merge

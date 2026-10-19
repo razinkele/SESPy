@@ -414,7 +414,7 @@ Critical/Important.
   ships stamped v1.29.0 and every commit is green; then the gallery, e2e and
   docs.
 - `docs/parity/R_SYNC.md` (hand edits, outside the markers):
-  - wrap only the pin line and the hash table of "## Current pin" in
+  - wrap only the generated block (pin line, hash table and accepted-warnings line, §3.3 step 6) of "## Current pin" in
     `<!-- r-sync:begin -->` / `<!-- r-sync:end -->`; move the "Adopted in" and
     "Roadmap baseline" bullets outside the block and reword them ("Adopted in
     SESPy 1.14.0"; baseline moved v1.29.0 → v1.31.0, pinned files unchanged);
