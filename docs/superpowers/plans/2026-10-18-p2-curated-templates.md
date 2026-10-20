@@ -18,7 +18,7 @@
 - Every commit message ends with exactly this trailer line (the model name may be the implementer's own):
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 - Commit messages are multi-line: use the **PowerShell tool** with a single-quoted here-string (`git commit -m @'...'@` with `'@` at column 0). Never a PowerShell here-string in the Bash tool (it leaks a literal `@`).
-- CI unit command (every task must end green on it): `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q` (≈6 min; baseline measured while planning on `1e3b49e`: **1052 passed, 1 skipped**; ≈**1223 passed, 1 skipped** at the end — `tests/test_r_template_catalogue.py` alone is ≈60 s because it builds real git repos).
+- CI unit command (every task must end green on it): `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q` (≈6 min; baseline measured while planning on `1e3b49e`: **1052 passed, 1 skipped**; ≈**1224 passed, 1 skipped** at the end (`tests/test_no_deprecations.py` walks `sespy` and gains one case per new module) — `tests/test_r_template_catalogue.py` alone is ≈60 s because it builds real git repos).
 - **Shell state does not persist between tool calls**: every PowerShell / Bash call starts in the repo root with no variables. Each code block below is meant as **one** call and defines every variable it uses (`$R`, `$W`, `$log`, …); never rely on a `cd` or a variable from an earlier block. `<scratchpad>` means the session scratchpad's absolute path (substitute it literally).
 - Lint (CI runs `ruff check sespy tests app.py`): the local ruff 0.15.4 already reports **54 errors on the untouched tree** (50 I001, 2 E741, 1 E501, 1 F821; measured on `d6b280c`) — do not fix those. The P2 lint gate, at every commit, is: (a) the P2 files are clean — `micromamba run -n shiny python -m ruff check sespy/r_template_catalogue.py sespy/templates/__init__.py sespy/modules/templates.py sespy/r_template_mapper.py scripts tests/test_r_template_catalogue.py tests/test_templates.py tests/test_templates_module.py tests/parity` → `All checks passed!` (only files that exist yet); and (b) no new errors elsewhere — `micromamba run -n shiny python -m ruff check sespy tests app.py --statistics` still totals 54.
 - Edits are placed by **quoted anchor**, never by line number (the working copy is CRLF under `core.autocrlf=true`; the Edit tool handles that).
@@ -711,6 +711,11 @@ def test_build_is_deterministic_lf_and_newline_terminated():
         assert data.endswith(b"}\n") and b"\r" not in data
     cat = a[C.CATALOGUE_PATH]          # spec §3.3 step 5: indent=2, ensure_ascii=False
     assert cat == (json.dumps(json.loads(cat), indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    # The 7 real names are pure ASCII, so only a non-ASCII name can tell the two settings apart.
+    raw = {f: json.loads(json.dumps(r)) for f, r in RAW.items()}
+    raw["Aquaculture_SES_Template.json"]["template_name"] = "Ålands skärgård"
+    cat = C.build_outputs(raw, r_tag="v1.31.0", r_commit="4b53b7d")[0][C.CATALOGUE_PATH]
+    assert "Ålands skärgård (MarineSABRES)".encode("utf-8") in cat and b"\\u00c5" not in cat
 
 
 @pytest.mark.parametrize("fname", C.TEMPLATE_FILES)
@@ -3333,15 +3338,15 @@ sys.exit(1 if bad else 0)
 ```powershell
 $f = '<scratchpad>\p2-roadmap\docs\superpowers\specs\2026-10-16-r-parity-roadmap-design.md'
 micromamba run -n shiny python -I <scratchpad>\roadmap_edits.py $f $f    # 16/16 edits applied
-git -C <scratchpad>\p2-roadmap diff --ignore-cr-at-eol --stat             # 1 file, ~53 insertions, ~20 deletions
+git -c core.longpaths=true -C <scratchpad>\p2-roadmap diff --ignore-cr-at-eol --stat             # 1 file, ~53 insertions, ~20 deletions
 ```
 (The script normalises to LF; git normalises line endings on add, so the diff is content only.)
 
 - [ ] **Step 4: Commit on the roadmap branch**
 
 ```powershell
-git -C <scratchpad>\p2-roadmap add docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md
-git -C <scratchpad>\p2-roadmap commit -m @'
+git -c core.longpaths=true -C <scratchpad>\p2-roadmap add docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md
+git -c core.longpaths=true -C <scratchpad>\p2-roadmap commit -m @'
 docs(roadmap): P2 shipped as v1.14.0; re-pin v1.31.0 and triage owners
 
 Header pin/version, the P2 section (marinesabres/ + catalogue.json,
@@ -3352,7 +3357,7 @@ i18n note for SESPy-only core.json keys.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 '@
-git worktree remove <scratchpad>\p2-roadmap
+git -c core.longpaths=true worktree remove <scratchpad>\p2-roadmap
 ```
 Pushing `docs/r-parity-roadmap` happens in Task 13 Step 7, with the user's go-ahead.
 
@@ -3360,7 +3365,7 @@ Pushing `docs/r-parity-roadmap` happens in Task 13 Step 7, with the user's go-ah
 
 ### Task 12: Gates — CI unit, sync check, full e2e, MosaicSES, reviews (README count commit only)
 
-- [ ] **Step 1: CI unit command** on the branch tip → green (≈1223 passed, 1 skipped).
+- [ ] **Step 1: CI unit command** on the branch tip → green (≈1224 passed, 1 skipped).
 
 - [ ] **Step 2: Sync check at the pin**
 
@@ -3414,8 +3419,8 @@ Poll with bounded `Start-Sleep -Seconds 240; Get-Content '<scratchpad>\mosaicses
 $W = '<scratchpad>\sespy-release'
 git fetch origin
 git -c core.longpaths=true worktree add $W origin/main
-git -C $W switch -c release/1.14.0
-git -C $W merge --no-ff feat/p2-curated-templates -m @'
+git -c core.longpaths=true -C $W switch -c release/1.14.0
+git -c core.longpaths=true -C $W merge --no-ff feat/p2-curated-templates -m @'
 Merge v1.14.0 (P2: curated R templates in the gallery) into main
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -3426,9 +3431,9 @@ Conflicts are possible only in `CHANGELOG.md`/`LITERATURE/` (origin/main carries
 - [ ] **Step 2 (user go-ahead): Push and tag**
 ```powershell
 $W = '<scratchpad>\sespy-release'
-git -C $W push origin release/1.14.0:main
-git -C $W tag -a v1.14.0 -m "v1.14.0 — P2: curated R templates in the gallery"
-git -C $W push origin v1.14.0
+git -c core.longpaths=true -C $W push origin release/1.14.0:main
+git -c core.longpaths=true -C $W tag -a v1.14.0 -m "v1.14.0 — P2: curated R templates in the gallery"
+git -c core.longpaths=true -C $W push origin v1.14.0
 ```
 
 - [ ] **Step 3 (user go-ahead): Deploy from the worktree**
@@ -3484,7 +3489,7 @@ git push origin docs/r-parity-roadmap
 
 - [ ] **Step 8 (user go-ahead: it deletes a branch and moves `main`): Clean up** — from the SESPy repo root (a fresh call starts there; never from inside the worktree being removed)
 ```powershell
-git worktree remove '<scratchpad>\sespy-release'
+git -c core.longpaths=true worktree remove '<scratchpad>\sespy-release'
 git fetch origin
 git log --oneline origin/main..feat/p2-curated-templates   # must print nothing (all merged)
 git branch -D feat/p2-curated-templates                    # -D: local main never received the merge
