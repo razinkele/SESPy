@@ -1,0 +1,97 @@
+{
+  "r_tag": "v1.31.0",
+  "r_commit": "4b53b7d",
+  "templates": [
+    {
+      "file": "Caribbean_SES_Template.json",
+      "name": "Caribbean Island - Comprehensive SES Template (MarineSABRES)",
+      "description": "Comprehensive Social-Ecological System template for Caribbean islands focusing on major marine and coastal challenges including Sargassum invasions, coral reef degradation, chemical contamination, habitat loss, and overfishing",
+      "category": "Multi-Stressor",
+      "complexity": "complex",
+      "version": "1.1",
+      "regional_sea_label": "Caribbean Sea",
+      "source": "Based on comprehensive analysis of Caribbean marine environmental challenges 2011-2023",
+      "usage_notes": "This template represents the complex, multi-faceted marine environmental challenges facing Caribbean islands. It can be adapted for other tropical island contexts by adjusting specific regional seas, ecosystem types, and local pollutants. The template emphasizes the interconnected nature of problems (Sargassum, coral bleaching, contamination, overfishing, habitat loss) and the need for integrated coastal zone management approaches.",
+      "element_count": 78,
+      "connection_count": 140
+    },
+    {
+      "file": "ClimateChange_SES_Template.json",
+      "name": "Climate Change (MarineSABRES)",
+      "description": "Social-ecological system template for climate change impacts on marine ecosystems, covering warming, acidification, sea level rise, species distribution shifts, and adaptation responses.",
+      "category": "Climate",
+      "complexity": "simple",
+      "version": "2.2",
+      "regional_sea_label": "Arctic Ocean",
+      "source": "Rebuilt from ses_knowledge_db.json context: arctic_sea_ice",
+      "usage_notes": "",
+      "element_count": 25,
+      "connection_count": 28
+    },
+    {
+      "file": "Aquaculture_SES_Template.json",
+      "name": "Coastal Lagoon (MarineSABRES)",
+      "description": "Social-ecological system template for coastal lagoon ecosystems, covering eutrophication, fisheries, habitat change, and management responses. Applicable to Baltic and Mediterranean lagoon systems.",
+      "category": "Production",
+      "complexity": "simple",
+      "version": "2.1",
+      "regional_sea_label": "Baltic Sea",
+      "source": "Rebuilt from ses_knowledge_db.json context: baltic_lagoon",
+      "usage_notes": "",
+      "element_count": 28,
+      "connection_count": 30
+    },
+    {
+      "file": "Fisheries_SES_Template.json",
+      "name": "Fisheries (MarineSABRES)",
+      "description": "Social-ecological system template for marine fisheries, covering fishing activities, stock depletion pressures, ecosystem service impacts, and fisheries management responses. Applicable to temperate offshore systems.",
+      "category": "Extraction",
+      "complexity": "simple",
+      "version": "2.3",
+      "regional_sea_label": "Baltic Sea",
+      "source": "Rebuilt from ses_knowledge_db.json context: baltic_offshore",
+      "usage_notes": "",
+      "element_count": 26,
+      "connection_count": 33
+    },
+    {
+      "file": "OffshoreWind_SES_Template.json",
+      "name": "Offshore Wind Energy (MarineSABRES)",
+      "description": "Social-ecological system template for offshore wind energy development, covering construction and operation pressures on marine ecosystems, energy production benefits, and spatial planning responses.",
+      "category": "Energy",
+      "complexity": "complex",
+      "version": "2.2",
+      "regional_sea_label": "North Sea",
+      "source": "Rebuilt from ses_knowledge_db.json context: north_sea_offshore",
+      "usage_notes": "",
+      "element_count": 23,
+      "connection_count": 27
+    },
+    {
+      "file": "Pollution_SES_Template.json",
+      "name": "Pollution (MarineSABRES)",
+      "description": "Social-ecological system template for marine pollution, covering chemical and nutrient contamination, habitat degradation, human welfare impacts, and environmental regulation responses. Applicable to estuarine and coastal systems.",
+      "category": "Pollution",
+      "complexity": "simple",
+      "version": "2.3",
+      "regional_sea_label": "Baltic Sea",
+      "source": "Rebuilt from ses_knowledge_db.json context: baltic_estuary",
+      "usage_notes": "",
+      "element_count": 28,
+      "connection_count": 29
+    },
+    {
+      "file": "Tourism_SES_Template.json",
+      "name": "Tourism (MarineSABRES)",
+      "description": "Social-ecological system template for coastal tourism impacts, covering recreational activities, habitat disturbance pressures, ecosystem service degradation, and sustainable tourism responses. Applicable to Mediterranean and temperate coastal systems.",
+      "category": "Recreation",
+      "complexity": "simple",
+      "version": "2.2",
+      "regional_sea_label": "Mediterranean Sea",
+      "source": "Rebuilt from ses_knowledge_db.json context: mediterranean_rocky_shore",
+      "usage_notes": "",
+      "element_count": 26,
+      "connection_count": 33
+    }
+  ]
+}

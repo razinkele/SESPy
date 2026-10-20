@@ -1,6 +1,6 @@
 # SESPy User Manual
 
-**Version 1.13.0 · October 2026**
+**Version 1.14.0 · October 2026**
 
 SESPy is the Python port of the MarineSABRES Social-Ecological Systems (SES) Toolbox. It helps a facilitator and a group of stakeholders build a causal loop diagram of a marine social-ecological system, typed with the DAPSI(W)R(M) framework, and then interrogate that diagram: which feedback loops it contains, which elements carry leverage, where governance does not reach the pressures it should, how robust the structure is, and what an intervention might propagate into.
 
@@ -125,9 +125,11 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Purpose.** Start from a ready-made domain project instead of the sample.
 
-**Controls.** One card per template with its name, size, demonstration area and description, and a "Load" button. Loading replaces the current project, so save first if you want to keep your work; the panel says so at the top.
+**Controls.** 11 templates in two groups: "MarineSABRES templates" (the 7 curated templates of the R MarineSABRES SES Toolbox) and "SESPy examples" (SESPy's own 4). One card per template with its name, size and description, and a "Load" button. A MarineSABRES card also shows badges for its category, its complexity ("Simple" or "Complex"), its template version and its regional sea, and a collapsed "About this template" section with the template's source and usage notes. A SESPy example shows its demonstration area instead. Loading replaces the current project, so save first if you want to keep your work; the panel says so at the top.
 
-**Shipped templates.** Coastal Tourism SES (17 elements, 20 connections, Tuscan Archipelago), Minimal Demo (5 and 6, a positive three-cycle plus a mutually activating pair, useful for learning the analyses), Offshore Wind Farm SES (19 and 21, Macaronesia), Small-scale Coastal Fisheries SES (18 and 22, Arctic Northeast Atlantic).
+**Shipped templates: MarineSABRES.** R's template names with " (MarineSABRES)" appended, so they never clash with SESPy's examples: Caribbean Island - Comprehensive SES Template (78 elements, 140 connections, Caribbean Sea, complex), Climate Change (25 and 28, Arctic Ocean), Coastal Lagoon (28 and 30, Baltic Sea), Fisheries (26 and 33, Baltic Sea), Offshore Wind Energy (23 and 27, North Sea, complex), Pollution (28 and 29, Baltic Sea), Tourism (26 and 33, Mediterranean Sea). "Coastal Lagoon (MarineSABRES)" is R's aquaculture template: R names it "Coastal Lagoon", and SESPy keeps R's name. The templates are converted from R release v1.31.0: R's Measures appear as Responses, every link keeps its sign, strength and description, and its confidence (kept within SESPy's 1–5 scale); R records no delays, so every link starts as "immediate". The Caribbean template is large; analyses with a node limit (Boolean allows at most 12 nodes) say so instead of running.
+
+**Shipped templates: SESPy examples.** Coastal Tourism SES (17 elements, 20 connections, Tuscan Archipelago), Minimal Demo (5 and 6, a positive three-cycle plus a mutually activating pair, useful for learning the analyses), Offshore Wind Farm SES (19 and 21, Macaronesia), Small-scale Coastal Fisheries SES (18 and 22, Arctic Northeast Atlantic).
 
 ## 8. SES Wizard
 

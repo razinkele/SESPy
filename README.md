@@ -337,7 +337,7 @@ review → TDD → review → full-e2e cycle. All 9 UI languages stay in sync.
 |---|---|---|
 | **PIMS Project Setup** (`sespy/modules/pims_project.py`) | `modules/pims_module.R` (PROJECT SETUP) | Two-column form for project context: name, demonstration area, focal issue, definition statement, temporal/spatial scale, system in focus. Persists to project metadata via a parallel `project_metadata` reactive. |
 | **PIMS Stakeholders** (`sespy/modules/pims_stakeholders.py`) | `modules/pims_module.R` (STAKEHOLDERS) | Stakeholder register — name, organisation, role, interest/influence — feeding the multi-rater panel in Rate Connections. |
-| **Templates** (`sespy/modules/templates.py`) | `modules/template_ses_module.R` | Picker for built-in starter projects (Offshore Wind, Coastal Tourism, Small-scale Fisheries). |
+| **Templates** (`sespy/modules/templates.py`) | `modules/template_ses_module.R` | Picker for built-in starter projects in two groups: R's 7 curated MarineSABRES templates (badges for category, complexity, version, regional sea) and SESPy's 4 examples (Offshore Wind, Coastal Tourism, Small-scale Fisheries, Minimal Demo). |
 | **SES Wizard** (`sespy/modules/ai_isa_wizard.py`) | `modules/ai_isa_assistant_module.R` (and `ai_isa/`) | 12-step DAPSI(W)R(M) wizard with confirmation modal, live writes per step, and a stub `suggest_connections()` ready for SP3/SP4 scoring backends. |
 | **Edit Data** (`sespy/modules/isa_data_entry.py`) | `modules/isa_data_entry_module.R` | Add/remove elements & connections live; auto-IDs by DAPSIWRM type; cascading delete keeps the data validator-clean. |
 | **Rate Connections** (`sespy/modules/rate_connections.py`) | *new (QSEM multi-rater)* | Stakeholders from the PIMS register each rate a connection; a materialized-consensus model derives the scalars every analysis reads, plus a contested-edges column/filter. |
@@ -413,7 +413,7 @@ enabling the Claude backend.
 | `sespy/network.py` | `to_digraph`, `feedback_loops`, `loop_polarity`, `classify_loops`, `centrality_metrics`, `top_n_by_metric`, `leverage_scores`, `intervention_impact`, `remove_nodes`, `simplify_by_strength`, `simplify_top_n_edges` — networkx-based port of `functions/network_analysis.R` helpers. |
 | `sespy/excel_import.py` | Pandas/openpyxl-based parser with column-name fallbacks (`from`/`source`, `to`/`target`, `Name`/`Label`, etc.). Reuses the JSON validator so error stories are consistent. |
 | `sespy/report.py` | Jinja2 template + WeasyPrint (PDF) + python-docx (Word). Three export formats from one content model. |
-| `sespy/templates/` | Built-in starter projects: Offshore Wind, Coastal Tourism, Small-scale Fisheries. `list_templates()` discovers `*.json` files. |
+| `sespy/templates/` | Built-in starter projects: SESPy's examples (Offshore Wind, Coastal Tourism, Small-scale Fisheries, Minimal Demo), discovered by `list_templates()` from the top-level `*.json` files, and in `marinesabres/` R's 7 curated templates, pre-converted by `python -m scripts.sync_r_templates` and listed by `list_catalogue()` from the generated `catalogue.json`. |
 | `sespy/constants.py` | DAPSI element types, Kumu-style colors and shapes, hierarchical level numbers, font/size scales, edge colors, polarity labels. |
 | `www/sespy-skin.css` | Visual port of `bs4dash-custom.css` "Deep Ocean Scientific" theme. Tokens (`--ocean-*`, `--bio-*`, `--foam-*`, `--mist-*`) lifted verbatim; selectors re-authored for bslib's DOM. Fonts: DM Sans + Source Serif 4. |
 
@@ -465,7 +465,7 @@ micromamba run -n shiny pytest tests/ -q \
   --ignore-glob='*e2e*' --ignore=tests/test_burger.py \
   --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py
 
-# Full Playwright e2e — one command boots the server, runs all 31 browser
+# Full Playwright e2e — one command boots the server, runs all 34 browser
 # scripts, and handles the wizard's ANTHROPIC_API_KEY two-pass:
 micromamba run -n shiny python tests/run_e2e.py
 ```
@@ -477,7 +477,7 @@ writes `docs/screenshots/*.png`, not part of the e2e gate):
 micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000
 ```
 
-696 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+1227 unit tests + 34 standalone Playwright scripts (35 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
@@ -548,7 +548,7 @@ hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
 
 ## Testing
 
-**258 unit tests** across:
+**1227 unit tests** across:
 
 - `tests/test_network.py` — graph metrics (centralities, leverage, loops, polarity, top-N, intervention impact, simplification)
 - `tests/test_persistent_storage.py` — save/load roundtrip, atomic writes, validation
@@ -557,14 +557,16 @@ hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
 - `tests/test_report.py` — HTML structure, PDF round-trip, Word docx round-trip
 - `tests/test_autosave.py` — write/read/clear/age, corrupt-file safety
 - `tests/test_recent_projects.py` — registry add/remove/dedupe, missing-file filtering, MAX_RECENT cap
-- `tests/test_templates.py` — every template loads and validates, distinct names, populated metadata
+- `tests/test_templates.py` — every template loads and validates, distinct names, populated metadata; the MarineSABRES catalogue listing (bad entries skipped, package data)
+- `tests/test_templates_module.py` — the Templates panel in memory: group headers, badges, loading by index
+- `tests/test_r_template_catalogue.py` — the R template sync (`scripts/sync_r_templates.py`): category port, catalogue, drift guard against the pinned R fixtures, `--check`, accepted warnings
 - `tests/test_data_structure.py` — schema versioning, PIMS metadata round-trip, `WizardState` / `ConnectionSuggestion`
 - `tests/test_utils.py` — shared helpers (`next_id` gap-filling)
 - `tests/test_wizard.py` — wizard step flow, element-type map, regional-seas placeholder, stub
 
-**22 end-to-end test scripts** (`tests/test_*_e2e.py` plus the burger/stepper
+**34 end-to-end test scripts** (`tests/test_*_e2e.py` plus the burger/stepper
 sidebar scripts: shell, data-entry, i18n, quick-actions, metrics, intervention,
-leverage, import, templates, autosave, report, boolean, boolean-happy,
+leverage, import, templates, r-templates, autosave, report, boolean, boolean-happy,
 simulation, bot, pims-project, wizard, full-app, burger, stepper). Each starts
 headless Chromium and asserts on the live app's DOM and reactive state. Run the
 whole suite with `python tests/run_e2e.py` (it manages the server and the

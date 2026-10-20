@@ -4,6 +4,8 @@ import asyncio
 
 from playwright.async_api import async_playwright
 
+TARGET = "Coastal Tourism SES"
+
 
 async def main():
     async with async_playwright() as p:
@@ -16,28 +18,34 @@ async def main():
         # Click Templates nav
         await page.click("#sespy_nav_templates")
         # templates_list is a suspended @render.ui inside the hidden pane: its
-        # first render (list_templates() validates every sespy/templates/*.json)
-        # begins at this nav click, so wait for the cards instead of sleeping.
-        # Shiny swaps an output_ui's innerHTML atomically, so once one h5 is
-        # present the whole list is present.
+        # first render (list_catalogue() + list_templates()) begins at this nav
+        # click, so wait for the cards instead of sleeping. Shiny swaps an
+        # output_ui's innerHTML atomically, so once one h5 is present the whole
+        # list is present.
         await page.wait_for_selector("#templates-templates_list h5", timeout=60000)
 
-        # Templates panel should list our shipped templates
+        # Every h5 in the list is a card name (group headers are h4), in the
+        # order of the load_template_<i> buttons: the 7 MarineSABRES templates
+        # first, then SESPy's 4 examples.
         cards = await page.evaluate(
             "() => Array.from(document.querySelectorAll('#templates-templates_list h5'))"
             ".map(e => e.textContent.trim())"
         )
         print("templates listed:", cards)
-        assert len(cards) >= 2, f"expected ≥2 templates, got {cards}"
-        # Spot-check a known one
-        assert any("Offshore Wind" in c for c in cards), \
-            f"Offshore Wind template missing: {cards}"
+        assert len(cards) == 11, f"expected 7 + 4 templates, got {cards}"
+        # Exact names: R's "Offshore Wind Energy (MarineSABRES)" also contains
+        # "Offshore Wind", so a substring check would prove nothing.
+        assert "Offshore Wind Farm SES" in cards, f"Offshore Wind Farm SES missing: {cards}"
+        assert TARGET in cards, f"{TARGET} missing: {cards}"
 
-        # Click Load on the first template
-        first_name = cards[0]
-        await page.click("#templates-load_template_0")
-        # The load can only be proven by its own success toast. The first
-        # template (sespy/templates/coastal_tourism.json) is graph-identical
+        # Load the Coastal Tourism SES card, found by its exact h5 text (index
+        # 0 is now the Caribbean MarineSABRES template).
+        idx = cards.index(TARGET)
+        # The h5s render before Shiny binds the buttons; an unbound click is lost.
+        await page.wait_for_selector(f"#templates-load_template_{idx}.shiny-bound-input", timeout=15000)
+        await page.click(f"#templates-load_template_{idx}")
+        # The load can only be proven by its own success toast. Coastal
+        # Tourism SES (sespy/templates/coastal_tourism.json) is graph-identical
         # to the seeded sample (same 17 element ids/labels, 20 connections),
         # so NO CLD node count can distinguish "loaded" from "never loaded",
         # and .shiny-notification alone is shared with the autosave
@@ -50,24 +58,24 @@ async def main():
         await page.wait_for_function(
             """(name) => Array.from(document.querySelectorAll('.shiny-notification'))
               .some(n => (n.textContent || '').includes('(' + name + ')'))""",
-            arg=first_name,
+            arg=TARGET,
             timeout=30000,
         )
 
-        # Switch to CLD: project_data should now reflect the loaded template
+        # Sanity check only (the toast above is the proof): the CLD still
+        # shows 17 nodes, as it would for the seeded sample.
         await page.click("#sespy_nav_cld")
-        for _ in range(15):
+        n = None
+        for _ in range(30):
             n = await page.evaluate("""() => {
               const s = window.pyvisNetworks && window.pyvisNetworks['cld-network'];
               return s && s.nodes ? s.nodes.length : null;
             }""")
-            if n is not None and n > 0:
+            if n == 17:
                 break
             await page.wait_for_timeout(500)
         print(f"CLD nodes after template load: {n}")
-        # Each shipped template has at least 15 elements
-        assert n is not None and n >= 15, \
-            f"CLD didn't reflect template load: {n} nodes"
+        assert n == 17, f"CLD should show 17 nodes after loading Coastal Tourism SES: {n}"
 
         await page.screenshot(path="tests/screenshots/templates.png")
         print("\ntemplates e2e assertions pass")

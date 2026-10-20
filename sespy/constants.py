@@ -194,7 +194,7 @@ def normalize_delay(raw: object) -> str:
 
 
 # ---------------------------------------------------------------------------
-# DAPSI(W)R(M) link rules (P1a). Ported from R v1.29.0
+# DAPSI(W)R(M) link rules (P1a). Ported from R v1.29.0 (unchanged at v1.31.0)
 # functions/dapsiwrm_connection_rules.R:26-341 (targets, extension_targets,
 # per-pair target_polarities). R's table has no rule ids: they come from R's
 # DAPSIWRM_FRAMEWORK_RULES.md ("6-7" = the collapsed GB->D rules, "ExUP" =
