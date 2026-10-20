@@ -20,7 +20,7 @@
 - Commit messages are multi-line: use the **PowerShell tool** with a single-quoted here-string (`git commit -m @'...'@` with `'@` at column 0). Never a PowerShell here-string in the Bash tool (it leaks a literal `@`).
 - CI unit command (every task must end green on it): `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q` (≈6 min; baseline measured while planning on `1e3b49e`: **1052 passed, 1 skipped**; ≈**1223 passed, 1 skipped** at the end — `tests/test_r_template_catalogue.py` alone is ≈60 s because it builds real git repos).
 - **Shell state does not persist between tool calls**: every PowerShell / Bash call starts in the repo root with no variables. Each code block below is meant as **one** call and defines every variable it uses (`$R`, `$W`, `$log`, …); never rely on a `cd` or a variable from an earlier block. `<scratchpad>` means the session scratchpad's absolute path (substitute it literally).
-- Lint is part of CI: `micromamba run -n shiny python -m ruff check sespy tests app.py scripts` must be clean at every commit (CI runs `ruff check sespy tests app.py`; `scripts/` is new, keep it clean too).
+- Lint (CI runs `ruff check sespy tests app.py`): the local ruff 0.15.4 already reports **54 errors on the untouched tree** (50 I001, 2 E741, 1 E501, 1 F821; measured on `d6b280c`) — do not fix those. The P2 lint gate, at every commit, is: (a) the P2 files are clean — `micromamba run -n shiny python -m ruff check sespy/r_template_catalogue.py sespy/templates/__init__.py sespy/modules/templates.py sespy/r_template_mapper.py scripts tests/test_r_template_catalogue.py tests/test_templates.py tests/test_templates_module.py tests/parity` → `All checks passed!` (only files that exist yet); and (b) no new errors elsewhere — `micromamba run -n shiny python -m ruff check sespy tests app.py --statistics` still totals 54.
 - Edits are placed by **quoted anchor**, never by line number (the working copy is CRLF under `core.autocrlf=true`; the Edit tool handles that).
 - Version: **1.14.0** in `sespy/__init__.py`, `pyproject.toml`, `docs/MANUAL.md` line 3 — first commit. **No schema bump**: `PROJECT_SCHEMA_VERSION` stays 7; the shipped projects carry `min_sespy_version` `1.13.0` (the schema floor that `Project.to_json()` stamps), never the running version.
 - R reference: MarineSABRES_SES_Shiny **v1.31.0, commit `4b53b7d`** (2026-10-18), app directory `C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny` (written `<R>` below; its git prefix is `MarineSABRES_SES_Shiny/`). The R repo is **read-only**: only `git show`, `git rev-parse`, `git diff`, `git log`; never checkout, switch, stash, commit, or touch its working tree (it is on `main` with the user's own uncommitted files). The 9 pinned files are identical at v1.29.0 and v1.31.0 (`git diff --quiet e33faea v1.31.0 -- <9 paths>` exits 0).
@@ -107,7 +107,7 @@ git status --short            # expect only LITERATURE/ entries (user's, never s
 ```powershell
 $R = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny'
 git -C $R rev-parse --short=7 'v1.31.0^{commit}'         # 4b53b7d
-git -C $R reflog -n 1 --date=iso --format='%gd %cd %gs'   # note this newest reflog entry
+git -C $R reflog -n 1 --date=iso --format='%gd %gs'   # note this newest entry; %gd prints HEAD@{<entry time>}
 Get-Date -Format o                                         # note T0
 ```
 
@@ -327,7 +327,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 **Interfaces:** Produces the markers `<!-- r-sync:begin -->` / `<!-- r-sync:end -->` that Task 4's `splice_block` requires. The block between them is already in the exact generated format (`| File | Hash |`, rows sorted by path, `**Accepted sync warnings:** none.`) for the **current** v1.29.0 pin, so Task 5's sync diff is just the pin line and one new row. The prose says "Adopted in SESPy 1.14.0" / "baseline v1.31.0" while the block still reads v1.29.0: **intended** (spec §9 puts all hand edits in this commit); Task 5 makes the block agree. Do not "fix" it here.
 
-The triage table is `git -C <R> diff --name-status e33faea v1.31.0` (42 paths; use `--name-status`, `--stat` truncates paths), each with an owner. Verify the count before writing: `git -C $R diff --name-status e33faea v1.31.0 | Measure-Object -Line` → `42`.
+The triage table is `git -C <R> diff --name-status e33faea v1.31.0` (42 paths; use `--name-status`, `--stat` truncates paths), each with an owner. Verify the count before writing: `git -C '<R>' diff --name-status e33faea v1.31.0 | Measure-Object -Line` → `42` (`<R>` = the literal R app path from Global Constraints).
 
 - [ ] **Step 1: Replace the whole file with**
 
@@ -479,7 +479,7 @@ one row per click and allocates ids safely for loaded projects. Owners: P1b
 
 - [ ] **Step 2: Check the 42 rows against git**
 
-Every path of `git -C $R diff --name-status e33faea v1.31.0` (prefix `MarineSABRES_SES_Shiny/` stripped) appears exactly once in the table, with the same status letter. The 8 hashes in the block are unchanged (`test_r_sync_md_lists_exactly_the_pinned_hashes`).
+Every path of `git -C '<R>' diff --name-status e33faea v1.31.0` (prefix `MarineSABRES_SES_Shiny/` stripped) appears exactly once in the table, with the same status letter. The 8 hashes in the block are unchanged (`test_r_sync_md_lists_exactly_the_pinned_hashes`).
 
 - [ ] **Step 3: Run** `micromamba run -n shiny python -m pytest tests/parity tests/test_manual.py -q` → `23 passed`; then the CI unit command → green.
 
@@ -1807,7 +1807,7 @@ No `warning` line (0 off-rule links, 0 type mismatches) and no other `hash` line
 $R = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny'
 micromamba run -n shiny python -m scripts.sync_r_templates --r-root $R --check     # no output, exit 0
 micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check  # no output, exit 0
-git -C $R reflog -n 10 --date=iso --format='%gd %cd %gs'   # entries newer than Task 0's must all be the user's own checkout:/commit: lines
+git -C $R reflog -n 10 --date=iso --format='%gd %gs'   # entries newer than Task 0's (compare the HEAD@{time}) must all be the user's own checkout:/commit: lines
 ```
 The sync never checks out or commits, so it cannot add a reflog entry; a new entry is the user working in R, not P2. Do not compare `HEAD` / `status` counts (they move with the user's work).
 
@@ -3368,7 +3368,8 @@ Pushing `docs/r-parity-roadmap` happens in Task 13 Step 7, with the user's go-ah
 $R = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny'
 micromamba run -n shiny python -m scripts.sync_r_templates --r-root $R --check     # exit 0, no output
 micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check  # exit 0, no output
-micromamba run -n shiny python -m ruff check sespy tests app.py scripts             # All checks passed!
+micromamba run -n shiny python -m ruff check sespy/r_template_catalogue.py sespy/templates/__init__.py sespy/modules/templates.py sespy/r_template_mapper.py scripts tests/test_r_template_catalogue.py tests/test_templates.py tests/test_templates_module.py tests/parity   # All checks passed!
+micromamba run -n shiny python -m ruff check sespy tests app.py --statistics      # Found 54 errors (the pre-P2 baseline, none new)
 ```
 
 - [ ] **Step 3: Full e2e gate, detached** (the Bash tool kills anything past 10 min even backgrounded). Port 8000 free, nothing heavy running:
@@ -3384,7 +3385,7 @@ Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.Cr
 
 - [ ] **Step 4: README e2e count from the gate's own summary**
 
-Set the `N standalone Playwright scripts (M runs` numbers in README.md (the paragraph after the `make_docs_screenshots.py` block; today it reads `31 ... (32 runs`) to what `run_e2e.py` reported. If they changed:
+Set the `N standalone Playwright scripts (M runs` numbers in README.md (the paragraph after the `make_docs_screenshots.py` block; today it reads `31 ... (32 runs`) **and** the script count in the `# Full Playwright e2e — one command boots the server, runs all 31 browser` comment (README line ≈468) to what `run_e2e.py` reported. If they changed:
 ```powershell
 git add README.md
 git commit -m @'
