@@ -257,3 +257,31 @@ def test_bbn_evidence_placeholders_match_across_languages(translations):
     assert translations["bbn.evidence"]["en"].startswith("Evidence:")
     assert translations["bbn.conflict"]["en"].startswith("Conflicting evidence")
     assert translations["bbn.posterior_line"]["en"].startswith("Links from rater posteriors:")
+
+
+def test_templates_gallery_keys_present(translations):
+    # P2 §6.3: SESPy-only keys (R shows these values untranslated).
+    keys = ["templates.group_marinesabres", "templates.group_sespy", "templates.about",
+            "templates.complexity_simple", "templates.complexity_complex"]
+    keys += [f"templates.category_{s}" for s in (
+        "multi_stressor", "extraction", "recreation", "production",
+        "pollution", "climate", "energy", "general")]
+    for key in keys:
+        assert key in translations, key
+        for lang in SUPPORTED_LANGUAGES:
+            assert translations[key].get(lang, "").strip(), (key, lang)
+    assert translations["templates.group_marinesabres"]["en"] == "MarineSABRES templates"
+    assert translations["templates.group_sespy"]["en"] == "SESPy examples"
+    assert translations["templates.about"]["en"] == "About this template"
+
+
+def test_every_category_and_complexity_the_port_emits_has_a_key(translations):
+    from sespy import r_template_catalogue as C
+    categories = {C.CATEGORY_NULL, C.CATEGORY_MULTI, C.CATEGORY_FALLBACK,
+                  *(cat for _, cat in C.CATEGORY_RULES)}
+    for value in categories:
+        slug = value.lower().replace("-", "_")
+        assert f"templates.category_{slug}" in translations, value
+        assert translations[f"templates.category_{slug}"]["en"] == value
+    for value in (C.DEFAULT_COMPLEXITY, "complex"):
+        assert f"templates.complexity_{value}" in translations, value
