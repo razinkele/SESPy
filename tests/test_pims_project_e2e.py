@@ -111,14 +111,15 @@ async def case_template_loads_pims_metadata(page):
             ".map(e => e.textContent.trim())"
         )
         if "Coastal Tourism SES" in cards:
-            # The h5s are in the DOM before Shiny binds the Load buttons that
-            # were inserted with them; an unbound click never increments
-            # input.load_template_{idx}, so the load silently never happens.
-            await page.wait_for_timeout(300)
             break
         await page.wait_for_timeout(500)
     assert "Coastal Tourism SES" in cards, f"Coastal Tourism SES missing: {cards}"
     idx = cards.index("Coastal Tourism SES")
+    # The h5s are in the DOM before Shiny binds the Load buttons that were
+    # inserted with them; an unbound click never increments
+    # input.load_template_{idx}, so the load silently never happens. Wait for
+    # the binding itself rather than a fixed 300 ms.
+    await page.wait_for_selector(f"#templates-load_template_{idx}.shiny-bound-input", timeout=15000)
     await page.click(f"#templates-load_template_{idx}")
 
     await _open_pims(page)

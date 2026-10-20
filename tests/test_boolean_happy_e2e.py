@@ -38,6 +38,8 @@ async def main():
             f"Minimal Demo template missing from list: {cards}"
         minimal_idx = cards.index("Minimal Demo")
         load_btn = f"#templates-load_template_{minimal_idx}"
+        # The h5s render before Shiny binds the buttons; an unbound click is lost.
+        await page.wait_for_selector(f"{load_btn}.shiny-bound-input", timeout=15000)
         await page.click(load_btn)
         await page.wait_for_timeout(2500)
 

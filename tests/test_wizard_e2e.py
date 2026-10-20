@@ -181,6 +181,8 @@ async def case_modal_cancel(page):
         ".map(e => e.textContent.trim())"
     )
     idx = cards.index("Coastal Tourism SES")
+    # The h5s render before Shiny binds the buttons; an unbound click is lost.
+    await page.wait_for_selector(f"#templates-load_template_{idx}.shiny-bound-input", timeout=15000)
     await page.click(f"#templates-load_template_{idx}")
     await page.wait_for_timeout(2500)
     # Open wizard, click Start — modal opens.
@@ -232,6 +234,7 @@ async def case_modal_replace(page):
         ".map(e => e.textContent.trim())"
     )
     idx = cards.index("Coastal Tourism SES")
+    await page.wait_for_selector(f"#templates-load_template_{idx}.shiny-bound-input", timeout=15000)
     await page.click(f"#templates-load_template_{idx}")
     await page.wait_for_timeout(2500)
     await _open_wizard(page)
