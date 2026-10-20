@@ -2,6 +2,7 @@
 table updates and network re-renders with greyed-out node."""
 import asyncio
 
+from playwright.async_api import TimeoutError as PlaywrightTimeout
 from playwright.async_api import async_playwright
 
 
@@ -88,12 +89,17 @@ async def main():
         assert idle_chart, "idle diffusion chart img had no src to fingerprint"
         await page.select_option("#intervention-diffusion_source", "D001")
         await page.click("#intervention-run_diffusion")
-        diff_text = ""
-        for _ in range(30):
-            await page.wait_for_timeout(500)
-            diff_text = (await page.inner_text("#intervention-diffusion_summary")).strip()
-            if "elements reached" in diff_text:
-                break
+        # The FIRST token_diffusion call per server process lazily imports
+        # scipy.stats (dynamics.py): ~7 s cold on an idle machine, well past
+        # the old 15 s poll under full-suite load. Attempt 1 then read the idle
+        # hint and only the warm retry passed. Wait on the result, not a count.
+        try:
+            await page.wait_for_function(
+                "() => (document.getElementById('intervention-diffusion_summary')?.innerText || '')"
+                ".includes('elements reached')", timeout=90000)
+        except PlaywrightTimeout:
+            pass  # fall through: the assert below reports what was rendered
+        diff_text = (await page.inner_text("#intervention-diffusion_summary")).strip()
         # Sample golden at seed 0: D001 reaches 7 of 17 elements; the top
         # row is P001 with 2000 tokens.
         assert "7 of 17 elements reached by 1000 tokens in 10 steps" in diff_text, \
