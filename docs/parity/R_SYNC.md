@@ -54,6 +54,13 @@ is pinned from git only and was not checked on laguna. The 9 pinned files
 are identical at v1.29.0 and v1.31.0, so a laguna R still at v1.29.0 does
 not affect them.
 
+**Re-checked 2026-10-20 (SESPy 1.14.0 release):** laguna's R app had moved
+to v1.33.0 (`VERSION` and `DESCRIPTION`). All 9 pinned files, now including
+`functions/template_loader.R`, hash identically on laguna and at the
+v1.31.0 pin. The checked files were the 7 `data/*_SES_Template.json`, the
+connection rules and the template loader, hashed with `sha256_norm` /
+`sha256_text_norm`. The pin therefore still matches what laguna users run.
+
 ## Adopting a new R release
 
 1. From the SESPy repo root run
