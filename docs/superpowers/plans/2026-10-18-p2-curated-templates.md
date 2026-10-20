@@ -3570,6 +3570,8 @@ git -C $S switch docs/p2-design                               # the checkout has
 git -C $S branch -D release/1.14.0 feat/p2-curated-templates # -D: local main never received the merge
 git -C $S branch -f main origin/main                         # refused (harmlessly) if main is checked out in some worktree
 ```
+If the `still registered` throw fires (an OneDrive lock kept `.git\worktrees\sespy-release` alive), wait until OneDrive releases it, delete that admin folder by hand (or run `git -c core.longpaths=true -C $S worktree remove --force $W` if the worktree folder still exists), then re-run this block. Its guards are safe to repeat.
+
 Afterwards the SESPy checkout is on `docs/p2-design`, which holds the v1.13.0 code. The editable install, and local MosaicSES development that imports from this tree, therefore run pre-P2 SESPy until the user can switch to `main`, which needs the `LITERATURE/` files moved first.
 
 Record the release in memory:
