@@ -4,6 +4,7 @@ loading by the combined index, and raw R values without a translation key.
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -127,14 +128,56 @@ def test_empty_catalogue_renders_no_marinesabres_header(panel, monkeypatch):
     assert 'id="templates-group_sespy"' in html
 
 
+def _core(key: str, lang: str) -> str:
+    # core.json nests its entries under a wrapper object.
+    data = json.loads((ROOT / "sespy" / "translations" / "core.json")
+                      .read_text(encoding="utf-8"))
+    flat = next(v for v in data.values() if isinstance(v, dict) and key in v)
+    return flat[key][lang]
+
+
+def test_labels_follow_the_session_translator_not_the_process_default(monkeypatch):
+    """F1: inside a module render the global t() resolves to a proxy-local
+    clone at the process default ("en"); the gallery must use the translator
+    app.py hands in, and re-render when its language changes."""
+    monkeypatch.setattr(i18n, "_default_translator", TR)       # process default: en
+    session_tr = Translator(translations=load_translations(ROOT / "sespy" / "translations"))
+    session_tr.set_language("de")
+    monkeypatch.setattr(shiny.ui, "notification_show", lambda *a, **k: None)
+
+    def server(input, output, session):
+        pd = reactive.value(Project(ProjectMetadata(name="before"), IsaData()))
+        mod.templates_server("templates", project_data=pd,
+                             event_bus=create_event_bus(), translator=session_tr)
+
+        # Like app.py's Options switcher: the language changes inside an effect.
+        @reactive.effect
+        @reactive.event(input.switch_lang, ignore_init=True)
+        def _():
+            session_tr.set_language(input.switch_lang())
+
+    with test_server(server) as ts:
+        html = _html(ts)
+        assert _core("templates.group_marinesabres", "de") in html
+        assert _core("templates.category_energy", "de") in html
+        assert _core("templates.load", "de") in html
+        assert "MarineSABRES templates" not in html
+        ts.set_inputs(switch_lang="de")     # first value is swallowed by ignore_init
+        ts.set_inputs(switch_lang="lt")
+        html = _html(ts)
+        assert _core("templates.group_marinesabres", "lt") in html
+        assert _core("templates.category_energy", "lt") in html
+        assert _core("templates.group_marinesabres", "de") not in html
+
+
 def test_tr_value_on_a_key_miss_returns_the_value(monkeypatch):
     monkeypatch.setattr(i18n, "_default_translator", TR)
     assert i18n.t("templates.complexity_moderate") == "templates.complexity_moderate"
-    assert mod._tr_value("complexity", "moderate") == "moderate"
-    assert mod._tr_value("category", "Multi-Stressor") == "Multi-Stressor"
-    assert mod._tr_value("complexity", "complex") == "Complex"
+    assert mod._tr_value(i18n.t, "complexity", "moderate") == "moderate"
+    assert mod._tr_value(i18n.t, "category", "Multi-Stressor") == "Multi-Stressor"
+    assert mod._tr_value(i18n.t, "complexity", "complex") == "Complex"
     TR.set_language("de")
     try:
-        assert mod._tr_value("category", "Energy") == "Energie"
+        assert mod._tr_value(i18n.t, "category", "Energy") == "Energie"
     finally:
         TR.set_language("en")

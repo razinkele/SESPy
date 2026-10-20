@@ -16,6 +16,8 @@ the picker + load action; R's complexity filter (P12) and its preview /
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from ..data_structure import Project
@@ -26,18 +28,20 @@ from ..templates import TemplateInfo, list_catalogue, list_templates, load_templ
 GROUPS = ("marinesabres", "sespy")      # display order of the two groups
 
 
-def _tr_value(kind: str, value: str) -> str:
-    """Translated category / complexity label. `t()` returns the key itself on
+def _tr_value(tr: Callable[..., str], kind: str, value: str) -> str:
+    """Translated category / complexity label. `tr` returns the key itself on
     a miss, so an R value SESPy has no key for (e.g. a future complexity
-    "moderate") is shown raw, never as a key string."""
+    "moderate") is shown raw, never as a key string. `tr` is the session
+    translator's `.t` (the global `t()` resolves to a process-default clone
+    inside a module render)."""
     key = f"templates.{kind}_{value.lower().replace('-', '_')}"
-    text = t(key)
+    text = tr(key)
     return value if text == key else text
 
 
-def _badges(info: TemplateInfo) -> ui.Tag:
-    labels = [_tr_value("category", info.category) if info.category else "",
-              _tr_value("complexity", info.complexity) if info.complexity else "",
+def _badges(info: TemplateInfo, tr: Callable[..., str]) -> ui.Tag:
+    labels = [_tr_value(tr, "category", info.category) if info.category else "",
+              _tr_value(tr, "complexity", info.complexity) if info.complexity else "",
               f"v{info.version}" if info.version else "",
               info.regional_sea_label]
     return ui.tags.div(
@@ -47,23 +51,23 @@ def _badges(info: TemplateInfo) -> ui.Tag:
     )
 
 
-def _about(info: TemplateInfo) -> ui.Tag | None:
+def _about(info: TemplateInfo, tr: Callable[..., str]) -> ui.Tag | None:
     if not (info.source or info.usage_notes):
         return None
     return ui.tags.details(
-        ui.tags.summary(t("templates.about")),
+        ui.tags.summary(tr("templates.about")),
         *[ui.tags.p(x, style="margin: 4px 0 0 0;")
           for x in (info.source, info.usage_notes) if x],
         style="margin: 8px 0 0 0; font-size: 0.85rem;",
     )
 
 
-def _template_card(idx: int, info: TemplateInfo) -> ui.Tag:
+def _template_card(idx: int, info: TemplateInfo, tr: Callable[..., str]) -> ui.Tag:
     marinesabres = info.group == "marinesabres"
     return ui.tags.div(
         ui.tags.div(
             ui.tags.h5(info.name, style="margin: 0 0 4px 0;"),
-            _badges(info) if marinesabres else None,
+            _badges(info, tr) if marinesabres else None,
             ui.tags.div(
                 f"{info.element_count} elements · {info.connection_count} connections"
                 + (f" · {info.da_site}" if info.da_site else ""),
@@ -74,13 +78,13 @@ def _template_card(idx: int, info: TemplateInfo) -> ui.Tag:
                 info.description,
                 style="margin: 8px 0 0 0; font-size: 0.9rem;",
             ),
-            _about(info) if marinesabres else None,
+            _about(info, tr) if marinesabres else None,
             style="flex: 1;",
         ),
         ui.tags.div(
             ui.input_action_button(
                 f"load_template_{idx}",
-                t("templates.load"),
+                tr("templates.load"),
                 class_="btn btn-primary",
             ),
             style="display: flex; align-items: center;",
@@ -120,6 +124,7 @@ def _wire_load(
     project_data: reactive.Value[Project],
     event_bus: EventBus,
     templates_calc,
+    tr: Callable[..., str],
 ) -> None:
     @reactive.effect
     @reactive.event(input[f"load_template_{idx}"], ignore_init=True)
@@ -142,7 +147,7 @@ def _wire_load(
         event_bus.emit_cld_update()
         event_bus.emit_template_loaded()
         ui.notification_show(
-            t("templates.loaded") + f" ({info.name})",
+            tr("templates.loaded") + f" ({info.name})",
             type="message",
             duration=4,
         )
@@ -158,6 +163,10 @@ def templates_server(
     event_bus: EventBus,
     translator: Translator | None = None,
 ) -> None:
+
+    # The session translator app.py passes in; `.t` reads its reactive
+    # `language`, so the render below refreshes on a language switch.
+    tr = translator.t if translator is not None else t
 
     @reactive.calc
     def templates() -> list[TemplateInfo]:
@@ -175,15 +184,15 @@ def templates_server(
             )
         children: list[ui.Tag] = []
         for group in GROUPS:
-            cards = [_template_card(i, r) for i, r in enumerate(rows) if r.group == group]
+            cards = [_template_card(i, r, tr) for i, r in enumerate(rows) if r.group == group]
             if not cards:
                 continue                    # an empty group renders no header
             # A plain id= inside render.ui is not namespaced: use session.ns.
-            children.append(ui.tags.h4(t(f"templates.group_{group}"),
+            children.append(ui.tags.h4(tr(f"templates.group_{group}"),
                                        id=session.ns(f"group_{group}"),
                                        style="margin: 8px 0 12px 0;"))
             children += cards
         return ui.tags.div(*children)
 
     for i in range(MAX_TEMPLATES):
-        _wire_load(input, i, project_data, event_bus, templates)
+        _wire_load(input, i, project_data, event_bus, templates, tr)
