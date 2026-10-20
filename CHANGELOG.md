@@ -4,7 +4,7 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
-## [1.14.0] — 2026-10-18
+## [1.14.0] — 2026-10-20
 
 Roadmap P2 (curated R templates; R-parity roadmap §2 P2). Ports R
 MarineSABRES 1.21.1, 1.22.1 and 1.22.3 (the reviewed curated templates),
