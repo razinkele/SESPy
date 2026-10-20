@@ -4,6 +4,20 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.14.1] — 2026-10-20
+
+### Fixed
+- **Module labels now follow the session language.** Inside a module server
+  `i18n.get_default()` cached a fresh translator on the module's
+  `SessionProxy`, at the process default language. So every panel that
+  renders through the global `t()` showed English in a non-English session:
+  loops, leverage, metrics, quadrant, simulation, Boolean, BOT, intervention,
+  simplify, CLD, ISA data entry, PIMS project and stakeholders, rate
+  connections and the AI ISA wizard. This held whether the language came from
+  `?lang=` or from the Options switcher. `get_default()` now resolves the
+  root session (`session.root_scope()`), so all module scopes share the
+  session's translator. Each user still has their own language.
+
 ## [1.14.0] — 2026-10-20
 
 Roadmap P2 (curated R templates; R-parity roadmap §2 P2). Ports R
