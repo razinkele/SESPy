@@ -4,6 +4,48 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-10-18
+
+Roadmap P2 (curated R templates; R-parity roadmap §2 P2). Ports R
+MarineSABRES 1.21.1, 1.22.1 and 1.22.3 (the reviewed curated templates),
+against R v1.31.0 (`4b53b7d`).
+
+### Added
+
+- **R's 7 curated templates in the gallery.** The Templates panel now has
+  two groups: "MarineSABRES templates" (Caribbean Island, Climate Change,
+  Coastal Lagoon, Fisheries, Offshore Wind Energy, Pollution, Tourism — 320
+  links in total) and "SESPy examples" (SESPy's own 4). R's names carry the
+  suffix " (MarineSABRES)"; "Coastal Lagoon (MarineSABRES)" is R's
+  aquaculture template.
+- **Badges** on each MarineSABRES card: category (R's rule: Multi-Stressor,
+  Extraction, Recreation, Production, Pollution, Climate, Energy or
+  General), complexity, template version and regional sea, plus an "About
+  this template" section with the source and usage notes. Category and
+  complexity labels are translated into all 9 languages.
+- **`python -m scripts.sync_r_templates`** re-converts the templates from an
+  R git checkout (read with `git show`, never checked out) and rewrites the
+  fixtures, the pin and the R_SYNC.md block together; `--check` reports
+  drift and a unit test guards it. Off-rule links or type mismatches in a
+  future R release fail the sync unless they are explicitly accepted.
+
+### Changed
+
+- R pin moved from v1.29.0 to **v1.31.0** (`4b53b7d`); the pinned files are
+  unchanged. R's `functions/template_loader.R` is now pinned too, and a
+  parity test checks the category rule against it. R's changes since v1.29.0
+  are triaged in `docs/parity/R_SYNC.md`.
+- R template mapper hardening: `connections` that is not a list and a
+  connection that is not an object raise a clear error; integer element ids
+  (including 0) and integer connection endpoints now match.
+
+### Deliberate differences from R
+
+- No complexity filter (R's user levels come with P12) and no preview or
+  customise-before-load step (P13); templates load directly.
+- Category and complexity labels are translated (R shows the English value).
+- Template names, descriptions, sources and usage notes stay in English.
+
 ## [1.13.0] — 2026-10-17
 
 Roadmap P1a (link rules, schema v7, R template mapper; R-parity roadmap §2
