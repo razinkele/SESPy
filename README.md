@@ -465,7 +465,7 @@ micromamba run -n shiny pytest tests/ -q \
   --ignore-glob='*e2e*' --ignore=tests/test_burger.py \
   --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py
 
-# Full Playwright e2e — one command boots the server, runs all 31 browser
+# Full Playwright e2e — one command boots the server, runs all 34 browser
 # scripts, and handles the wizard's ANTHROPIC_API_KEY two-pass:
 micromamba run -n shiny python tests/run_e2e.py
 ```
@@ -477,7 +477,7 @@ writes `docs/screenshots/*.png`, not part of the e2e gate):
 micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000
 ```
 
-696 unit tests + 31 standalone Playwright scripts (32 runs — the wizard
+1227 unit tests + 34 standalone Playwright scripts (35 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
@@ -548,7 +548,7 @@ hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
 
 ## Testing
 
-**258 unit tests** across:
+**1227 unit tests** across:
 
 - `tests/test_network.py` — graph metrics (centralities, leverage, loops, polarity, top-N, intervention impact, simplification)
 - `tests/test_persistent_storage.py` — save/load roundtrip, atomic writes, validation
@@ -564,9 +564,9 @@ hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
 - `tests/test_utils.py` — shared helpers (`next_id` gap-filling)
 - `tests/test_wizard.py` — wizard step flow, element-type map, regional-seas placeholder, stub
 
-**22 end-to-end test scripts** (`tests/test_*_e2e.py` plus the burger/stepper
+**34 end-to-end test scripts** (`tests/test_*_e2e.py` plus the burger/stepper
 sidebar scripts: shell, data-entry, i18n, quick-actions, metrics, intervention,
-leverage, import, templates, autosave, report, boolean, boolean-happy,
+leverage, import, templates, r-templates, autosave, report, boolean, boolean-happy,
 simulation, bot, pims-project, wizard, full-app, burger, stepper). Each starts
 headless Chromium and asserts on the live app's DOM and reactive state. Run the
 whole suite with `python tests/run_e2e.py` (it manages the server and the
