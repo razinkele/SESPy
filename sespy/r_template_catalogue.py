@@ -280,7 +280,7 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
                 except OSError as e:
                     return SyncResult(1, [f"cannot read {fixture}: {e}"])
     else:
-        r_tag = rev or pin_old["r_tag"]
+        r_tag = rev if rev is not None else pin_old["r_tag"]
         if not TAG_RE.fullmatch(r_tag):        # fullmatch: "$" alone accepts a trailing "\n"
             return SyncResult(1, [f"--rev must be a release tag like v1.31.0, got {r_tag!r}"])
         try:

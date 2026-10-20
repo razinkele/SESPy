@@ -6,7 +6,7 @@ templates. Shiny-free, never uses the clock (converting a file twice gives
 identical output), and never logs: everything worth reporting goes into the
 ConversionReport and the caller decides what to log.
 
-R reference: functions/template_loader.R (v1.29.0). Measures fold into
+R reference: functions/template_loader.R (v1.29.0, unchanged at v1.31.0). Measures fold into
 Responses as R does (template_loader.R:103,189-190), marked with
 r_extra["r_kind"] = "measure". Element-level `type` labels and every field
 without a SESPy column are kept in Element.r_extra (R drops them), and

@@ -169,9 +169,10 @@ def test_unparsable_catalogue_gives_empty_and_warns(tmp_path, caplog, text):
     lambda e: e.update(file="..\\catalogue.json"),   # Windows escape to the {} target
     lambda e: e.update(file=str(CAT_DIR.parent / "minimal_demo.json")),   # absolute, outside
     lambda e: e.update(file=""),
+    lambda e: e.update(file="a\x00b.json"),          # NUL byte: resolve() raises ValueError
 ], ids=["missing-key", "empty-name", "null-category", "int-source", "zero-count",
         "str-count", "bool-count", "dangling", "escape-up", "escape-backslash",
-        "absolute", "empty-file"])
+        "absolute", "empty-file", "nul-byte"])
 def test_bad_entry_is_skipped_with_a_warning(tmp_path, caplog, change):
     d = _copy(tmp_path)
     (tmp_path / "catalogue.json").write_text("{}", encoding="utf-8")      # an escape target

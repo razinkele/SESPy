@@ -1,5 +1,5 @@
 """P1a — content parity of DAPSIWRM_ADJACENCY_RULES with R's
-functions/dapsiwrm_connection_rules.R (v1.29.0 fixture copy).
+functions/dapsiwrm_connection_rules.R (v1.29.0 fixture copy, unchanged at v1.31.0).
 
 A hash pin alone would let a hand-copy error pass, so this parses the R
 table's `targets`, `extension_targets` and `target_polarities` vectors with

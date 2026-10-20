@@ -78,8 +78,12 @@ def _entry_problem(entry: object, base: Path) -> str | None:
         v = entry[k]
         if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
             return f"{k} is not a positive integer"
-    path = (base / entry["file"]).resolve()
-    if not path.is_relative_to(base) or not path.is_file():
+    try:                                   # e.g. a NUL byte raises ValueError on some platforms
+        path = (base / entry["file"]).resolve()
+        usable = path.is_relative_to(base) and path.is_file()
+    except (OSError, ValueError):
+        usable = False
+    if not usable:
         return f"file {entry['file']!r} is outside the catalogue directory or missing"
     return None
 

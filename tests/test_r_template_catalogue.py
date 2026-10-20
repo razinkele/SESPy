@@ -422,7 +422,7 @@ def test_check_in_git_mode_passes_on_a_crlf_copy(tmp_path, r_app):
     assert res.code == 0, res.lines
 
 
-@pytest.mark.parametrize("rev", ["main", "HEAD", "v1.31", "1.31.0", "v1.31.0-rc1", "v1.31.0\n"])
+@pytest.mark.parametrize("rev", ["main", "HEAD", "v1.31", "1.31.0", "v1.31.0-rc1", "v1.31.0\n", ""])
 def test_rev_must_be_a_release_tag(tmp_path, r_app, rev):
     root, app = _tree(tmp_path), r_app
     before = _snap(root)
