@@ -1,0 +1,557 @@
+{
+  "metadata": {
+    "name": "Climate Change (MarineSABRES)",
+    "description": "Social-ecological system template for climate change impacts on marine ecosystems, covering warming, acidification, sea level rise, species distribution shifts, and adaptation responses.",
+    "da_site": "",
+    "regional_sea": "arctic",
+    "ecosystem_type": "",
+    "focal_issue": "",
+    "definition_statement": "",
+    "temporal_scale": "",
+    "spatial_scale": "",
+    "system_in_focus": "",
+    "created_at": "2026-04-08",
+    "modified_at": "2026-04-08",
+    "schema_version": 7,
+    "origin": "r_template",
+    "r_template_version": "2.2",
+    "min_sespy_version": "1.13.0"
+  },
+  "isa_data": {
+    "elements": [
+      {
+        "id": "D001",
+        "label": "Global energy demand and fossil fuel dependence",
+        "type": "Drivers",
+        "description": "Worldwide demand for fossil fuels driving Arctic resource extraction and shipping intensification",
+        "confidence": 3
+      },
+      {
+        "id": "D003",
+        "label": "Indigenous community food sovereignty",
+        "type": "Drivers",
+        "description": "Indigenous community food sovereignty",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Driver"
+        }
+      },
+      {
+        "id": "A001",
+        "label": "Northern Sea Route commercial shipping",
+        "type": "Activities",
+        "description": "Northern Sea Route commercial shipping",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Activity"
+        }
+      },
+      {
+        "id": "A002",
+        "label": "Indigenous subsistence hunting (seal, walrus, whale)",
+        "type": "Activities",
+        "description": "Indigenous subsistence hunting (seal, walrus, whale)",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Activity"
+        }
+      },
+      {
+        "id": "A003",
+        "label": "Arctic oil and gas seismic exploration",
+        "type": "Activities",
+        "description": "Arctic oil and gas seismic exploration",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Activity"
+        }
+      },
+      {
+        "id": "P001",
+        "label": "Accelerating sea ice extent and thickness loss",
+        "type": "Pressures",
+        "description": "Accelerating sea ice extent and thickness loss",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P002",
+        "label": "Earlier spring ice breakup disrupting breeding cycles",
+        "type": "Pressures",
+        "description": "Earlier spring ice breakup disrupting breeding cycles",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P003",
+        "label": "Oil spill risk in ice-covered waters",
+        "type": "Pressures",
+        "description": "Oil spill risk in ice-covered waters",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P004",
+        "label": "Underwater noise from increased shipping",
+        "type": "Pressures",
+        "description": "Underwater noise from increased shipping",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P005",
+        "label": "Black carbon deposition accelerating ice melt",
+        "type": "Pressures",
+        "description": "Black carbon deposition accelerating ice melt",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P006",
+        "label": "Climate change and ocean warming",
+        "type": "Pressures",
+        "description": "Climate change and ocean warming",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P007",
+        "label": "Global greenhouse gas emissions",
+        "type": "Pressures",
+        "description": "Global greenhouse gas emissions",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "MPF001",
+        "label": "Polar bear population and body condition",
+        "type": "Marine Processes & Functioning",
+        "description": "Polar bear population and body condition",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "State Change"
+        }
+      },
+      {
+        "id": "MPF002",
+        "label": "Ringed seal and bearded seal abundance",
+        "type": "Marine Processes & Functioning",
+        "description": "Ringed seal and bearded seal abundance",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "State Change"
+        }
+      },
+      {
+        "id": "MPF003",
+        "label": "Ice algae and under-ice primary production",
+        "type": "Marine Processes & Functioning",
+        "description": "Ice algae and under-ice primary production",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "State Change"
+        }
+      },
+      {
+        "id": "MPF005",
+        "label": "Multi-year ice coverage (critical habitat)",
+        "type": "Marine Processes & Functioning",
+        "description": "Multi-year ice coverage (critical habitat)",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "State Change"
+        }
+      },
+      {
+        "id": "ES001",
+        "label": "Indigenous marine mammal harvest provision",
+        "type": "Ecosystem Services",
+        "description": "Indigenous marine mammal harvest provision",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Provisioning"
+        }
+      },
+      {
+        "id": "ES002",
+        "label": "Arctic climate regulation (ice-albedo feedback)",
+        "type": "Ecosystem Services",
+        "description": "Arctic climate regulation (ice-albedo feedback)",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Provisioning"
+        }
+      },
+      {
+        "id": "ES003",
+        "label": "Polar ecosystem biodiversity maintenance",
+        "type": "Ecosystem Services",
+        "description": "Polar ecosystem biodiversity maintenance",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Provisioning"
+        }
+      },
+      {
+        "id": "GB001",
+        "label": "Inuit and indigenous community food security",
+        "type": "Goods & Benefits",
+        "description": "Inuit and indigenous community food security",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Welfare"
+        }
+      },
+      {
+        "id": "GB002",
+        "label": "Cultural continuity of ice-based livelihoods",
+        "type": "Goods & Benefits",
+        "description": "Cultural continuity of ice-based livelihoods",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Welfare"
+        }
+      },
+      {
+        "id": "R001",
+        "label": "IMO Polar Code for Arctic shipping",
+        "type": "Responses",
+        "description": "IMO Polar Code for Arctic shipping",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Response"
+        }
+      },
+      {
+        "id": "R002",
+        "label": "Arctic oil exploration moratoriums",
+        "type": "Responses",
+        "description": "Arctic oil exploration moratoriums",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Response"
+        }
+      },
+      {
+        "id": "R003",
+        "label": "Indigenous co-management of marine resources",
+        "type": "Responses",
+        "description": "Indigenous co-management of marine resources",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Response"
+        }
+      },
+      {
+        "id": "M002",
+        "label": "Adaptive ice management protocols",
+        "type": "Responses",
+        "description": "Dynamic routing and speed management for vessels in ice-affected waters",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Measure",
+          "r_kind": "measure"
+        }
+      }
+    ],
+    "connections": [
+      {
+        "source": "P001",
+        "target": "MPF005",
+        "polarity": "-",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Multi-year ice is declining rapidly, replaced by thin first-year ice. The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+      },
+      {
+        "source": "P001",
+        "target": "MPF001",
+        "polarity": "-",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Ice loss reduces hunting platform for polar bears, leading to poor body condition"
+      },
+      {
+        "source": "P002",
+        "target": "MPF002",
+        "polarity": "-",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Ringed seals depend on stable ice for pupping lairs; early breakup kills pups. The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+      },
+      {
+        "source": "MPF002",
+        "target": "ES001",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Seal populations directly determine the availability of traditional marine foods"
+      },
+      {
+        "source": "MPF005",
+        "target": "ES002",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "White ice surface reflects solar radiation; ice loss triggers warming amplification"
+      },
+      {
+        "source": "ES001",
+        "target": "GB001",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Traditional marine foods are nutritionally and culturally irreplaceable for Inuit communities"
+      },
+      {
+        "source": "ES001",
+        "target": "GB002",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Hunting practices transmit traditional ecological knowledge across generations. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+      },
+      {
+        "source": "R001",
+        "target": "P003",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Polar Code mandates double hulls and oil spill preparedness for Arctic vessels. The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+      },
+      {
+        "source": "R003",
+        "target": "A002",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Co-management ensures sustainable harvest levels and protects indigenous hunting rights"
+      },
+      {
+        "source": "R002",
+        "target": "A003",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Moratoriums directly halt oil exploration activities in protected areas. Well-enforced marine protected areas increase fish biomass by an average of 670%, density by 446%, and species richness by 21% relative to unprotected areas"
+      },
+      {
+        "source": "MPF003",
+        "target": "ES003",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Ice algae form the base of the Arctic marine food web supporting all higher trophic levels. Sea ice loss extends the phytoplankton growing season and increases light availability, but reduces ice-algal production which forms the base of sympagic food webs"
+      },
+      {
+        "source": "D003",
+        "target": "A002",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Food sovereignty needs directly drive indigenous subsistence marine mammal hunting activities"
+      },
+      {
+        "source": "P001",
+        "target": "P002",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Declining ice extent directly causes earlier spring breakup, disrupting the timing of seal and seabird breeding on ice"
+      },
+      {
+        "source": "MPF005",
+        "target": "MPF003",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Multi-year ice provides stable substrate for ice algal communities driving under-ice primary production. Sea ice loss extends the phytoplankton growing season and increases light availability, but reduces ice-algal production which forms the base of sympagic food webs"
+      },
+      {
+        "source": "R001",
+        "target": "A001",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Polar Code safety and environmental requirements increase compliance costs and restrict Arctic commercial shipping operations"
+      },
+      {
+        "source": "P007",
+        "target": "P006",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Greenhouse gas emissions drive climate change and ocean warming"
+      },
+      {
+        "source": "P007",
+        "target": "P001",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Arctic warming at 2-4x the global average is the primary driver of sea ice loss. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+      },
+      {
+        "source": "P004",
+        "target": "MPF001",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 3,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Increased underwater noise from shipping disturbs marine mammals that polar bears prey on (seals), indirectly reducing prey availability and increasing bear stress. Effect is negative on bear condition. Polarity corrected from + to -."
+      },
+      {
+        "source": "P005",
+        "target": "MPF001",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Black carbon deposition accelerates sea ice melt, reducing polar bear hunting habitat and prey access. AMAP (2021) documents this as a significant contributor to Arctic warming. Effect is clearly negative on bear populations. Polarity corrected from + to -."
+      },
+      {
+        "source": "A003",
+        "target": "P001",
+        "polarity": "+",
+        "strength": "weak",
+        "confidence": 3,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Seismic exploration does not directly cause sea ice loss. The link through eventual fossil fuel extraction and GHG emissions is very indirect at the exploration stage."
+      },
+      {
+        "source": "M002",
+        "target": "R001",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Adaptive ice protocols implement IMO Polar Code Part I-A safety requirements"
+      },
+      {
+        "source": "GB001",
+        "target": "D003",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 3,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Inuit and indigenous community food security reinforces Indigenous community food sovereignty"
+      },
+      {
+        "source": "GB002",
+        "target": "D003",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 3,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Cultural continuity of ice-based livelihoods reinforces indigenous community food sovereignty needs"
+      },
+      {
+        "source": "P003",
+        "target": "MPF002",
+        "polarity": "-",
+        "strength": "weak",
+        "confidence": 2,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Oil spills in ice-covered waters foul seals and their prey and are very hard to clean up under ice: higher spill risk, fewer ringed and bearded seals."
+      },
+      {
+        "source": "D001",
+        "target": "A001",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Global energy demand drives Northern Sea Route commercial shipping expansion"
+      },
+      {
+        "source": "D001",
+        "target": "A003",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Fossil fuel dependence drives Arctic oil and gas seismic exploration"
+      },
+      {
+        "source": "GB001",
+        "target": "R002",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 2,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Inuit concern that seismic surveys displace marine mammals and threaten harvest-based food security drove opposition to Arctic exploration (e.g. Clyde River v. Petroleum Geo-Services, 2017 SCC 40): less food security, stronger moratorium pressure."
+      },
+      {
+        "source": "GB001",
+        "target": "R003",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 2,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Threats to community food security are a main argument for Indigenous co-management of marine mammal harvests: less food security, more co-management."
+      }
+    ]
+  },
+  "stakeholders": [],
+  "engagements": [],
+  "communications": []
+}

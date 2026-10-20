@@ -598,3 +598,73 @@ def test_cli_runs_as_a_module_from_the_repo_root():
 def test_catalogue_module_imports_without_shiny():
     code = "import sys, sespy.r_template_catalogue; sys.exit(1 if 'shiny' in sys.modules else 0)"
     assert subprocess.run([sys.executable, "-c", code], cwd=ROOT).returncode == 0
+
+
+# ---- the shipped tree (spec §1 done-when, §8; needs the first real sync) -------
+
+SHIPPED = ROOT / C.OUT_DIR
+
+
+@pytest.mark.parametrize("fname", C.TEMPLATE_FILES)
+def test_drift_guard_shipped_project_equals_the_conversion(fname):
+    from sespy.persistent_storage import load_project
+    from sespy.r_template_mapper import convert_r_template
+    project, _ = convert_r_template(RAW[fname], key=fname[: -len(".json")])
+    raw_shipped = json.loads((SHIPPED / fname).read_bytes().decode("utf-8-sig"))
+    assert raw_shipped["isa_data"] == project.to_dict()["isa_data"]
+    shipped = load_project(SHIPPED / fname)
+    assert shipped.isa_data == project.isa_data
+    # Field by field, never Project ==: a round trip stamps min_sespy_version.
+    want = project.metadata
+    got = shipped.metadata
+    assert got.name == want.name + " (MarineSABRES)"
+    for f in ("description", "regional_sea", "ecosystem_type", "origin",
+              "r_template_version", "created_at"):
+        assert getattr(got, f) == getattr(want, f), f
+
+
+@pytest.mark.parametrize("fname", C.TEMPLATE_FILES)
+def test_raw_r_links_and_signs(fname):
+    # Independent of the mapper: the shipped links against R's own JSON.
+    raw_links = RAW[fname]["connections"]
+    want = {(str(c["from_id"]), str(c["to_id"])): c.get("polarity") or "+" for c in raw_links}
+    shipped = json.loads((SHIPPED / fname).read_bytes().decode("utf-8-sig"))["isa_data"]
+    got = {(c["source"], c["target"]): c["polarity"] for c in shipped["connections"]}
+    assert len(shipped["connections"]) == len(raw_links) == len(want)
+    assert got == want
+
+
+def test_shipped_catalogue_equals_a_fresh_build(tmp_path):
+    root = _tree(tmp_path)
+    assert C.sync(repo_root=root, from_fixtures=True).code == 0
+    fresh = json.loads((root / C.CATALOGUE_PATH).read_bytes())
+    assert json.loads((ROOT / C.CATALOGUE_PATH).read_bytes().decode("utf-8-sig")) == fresh
+    assert (fresh["r_tag"], fresh["r_commit"]) == ("v1.31.0", "4b53b7d")
+
+
+def test_committed_tree_has_no_drift():
+    # --check never writes, so this is safe on the real working tree (which is
+    # CRLF on a core.autocrlf=true checkout).
+    res = C.sync(repo_root=ROOT, from_fixtures=True, check=True)
+    assert res.code == 0, res.lines
+
+
+def test_committed_tree_has_no_drift_as_crlf(tmp_path):
+    root = _tree(tmp_path)
+    shutil.copytree(SHIPPED, root / C.OUT_DIR)
+    for p in (root / C.OUT_DIR).glob("*.json"):
+        p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    res = C.sync(repo_root=root, from_fixtures=True, check=True)
+    assert res.code == 0, res.lines
+
+
+@pytest.mark.parametrize("fname", C.TEMPLATE_FILES)
+def test_shipped_project_loads_without_off_rule_warnings(fname, caplog):
+    # Spec §7: 0 off-rule links today, so validation logs nothing on sespy.link_rules.
+    import logging
+
+    from sespy.persistent_storage import load_project
+    with caplog.at_level(logging.WARNING, logger="sespy.link_rules"):
+        project = load_project(SHIPPED / fname)
+    assert project.newer_build == {}
+    assert not [r for r in caplog.records if r.name == "sespy.link_rules"]

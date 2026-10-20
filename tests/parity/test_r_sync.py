@@ -1,8 +1,10 @@
-"""P1a — the R fixtures are pinned to MarineSABRES v1.29.0 (e33faea).
+"""P1a/P2 — the R fixtures are pinned to one MarineSABRES release.
 
 tests/parity/r_sync.json is the machine-readable pin; docs/parity/R_SYNC.md
-is the human record and must list the same hashes. A new R release is
-adopted by re-copying the fixtures and updating both in one commit.
+is the human record and must list the same hashes and the same release in
+its generated block. A new R release is adopted with
+`python -m scripts.sync_r_templates`, which rewrites the fixtures, the pin
+and the block together, so the release is not a literal here.
 """
 from __future__ import annotations
 
@@ -19,12 +21,25 @@ PIN = json.loads((ROOT / "tests" / "parity" / "r_sync.json").read_text(encoding=
 
 
 def test_pin_shape():
-    assert PIN["r_tag"] == "v1.29.0" and PIN["r_commit"] == "e33faea"
+    assert re.fullmatch(r"v\d+\.\d+\.\d+", PIN["r_tag"]), PIN["r_tag"]
+    assert re.fullmatch(r"[0-9a-f]{7}", PIN["r_commit"]), PIN["r_commit"]
     paths = sorted(PIN["files"])
-    assert len(paths) == 8
+    assert len(paths) == 9
     assert "tests/parity/r_rules/dapsiwrm_connection_rules.R" in paths
+    assert "tests/parity/r_source/template_loader.R" in paths
     assert sum(p.startswith("tests/parity/r_templates/") for p in paths) == 7
     assert not any("backup" in p for p in paths)
+    assert isinstance(PIN["accepted_warnings"], list)
+
+
+def test_r_sync_md_pin_line_equals_the_pin():
+    md = (ROOT / "docs" / "parity" / "R_SYNC.md").read_text(encoding="utf-8")
+    assert md.count("<!-- r-sync:begin -->") == 1 and md.count("<!-- r-sync:end -->") == 1
+    block = md.split("<!-- r-sync:begin -->")[1].split("<!-- r-sync:end -->")[0]
+    m = re.search(r"\*\*R release:\*\* MarineSABRES_SES_Shiny \*\*(v\d+\.\d+\.\d+)\*\*, "
+                  r"commit `([0-9a-f]{7})`\.", block)
+    assert m, "no generated pin line between the r-sync markers"
+    assert (m.group(1), m.group(2)) == (PIN["r_tag"], PIN["r_commit"])
 
 
 @pytest.mark.parametrize("rel", sorted(PIN["files"]))

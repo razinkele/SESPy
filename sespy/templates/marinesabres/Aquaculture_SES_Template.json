@@ -1,0 +1,611 @@
+{
+  "metadata": {
+    "name": "Coastal Lagoon (MarineSABRES)",
+    "description": "Social-ecological system template for coastal lagoon ecosystems, covering eutrophication, fisheries, habitat change, and management responses. Applicable to Baltic and Mediterranean lagoon systems.",
+    "da_site": "",
+    "regional_sea": "baltic",
+    "ecosystem_type": "",
+    "focal_issue": "",
+    "definition_statement": "",
+    "temporal_scale": "",
+    "spatial_scale": "",
+    "system_in_focus": "",
+    "created_at": "2026-04-08",
+    "modified_at": "2026-04-08",
+    "schema_version": 7,
+    "origin": "r_template",
+    "r_template_version": "2.1",
+    "min_sespy_version": "1.13.0"
+  },
+  "isa_data": {
+    "elements": [
+      {
+        "id": "D001",
+        "label": "Food security from local fisheries",
+        "type": "Drivers",
+        "description": "Food security from local fisheries",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Driver"
+        }
+      },
+      {
+        "id": "D003",
+        "label": "Agricultural production demand in catchment",
+        "type": "Drivers",
+        "description": "Agricultural production demand in catchment",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Driver"
+        }
+      },
+      {
+        "id": "A001",
+        "label": "Small-scale gillnet fishing for pike-perch",
+        "type": "Activities",
+        "description": "Small-scale gillnet fishing for pike-perch",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Activity"
+        }
+      },
+      {
+        "id": "A002",
+        "label": "Reed harvesting for thatching and bioenergy",
+        "type": "Activities",
+        "description": "Reed harvesting for thatching and bioenergy",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Activity"
+        }
+      },
+      {
+        "id": "A004",
+        "label": "Agricultural drainage into lagoon",
+        "type": "Activities",
+        "description": "Agricultural drainage into lagoon",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Activity"
+        }
+      },
+      {
+        "id": "A006",
+        "label": "Eel fishing with fyke nets",
+        "type": "Activities",
+        "description": "Eel fishing with fyke nets",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Activity"
+        }
+      },
+      {
+        "id": "P001",
+        "label": "Nutrient enrichment from agricultural sources",
+        "type": "Pressures",
+        "description": "Nutrient enrichment from agricultural sources",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P002",
+        "label": "Cyanobacteria bloom formation",
+        "type": "Pressures",
+        "description": "Cyanobacteria bloom formation",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P003",
+        "label": "Reduced water exchange with open sea",
+        "type": "Pressures",
+        "description": "Reduced water exchange with open sea",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P004",
+        "label": "Sedimentation and lagoon infilling",
+        "type": "Pressures",
+        "description": "Sedimentation and lagoon infilling",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P005",
+        "label": "Microplastic accumulation in sediments",
+        "type": "Pressures",
+        "description": "Microplastic accumulation in sediments",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "P006",
+        "label": "Fishing mortality on pike-perch stock",
+        "type": "Pressures",
+        "description": "Fishing mortality on pike-perch stock",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Pressure"
+        }
+      },
+      {
+        "id": "MPF001",
+        "label": "Pike-perch population dynamics",
+        "type": "Marine Processes & Functioning",
+        "description": "Pike-perch population dynamics",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "State Change"
+        }
+      },
+      {
+        "id": "MPF002",
+        "label": "Submerged macrophyte coverage (e.g., Potamogeton)",
+        "type": "Marine Processes & Functioning",
+        "description": "Submerged macrophyte coverage (e.g., Potamogeton)",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "State Change"
+        }
+      },
+      {
+        "id": "MPF003",
+        "label": "Phytoplankton community composition",
+        "type": "Marine Processes & Functioning",
+        "description": "Phytoplankton community composition",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "State Change"
+        }
+      },
+      {
+        "id": "MPF004",
+        "label": "Reed bed extent and condition",
+        "type": "Marine Processes & Functioning",
+        "description": "Reed bed extent and condition",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "State Change"
+        }
+      },
+      {
+        "id": "MPF005",
+        "label": "Water transparency and light penetration",
+        "type": "Marine Processes & Functioning",
+        "description": "Water transparency and light penetration",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "State Change"
+        }
+      },
+      {
+        "id": "ES001",
+        "label": "Fish provisioning from lagoon fisheries",
+        "type": "Ecosystem Services",
+        "description": "Fish provisioning from lagoon fisheries",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Provisioning"
+        }
+      },
+      {
+        "id": "ES002",
+        "label": "Water purification by reed beds and macrophytes",
+        "type": "Ecosystem Services",
+        "description": "Water purification by reed beds and macrophytes",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Provisioning"
+        }
+      },
+      {
+        "id": "ES003",
+        "label": "Bird habitat provision (breeding, staging)",
+        "type": "Ecosystem Services",
+        "description": "Bird habitat provision (breeding, staging)",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Provisioning"
+        }
+      },
+      {
+        "id": "GB001",
+        "label": "Fisher household income from pike-perch sales",
+        "type": "Goods & Benefits",
+        "description": "Fisher household income from pike-perch sales",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Welfare"
+        }
+      },
+      {
+        "id": "GB004",
+        "label": "Tourism revenue from birdwatching and angling",
+        "type": "Goods & Benefits",
+        "description": "Tourism revenue from birdwatching and angling",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Welfare"
+        }
+      },
+      {
+        "id": "R001",
+        "label": "HELCOM nutrient reduction targets for lagoon catchments",
+        "type": "Responses",
+        "description": "HELCOM nutrient reduction targets for lagoon catchments",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Response"
+        }
+      },
+      {
+        "id": "R003",
+        "label": "Pike-perch minimum landing size regulations",
+        "type": "Responses",
+        "description": "Pike-perch minimum landing size regulations",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Response"
+        }
+      },
+      {
+        "id": "R004",
+        "label": "Agricultural buffer zone requirements",
+        "type": "Responses",
+        "description": "Agricultural buffer zone requirements",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Response"
+        }
+      },
+      {
+        "id": "R005",
+        "label": "Natura 2000 lagoon habitat protection",
+        "type": "Responses",
+        "description": "Natura 2000 lagoon habitat protection",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Response"
+        }
+      },
+      {
+        "id": "M001",
+        "label": "Best management practices for lagoon nutrient control",
+        "type": "Responses",
+        "description": "Nutrient management protocols and feed optimization for lagoon fisheries and agriculture",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Measure",
+          "r_kind": "measure"
+        }
+      },
+      {
+        "id": "M002",
+        "label": "Constructed wetland buffer zones",
+        "type": "Responses",
+        "description": "Engineered wetlands at lagoon margins to intercept nutrient runoff from agricultural catchments",
+        "confidence": 3,
+        "r_extra": {
+          "r_type": "Measure",
+          "r_kind": "measure"
+        }
+      }
+    ],
+    "connections": [
+      {
+        "source": "D003",
+        "target": "A004",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Intensified farming increases fertiliser use and drainage volumes flowing into the lagoon"
+      },
+      {
+        "source": "A004",
+        "target": "P001",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Drainage channels deliver nitrogen and phosphorus directly to the lagoon, driving eutrophication"
+      },
+      {
+        "source": "P001",
+        "target": "P002",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Excess nutrients, especially phosphorus, fuel cyanobacteria blooms in warm shallow lagoons. Nutrient loading (particularly nitrogen and phosphorus from agricultural runoff and municipal wastewater) drives phytoplankton and cyanobacterial bloom formation"
+      },
+      {
+        "source": "P001",
+        "target": "MPF002",
+        "polarity": "-",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Nutrient loading increases phytoplankton turbidity, shading out submerged macrophytes"
+      },
+      {
+        "source": "P002",
+        "target": "MPF005",
+        "polarity": "-",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Dense cyanobacteria blooms drastically reduce water clarity in shallow lagoons. The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+      },
+      {
+        "source": "P003",
+        "target": "MPF003",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Poor flushing allows nutrient accumulation and dominance by bloom-forming species. Nutrient loading (particularly nitrogen and phosphorus from agricultural runoff and municipal wastewater) drives phytoplankton and cyanobacterial bloom formation"
+      },
+      {
+        "source": "MPF001",
+        "target": "ES001",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Pike-perch population dynamics affects Fish provisioning from lagoon fisheries"
+      },
+      {
+        "source": "MPF004",
+        "target": "ES003",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Extensive reed beds provide essential nesting and staging habitat for waterbirds"
+      },
+      {
+        "source": "MPF004",
+        "target": "ES002",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Reed beds filter nutrients and trap sediment, improving water quality. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+      },
+      {
+        "source": "ES001",
+        "target": "GB001",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Fish catches directly translate to fisher income in lagoon communities. The positive feedback operates through direct resource dependency, where changes in the source variable proportionally affect the target variable through established ecological and socioeconomic pathways"
+      },
+      {
+        "source": "ES003",
+        "target": "GB004",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Rich bird populations attract birdwatching tourists and generate local revenue. Marine tourism generates substantial economic value — reef tourism alone contributes ~USD 36 billion/year globally"
+      },
+      {
+        "source": "R001",
+        "target": "P001",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "International nutrient targets drive national measures that reduce agricultural nutrient loads"
+      },
+      {
+        "source": "R004",
+        "target": "A004",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Buffer zones intercept nutrients before they reach drainage channels flowing to the lagoon"
+      },
+      {
+        "source": "R003",
+        "target": "A001",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Minimum size limits reduce fishing pressure on juvenile pike-perch. The negative feedback reflects a trade-off or antagonistic interaction where increases in the source variable suppress or reduce the target through competitive exclusion, resource limitation, or regulatory mechanisms"
+      },
+      {
+        "source": "D001",
+        "target": "A001",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 5,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Local food security needs directly drive small-scale gillnet fishing effort targeting pike-perch in lagoons"
+      },
+      {
+        "source": "R005",
+        "target": "A004",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 3,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Natura 2000 conservation obligations impose restrictions on agricultural drainage practices affecting lagoon habitats"
+      },
+      {
+        "source": "P004",
+        "target": "P003",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Progressive sedimentation narrows and shallows lagoon inlets, further restricting water exchange with the open sea and exacerbating stagnation"
+      },
+      {
+        "source": "MPF002",
+        "target": "MPF005",
+        "polarity": "+",
+        "strength": "strong",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Submerged macrophytes stabilise sediments and reduce resuspension, maintaining clear water; macrophyte loss triggers a turbid-water stable state through positive feedback with phytoplankton dominance"
+      },
+      {
+        "source": "MPF003",
+        "target": "MPF001",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Shift from diatom to cyanobacteria dominance reduces zooplankton food quality, impacting pike-perch larval survival through trophic cascade effects on prey availability"
+      },
+      {
+        "source": "A001",
+        "target": "P006",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Small-scale gillnet fishing for pike-perch affects Fishing mortality on pike-perch stock"
+      },
+      {
+        "source": "P006",
+        "target": "MPF001",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Fishing mortality on pike-perch stock affects Pike-perch population dynamics"
+      },
+      {
+        "source": "A002",
+        "target": "P001",
+        "polarity": "-",
+        "strength": "weak",
+        "confidence": 3,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Reed harvesting removes nutrient-rich biomass from the lagoon ecosystem, potentially reducing (not increasing) nutrient levels. Reed beds sequester N and P; their harvest exports these nutrients. Polarity corrected from + to -."
+      },
+      {
+        "source": "A006",
+        "target": "P001",
+        "polarity": "+",
+        "strength": "weak",
+        "confidence": 3,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Eel fishing with fyke nets is a passive, low-impact gear that does not contribute meaningfully to nutrient enrichment. No scientific basis for medium-strength link. Strength and confidence reduced."
+      },
+      {
+        "source": "P005",
+        "target": "MPF001",
+        "polarity": "-",
+        "strength": "weak",
+        "confidence": 2,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Microplastic effects on pike-perch populations are poorly documented and likely negative (not positive) through ingestion, inflammation, and endocrine disruption. Limited evidence for population-level effects. Polarity corrected to -, strength to weak, confidence to 2."
+      },
+      {
+        "source": "M001",
+        "target": "R001",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 4,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Best management practices directly reduce nutrient discharge from lagoon catchment activities, supporting HELCOM targets"
+      },
+      {
+        "source": "M002",
+        "target": "R001",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 3,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Constructed wetland buffers intercept nitrogen and phosphorus before entering lagoon, supporting HELCOM nutrient reduction targets"
+      },
+      {
+        "source": "GB001",
+        "target": "D001",
+        "polarity": "+",
+        "strength": "medium",
+        "confidence": 3,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Fisher household income from pike-perch sales reinforces Food security from local fisheries"
+      },
+      {
+        "source": "P005",
+        "target": "MPF002",
+        "polarity": "+",
+        "strength": "weak",
+        "confidence": 2,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Microplastic accumulation in sediments connects to Submerged macrophyte coverage (e.g., Potamogeton)"
+      },
+      {
+        "source": "P001",
+        "target": "MPF004",
+        "polarity": "+",
+        "strength": "weak",
+        "confidence": 2,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Nutrient enrichment from agricultural sources connects to Reed bed extent and condition"
+      },
+      {
+        "source": "GB001",
+        "target": "R003",
+        "polarity": "-",
+        "strength": "medium",
+        "confidence": 2,
+        "delay": "immediate",
+        "ratings": [],
+        "description": "Falling fisher household income from pike-perch sales signals a depleted stock and builds support for stricter minimum landing sizes: less income, stronger size regulation."
+      }
+    ]
+  },
+  "stakeholders": [],
+  "engagements": [],
+  "communications": []
+}

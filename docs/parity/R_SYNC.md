@@ -14,11 +14,12 @@ generated block below together; never edit the block by hand.
 ## Current pin
 
 <!-- r-sync:begin -->
-- **R release:** MarineSABRES_SES_Shiny **v1.29.0**, commit `e33faea`.
+- **R release:** MarineSABRES_SES_Shiny **v1.31.0**, commit `4b53b7d`.
 
 | File | Hash |
 |---|---|
 | `tests/parity/r_rules/dapsiwrm_connection_rules.R` | `ca4294f10974af34adf7dad9fe029318955c1c498356224b656a3e69525422a5` |
+| `tests/parity/r_source/template_loader.R` | `3ebe6c83a737ead8e91936f9f11ca5cfa4244d56d52f1644fc7df2af131d02d3` |
 | `tests/parity/r_templates/Aquaculture_SES_Template.json` | `d24154498ce843d0f10e2b724340ca63878002e63486132d933ef777d844c946` |
 | `tests/parity/r_templates/Caribbean_SES_Template.json` | `7c38efa11232215eea9754c2831e8beaec31eb8d7a90618a16d3834af9bd5961` |
 | `tests/parity/r_templates/ClimateChange_SES_Template.json` | `ab8cbaca91842fdc8cf87e46d0b0d20e14d298f38c21379dcaf27c8650f92ae3` |
