@@ -13,14 +13,14 @@
 ## Global Constraints
 
 - Python: always `micromamba run -n shiny python ...`. Never `pip install`, never a venv, never `python - <<EOF` or a bare `python -` (both leave spinning stdin orphans), never a multi-line `python -c "..."` on Windows (it splits per line and creates stray files) — use a `.py` file in the scratchpad.
-- Branch: cut `feat/p2-curated-templates` from the current HEAD of `docs/p2-design` (commit `b5c903a`, which carries the spec, this plan and the v1.13.0 code). Local `main` may be behind `origin/main`; do not use it.
+- Branch: cut `feat/p2-curated-templates` from the current tip of `docs/p2-design` (it carries the spec, this plan with all its review fixes, and the v1.13.0 code; never an older commit such as `b5c903a`, which predates the plan-review fixes). Local `main` may be behind `origin/main`; do not use it.
 - Never `git commit -a` / `git add -A` / `git add .`: the user's `LITERATURE/proposed-issues.md` is modified and `LITERATURE/*.md` are untracked; they are **never staged**. Stage explicit paths only.
 - Every commit message ends with exactly this trailer line (the model name may be the implementer's own):
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 - Commit messages are multi-line: use the **PowerShell tool** with a single-quoted here-string (`git commit -m @'...'@` with `'@` at column 0). Never a PowerShell here-string in the Bash tool (it leaks a literal `@`).
 - CI unit command (every task must end green on it): `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q` (≈6 min; baseline measured while planning on `1e3b49e`: **1052 passed, 1 skipped**; ≈**1224 passed, 1 skipped** at the end (`tests/test_no_deprecations.py` walks `sespy` and gains one case per new module) — `tests/test_r_template_catalogue.py` alone is ≈60 s because it builds real git repos).
 - **Shell state does not persist between tool calls**: every PowerShell / Bash call starts in the repo root with no variables. Each code block below is meant as **one** call and defines every variable it uses (`$R`, `$W`, `$log`, …); never rely on a `cd` or a variable from an earlier block. `<scratchpad>` means the session scratchpad's absolute path (substitute it literally).
-- Lint (CI runs `ruff check sespy tests app.py`): the local ruff 0.15.4 already reports **54 errors on the untouched tree** (50 I001, 2 E741, 1 E501, 1 F821; measured on `d6b280c`) — do not fix those. The P2 lint gate, at every commit, is: (a) the P2 files are clean — `micromamba run -n shiny python -m ruff check sespy/r_template_catalogue.py sespy/templates/__init__.py sespy/modules/templates.py sespy/r_template_mapper.py scripts tests/test_r_template_catalogue.py tests/test_templates.py tests/test_templates_module.py tests/parity` → `All checks passed!` (only files that exist yet); and (b) no new errors elsewhere — `micromamba run -n shiny python -m ruff check sespy tests app.py --statistics` still totals 54.
+- Lint (CI runs `ruff check sespy tests app.py`): the local ruff 0.15.4 already reports **54 errors on the untouched tree** (50 I001, 2 E741, 1 E501, 1 F821; measured on `d6b280c`) — do not fix those. The P2 lint gate, run before every commit (alongside the CI unit command), is: (a) the P2 files are clean — `micromamba run -n shiny python -m ruff check sespy/r_template_catalogue.py sespy/templates/__init__.py sespy/modules/templates.py sespy/r_template_mapper.py scripts tests/test_r_template_catalogue.py tests/test_templates.py tests/test_templates_module.py tests/test_r_template_mapper.py tests/test_i18n.py tests/test_templates_e2e.py tests/test_r_templates_e2e.py tests/parity` → `All checks passed!` (only files that exist yet; all of these are clean today); and (b) no new errors elsewhere — `micromamba run -n shiny python -m ruff check sespy tests app.py --statistics` still totals 54.
 - Edits are placed by **quoted anchor**, never by line number (the working copy is CRLF under `core.autocrlf=true`; the Edit tool handles that).
 - Version: **1.14.0** in `sespy/__init__.py`, `pyproject.toml`, `docs/MANUAL.md` line 3 — first commit. **No schema bump**: `PROJECT_SCHEMA_VERSION` stays 7; the shipped projects carry `min_sespy_version` `1.13.0` (the schema floor that `Project.to_json()` stamps), never the running version.
 - R reference: MarineSABRES_SES_Shiny **v1.31.0, commit `4b53b7d`** (2026-10-18), app directory `C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny` (written `<R>` below; its git prefix is `MarineSABRES_SES_Shiny/`). The R repo is **read-only**: only `git show`, `git rev-parse`, `git diff`, `git log`; never checkout, switch, stash, commit, or touch its working tree (it is on `main` with the user's own uncommitted files). The 9 pinned files are identical at v1.29.0 and v1.31.0 (`git diff --quiet e33faea v1.31.0 -- <9 paths>` exits 0).
@@ -518,7 +518,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   - `build_outputs(raw_by_file, *, r_tag, r_commit) -> (dict[str, bytes], list[dict], list[str])`
   - `render_block(r_tag, r_commit, files, accepted) -> str`; `splice_block(md, block) -> str`
   - `sync(*, repo_root, r_root=None, rev=None, from_fixtures=False, check=False, accept_warnings=False) -> SyncResult`
-- Settled where the spec was silent: fixture mode refuses `--r-root` / `--rev` (exit 1); warning lines print as `warning (accepted|unaccepted): <format_warning>`; `format_warning` gives `<template>: off_rule_link <from> -> <to>` / `<template>: type_mismatch <text>`; `complexity_of` `str()`-coerces a non-string R value; hash-change lines read `hash <path>: <old or (none)> -> <new>`.
+- Settled where the spec was silent: fixture mode refuses `--r-root` / `--rev` (exit 1); warning lines print as `warning (accepted|unaccepted): <format_warning>`; `format_warning` gives `<template>: off_rule_link <from> -> <to>` / `<template>: type_mismatch <text>`; `complexity_of` `str()`-coerces a non-string R value; hash-change lines read `hash <path>: <old or (none)> -> <new>`; with no regional-sea slug, `regional_sea_label` treats a whitespace-only `region` like a missing one and returns `""`.
 
 - [ ] **Step 1: Write the failing test file `tests/test_r_template_catalogue.py`**
 
@@ -1759,6 +1759,7 @@ def test_committed_tree_has_no_drift_as_crlf(tmp_path):
     res = C.sync(repo_root=root, from_fixtures=True, check=True)
     assert res.code == 0, res.lines
 
+
 @pytest.mark.parametrize("fname", C.TEMPLATE_FILES)
 def test_shipped_project_loads_without_off_rule_warnings(fname, caplog):
     # Spec §7: 0 off-rule links today, so validation logs nothing on sespy.link_rules.
@@ -1818,7 +1819,7 @@ The sync never checks out or commits, so it cannot add a reflog entry; a new ent
 
 - [ ] **Step 7: Review the diff**
 
-`git status --short` (besides `LITERATURE/`) shows only `M docs/parity/R_SYNC.md`, `M tests/parity/r_sync.json`, `M tests/parity/test_r_sync.py`, `M tests/test_r_template_catalogue.py`, `?? sespy/templates/marinesabres/`, `?? tests/parity/r_source/`, `?? tests/parity/test_r_category_parity.py`. The 8 rewritten fixtures are written LF over a CRLF working copy, so on this `core.autocrlf=true` checkout **expect all 8 to show `M`** (dry run): `git diff --ignore-cr-at-eol -- tests/parity/r_templates tests/parity/r_rules` must print nothing, and after `git add` they drop out of the commit (content-equal to their LF blobs). Stage them anyway with the rest, or `git checkout -- tests/parity/r_templates tests/parity/r_rules` first; either way the commit holds no fixture change. `git diff -- docs/parity/R_SYNC.md` (ignoring CR) is exactly: the pin line `**v1.29.0**, commit `e33faea`` → `**v1.31.0**, commit `4b53b7d``, plus one added row ``| `tests/parity/r_source/template_loader.R` | `3ebe6c83…02d3` |``. `tests/parity/r_sync.json` gains `r_tag`/`r_commit` v1.31.0/4b53b7d, the `template_loader.R` entry, files sorted by path, and `"accepted_warnings": []`.
+`git status --short` (besides `LITERATURE/`) shows only `M docs/parity/R_SYNC.md`, `M tests/parity/r_sync.json`, `M tests/parity/test_r_sync.py`, `M tests/test_r_template_catalogue.py`, `?? sespy/templates/marinesabres/`, `?? tests/parity/r_source/`, `?? tests/parity/test_r_category_parity.py`, plus the 8 rewritten fixtures under `tests/parity/r_templates/` and `tests/parity/r_rules/` as `M`. Those 8 are written LF over a CRLF working copy, so on this `core.autocrlf=true` checkout **expect all 8 to show `M`** (dry run): `git diff --ignore-cr-at-eol -- tests/parity/r_templates tests/parity/r_rules` must print nothing, and after `git add` they drop out of the commit (content-equal to their LF blobs). Stage them anyway with the rest, or `git checkout -- tests/parity/r_templates tests/parity/r_rules` first; either way the commit holds no fixture change. `git diff -- docs/parity/R_SYNC.md` (ignoring CR) is exactly: the pin line `**v1.29.0**, commit `e33faea`` → `**v1.31.0**, commit `4b53b7d``, plus one added row ``| `tests/parity/r_source/template_loader.R` | `3ebe6c83…02d3` |``. `tests/parity/r_sync.json` gains `r_tag`/`r_commit` v1.31.0/4b53b7d, the `template_loader.R` entry, files sorted by path, and `"accepted_warnings": []`.
 
 - [ ] **Step 8: Run — GREEN**
 
@@ -3168,7 +3169,8 @@ against R v1.31.0 (`4b53b7d`).
 ```powershell
 Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue   # nothing
 $srv = Start-Process micromamba.exe -ArgumentList "run -n shiny python -m shiny run --port 8000 app.py" -PassThru -WindowStyle Hidden
-Start-Sleep -Seconds 40
+for ($i = 0; $i -lt 60 -and -not (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Seconds 2 }
+Start-Sleep -Seconds 45   # listening is not rendered: a cold session needs ~32 s idle before the nav exists
 micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000 --out <scratchpad>\shots
 Copy-Item <scratchpad>\shots\templates.png docs\screenshots\templates.png
 Get-NetTCPConnection -LocalPort 8000 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
@@ -3390,11 +3392,11 @@ Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.Cr
 
 - [ ] **Step 4: README e2e count from the gate's own summary**
 
-Set the `N standalone Playwright scripts (M runs` numbers in README.md (the paragraph after the `make_docs_screenshots.py` block; today it reads `31 ... (32 runs`) **and** the script count in the `# Full Playwright e2e — one command boots the server, runs all 31 browser` comment (README line ≈468) to what `run_e2e.py` reported. If they changed:
+Set the `N standalone Playwright scripts (M runs` numbers in README.md (the paragraph after the `make_docs_screenshots.py` block; today it reads `31 ... (32 runs`) **and** the script count in the `# Full Playwright e2e — one command boots the server, runs all 31 browser` comment (README line ≈468) to what `run_e2e.py` reported. In the same paragraph, set the stale `696 unit tests` to the Step 1 count, and add `r-templates` after `templates` in the README's `**22 end-to-end test scripts**` list (≈line 565; it also counts burger/stepper, so recount its own entries rather than copying N). If anything changed:
 ```powershell
 git add README.md
 git commit -m @'
-docs(readme): e2e script count after P2's test_r_templates_e2e.py
+docs(readme): test counts after P2's test_r_templates_e2e.py
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 '@
@@ -3408,7 +3410,7 @@ Start-Process micromamba.exe -ArgumentList "run -n shiny python -m pytest tests 
 ```
 Poll with bounded `Start-Sleep -Seconds 240; Get-Content '<scratchpad>\mosaicses-p2.log' -Tail 5` calls (literal path). Expected: all green. Never gate MosaicSES on `-k "not e2e"`. P2 changes no serialisation and no module MosaicSES reuses (MosaicSES does not import `sespy.templates`), so a red here is environmental until shown otherwise — rerun the failing test solo, then triage.
 
-- [ ] **Step 6: Implementation review loop** — superpowers:requesting-code-review over `docs/p2-design..HEAD` (the implementation commits only, not the spec/plan), repeated until a round finds no Critical or Important issues; each fix is its own commit followed by the CI unit command (and `--check`).
+- [ ] **Step 6: Implementation review loop** — superpowers:requesting-code-review over `docs/p2-design...HEAD` (three dots: diffed from the merge-base, so the implementation commits only; two dots would show any later plan commits on `docs/p2-design` as a fake revert), repeated until a round finds no Critical or Important issues; each fix is its own commit followed by the CI unit command (and `--check`).
 
 ---
 
@@ -3471,11 +3473,11 @@ cd "<scratchpad>/sespy-release" && source deploy/config.env && \
 scp "<scratchpad>/verify_p2.py" "$DEPLOY_SERVER:/tmp/verify_p2.py" && \
 ssh "$DEPLOY_SERVER" "cd '$DEPLOY_DIR' && /opt/micromamba/envs/shiny/bin/python3 -s /tmp/verify_p2.py; rm -f /tmp/verify_p2.py"
 ```
-Expected: `P2 gallery OK: <DEPLOY_DIR>/sespy/__init__.py <DEPLOY_DIR>/sespy/templates/marinesabres/OffshoreWind_SES_Template.json` (this also proves the new JSONs reached the server). Then open the live SESPy app in a browser → Templates: both group headers show, the Caribbean card shows its badges, and loading "Offshore Wind Energy (MarineSABRES)" gives the toast and a 23-node CLD.
+Expected: a few `validate_project_payload: N off-rule link(s): ...` log lines from the 4 SESPy templates (pre-existing, not errors), then `P2 gallery OK: <DEPLOY_DIR>/sespy/__init__.py <DEPLOY_DIR>/sespy/templates/marinesabres/OffshoreWind_SES_Template.json` (this also proves the new JSONs reached the server). Then open the live SESPy app in a browser → Templates: both group headers show, the Caribbean card shows its badges, and loading "Offshore Wind Energy (MarineSABRES)" gives the toast and a 23-node CLD.
 
 - [ ] **Step 5 (user go-ahead): Laguna R check for R_SYNC.md** — record whether laguna's R is still v1.29.0 (the 9 pinned files are identical at v1.29.0 and v1.31.0, so either is fine). If the user wants it recorded, add one line under "Laguna verification" in `docs/parity/R_SYNC.md` (outside the markers) in a follow-up docs commit.
 
-- [ ] **Step 6: Recheck the live MosaicSES**
+- [ ] **Step 6 (user go-ahead; read-only): Recheck the live MosaicSES**
 ```powershell
 Set-Location 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\MosaicSES'
 micromamba run -n shiny python deploy/verify_live.py
@@ -3492,6 +3494,7 @@ git push origin docs/r-parity-roadmap
 git -c core.longpaths=true worktree remove '<scratchpad>\sespy-release'
 git fetch origin
 git log --oneline origin/main..feat/p2-curated-templates   # must print nothing (all merged)
+git switch docs/p2-design                                  # the checkout is still on the feature branch since Task 0; git refuses to delete a checked-out branch (not main: the untracked LITERATURE/ files block it)
 git branch -D feat/p2-curated-templates                    # -D: local main never received the merge
 git branch -f main origin/main                             # only if main is not checked out
 ```
