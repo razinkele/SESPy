@@ -1,12 +1,17 @@
 """Templates panel — pick a domain-specific starting project.
 
-Each card shows the template's name, description, demonstration area,
-and element/connection counts, plus a Load button. Loading replaces
-`project_data` and fires `isa_change` so the four analysis modules
-recompute against the new SES.
+Two groups (P2): "MarineSABRES templates" (R's 7 curated templates,
+pre-converted, listed from `templates/marinesabres/catalogue.json`) and
+"SESPy examples" (SESPy's own 4). Each card shows the template's name,
+badges (MarineSABRES only: category, complexity, version, regional sea),
+element/connection counts, the description, an "About this template"
+section (source, usage notes) and a Load button. Loading replaces
+`project_data` and fires `isa_change` so the analysis modules recompute
+against the new SES.
 
 R counterpart: `modules/template_ses_module.R` (~1200 LOC). Slimmed to
-the picker + load action; R's "edit before loading" wizard is deferred.
+the picker + load action; R's complexity filter (P12) and its preview /
+"edit before loading" flow (P13) are deferred.
 """
 
 from __future__ import annotations
@@ -16,13 +21,49 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from ..data_structure import Project
 from ..event_bus import EventBus
 from ..i18n import Translator, t
-from ..templates import TemplateInfo, list_templates, load_template
+from ..templates import TemplateInfo, list_catalogue, list_templates, load_template
+
+GROUPS = ("marinesabres", "sespy")      # display order of the two groups
+
+
+def _tr_value(kind: str, value: str) -> str:
+    """Translated category / complexity label. `t()` returns the key itself on
+    a miss, so an R value SESPy has no key for (e.g. a future complexity
+    "moderate") is shown raw, never as a key string."""
+    key = f"templates.{kind}_{value.lower().replace('-', '_')}"
+    text = t(key)
+    return value if text == key else text
+
+
+def _badges(info: TemplateInfo) -> ui.Tag:
+    labels = [_tr_value("category", info.category) if info.category else "",
+              _tr_value("complexity", info.complexity) if info.complexity else "",
+              f"v{info.version}" if info.version else "",
+              info.regional_sea_label]
+    return ui.tags.div(
+        *[ui.tags.span(x, class_="badge bg-secondary me-1") for x in labels if x],
+        class_="sespy-template-badges",
+        style="margin: 0 0 4px 0;",
+    )
+
+
+def _about(info: TemplateInfo) -> ui.Tag | None:
+    if not (info.source or info.usage_notes):
+        return None
+    return ui.tags.details(
+        ui.tags.summary(t("templates.about")),
+        *[ui.tags.p(x, style="margin: 4px 0 0 0;")
+          for x in (info.source, info.usage_notes) if x],
+        style="margin: 8px 0 0 0; font-size: 0.85rem;",
+    )
 
 
 def _template_card(idx: int, info: TemplateInfo) -> ui.Tag:
+    marinesabres = info.group == "marinesabres"
     return ui.tags.div(
         ui.tags.div(
             ui.tags.h5(info.name, style="margin: 0 0 4px 0;"),
+            _badges(info) if marinesabres else None,
             ui.tags.div(
                 f"{info.element_count} elements · {info.connection_count} connections"
                 + (f" · {info.da_site}" if info.da_site else ""),
@@ -33,6 +74,7 @@ def _template_card(idx: int, info: TemplateInfo) -> ui.Tag:
                 info.description,
                 style="margin: 8px 0 0 0; font-size: 0.9rem;",
             ),
+            _about(info) if marinesabres else None,
             style="flex: 1;",
         ),
         ui.tags.div(
@@ -119,7 +161,8 @@ def templates_server(
 
     @reactive.calc
     def templates() -> list[TemplateInfo]:
-        return list_templates()
+        # One combined index drives the pre-wired load_template_<i> buttons.
+        return list_catalogue() + list_templates()
 
     @output
     @render.ui
@@ -130,7 +173,17 @@ def templates_server(
                 "No templates installed.",
                 class_="text-muted",
             )
-        return ui.tags.div(*[_template_card(i, t_) for i, t_ in enumerate(rows)])
+        children: list[ui.Tag] = []
+        for group in GROUPS:
+            cards = [_template_card(i, r) for i, r in enumerate(rows) if r.group == group]
+            if not cards:
+                continue                    # an empty group renders no header
+            # A plain id= inside render.ui is not namespaced: use session.ns.
+            children.append(ui.tags.h4(t(f"templates.group_{group}"),
+                                       id=session.ns(f"group_{group}"),
+                                       style="margin: 8px 0 12px 0;"))
+            children += cards
+        return ui.tags.div(*children)
 
     for i in range(MAX_TEMPLATES):
         _wire_load(input, i, project_data, event_bus, templates)
