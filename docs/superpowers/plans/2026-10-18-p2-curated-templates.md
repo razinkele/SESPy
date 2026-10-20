@@ -19,8 +19,8 @@
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 - Commit messages are multi-line: use the **PowerShell tool** with a single-quoted here-string (`git commit -m @'...'@` with `'@` at column 0). Never a PowerShell here-string in the Bash tool (it leaks a literal `@`).
 - CI unit command (every task must end green on it): `micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q` (≈6 min; baseline measured while planning on `1e3b49e`: **1052 passed, 1 skipped**; ≈**1224 passed, 1 skipped** at the end (`tests/test_no_deprecations.py` walks `sespy` and gains one case per new module) — `tests/test_r_template_catalogue.py` alone is ≈60 s because it builds real git repos).
-- **Shell state does not persist between tool calls**: no variables carry over. In practice the harness resets the cwd to the repo root after each call, but don't rely on that: a block that must run elsewhere uses `Push-Location`/`Pop-Location` or `git -C`, and Task 13 blocks name every path absolutely. Long foreground blocks (Task 9 Step 4, Task 10 Step 5, Task 13 Step 1, every CI unit run) need the tool's `timeout: 600000`. Otherwise the default 120 s kill can leave a server on port 8000, since the block's last line is the one that stops it. Each code block below is meant as **one** call and defines every variable it uses (`$R`, `$W`, `$log`, …); never rely on a `cd` or a variable from an earlier block. `<scratchpad>` means the session scratchpad's absolute path (substitute it literally).
-- Lint (CI runs `ruff check sespy tests app.py`): the local ruff 0.15.4 already reports **54 errors on the untouched tree** (50 I001, 2 E741, 1 E501, 1 F821; measured on `d6b280c`) — do not fix those. The P2 lint gate, run before every commit (alongside the CI unit command), is: (a) the P2 files are clean — `micromamba run -n shiny python -m ruff check sespy/r_template_catalogue.py sespy/templates/__init__.py sespy/modules/templates.py sespy/r_template_mapper.py scripts tests/test_r_template_catalogue.py tests/test_templates.py tests/test_templates_module.py tests/test_r_template_mapper.py tests/test_i18n.py tests/test_templates_e2e.py tests/test_r_templates_e2e.py tests/parity` → `All checks passed!` (only files that exist yet; all of these are clean today); and (b) no new errors elsewhere — `micromamba run -n shiny python -m ruff check sespy tests app.py --statistics` still totals 54.
+- **Shell state does not persist between tool calls**: no variables carry over, and the harness resets the cwd to the repo root after each call. Blocks in Tasks 0–12 assume the repo root as cwd (repo-relative paths). A block that must run elsewhere uses `Push-Location`/`Pop-Location` or `git -C`. Task 13 blocks name every path absolutely, because they can span sessions. Long foreground blocks (Task 9 Step 4, Task 10 Step 5, Task 13 Step 1, every CI unit run) need the tool's `timeout: 600000`. Otherwise the default 120 s kill can leave a server on port 8000, since the block's last line is the one that stops it. Each code block below is meant as **one** call and defines every variable it uses (`$R`, `$W`, `$log`, …); never rely on a `cd` or a variable from an earlier block. `<scratchpad>` means the session scratchpad's absolute path (substitute it literally).
+- Lint (CI runs `ruff check sespy tests app.py`): the local ruff 0.15.4 already reports **54 errors on the untouched tree** (50 I001, 2 E741, 1 E501, 1 F821; measured on `d6b280c`) — do not fix those. The P2 lint gate is run before every commit: wherever a task step says "CI unit command", run this gate as well. It is: (a) the P2 files are clean — `micromamba run -n shiny python -m ruff check sespy/r_template_catalogue.py sespy/templates/__init__.py sespy/modules/templates.py sespy/r_template_mapper.py scripts tests/test_r_template_catalogue.py tests/test_templates.py tests/test_templates_module.py tests/test_r_template_mapper.py tests/test_i18n.py tests/test_templates_e2e.py tests/test_r_templates_e2e.py tests/parity` → `All checks passed!` (only files that exist yet; all of these are clean today); and (b) no new errors elsewhere — `micromamba run -n shiny python -m ruff check sespy tests app.py --statistics` still totals 54.
 - Edits are placed by **quoted anchor**, never by line number (the working copy is CRLF under `core.autocrlf=true`; the Edit tool handles that).
 - Version: **1.14.0** in `sespy/__init__.py`, `pyproject.toml`, `docs/MANUAL.md` line 3 — first commit. **No schema bump**: `PROJECT_SCHEMA_VERSION` stays 7; the shipped projects carry `min_sespy_version` `1.13.0` (the schema floor that `Project.to_json()` stamps), never the running version.
 - R reference: MarineSABRES_SES_Shiny **v1.31.0, commit `4b53b7d`** (2026-10-18), app directory `C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny` (written `<R>` below; its git prefix is `MarineSABRES_SES_Shiny/`). The R repo is **read-only**: only `git show`, `git rev-parse`, `git diff`, `git log`; never checkout, switch, stash, commit, or touch its working tree (it is on `main` with the user's own uncommitted files). The 9 pinned files are identical at v1.29.0 and v1.31.0 (`git diff --quiet e33faea v1.31.0 -- <9 paths>` exits 0).
@@ -68,7 +68,7 @@
 | `sespy/translations/core.json`, `tests/test_i18n.py` | 13 new `templates.*` keys (Task 7). |
 | `sespy/modules/templates.py` | Groups, badges, About, combined index (Task 8). |
 | `tests/test_templates_e2e.py` | Exact-name card lookup, CLD count (Task 9). |
-| `docs/MANUAL.md` §7, `README.md`, `CHANGELOG.md`, `docs/screenshots/templates.png` | Release docs (Task 10); README e2e count (Task 12). |
+| `docs/MANUAL.md` §7, `README.md`, `CHANGELOG.md`, `docs/screenshots/templates.png` | Release docs (Task 10); README unit and e2e counts (Task 12). |
 | `docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md` on branch `docs/r-parity-roadmap` | Roadmap edits (Task 11). |
 
 Commit order (spec §9): **C1** = Task 1; **C2** = Task 2; **C3** = Task 3; **C4** = Task 4; **C5** = Task 5 (the first real sync + the tests that need it, one commit); then gallery (Tasks 6–8), e2e (Task 9), docs (Task 10); roadmap = Task 11 (other branch); gates = Task 12; release = Task 13.
@@ -100,7 +100,7 @@ git switch docs/p2-design
 git log --oneline -1          # expect the newest docs(p2) plan-review commit (1b00b84 or later), never b5c903a
 git switch -c feat/p2-curated-templates
 git status --short            # expect only LITERATURE/ entries (user's, never staged)
-git worktree list             # expect only this checkout; remove leftover dry-run worktrees first (git -c core.longpaths=true worktree remove <path>, then git branch -D its dryrun/* branch)
+git worktree list             # expect only this checkout; remove leftover dry-run worktrees first (git -c core.longpaths=true worktree remove --force <path>: dry-run trees are disposable; then git branch -D its dryrun/* branch). Also C:/Users/arturas.baziukas/AppData/Local/sespy-release must not exist (Task 13 Step 1 refuses it)
 ```
 
 - [ ] **Step 2: Record the R repo state** (the user works in R concurrently, so its branch and status may change during P2 on their own; what must hold is that **the sync adds nothing** — it only runs `git show` / `rev-parse`, which write neither the reflog nor the working tree)
@@ -2823,7 +2823,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 **Interfaces:** Consumes `#sespy_nav_templates`, `#templates-templates_list h5`, `#templates-load_template_<i>`, `#templates-group_marinesabres`, `#templates-group_sespy`, `.sespy-template-badges .badge`, `.shiny-notification`, `#sespy_nav_cld`, `window.pyvisNetworks['cld-network'].nodes`. Other e2e scripts (`test_bot_e2e.py`, `test_boolean_happy_e2e.py`, `test_pims_project_e2e.py`, `test_wizard_e2e.py`) already find their card by **exact** `h5` text ("Minimal Demo", "Coastal Tourism SES"), so the new group needs no change there.
 
-**Not run while planning** (servers were out of scope): both scripts were only `py_compile`d.
+**Executed during the plan review** (round 2 dry run, via Step 4's `e2e_solo.py`): both scripts passed. Card 4's badges were `['Energy', 'Complex', 'v2.2', 'North Sea']`, and the CLDs had 23 and 17 nodes.
 
 - [ ] **Step 1: Replace `tests/test_templates_e2e.py` with** (index 0 is now Caribbean; exact names; the stale "≥ 15 elements" claim becomes "exactly 17")
 
@@ -3366,7 +3366,7 @@ Pushing `docs/r-parity-roadmap` happens in Task 13 Step 7, with the user's go-ah
 
 ---
 
-### Task 12: Gates — CI unit, sync check, full e2e, MosaicSES, reviews (README count commit only)
+### Task 12: Gates — CI unit, sync check + lint, code review, full e2e, README counts, MosaicSES (review-fix and README commits only)
 
 - [ ] **Step 1: CI unit command** on the branch tip → green (≈1224 passed, 1 skipped).
 
@@ -3374,12 +3374,14 @@ Pushing `docs/r-parity-roadmap` happens in Task 13 Step 7, with the user's go-ah
 
 ```powershell
 $R = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny'
-micromamba run -n shiny python -m scripts.sync_r_templates --r-root $R --check     # exit 0, no output
-micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check  # exit 0, no output
+micromamba run -n shiny python -m scripts.sync_r_templates --r-root $R --check
+"r-root check exit: $LASTEXITCODE"          # 0, and no other output
+micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check
+"fixtures check exit: $LASTEXITCODE"        # 0, and no other output
 ```
 Then run the lint gate exactly as Global Constraints defines it (parts (a) and (b), copied from there, not retyped): (a) `All checks passed!`, (b) `Found 54 errors.`
 
-- [ ] **Step 3: Implementation review loop — before the slow gates**, so every review fix still goes through the e2e and MosaicSES gates. superpowers:requesting-code-review with BASE_SHA = `git merge-base docs/p2-design HEAD` and HEAD_SHA = `git rev-parse HEAD` (the implementation commits only; diffing against the `docs/p2-design` tip directly would show any later plan commits as a fake revert). Repeat until a round finds no Critical or Important issues; each fix is its own commit followed by the CI unit command, `--from-fixtures --check` and the lint gate. If a fix lands after Steps 4–6 have run (e.g. from Task 13 Step 1), and it touches anything but docs, re-run Steps 4–6.
+- [ ] **Step 3: Implementation review loop — before the slow gates**, so every review fix still goes through the e2e and MosaicSES gates. superpowers:requesting-code-review with BASE_SHA = `git merge-base docs/p2-design HEAD` and HEAD_SHA = `git rev-parse HEAD` (the implementation commits only; diffing against the `docs/p2-design` tip directly would show any later plan commits as a fake revert). Repeat until a round finds no Critical or Important issues; each fix is its own commit followed by the CI unit command, `--from-fixtures --check` and the lint gate. **A fix needed after Steps 4–6 have run** (including one found at Task 13 Step 1) is always committed on `feat/p2-curated-templates` in the main checkout, never on `release/1.14.0`. If it touches anything but docs, re-run Steps 4–6 there. If the release worktree already exists, then bring the fix into it with `git -c core.longpaths=true -C 'C:/Users/arturas.baziukas/AppData/Local/sespy-release' merge --no-ff feat/p2-curated-templates` (with the trailer message), and re-run only Task 13 Step 1's gate block, not its first block (its `Test-Path` guard would refuse).
 
 - [ ] **Step 4: Full e2e gate, detached** (the Bash tool kills anything past 10 min even backgrounded). Port 8000 free, nothing heavy running:
 ```powershell
@@ -3394,7 +3396,18 @@ Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.Cr
 
 - [ ] **Step 5: README test counts from the gates' own summaries**
 
-Set the `N standalone Playwright scripts (M runs` numbers in README.md (the paragraph after the `make_docs_screenshots.py` block; today it reads `31 ... (32 runs`) **and** the script count in the `# Full Playwright e2e — one command boots the server, runs all 31 browser` comment (README line ≈468) to what `run_e2e.py` reported. In the same paragraph, set the stale `696 unit tests` to the Step 1 count. In the "Tests" section (≈line 551) set the stale `**258 unit tests**` header to the same count, and add `r-templates` after `templates` in the `**22 end-to-end test scripts**` list (≈line 565); that list is not exhaustive (it names 20 entries today), so set its bold count to the runner's script count N (`run_e2e.py` already counts `test_*_e2e.py` plus its 3 burger/stepper scripts, `_EXTRA_SERVER_SCRIPTS`). If anything changed:
+Derive the e2e numbers from Step 4's log, because the runner never prints the script count directly. Its `=== Phase 1 (no key): K scripts + wizard no-key ===` line leaves out the wizard, and its final `P/T e2e scripts passed` counts **runs** (the wizard runs twice). So:
+- **N** (scripts) = K + 1;
+- **M** (runs) = T.
+
+After P2 these are expected to be 34 and 35. Then update README.md:
+- the `N standalone Playwright scripts (M runs` paragraph after the `make_docs_screenshots.py` block (today it reads `31 ... (32 runs`);
+- the script count in the `# Full Playwright e2e — one command boots the server, runs all 31 browser` comment (≈line 468), set to N;
+- in the same paragraph, the stale `696 unit tests`, set to the count from the **most recent** CI unit run (Step 1, or the last Step 3 fix);
+- in the "Tests" section (≈line 551), the stale `**258 unit tests**` header, set to that same count;
+- the `**22 end-to-end test scripts**` list (≈line 565): add `r-templates` after `templates` and set its bold count to N. The list is not exhaustive: it names 20 entries today.
+
+If anything changed:
 ```powershell
 git add README.md
 git commit -m @'
@@ -3428,25 +3441,31 @@ Long foreground blocks (Step 1's CI) need the tool's `timeout: 600000`.
 $S = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESPy'
 $W = 'C:/Users/arturas.baziukas/AppData/Local/sespy-release'
 if (Test-Path $W) { throw "$W already exists: inspect it (git -C $S worktree list) before reusing or removing it" }
+if (git -C $S branch --list release/1.14.0) { throw 'a release/1.14.0 branch is left from an earlier attempt: inspect and delete it first' }
 git -C $S fetch origin
+if ($LASTEXITCODE -ne 0) { throw 'fetch failed' }
 git -c core.longpaths=true -C $S worktree add $W origin/main
+if ($LASTEXITCODE -ne 0) { throw 'worktree add failed' }
 git -c core.longpaths=true -C $W switch -c release/1.14.0
+if ($LASTEXITCODE -ne 0) { throw 'switch -c failed' }
 git -c core.longpaths=true -C $W merge --no-ff feat/p2-curated-templates -m @'
 Merge v1.14.0 (P2: curated R templates in the gallery) into main
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 '@
+"merge exit: $LASTEXITCODE"
 ```
-Conflicts are possible only in `CHANGELOG.md`/`LITERATURE/` (origin/main carries literature-alert commits); keep both sides. If the `## [1.14.0]` date in `CHANGELOG.md` differs from the actual release date, fix it in a separate commit in the worktree (amend nothing). Then run the gates inside the worktree, in one call:
+No conflict is expected. `origin/main` adds only `LITERATURE/` files, which the feature branch never touches; the round-5 dry run merged onto that day's `origin/main` cleanly. If one happens anyway (`merge exit` non-zero), resolve it by keeping both sides, then run `git -C $W add <file>` and `git -C $W commit --no-edit`. If the `## [1.14.0]` date in `CHANGELOG.md` differs from the actual release date, fix it in a separate commit in the worktree (amend nothing). Then run the gates inside the worktree, in one call:
 ```powershell
 Push-Location 'C:/Users/arturas.baziukas/AppData/Local/sespy-release'
 try {
     micromamba run -n shiny python -m pytest tests/ --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py -q -p no:cacheprovider
+    "pytest exit: $LASTEXITCODE"
     micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check
     "check exit: $LASTEXITCODE"
 } finally { Pop-Location }
 ```
-Expected: ≈1224 passed, 1 skipped; `check exit: 0` with no other output from the check.
+Expected: ≈1224 passed, 1 skipped; `pytest exit: 0`; `check exit: 0` with no other output from the check.
 
 - [ ] **Step 2 (user go-ahead): Push and tag — only if `origin/main` has not moved**
 ```powershell
@@ -3458,6 +3477,8 @@ git -c core.longpaths=true -C $W push origin release/1.14.0:main
 if ($LASTEXITCODE -ne 0) { throw 'push rejected: nothing was tagged' }
 git -c core.longpaths=true -C $W tag -a v1.14.0 -m "v1.14.0 — P2: curated R templates in the gallery"
 git -c core.longpaths=true -C $W push origin v1.14.0
+if ($LASTEXITCODE -ne 0) { throw 'tag push failed: main is pushed but v1.14.0 is only local; retry the tag push' }
+git -c core.longpaths=true -C $W ls-remote --tags origin v1.14.0   # must print one line
 ```
 `origin/main` gets weekly `docs(literature)` commits, so a move between Step 1 and Step 2 is realistic. The guard stops the tag from landing on a commit that is not on `main`.
 
@@ -3465,10 +3486,12 @@ git -c core.longpaths=true -C $W push origin v1.14.0
 ```powershell
 $S = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESPy'
 $W = 'C:/Users/arturas.baziukas/AppData/Local/sespy-release'
+git -c core.longpaths=true -C $W describe --tags --exact-match HEAD
+if ($LASTEXITCODE -ne 0) { throw 'HEAD is untagged: run Step 2 first (deploy.sh would otherwise ship it as v1.13.0-N-g<sha>)' }
 Copy-Item "$S\deploy\config.env" "$W/deploy/config.env"   # gitignored, so not in the worktree
 bash "$W/deploy/deploy.sh"                                 # deploy.sh cds to its own repo root
 ```
-Expected: `==> Deploying SESPy v1.14.0 to ...` (the version comes from `git describe --tags`, so Step 2's tag must exist).
+Expected: `v1.14.0`, then `==> Deploying SESPy v1.14.0 to ...` (deploy.sh takes the version from `git describe --tags --always`, which never fails, hence the explicit tag check).
 - `deploy.sh` ships the whole `sespy/`, so `templates/marinesabres/` goes too. It does not ship `scripts/` or `tests/`.
 - The deployed `sespy/` is symlinked into the live MosaicSES, so this deploy changes MosaicSES immediately.
 
@@ -3497,8 +3520,10 @@ Then run it in **one** Bash tool call. `config.env` is bash syntax, the scratchp
 ```bash
 cd "C:/Users/arturas.baziukas/AppData/Local/sespy-release" && source deploy/config.env && \
 scp "<scratchpad>/verify_p2.py" "$DEPLOY_SERVER:/tmp/verify_p2.py" && \
-ssh "$DEPLOY_SERVER" "cd '$DEPLOY_DIR' && /opt/micromamba/envs/shiny/bin/python3 -s /tmp/verify_p2.py; rm -f /tmp/verify_p2.py"
+ssh "$DEPLOY_SERVER" "cd '$DEPLOY_DIR' && /opt/micromamba/envs/shiny/bin/python3 -s /tmp/verify_p2.py; s=\$?; rm -f /tmp/verify_p2.py; exit \$s"
+echo "verify exit: $?"
 ```
+(`\$?` is escaped so the remote shell expands it. Without `exit $s`, the `rm` would mask a failed assertion. Expect `verify exit: 0`.)
 Expected output:
 - Two `validate_project_payload: N off-rule link(s): ...` warnings on stderr. They come from two of the 4 SESPy templates, are pre-existing, and are not errors. Their order relative to stdout is not fixed.
 - Then `P2 gallery OK: <DEPLOY_DIR>/sespy/__init__.py <DEPLOY_DIR>/sespy/templates/marinesabres/OffshoreWind_SES_Template.json`. This also proves the new JSONs reached the server.
@@ -3539,6 +3564,8 @@ if ($left) { throw "feat/p2-curated-templates has commits not on origin/main: $l
 $left = git -C $S log --oneline origin/main..release/1.14.0
 if ($left) { throw "release/1.14.0 has commits not on origin/main: $left" }
 git -c core.longpaths=true -C $S worktree remove $W          # a 'Permission denied' on .git/worktrees/... is a harmless OneDrive lock
+git -C $S worktree prune
+if (git -C $S worktree list | Select-String -SimpleMatch 'sespy-release') { throw 'release worktree still registered: branch -D release/1.14.0 would be refused' }
 git -C $S switch docs/p2-design                               # the checkout has been on the feature branch since Task 0, and git refuses to delete a checked-out branch; not main, because the untracked LITERATURE/ files block it
 git -C $S branch -D release/1.14.0 feat/p2-curated-templates # -D: local main never received the merge
 git -C $S branch -f main origin/main                         # refused (harmlessly) if main is checked out in some worktree
