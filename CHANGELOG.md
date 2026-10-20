@@ -4,6 +4,23 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.14.2] — 2026-10-20
+
+### Fixed
+- **The intervention simulation no longer freezes the session on its first
+  run.** The first token-diffusion run per server process loads the
+  statistics library (~7 s). It used to run inside the click handler, so
+  the whole panel hung with no feedback. It now runs in the background (an
+  extended task, like the Bayesian network section). The summary shows
+  "running the intervention simulation…" at once. A run that a later change
+  to the source, the sliders or the model has made stale is discarded rather
+  than shown.
+
+### Tests
+- The intervention e2e waits on the simulation result, with a 90 s budget,
+  instead of a fixed 15 s poll that the cold first run overran under
+  full-suite load.
+
 ## [1.14.1] — 2026-10-20
 
 ### Fixed

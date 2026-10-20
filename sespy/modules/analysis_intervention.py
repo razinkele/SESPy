@@ -33,10 +33,11 @@ from ..event_bus import EventBus
 from ..input_utils import safe_int
 from ..i18n import Translator, t
 
-#: Sentinel for "BBN task in flight". pgmpy 1.1 imports torch when installed:
-#: measured 35–65 s on the FIRST import per server process. The import must
-#: therefore run off the event loop (extended task + thread), never at module
-#: level (tests/test_no_deprecations.py imports every module cold).
+#: Sentinel for "task in flight" (BBN and token diffusion). pgmpy 1.1 imports
+#: torch when installed: measured 35–65 s on the FIRST import per server
+#: process; token diffusion's first call imports scipy.stats (~7 s). Both run
+#: off the event loop (extended task + thread), never at module level
+#: (tests/test_no_deprecations.py imports every module cold).
 _COMPUTING = object()
 
 
