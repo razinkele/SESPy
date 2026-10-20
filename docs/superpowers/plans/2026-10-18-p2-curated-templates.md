@@ -100,7 +100,7 @@ git switch docs/p2-design
 git log --oneline -1          # expect the newest docs(p2) plan-review commit (1b00b84 or later), never b5c903a
 git switch -c feat/p2-curated-templates
 git status --short            # expect only LITERATURE/ entries (user's, never staged)
-git worktree list             # expect only this checkout; remove leftover dry-run worktrees first (git -c core.longpaths=true worktree remove --force <path>: dry-run trees are disposable; then git branch -D its dryrun/* branch). Also C:/Users/arturas.baziukas/AppData/Local/sespy-release must not exist (Task 13 Step 1 refuses it)
+git worktree list             # expect only this checkout; remove leftover dry-run worktrees first (git -c core.longpaths=true worktree remove --force <path>: dry-run trees are disposable; then git branch -D its dryrun/* branch). Also C:/Users/arturas.baziukas/AppData/Local/sespy-release and a release/1.14.0 branch must not exist (Task 13 Step 1 refuses both)
 ```
 
 - [ ] **Step 2: Record the R repo state** (the user works in R concurrently, so its branch and status may change during P2 on their own; what must hold is that **the sync adds nothing** — it only runs `git show` / `rev-parse`, which write neither the reflog nor the working tree)
@@ -2823,7 +2823,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 **Interfaces:** Consumes `#sespy_nav_templates`, `#templates-templates_list h5`, `#templates-load_template_<i>`, `#templates-group_marinesabres`, `#templates-group_sespy`, `.sespy-template-badges .badge`, `.shiny-notification`, `#sespy_nav_cld`, `window.pyvisNetworks['cld-network'].nodes`. Other e2e scripts (`test_bot_e2e.py`, `test_boolean_happy_e2e.py`, `test_pims_project_e2e.py`, `test_wizard_e2e.py`) already find their card by **exact** `h5` text ("Minimal Demo", "Coastal Tourism SES"), so the new group needs no change there.
 
-**Executed during the plan review** (round 2 dry run, via Step 4's `e2e_solo.py`): both scripts passed. Card 4's badges were `['Energy', 'Complex', 'v2.2', 'North Sea']`, and the CLDs had 23 and 17 nodes.
+**Executed during the plan review** (the round-2 sandbox dry run on 2026-10-20, recorded in the review session rather than in a commit; run via Step 4's `e2e_solo.py`): both scripts passed. Card 4's badges were `['Energy', 'Complex', 'v2.2', 'North Sea']`, and the CLDs had 23 and 17 nodes.
 
 - [ ] **Step 1: Replace `tests/test_templates_e2e.py` with** (index 0 is now Caribbean; exact names; the stale "≥ 15 elements" claim becomes "exactly 17")
 
@@ -3381,7 +3381,14 @@ micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --che
 ```
 Then run the lint gate exactly as Global Constraints defines it (parts (a) and (b), copied from there, not retyped): (a) `All checks passed!`, (b) `Found 54 errors.`
 
-- [ ] **Step 3: Implementation review loop — before the slow gates**, so every review fix still goes through the e2e and MosaicSES gates. superpowers:requesting-code-review with BASE_SHA = `git merge-base docs/p2-design HEAD` and HEAD_SHA = `git rev-parse HEAD` (the implementation commits only; diffing against the `docs/p2-design` tip directly would show any later plan commits as a fake revert). Repeat until a round finds no Critical or Important issues; each fix is its own commit followed by the CI unit command, `--from-fixtures --check` and the lint gate. **A fix needed after Steps 4–6 have run** (including one found at Task 13 Step 1) is always committed on `feat/p2-curated-templates` in the main checkout, never on `release/1.14.0`. If it touches anything but docs, re-run Steps 4–6 there. If the release worktree already exists, then bring the fix into it with `git -c core.longpaths=true -C 'C:/Users/arturas.baziukas/AppData/Local/sespy-release' merge --no-ff feat/p2-curated-templates` (with the trailer message), and re-run only Task 13 Step 1's gate block, not its first block (its `Test-Path` guard would refuse).
+- [ ] **Step 3: Implementation review loop — before the slow gates**, so every review fix still goes through the e2e and MosaicSES gates. superpowers:requesting-code-review with BASE_SHA = `git merge-base docs/p2-design HEAD` and HEAD_SHA = `git rev-parse HEAD` (the implementation commits only; diffing against the `docs/p2-design` tip directly would show any later plan commits as a fake revert). Repeat until a round finds no Critical or Important issues; each fix is its own commit followed by the CI unit command, `--from-fixtures --check` and the lint gate. **A fix needed after Steps 4–6 have run** (including one found at Task 13 Step 1) is always committed on `feat/p2-curated-templates` in the main checkout, never on `release/1.14.0`. The only commits made directly in the release worktree are the release-mechanics ones Task 13 spells out: the Step 1 CHANGELOG date, a Step 1 merge-conflict resolution, a Step 2 merge of a moved `origin/main`, and the Step 5 R_SYNC line. If the fix touches anything but docs, re-run Steps 4–6 there. If the release worktree already exists, bring the fix into it, then re-run only Task 13 Step 1's gate block, not its first block (its `Test-Path` guard would refuse):
+```powershell
+git -c core.longpaths=true -C 'C:/Users/arturas.baziukas/AppData/Local/sespy-release' merge --no-ff feat/p2-curated-templates -m @'
+Merge late P2 fix into release/1.14.0
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+'@
+```
 
 - [ ] **Step 4: Full e2e gate, detached** (the Bash tool kills anything past 10 min even backgrounded). Port 8000 free, nothing heavy running:
 ```powershell
@@ -3403,7 +3410,7 @@ Derive the e2e numbers from Step 4's log, because the runner never prints the sc
 After P2 these are expected to be 34 and 35. Then update README.md:
 - the `N standalone Playwright scripts (M runs` paragraph after the `make_docs_screenshots.py` block (today it reads `31 ... (32 runs`);
 - the script count in the `# Full Playwright e2e — one command boots the server, runs all 31 browser` comment (≈line 468), set to N;
-- in the same paragraph, the stale `696 unit tests`, set to the count from the **most recent** CI unit run (Step 1, or the last Step 3 fix);
+- in the same paragraph, the stale `696 unit tests`, set to the `passed` count (e.g. 1224) from the **most recent** CI unit run (Step 1, or the last Step 3 fix);
 - in the "Tests" section (≈line 551), the stale `**258 unit tests**` header, set to that same count;
 - the `**22 end-to-end test scripts**` list (≈line 565): add `r-templates` after `templates` and set its bold count to N. The list is not exhaustive: it names 20 entries today.
 
@@ -3429,7 +3436,7 @@ Poll with bounded `Start-Sleep -Seconds 240; Get-Content '<scratchpad>\mosaicses
 
 ### Task 13: Merge, tag v1.14.0, deploy, verify — **each step needs the user's go-ahead**
 
-These steps may span several sessions (each waits for a go-ahead), so nothing here depends on a session's scratchpad or on the current directory:
+These steps may span several sessions (each waits for a go-ahead), so nothing here depends on a session's scratchpad or on the current directory. The one exception is Step 4's verify script, which is written and run within the same step. Specifically:
 - the release worktree lives at the fixed path `C:/Users/arturas.baziukas/AppData/Local/sespy-release` (outside OneDrive; forward slashes work for PowerShell, git and Git Bash alike);
 - every block names the SESPy checkout as `$S` and uses `git -C`;
 - `Push-Location`/`Pop-Location` wrap the steps that must run inside another directory.
@@ -3455,7 +3462,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 '@
 "merge exit: $LASTEXITCODE"
 ```
-No conflict is expected. `origin/main` adds only `LITERATURE/` files, which the feature branch never touches; the round-5 dry run merged onto that day's `origin/main` cleanly. If one happens anyway (`merge exit` non-zero), resolve it by keeping both sides, then run `git -C $W add <file>` and `git -C $W commit --no-edit`. If the `## [1.14.0]` date in `CHANGELOG.md` differs from the actual release date, fix it in a separate commit in the worktree (amend nothing). Then run the gates inside the worktree, in one call:
+No conflict is expected. `origin/main` adds only `LITERATURE/` files, which the feature branch never touches; the round-5 dry run merged onto that day's `origin/main` cleanly. If one happens anyway (`merge exit` non-zero), resolve it by keeping both sides, then run `git -C $W add <file>` and `git -C $W commit --no-edit`. The `## [1.14.0]` date in `CHANGELOG.md` was written as 2026-10-18 in Task 10. If the release day differs, fix that date in the worktree's `CHANGELOG.md` (Edit tool), then commit it there (amend nothing):
+```powershell
+$W = 'C:/Users/arturas.baziukas/AppData/Local/sespy-release'
+git -c core.longpaths=true -C $W add CHANGELOG.md
+git -c core.longpaths=true -C $W commit -m @'
+docs(changelog): 1.14.0 release date
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+'@
+```
+Then run the gates inside the worktree, in one call:
 ```powershell
 Push-Location 'C:/Users/arturas.baziukas/AppData/Local/sespy-release'
 try {
@@ -3465,14 +3482,14 @@ try {
     "check exit: $LASTEXITCODE"
 } finally { Pop-Location }
 ```
-Expected: ≈1224 passed, 1 skipped; `pytest exit: 0`; `check exit: 0` with no other output from the check.
+Expected: ≈1224 passed, 1 skipped; `pytest exit: 0`; `check exit: 0` with no other output from the check. If either exit is non-zero, follow Task 12 Step 3's late-fix rule: fix on feat, merge into the worktree, and re-run only this gate block.
 
 - [ ] **Step 2 (user go-ahead): Push and tag — only if `origin/main` has not moved**
 ```powershell
 $W = 'C:/Users/arturas.baziukas/AppData/Local/sespy-release'
 git -c core.longpaths=true -C $W fetch origin
 git -c core.longpaths=true -C $W merge-base --is-ancestor origin/main HEAD
-if ($LASTEXITCODE -ne 0) { throw 'origin/main moved since Step 1: merge origin/main into release/1.14.0 in the worktree, re-run the Step 1 gates, then retry' }
+if ($LASTEXITCODE -ne 0) { throw 'origin/main moved since Step 1: merge it in (see below), re-run the Step 1 gate block, then retry' }
 git -c core.longpaths=true -C $W push origin release/1.14.0:main
 if ($LASTEXITCODE -ne 0) { throw 'push rejected: nothing was tagged' }
 git -c core.longpaths=true -C $W tag -a v1.14.0 -m "v1.14.0 — P2: curated R templates in the gallery"
@@ -3480,7 +3497,14 @@ git -c core.longpaths=true -C $W push origin v1.14.0
 if ($LASTEXITCODE -ne 0) { throw 'tag push failed: main is pushed but v1.14.0 is only local; retry the tag push' }
 git -c core.longpaths=true -C $W ls-remote --tags origin v1.14.0   # must print one line
 ```
-`origin/main` gets weekly `docs(literature)` commits, so a move between Step 1 and Step 2 is realistic. The guard stops the tag from landing on a commit that is not on `main`.
+`origin/main` gets weekly `docs(literature)` commits, so a move between Step 1 and Step 2 is realistic. The guard stops the tag from landing on a commit that is not on `main`. When it fires, merge the new `origin/main` in, then re-run Step 1's gate block and this step:
+```powershell
+git -c core.longpaths=true -C 'C:/Users/arturas.baziukas/AppData/Local/sespy-release' merge --no-ff origin/main -m @'
+Merge origin/main into release/1.14.0
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+'@
+```
 
 - [ ] **Step 3 (user go-ahead): Deploy from the worktree**
 ```powershell
@@ -3564,7 +3588,7 @@ if ($left) { throw "feat/p2-curated-templates has commits not on origin/main: $l
 $left = git -C $S log --oneline origin/main..release/1.14.0
 if ($left) { throw "release/1.14.0 has commits not on origin/main: $left" }
 git -c core.longpaths=true -C $S worktree remove $W          # a 'Permission denied' on .git/worktrees/... is a harmless OneDrive lock
-git -C $S worktree prune
+git -C $S worktree prune                                     # 'failed to delete .git/worktrees/<other>' lines for unrelated stale entries are harmless OneDrive locks
 if (git -C $S worktree list | Select-String -SimpleMatch 'sespy-release') { throw 'release worktree still registered: branch -D release/1.14.0 would be refused' }
 git -C $S switch docs/p2-design                               # the checkout has been on the feature branch since Task 0, and git refuses to delete a checked-out branch; not main, because the untracked LITERATURE/ files block it
 git -C $S branch -D release/1.14.0 feat/p2-curated-templates # -D: local main never received the merge
