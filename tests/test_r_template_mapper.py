@@ -295,3 +295,81 @@ def test_mapper_imports_without_shiny():
             "sys.exit(1 if 'shiny' in sys.modules else 0)")
     root = Path(__file__).resolve().parents[1]
     assert subprocess.run([sys.executable, "-c", code], cwd=root).returncode == 0
+
+
+# ---- P2 §5: mapper hardening ---------------------------------------------
+
+@pytest.mark.parametrize("how", ["absent", "null"])
+def test_absent_or_null_connections_give_no_links(how):
+    # Guard (green before and after): R's `%||% list()`. The type check added
+    # in P2 must not turn these two into errors.
+    t = _tiny()
+    if how == "absent":
+        del t["connections"]
+    else:
+        t["connections"] = None
+    project, report = convert_r_template(t, key="Tiny")
+    assert project.isa_data.connections == [] and report.link_count == 0
+
+
+@pytest.mark.parametrize("bad", [{}, "", 0, {"from_id": "P1"}, "P1->S1", 7])
+def test_non_list_connections_raise(bad):
+    # Today `{}`, `""` and `0` are swallowed by `or []` (silently no links),
+    # a dict or string iterates into AttributeError, and 7 is a TypeError.
+    t = _tiny()
+    t["connections"] = bad
+    with pytest.raises(ValueError, match=r"Tiny: connections must be a list"):
+        convert_r_template(t, key="Tiny")
+
+
+@pytest.mark.parametrize("bad", ["P1->S1", ["P1", "S1"], None, 3])
+def test_non_dict_connection_raises(bad):
+    # Today: AttributeError ('str' object has no attribute 'get').
+    t = _tiny()
+    t["connections"].append(bad)
+    with pytest.raises(ValueError, match=r"Tiny: connections\[1\] is not an object"):
+        convert_r_template(t, key="Tiny")
+
+
+def test_integer_ids_on_both_sides_match():
+    # Element ids are str()-coerced; endpoints were not, so 1 != "1".
+    t = {
+        "template_name": "Ints", "metadata": {"version": "1.0"},
+        "dapsiwrm_framework": {
+            "pressures": [{"id": 1, "name": "p"}],
+            "marine_processes": [{"id": 2, "name": "s"}],
+        },
+        "connections": [{"from_id": 1, "to_id": 2, "polarity": "-"}],
+    }
+    project, report = convert_r_template(t, key="Ints")
+    c = project.isa_data.connections[0]
+    assert (c.source, c.target, c.polarity) == ("1", "2", "-")
+    assert [e.id for e in project.isa_data.elements] == ["1", "2"]
+    assert report.off_rule_links == ()
+
+
+def test_missing_endpoint_still_reports_none():
+    # Guard: coercion applies only when the endpoint is not None.
+    t = _tiny()
+    del t["connections"][0]["to_id"]
+    with pytest.raises(ValueError, match=r"Tiny.*unknown element id None"):
+        convert_r_template(t, key="Tiny")
+
+
+def test_element_id_zero_is_accepted():
+    # Today `not item.get("id")` rejects 0.
+    t = _tiny()
+    t["dapsiwrm_framework"]["drivers"] = [{"id": 0, "name": "d0"}]
+    project, _ = convert_r_template(t, key="Tiny")
+    assert "0" in {e.id for e in project.isa_data.elements}
+
+
+@pytest.mark.parametrize("bad_id", ["missing", None, ""])
+def test_element_without_usable_id_still_raises(bad_id):
+    t = _tiny()
+    item = {"name": "d"}
+    if bad_id != "missing":
+        item["id"] = bad_id
+    t["dapsiwrm_framework"]["drivers"] = [item]
+    with pytest.raises(ValueError, match=r"Tiny: drivers\[0\] has no id or name"):
+        convert_r_template(t, key="Tiny")

@@ -75,8 +75,10 @@ def convert_r_template(raw: dict, *, key: str) -> tuple[Project, ConversionRepor
     offending item) on: the legacy `elements` + `template_info` format, a
     category that is not a list, an element without id or name, a duplicate
     element id, a dangling connection endpoint, a self-loop, a duplicate
-    (from_id, to_id) pair, or a present-but-invalid polarity, strength,
-    confidence or description."""
+    (from_id, to_id) pair, `connections` present but not a list, a
+    connection that is not an object, or a present-but-invalid polarity,
+    strength, confidence or description. Element ids and connection
+    endpoints are compared as strings, so integer ids (including 0) match."""
     if "dapsiwrm_framework" not in raw and ("elements" in raw or "template_info" in raw):
         raise ValueError(f"{key}: unsupported legacy R template format")
     fw = raw.get("dapsiwrm_framework")
@@ -97,7 +99,8 @@ def convert_r_template(raw: dict, *, key: str) -> tuple[Project, ConversionRepor
         if not isinstance(items, list):
             raise ValueError(f"{key}: category {cat!r} is not a list")
         for i, item in enumerate(items):
-            if not isinstance(item, dict) or not item.get("id") or not item.get("name"):
+            if (not isinstance(item, dict) or item.get("id") in (None, "")
+                    or not item.get("name")):
                 raise ValueError(f"{key}: {cat}[{i}] has no id or name")
             eid = str(item["id"])
             if eid in category_of:
@@ -129,8 +132,17 @@ def convert_r_template(raw: dict, *, key: str) -> tuple[Project, ConversionRepor
     seen: set[tuple[str, str]] = set()
     off_rule: list[tuple[str, str]] = []
     mismatches: list[str] = []
-    for i, c in enumerate(raw.get("connections") or []):
+    raw_connections = raw.get("connections")
+    if raw_connections is None:                 # absent or null: R's %||% list()
+        raw_connections = []
+    elif not isinstance(raw_connections, list):
+        raise ValueError(f"{key}: connections must be a list")
+    for i, c in enumerate(raw_connections):
+        if not isinstance(c, dict):
+            raise ValueError(f"{key}: connections[{i}] is not an object")
         src, tgt = c.get("from_id"), c.get("to_id")
+        src = None if src is None else str(src)     # integer ids match str() ids
+        tgt = None if tgt is None else str(tgt)
         where = f"{key}: connections[{i}] {src}->{tgt}"
         for end in (src, tgt):
             if end not in category_of:
