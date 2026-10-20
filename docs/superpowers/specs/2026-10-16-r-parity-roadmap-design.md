@@ -1,10 +1,12 @@
 # R → SESPy parity roadmap — design
 
 Date: 2026-10-16 (revised after review loops 1–3; amended 2026-10-17 after
-P0 shipped and the P1a spec converged)
-Baseline: MarineSABRES_SES_Shiny **v1.29.0** (`e33faea`; verified identical to
-the laguna deployment on 2026-10-17). The original baseline was v1.28.0
-(`e3c3b77`) against SESPy v1.12.1. SESPy is now at **v1.12.3** (P0 shipped).
+P0 shipped and the P1a spec converged; amended 2026-10-18 by P2)
+Baseline: MarineSABRES_SES_Shiny **v1.31.0** (`4b53b7d`, re-pinned by P2 on
+2026-10-18). The files pinned so far are identical to v1.29.0 (`e33faea`),
+which was verified against the laguna deployment on 2026-10-17. The original
+baseline was v1.28.0 (`e3c3b77`) against SESPy v1.12.1. SESPy is now at
+**v1.14.0** (P0, P1a and P2 shipped).
 **Each sub-project re-pins** to the then-current R tag when its brainstorm
 starts, triages the R changes since the previous pin, and records the pin in
 `docs/parity/R_SYNC.md`.
@@ -201,7 +203,8 @@ and with the raw payload on open (`:295`) and on re-open from the Recent list
   name; and no recent-projects entry is created for that downloaded payload.
 
 ### P1b — Response register + indicator fields
-R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4), 1.29.0 (`PestleTag`).
+R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4), 1.29.0 (`PestleTag`),
+1.30.0 (WS-9a: `Policy_Target`, stakeholder roles; triaged by P2).
 Depends on P1a.
 - **Prerequisite (MosaicSES):** node **M** (above) must be deployed before the
   first schema bump after P1a, if P1b is that bump. Without that, an older MosaicSES re-saves such a compartment
@@ -227,8 +230,14 @@ Depends on P1a.
   only for `ecol_effective`). The label → code reverse map covers all 9
   languages (`rm_reverse_label_map`).
 - Element indicator fields with R's names: `Indicator, Indicator_Unit,
-  Data_Source, Registry_Id, Registry_Version`, on **all elements except
-  Responses**.
+  Data_Source, Registry_Id, Registry_Version` and, since R 1.30.0, the
+  optional `Policy_Target` (`constants.R` `ISA_INDICATOR_COLUMNS`,
+  `functions/indicator_snapshot.R`), on **all elements except Responses**.
+- **Stakeholder roles (R 1.30.0, WS-9a):** the PIMS stakeholder register gains
+  `NERoles` (D5.4 actor roles, Newton & Elliott typology) and `SourceId`
+  (`functions/stakeholder_schema.R`, `modules/pims_stakeholder_module.R`),
+  plus "Load DA actor list". Also check SESPy's stakeholders page against R's
+  duplicate-row fix `33ddd96` (one row per add, safe id counter).
 - Two version stamps, kept separate: SESPy's own `metadata.min_sespy_version`
   (introduced in P1a, honoured by P0b in v1.12.3), and `metadata.r_min_app_version`
   (copied from an R import's top-level `min_app_version`, used only for import
@@ -282,8 +291,10 @@ R source: `functions/ses_knowledge_db_loader.R`, `modules/ai_isa_knowledge_base.
   lists, connections, `generic_fallback` and 20 `cross_ecosystem_links`.
   These give offline element suggestions in SESPy's AI ISA wizard, next to
   `regional_seas.json`.
-- **`country_governance_db.json`**: 97 countries, 11 seas and 8 conventions,
-  giving governance context.
+- **`country_governance_db.json`**: 97 countries, 11 seas and 8 conventions
+  at v1.29.0, giving governance context. R v1.30.0 added Greenland, the Faroe
+  Islands and seven regional bodies (99 countries, 15 conventions/bodies at
+  v1.31.0, triaged in R_SYNC.md); re-check the counts at K1's pin.
 - **Regional Context** section in SESPy reports.
 - **`SES_CONNECTION_DB`/`SES_SYNONYM_DB`** are live R code, so they get a
   one-off R → JSON export, vendored and hash-checked. Python cannot read
@@ -302,13 +313,18 @@ R source: `functions/ses_knowledge_db_loader.R`, `modules/ai_isa_knowledge_base.
   runs read-only as a `deploy.sh` pre-flight step.
 
 ### P2 — Curated templates
-R source: 1.21.1, 1.22.1, 1.22.3. Depends on P1a; soft dependency on K1
+R source: 1.21.1, 1.22.1, 1.22.3, pinned at v1.31.0 (`4b53b7d`), plus
+`functions/template_loader.R` (the category rule). **Detailed spec:**
+`docs/superpowers/specs/2026-10-18-p2-curated-templates-design.md`. Shipped
+in **SESPy v1.14.0**. Depends on P1a; soft dependency on K1
 (R templates say they were rebuilt from KB contexts).
 - Convert the 7 R templates (Aquaculture, Caribbean v1.1, ClimateChange,
   Fisheries, OffshoreWind, Pollution, Tourism; versions 2.1–2.3), **320
   links** in total. Exclude `Caribbean_SES_Template_backup.json`. They need
   the P→P (8), MPF→MPF (13) and R→R (11) transitions; no template has R→MPF.
-- Ship them in `sespy/templates/` beside SESPy's 4. Names get an origin
+- Ship them pre-converted in `sespy/templates/marinesabres/` with a
+  generated `catalogue.json`, as a second gallery group beside SESPy's 4.
+  Names get an origin
   suffix (R's "Offshore Wind Energy" sits beside SESPy's "Offshore Wind Farm
   SES"). e2e selectors are scoped: `test_templates_e2e.py:33` currently
   matches the substring "Offshore Wind".
@@ -316,9 +332,11 @@ R source: 1.21.1, 1.22.1, 1.22.3. Depends on P1a; soft dependency on K1
   checkout using P1a's `load_r_template`/`convert_r_template`. In the same
   commit it refreshes the test fixtures in `tests/parity/r_templates/` and
   `tests/parity/r_rules/`,
-  `tests/parity/r_sync.json` and `docs/parity/R_SYNC.md`. Gallery cards read
-  `ConversionReport.template_meta` (complexity, usage notes, source,
-  applicable regions).
+  `tests/parity/r_sync.json` and `docs/parity/R_SYNC.md`. Gallery cards
+  read `catalogue.json` (category, complexity, version, regional-sea label;
+  source and usage notes under "About this template").
+- Deferred: R's complexity filter (P12) and R's template preview /
+  customise-before-load flow (P13).
 - **Done when:** each converted template's link count and signs equal the R JSON.
 
 ### P3 — Decision Lens (parallel track)
@@ -350,7 +368,8 @@ Depends on P1a (Python side); the R fixture capture can start after P0.
 - **Done when:** MICMAC and archetype output equal the R fixture on all 7 templates.
 
 ### P4 — Response Measures page + WP5 data layer
-R source: 1.19.0, 1.22.0 (N48), 1.23.0, 1.24.0. Depends on P1b; loader from K1.
+R source: 1.19.0, 1.22.0 (N48), 1.23.0, 1.24.0, 1.30.0 (WS-9a governance
+profiles), 1.31.0 (WS-9b readiness check). Depends on P1b; loader from K1.
 - Response register page (R `response_module.R`) on the P1b block.
 - WP5 assets loaded through the §3 reference-data loader:
   `ses_knowledge_db_wp5_mechanisms.json` (`schema: 2`, 31 mechanisms),
@@ -365,6 +384,13 @@ R source: 1.19.0, 1.22.0 (N48), 1.23.0, 1.24.0. Depends on P1b; loader from K1.
   five indicator fields, so **P4 adds no serialised field** and does not bump
   the schema. On load, warn when the registry entry has changed since the copy.
 - Model-check warnings (`wp5_typing_lint.R`).
+- **D5.4 governance (R 1.30.0/1.31.0, triaged by P2):** the "Governance
+  context (D5.4)" tab with "Add to register" (`modules/wp5_governance_context_module.R`,
+  `functions/wp5_governance.R`, data `wp5_governance_profiles.json`) and the
+  PIMS "Governance readiness (D5.4)" page (`modules/wp5_readiness_module.R`,
+  `functions/wp5_readiness.R`, data `wp5_readiness_items.json`). Their strings
+  (`translations/modules/wp5_governance.json`, `wp5_readiness.json`) live
+  outside `data/` and are always vendored.
 - **Done when:** loaded asset counts and ids equal the vendored copy, and, when
   the override is set, the live copy too (integration test, skipped in CI).
   The pane, picker and warnings work in e2e.
@@ -561,6 +587,8 @@ ported pages exist).
   `wp5_indicators.json`, `wp5_impact_reference.json`,
   `wp5_intervention_ops.json`, `wp5_rm_synonyms.json`,
   `wp5_scenarios_ssp.json` and `wp5_worldview_matrix.json` (P8, R 1.29.0),
+  `wp5_governance_profiles.json` and `wp5_readiness_items.json` (P4, R
+  1.30.0/1.31.0; their version keys are named when P4 adds them),
   plus the vendored-only `SES_CONNECTION_DB`/`SES_SYNONYM_DB` export (K1) and
   `wp5_vocabulary.json` (P4) and `wp5_scenarios.json` strings (P8), both
   always vendored.
@@ -568,7 +596,8 @@ ported pages exist).
   `*_SES_Template.json` files and R's `functions/dapsiwrm_connection_rules.R`
   are copied into `tests/parity/` (`r_templates/`, `r_rules/`) from P1a on.
   They are never read at runtime and never ship (`deploy.sh` excludes
-  `tests/`). Only files read at runtime go into `sespy/data/r_kb/`.
+  `tests/`). P2 ships SESPy projects converted from the templates
+  (`sespy/templates/marinesabres/`); the R files themselves still never ship. Only files read at runtime go into `sespy/data/r_kb/`.
 - **Provenance in projects:** on save, SESPy writes
   `metadata.reference_data = {file: {source: vendored|shared, sha256_norm,
   version, vendored_r_tag}}`. On load, SESPy warns when that differs from
@@ -597,7 +626,8 @@ ported pages exist).
 
 ### Sync tracking
 `docs/parity/R_SYNC.md` records, for each ported feature, the R version and commit it
-matches (baseline v1.29.0 @ `e33faea`, verified against laguna on 2026-10-17),
+matches (baseline v1.31.0 @ `4b53b7d` since P2; the pinned files are
+identical to v1.29.0 @ `e33faea`, verified against laguna on 2026-10-17),
 plus each fixture's and vendored file's hash (mirroring
 `tests/parity/r_sync.json`). R releases after the baseline are triaged into
 it when the next sub-project re-pins.
@@ -612,6 +642,9 @@ SESPy has 9 languages in one flat `sespy/translations/core.json`. R keys
 New WP5 and port strings **adopt R's `modules.*` namespace** in separate
 `sespy/translations/*.json` files (so a sync script can copy them), and
 older strings are mapped explicitly. e2e selectors stay scoped and namespaced.
+SESPy-only UI keys with no R counterpart may live in `core.json` (P2's
+`templates.group_*`, `templates.category_*`, `templates.complexity_*` and
+`templates.about`: R shows those values untranslated).
 
 ### MosaicSES
 MosaicSES builds `Project`/`Element`/`Connection` directly, reuses
@@ -632,7 +665,7 @@ the live MosaicSES after deploy.
 - Unit tests reproduce R's published numbers.
 - Every sub-project passes the **full** e2e gate, with no heavy jobs running
   concurrently on the 16 GB machine.
-- P0 = v1.12.2 (hotfix) + v1.12.3 (P0b); P1a = v1.13.0. Then one minor release
+- P0 = v1.12.2 (hotfix) + v1.12.3 (P0b); P1a = v1.13.0; P2 = v1.14.0. Then one minor release
   per sub-project (P3 or K1 may ship out of sequence; P6 takes three).
 - **Version and schema numbers are fixed when a branch starts**, because the
   first commit bumps `__version__`, `pyproject.toml` and the MANUAL line
@@ -664,8 +697,8 @@ its R source is pinned to the baseline at that time.
 | Sub-project | R modules | Nearest SESPy feature | Depends on |
 |---|---|---|---|
 | **P11** Guided entry | `entry_point_module` (guided pathway), `workflow_stepper_module` | AI ISA wizard | P1a; after P10 so the tour and stepper are designed together |
-| **P12** Experience levels | `get_level_config` / level config (menus, AI element caps; per-session store, R 1.20.0 N20) | — | P0. Can be pulled earlier, because it gates menus that later pages register into. **Open decision for the user** (was "decide at P1a review"; P1a closed without deciding it): pull it before P4 or keep it after P10 |
-| **P13** Model library + connection review | `ses_models_module` (SES model library, server-mode path containment R 1.18.2/1.19.1), `connection_review_tabbed` (observer-leak fix R 1.21.0 N30) | templates; review inside the AI wizard | P1c (library files are R models), K1 |
+| **P12** Experience levels | `get_level_config` / level config (menus, AI element caps; per-session store, R 1.20.0 N20); R's template complexity filter (`template_ses_module.R:125-141`, deferred from P2) | — | P0. Can be pulled earlier, because it gates menus that later pages register into. **Open decision for the user** (was "decide at P1a review"; P1a closed without deciding it): pull it before P4 or keep it after P10 |
+| **P13** Model library + connection review | `ses_models_module` (SES model library, server-mode path containment R 1.18.2/1.19.1), `connection_review_tabbed` (observer-leak fix R 1.21.0 N30); R's template preview / customise-before-load flow (`template_ses_module.R`, deferred from P2) | templates; review inside the AI wizard | P1c (library files are R models), K1 |
 | **P14** Report prep, feedback admin, pilot study | `prepare_report_module`, `feedback_admin_module` (admin-only actions, escaped user text, R 1.19.1), `pilot_study_module` | `report_export`; topbar feedback form (`feedback.db`) | K1 (Regional Context section), P6c (shared report pipeline) |
 
 Already equivalent: `local_storage` ≈ autosave/persistent_storage;
