@@ -285,3 +285,41 @@ def test_every_category_and_complexity_the_port_emits_has_a_key(translations):
         assert translations[f"templates.category_{slug}"]["en"] == value
     for value in (C.DEFAULT_COMPLEXITY, "complex"):
         assert f"templates.complexity_{value}" in translations, value
+
+
+def test_module_scopes_share_the_root_session_translator(translations, monkeypatch):
+    # Inside a module server get_current_session() is a SessionProxy. The
+    # session translator app.py sets from ?lang= lives on the root session, so
+    # get_default() must resolve to it from every scope, nested ones included,
+    # not build a fresh clone at the process default per namespace.
+    from shiny import module
+    from shiny.testserver import test_server
+
+    from sespy import i18n
+
+    monkeypatch.setattr(i18n, "_default_translator", Translator(translations=translations))
+    seen = {}
+
+    @module.server
+    def inner(input, output, session):
+        seen["inner"] = i18n.get_default()
+
+    @module.server
+    def outer(input, output, session):
+        seen["outer"] = i18n.get_default()
+        seen["outer_text"] = i18n.t("templates.load")
+        inner("child")
+
+    def server(input, output, session):
+        root = i18n.get_default()
+        root.set_language("de")
+        seen["root"] = root
+        outer("parent")
+
+    with test_server(server):
+        pass
+
+    assert seen["outer"] is seen["root"]
+    assert seen["inner"] is seen["root"]
+    assert seen["outer_text"] == translations["templates.load"]["de"]
+    assert i18n._default_translator._lang == "en"  # the process default is untouched

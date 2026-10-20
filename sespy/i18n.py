@@ -128,6 +128,9 @@ class Translator:
 #
 # Multi-user safe: Inside a Shiny session context, get_default() returns a
 # session-specific clone of the default translator, isolating user language.
+# The clone lives on the root session: inside a module server the current
+# session is a SessionProxy, and every module scope must see the translator
+# app.py configured, not a fresh clone at the process default.
 # --------------------------------------------------------------------------
 
 _default_translator: Translator | None = None
@@ -142,6 +145,7 @@ def get_default() -> Translator | None:
     from shiny.session import get_current_session
     session = get_current_session()
     if session is not None:
+        session = session.root_scope()
         if not hasattr(session, "_translator"):
             if _default_translator is not None:
                 # Construct a session-isolated clone sharing the same translations reference
