@@ -313,7 +313,16 @@ def analysis_intervention_server(
             project_data.get().isa_data, impact(), chosen_ids(),
         )
 
-    _diffusion_result = reactive.value(None)
+    _diffusion_result = reactive.value(None)   # None | _COMPUTING | result dict
+    _diffusion_gen = [0]                       # plain cell, NOT reactive (as _bbn_gen)
+
+    @reactive.extended_task
+    async def _diffusion_task(isa, src, n_steps, n_tokens, gen):
+        # Off the flush: the first token_diffusion call per server process
+        # lazily imports scipy.stats (~7 s cold), which froze the session.
+        return (gen, await asyncio.to_thread(dyn.token_diffusion, isa, src,
+                                             n_steps=n_steps, n_tokens=n_tokens,
+                                             seed=0))
 
     @output
     @render.ui
@@ -339,6 +348,7 @@ def analysis_intervention_server(
     @reactive.effect
     def _reset_diffusion():
         event_bus.isa_change.get()
+        _diffusion_gen[0] += 1     # an in-flight run for the old model is now stale
         _diffusion_result.set(None)
 
     @reactive.effect
@@ -351,6 +361,7 @@ def analysis_intervention_server(
                 read()
             except Exception:
                 pass
+        _diffusion_gen[0] += 1     # an in-flight run for the old inputs is now stale
         _diffusion_result.set(None)
 
     @reactive.effect
@@ -362,14 +373,28 @@ def analysis_intervention_server(
             src = None
         if not src:
             return
-        # Fixed seed: two intervention points then differ by structure
-        # rather than by chance, which is the point of comparing them.
-        _diffusion_result.set(dyn.token_diffusion(
-            project_data.get().isa_data, src,
-            n_steps=safe_int(input.n_steps(), 10),
-            n_tokens=safe_int(input.n_tokens(), 1000),
-            seed=0,
-        ))
+        _diffusion_gen[0] += 1
+        _diffusion_result.set(_COMPUTING)
+        # Fixed seed (in the task): two intervention points then differ by
+        # structure rather than by chance, which is the point of comparing them.
+        _diffusion_task(project_data.get().isa_data, src,
+                        safe_int(input.n_steps(), 10),
+                        safe_int(input.n_tokens(), 1000),
+                        _diffusion_gen[0])
+
+    @reactive.effect
+    def _diffusion_observe():
+        try:
+            gen, r = _diffusion_task.result()
+        except SilentException:
+            raise
+        except Exception:                       # noqa: BLE001 — real task error: clear, don't crash
+            logging.getLogger(__name__).exception("intervention diffusion task failed")
+            _diffusion_result.set(None)
+            return
+        if gen != _diffusion_gen[0]:
+            return
+        _diffusion_result.set(r)
 
     @output
     @render.ui
@@ -381,6 +406,9 @@ def analysis_intervention_server(
         r = _diffusion_result.get()
         if r is None:
             return ui.p(t("diffusion.hint"), class_="text-muted",
+                        style="font-size: 0.85rem;")
+        if r is _COMPUTING:
+            return ui.p(t("diffusion.computing"), class_="text-muted",
                         style="font-size: 0.85rem;")
         if not r["rows"]:
             return ui.p(t("diffusion.none"), class_="text-muted")
@@ -415,7 +443,8 @@ def analysis_intervention_server(
         import matplotlib.pyplot as plt
 
         r = _diffusion_result.get()
-        rows = (r or {}).get("rows", [])[:12]
+        # None and _COMPUTING both draw the empty (idle) figure.
+        rows = r.get("rows", [])[:12] if isinstance(r, dict) else []
         fig, ax = plt.subplots(figsize=(8, 2.6))
         if rows:
             colours = {"+": "#2e7d32", "-": "#c62828", "~": "#757575"}
