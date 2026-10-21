@@ -1,3 +1,7 @@
+import logging
+
+import pytest
+
 from sespy.data_structure import (
     PROJECT_SCHEMA_VERSION,
     Communication,
@@ -9,6 +13,7 @@ from sespy.data_structure import (
 )
 from sespy.persistent_storage import load_project, save_project_atomic
 from sespy.stakeholders import (
+    STAKEHOLDER_ROLES,
     add_communication,
     add_engagement,
     add_stakeholder,
@@ -18,6 +23,7 @@ from sespy.stakeholders import (
     engagement_coverage,
     engagement_rows,
     level_num,
+    normalize_ne_roles,
     remove_communication,
     remove_engagement,
     remove_stakeholder,
@@ -151,6 +157,45 @@ def test_update_replaces_by_id_preserving_id_and_created_at():
 def test_remove_drops_by_id():
     items = add_stakeholder([], {"name": "A"}, today="2026-06-04")
     assert remove_stakeholder(items, "SH001") == []
+
+
+# --- P1b: D5.4 actor roles (R stakeholder_schema.R:30-37, v1.33.0) ----------
+
+def test_stakeholder_roles_are_r_stakeholder_types():
+    # R STAKEHOLDER_TYPES, constants.R:563-571 (Newton & Elliott 2016).
+    assert STAKEHOLDER_ROLES == ("Inputters", "Extractors", "Regulators",
+                                 "Affectees", "Beneficiaries", "Influencers")
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("Regulators;Inputters", "Inputters;Regulators"),
+    (["Influencers", "Influencers", " Affectees "], "Affectees;Influencers"),
+    ("regulators;Bogus", ""),            # codes are case-sensitive, as R
+    (None, ""), ("", ""),
+])
+def test_normalize_ne_roles(raw, expected):
+    assert normalize_ne_roles(raw) == expected
+
+
+def test_normalize_ne_roles_logs_dropped_values_once(caplog):
+    with caplog.at_level(logging.WARNING, logger="sespy.stakeholders"):
+        assert normalize_ne_roles("Bogus;Regulators;regulators") == "Regulators"
+    msgs = [r.getMessage() for r in caplog.records]
+    assert len(msgs) == 1 and "Bogus" in msgs[0] and "regulators" in msgs[0]
+
+
+def test_add_stakeholder_normalises_roles():
+    out = add_stakeholder([], {"name": "A", "ne_roles": "Regulators;Inputters;Bogus"},
+                          today="2026-10-21")
+    assert out[0].ne_roles == "Inputters;Regulators"
+    out = update_stakeholder(out, "SH001", {"ne_roles": ["Influencers", "Extractors"]})
+    assert out[0].ne_roles == "Extractors;Influencers"
+
+
+def test_update_keeps_source_id():
+    s = Stakeholder(id="SH001", name="X", source_id="d54:tus_01")
+    out = update_stakeholder([s], "SH001", {"name": "Y", "ne_roles": "Inputters"})
+    assert (out[0].name, out[0].source_id) == ("Y", "d54:tus_01")
 
 
 def test_level_num():

@@ -303,6 +303,12 @@ class Stakeholder:
     attitude: str = ""
     engagement_level: str = ""
     created_at: str = ""
+    # Schema v8 (P1b, R WS-9a). ne_roles: ";"-joined, ordered subset of
+    # stakeholders.STAKEHOLDER_ROLES (R NERoles). source_id: "d54:<actor id>"
+    # for actors loaded from a D5.4 profile (R SourceId); never user-entered.
+    # Always serialised (asdict).
+    ne_roles: str = field(default="", kw_only=True)
+    source_id: str = field(default="", kw_only=True)
 
 
 @dataclass
@@ -477,11 +483,14 @@ class Project:
             )
         meta = ProjectMetadata(**meta_filtered)
         isa = _isa_from_dict(raw.get("isa_data", raw))  # tolerate flat shapes
+        # Lazy: sespy.stakeholders imports this module.
+        from .stakeholders import normalize_ne_roles
         sh_keys = {f.name for f in fields(Stakeholder)}
-        stakeholders = [
-            Stakeholder(**{k: v for k, v in s.items() if k in sh_keys})
-            for s in (raw.get("stakeholders") or [])
-        ]
+        stakeholders = []
+        for s in (raw.get("stakeholders") or []):
+            sh = {k: v for k, v in s.items() if k in sh_keys}
+            sh["ne_roles"] = normalize_ne_roles(sh.get("ne_roles"))
+            stakeholders.append(Stakeholder(**sh))
         eng_keys = {f.name for f in fields(Engagement)}
         engagements = [
             Engagement(**{k: v for k, v in e.items() if k in eng_keys})

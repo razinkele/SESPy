@@ -8,10 +8,46 @@ responsible for name+type validation before calling add/update.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
+from typing import Any
 
 from sespy.data_structure import Communication, Engagement, Stakeholder
 from sespy.utils import next_id
+
+_log = logging.getLogger(__name__)
+
+# D5.4 actor typology: R STAKEHOLDER_TYPES (constants.R:563-571, v1.33.0;
+# Newton & Elliott 2016). Stored as these capitalised codes, as R does.
+STAKEHOLDER_ROLES: tuple[str, ...] = (
+    "Inputters", "Extractors", "Regulators", "Affectees", "Beneficiaries", "Influencers",
+)
+
+
+def normalize_ne_roles(value: str | list[str] | None | Any) -> str:
+    """R normalize_stakeholders NERoles step (stakeholder_schema.R:30-37):
+    split on ";", trim, drop unknown codes (case-sensitive; one warning
+    listing them), dedupe, order as STAKEHOLDER_ROLES, join with ";".
+    A list is joined with ";" first, as R's row-list path does; any other
+    non-string is read through str()."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        value = ";".join("" if v is None else str(v) for v in value)
+    elif not isinstance(value, str):
+        value = str(value)
+    parts = [p.strip() for p in value.split(";")]
+    bad = [p for p in parts if p and p not in STAKEHOLDER_ROLES]
+    if bad:
+        _log.warning("normalize_ne_roles: dropped unknown role(s): %s",
+                     ", ".join(dict.fromkeys(bad)))
+    return ";".join(r for r in STAKEHOLDER_ROLES if r in parts)
+
+
+def _with_roles(fields_: dict) -> dict:
+    if "ne_roles" in fields_:
+        return {**fields_, "ne_roles": normalize_ne_roles(fields_["ne_roles"])}
+    return fields_
 
 
 def add_stakeholder(
@@ -21,12 +57,13 @@ def add_stakeholder(
     # NEVER `id` or `created_at` (those are assigned here). The module layer
     # builds it from exactly the form inputs, so this holds.
     sid = next_id([s.id for s in items], "SH")
-    return [*items, Stakeholder(id=sid, created_at=today, **fields_)]
+    return [*items, Stakeholder(id=sid, created_at=today, **_with_roles(fields_))]
 
 
 def update_stakeholder(
     items: list[Stakeholder], sid: str, fields_: dict
 ) -> list[Stakeholder]:
+    fields_ = _with_roles(fields_)
     return [replace(s, **fields_) if s.id == sid else s for s in items]
 
 

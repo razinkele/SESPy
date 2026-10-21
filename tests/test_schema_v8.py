@@ -16,6 +16,8 @@ from sespy.data_structure import (
     Element,
     IsaData,
     Project,
+    ProjectMetadata,
+    Stakeholder,
     _isa_from_dict,
     newer_build_info,
 )
@@ -91,3 +93,36 @@ def test_new_element_fields_are_keyword_only():
     assert all(getattr(e, f) == "" for f in INDICATOR_FIELDS)
     with pytest.raises(TypeError):
         Element("D1", "x", "Drivers", "d", 3, "positional indicator")
+
+
+# ---- Task 3: stakeholder roles (spec §4.4) ------------------------------------
+
+
+def test_stakeholder_roles_round_trip():
+    s = Stakeholder(id="SH001", name="Port", ne_roles="Inputters;Regulators",
+                    source_id="d54:tus_07")
+    blank = Stakeholder(id="SH002", name="NGO")
+    d = Project(ProjectMetadata(), IsaData(), stakeholders=[s, blank]).to_dict()
+    for row in d["stakeholders"]:                    # asdict: both keys always written
+        assert {"ne_roles", "source_id"} <= set(row)
+    assert d["stakeholders"][1]["ne_roles"] == d["stakeholders"][1]["source_id"] == ""
+    back = Project.from_dict(json.loads(json.dumps(d))).stakeholders
+    assert back == [s, blank]
+
+
+def test_loaded_roles_are_normalised():
+    raw = {"metadata": {"name": "T"}, "isa_data": {"elements": [], "connections": []},
+           "stakeholders": [{"id": "SH001", "name": "X",
+                             "ne_roles": "Regulators;Bogus;Inputters;Inputters"},
+                            {"id": "SH002", "name": "Y", "ne_roles": ["Affectees"]},
+                            {"id": "SH003", "name": "Z", "ne_roles": None}]}
+    got = [s.ne_roles for s in Project.from_dict(raw).stakeholders]
+    assert got == ["Inputters;Regulators", "Affectees", ""]
+
+
+def test_new_stakeholder_fields_are_keyword_only():
+    s = Stakeholder("SH001", "X", "t", "s", "c", "i", "r", "HIGH", "LOW", "a", "e", "2026")
+    assert (s.ne_roles, s.source_id) == ("", "")
+    with pytest.raises(TypeError):
+        Stakeholder("SH001", "X", "t", "s", "c", "i", "r", "HIGH", "LOW", "a", "e", "2026",
+                    "Inputters")
