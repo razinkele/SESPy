@@ -24,10 +24,14 @@ def test_pin_shape():
     assert re.fullmatch(r"v\d+\.\d+\.\d+", PIN["r_tag"]), PIN["r_tag"]
     assert re.fullmatch(r"[0-9a-f]{7}", PIN["r_commit"]), PIN["r_commit"]
     paths = sorted(PIN["files"])
-    assert len(paths) == 9
+    assert len(paths) == 18
     assert "tests/parity/r_rules/dapsiwrm_connection_rules.R" in paths
     assert "tests/parity/r_source/template_loader.R" in paths
     assert sum(p.startswith("tests/parity/r_templates/") for p in paths) == 7
+    # P1b (R v1.33.0): register / stakeholder sources and 6 translation files
+    for name in ("constants.R", "response_measures_schema.R", "stakeholder_schema.R"):
+        assert f"tests/parity/r_source/{name}" in paths
+    assert sum(p.startswith("tests/parity/r_translations/") for p in paths) == 6
     assert not any("backup" in p for p in paths)
     assert isinstance(PIN["accepted_warnings"], list)
 

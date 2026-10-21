@@ -1,0 +1,125 @@
+{
+  "languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "lt",
+    "pt",
+    "it",
+    "no",
+    "el"
+  ],
+  "translation": {
+    "modules.indicator_registry.field_indicator": {
+      "en": "Indicator",
+      "es": "Indicador",
+      "fr": "Indicateur",
+      "de": "Indikator",
+      "lt": "Rodiklis",
+      "pt": "Indicador",
+      "it": "Indicatore",
+      "no": "Indikator",
+      "el": "Δείκτης"
+    },
+    "modules.indicator_registry.field_unit": {
+      "en": "Unit",
+      "es": "Unidad",
+      "fr": "Unité",
+      "de": "Einheit",
+      "lt": "Vienetas",
+      "pt": "Unidade",
+      "it": "Unità",
+      "no": "Enhet",
+      "el": "Μονάδα"
+    },
+    "modules.indicator_registry.field_data_source": {
+      "en": "Data source",
+      "es": "Fuente de datos",
+      "fr": "Source des données",
+      "de": "Datenquelle",
+      "lt": "Duomenų šaltinis",
+      "pt": "Fonte de dados",
+      "it": "Fonte dei dati",
+      "no": "Datakilde",
+      "el": "Πηγή δεδομένων"
+    },
+    "modules.indicator_registry.field_policy_target": {
+      "en": "Policy target",
+      "es": "Meta política",
+      "fr": "Objectif politique",
+      "de": "Politisches Ziel",
+      "lt": "Politikos tikslas",
+      "pt": "Meta política",
+      "it": "Obiettivo politico",
+      "no": "Politisk mål",
+      "el": "Πολιτικός στόχος"
+    },
+    "modules.indicator_registry.policy_target_help": {
+      "en": "Optional external policy target for this indicator. D5.4 sets no targets; pick one or type your own.",
+      "es": "Meta política externa opcional para este indicador. El D5.4 no fija metas; elija una o escriba la suya.",
+      "fr": "Objectif politique externe facultatif pour cet indicateur. Le D5.4 ne fixe aucun objectif ; choisissez-en un ou saisissez le vôtre.",
+      "de": "Optionales externes politisches Ziel für diesen Indikator. Das D5.4 legt keine Ziele fest; wählen Sie eines aus oder geben Sie ein eigenes ein.",
+      "lt": "Neprivalomas išorinis šio rodiklio politikos tikslas. D5.4 tikslų nenustato; pasirinkite vieną arba įveskite savo.",
+      "pt": "Meta política externa opcional para este indicador. O D5.4 não define metas; escolha uma ou introduza a sua.",
+      "it": "Obiettivo politico esterno facoltativo per questo indicatore. Il D5.4 non fissa obiettivi; scegline uno o inserisci il tuo.",
+      "no": "Valgfritt eksternt politisk mål for denne indikatoren. D5.4 setter ingen mål; velg ett eller skriv inn ditt eget.",
+      "el": "Προαιρετικός εξωτερικός πολιτικός στόχος για αυτόν τον δείκτη. Το D5.4 δεν θέτει στόχους· επιλέξτε έναν ή πληκτρολογήστε τον δικό σας."
+    },
+    "modules.indicator_registry.policy_target.kmgbf_30x30": {
+      "en": "Kunming-Montreal 30x30",
+      "es": "Kunming-Montreal 30x30",
+      "fr": "Kunming-Montréal 30x30",
+      "de": "Kunming-Montreal 30x30",
+      "lt": "Kunmingo-Monrealio 30x30",
+      "pt": "Kunming-Montreal 30x30",
+      "it": "Kunming-Montreal 30x30",
+      "no": "Kunming-Montreal 30x30",
+      "el": "Κουνμίνγκ-Μόντρεαλ 30x30"
+    },
+    "modules.indicator_registry.policy_target.eu_nrr": {
+      "en": "EU Nature Restoration Regulation",
+      "es": "Reglamento de Restauración de la Naturaleza de la UE",
+      "fr": "Règlement de l'UE sur la restauration de la nature",
+      "de": "EU-Verordnung über die Wiederherstellung der Natur",
+      "lt": "ES gamtos atkūrimo reglamentas",
+      "pt": "Regulamento da UE relativo ao Restauro da Natureza",
+      "it": "Regolamento UE sul ripristino della natura",
+      "no": "EUs forordning om restaurering av natur",
+      "el": "Κανονισμός της ΕΕ για την αποκατάσταση της φύσης"
+    },
+    "modules.indicator_registry.policy_target.msfd_ges_d1": {
+      "en": "MSFD Good Environmental Status – D1 Biodiversity",
+      "es": "Buen estado medioambiental de la DMEM – D1 Biodiversidad",
+      "fr": "Bon état écologique de la DCSMM – D1 Biodiversité",
+      "de": "Guter Umweltzustand der MSRL – D1 Biologische Vielfalt",
+      "lt": "Jūrų strategijos pagrindų direktyvos gera aplinkos būklė – D1 Biologinė įvairovė",
+      "pt": "Bom estado ambiental da DQEM – D1 Biodiversidade",
+      "it": "Buono stato ambientale della MSFD – D1 Biodiversità",
+      "no": "God miljøtilstand i MSFD – D1 Biologisk mangfold",
+      "el": "Καλή περιβαλλοντική κατάσταση της MSFD – D1 Βιοποικιλότητα"
+    },
+    "modules.indicator_registry.policy_target.msfd_ges_d6": {
+      "en": "MSFD Good Environmental Status – D6 Seafloor integrity",
+      "es": "Buen estado medioambiental de la DMEM – D6 Integridad del fondo marino",
+      "fr": "Bon état écologique de la DCSMM – D6 Intégrité des fonds marins",
+      "de": "Guter Umweltzustand der MSRL – D6 Meeresbodenintegrität",
+      "lt": "Jūrų strategijos pagrindų direktyvos gera aplinkos būklė – D6 Jūros dugno vientisumas",
+      "pt": "Bom estado ambiental da DQEM – D6 Integridade do fundo marinho",
+      "it": "Buono stato ambientale della MSFD – D6 Integrità del fondale marino",
+      "no": "God miljøtilstand i MSFD – D6 Havbunnens integritet",
+      "el": "Καλή περιβαλλοντική κατάσταση της MSFD – D6 Ακεραιότητα του θαλάσσιου πυθμένα"
+    },
+    "modules.indicator_registry.policy_target.national_mpa_pct": {
+      "en": "National MPA coverage target (%)",
+      "es": "Meta nacional de cobertura de AMP (%)",
+      "fr": "Objectif national de couverture par les AMP (%)",
+      "de": "Nationales Flächenziel für Meeresschutzgebiete (%)",
+      "lt": "Nacionalinis JSV aprėpties tikslas (%)",
+      "pt": "Meta nacional de cobertura de AMP (%)",
+      "it": "Obiettivo nazionale di copertura delle AMP (%)",
+      "no": "Nasjonalt dekningsmål for verneområder i havet (%)",
+      "el": "Εθνικός στόχος κάλυψης ΘΠΠ (%)"
+    }
+  }
+}

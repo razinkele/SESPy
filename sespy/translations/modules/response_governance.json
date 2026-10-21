@@ -1,0 +1,301 @@
+{
+  "languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "lt",
+    "pt",
+    "it",
+    "no",
+    "el"
+  ],
+  "translation": {
+    "modules.response.governance.section_title": {
+      "en": "EBM classification and governance",
+      "es": "Clasificación EBM y gobernanza",
+      "fr": "Classification EBM et gouvernance",
+      "de": "EBM-Klassifizierung und Governance",
+      "lt": "EBM klasifikacija ir valdysena",
+      "pt": "Classificação EBM e governação",
+      "it": "Classificazione EBM e governance",
+      "no": "EBM-klassifisering og styring",
+      "el": "Ταξινόμηση EBM και διακυβέρνηση"
+    },
+    "modules.response.governance.kind": {
+      "en": "Instrument or measure",
+      "es": "Instrumento o medida",
+      "fr": "Instrument ou mesure",
+      "de": "Instrument oder Maßnahme",
+      "lt": "Priemonė ar veiksmas",
+      "pt": "Instrumento ou medida",
+      "it": "Strumento o misura",
+      "no": "Virkemiddel eller tiltak",
+      "el": "Μέσο ή μέτρο"
+    },
+    "modules.response.governance.kind.instrument": {
+      "en": "Policy instrument",
+      "es": "Instrumento de política",
+      "fr": "Instrument de politique publique",
+      "de": "Politikinstrument",
+      "lt": "Politikos priemonė",
+      "pt": "Instrumento de política",
+      "it": "Strumento di policy",
+      "no": "Politisk virkemiddel",
+      "el": "Μέσο πολιτικής"
+    },
+    "modules.response.governance.kind.measure": {
+      "en": "Management measure",
+      "es": "Medida de gestión",
+      "fr": "Mesure de gestion",
+      "de": "Bewirtschaftungsmaßnahme",
+      "lt": "Valdymo veiksmas",
+      "pt": "Medida de gestão",
+      "it": "Misura di gestione",
+      "no": "Forvaltningstiltak",
+      "el": "Μέτρο διαχείρισης"
+    },
+    "modules.response.governance.ebm_code": {
+      "en": "EBM type",
+      "es": "Tipo EBM",
+      "fr": "Type EBM",
+      "de": "EBM-Typ",
+      "lt": "EBM tipas",
+      "pt": "Tipo EBM",
+      "it": "Tipo EBM",
+      "no": "EBM-type",
+      "el": "Τύπος EBM"
+    },
+    "modules.response.governance.ebm_code_hint": {
+      "en": "Choosing a management-measure type suggests the DAPSIWRM target above.",
+      "es": "Al elegir un tipo de medida de gestión se sugiere el objetivo DAPSIWRM anterior.",
+      "fr": "Le choix d'un type de mesure de gestion suggère la cible DAPSIWRM ci-dessus.",
+      "de": "Die Wahl eines Maßnahmentyps schlägt das obige DAPSIWRM-Ziel vor.",
+      "lt": "Pasirinkus valdymo veiksmo tipą, pasiūlomas aukščiau esantis DAPSIWRM taikinys.",
+      "pt": "A escolha de um tipo de medida de gestão sugere o alvo DAPSIWRM acima.",
+      "it": "La scelta di un tipo di misura di gestione suggerisce l'obiettivo DAPSIWRM sopra.",
+      "no": "Valg av tiltakstype foreslår DAPSIWRM-målet ovenfor.",
+      "el": "Η επιλογή τύπου μέτρου διαχείρισης προτείνει τον παραπάνω στόχο DAPSIWRM."
+    },
+    "modules.response.governance.level": {
+      "en": "Governance level",
+      "es": "Nivel de gobernanza",
+      "fr": "Niveau de gouvernance",
+      "de": "Governance-Ebene",
+      "lt": "Valdysenos lygmuo",
+      "pt": "Nível de governação",
+      "it": "Livello di governance",
+      "no": "Styringsnivå",
+      "el": "Επίπεδο διακυβέρνησης"
+    },
+    "modules.response.governance.level.local": {
+      "en": "Local",
+      "es": "Local",
+      "fr": "Local",
+      "de": "Lokal",
+      "lt": "Vietinis",
+      "pt": "Local",
+      "it": "Locale",
+      "no": "Lokalt",
+      "el": "Τοπικό"
+    },
+    "modules.response.governance.level.island": {
+      "en": "Island",
+      "es": "Insular",
+      "fr": "Insulaire",
+      "de": "Insel",
+      "lt": "Salos",
+      "pt": "Insular",
+      "it": "Insulare",
+      "no": "Øy",
+      "el": "Νησιωτικό"
+    },
+    "modules.response.governance.level.regional": {
+      "en": "Regional",
+      "es": "Regional",
+      "fr": "Régional",
+      "de": "Regional",
+      "lt": "Regioninis",
+      "pt": "Regional",
+      "it": "Regionale",
+      "no": "Regionalt",
+      "el": "Περιφερειακό"
+    },
+    "modules.response.governance.level.national": {
+      "en": "National",
+      "es": "Nacional",
+      "fr": "National",
+      "de": "National",
+      "lt": "Nacionalinis",
+      "pt": "Nacional",
+      "it": "Nazionale",
+      "no": "Nasjonalt",
+      "el": "Εθνικό"
+    },
+    "modules.response.governance.level.eu": {
+      "en": "EU",
+      "es": "UE",
+      "fr": "UE",
+      "de": "EU",
+      "lt": "ES",
+      "pt": "UE",
+      "it": "UE",
+      "no": "EU",
+      "el": "ΕΕ"
+    },
+    "modules.response.governance.level.regional_sea": {
+      "en": "Regional sea",
+      "es": "Mar regional",
+      "fr": "Mer régionale",
+      "de": "Regionalmeer",
+      "lt": "Regioninė jūra",
+      "pt": "Mar regional",
+      "it": "Mare regionale",
+      "no": "Regionalt hav",
+      "el": "Περιφερειακή θάλασσα"
+    },
+    "modules.response.governance.level.international": {
+      "en": "International",
+      "es": "Internacional",
+      "fr": "International",
+      "de": "International",
+      "lt": "Tarptautinis",
+      "pt": "Internacional",
+      "it": "Internazionale",
+      "no": "Internasjonalt",
+      "el": "Διεθνές"
+    },
+    "modules.response.governance.competent_authority": {
+      "en": "Competent authority",
+      "es": "Autoridad competente",
+      "fr": "Autorité compétente",
+      "de": "Zuständige Behörde",
+      "lt": "Kompetentinga institucija",
+      "pt": "Autoridade competente",
+      "it": "Autorità competente",
+      "no": "Ansvarlig myndighet",
+      "el": "Αρμόδια αρχή"
+    },
+    "modules.response.governance.legal_basis": {
+      "en": "Legal basis",
+      "es": "Base jurídica",
+      "fr": "Base juridique",
+      "de": "Rechtsgrundlage",
+      "lt": "Teisinis pagrindas",
+      "pt": "Base jurídica",
+      "it": "Base giuridica",
+      "no": "Rettslig grunnlag",
+      "el": "Νομική βάση"
+    },
+    "modules.response.governance.implementing_stakeholders": {
+      "en": "Implementing stakeholders",
+      "es": "Partes interesadas ejecutoras",
+      "fr": "Parties prenantes chargées de la mise en œuvre",
+      "de": "Umsetzende Akteure",
+      "lt": "Įgyvendinančios suinteresuotosios šalys",
+      "pt": "Partes interessadas executoras",
+      "it": "Portatori di interesse attuatori",
+      "no": "Gjennomførende aktører",
+      "el": "Ενδιαφερόμενα μέρη υλοποίησης"
+    },
+    "modules.response.governance.no_stakeholders_hint": {
+      "en": "Add stakeholders under PIMS › Stakeholders to link them here.",
+      "es": "Añada partes interesadas en PIMS › Partes interesadas para vincularlas aquí.",
+      "fr": "Ajoutez des parties prenantes dans PIMS › Parties prenantes pour les lier ici.",
+      "de": "Fügen Sie Akteure unter PIMS › Akteure hinzu, um sie hier zu verknüpfen.",
+      "lt": "Pridėkite suinteresuotąsias šalis skiltyje PIMS › Suinteresuotosios šalys, kad galėtumėte jas čia susieti.",
+      "pt": "Adicione partes interessadas em PIMS › Partes interessadas para as associar aqui.",
+      "it": "Aggiungere i portatori di interesse in PIMS › Portatori di interesse per collegarli qui.",
+      "no": "Legg til aktører under PIMS › Aktører for å koble dem her.",
+      "el": "Προσθέστε ενδιαφερόμενα μέρη στο PIMS › Ενδιαφερόμενα μέρη για να τα συνδέσετε εδώ."
+    },
+    "modules.response.governance.paired_with": {
+      "en": "Paired with (management strategy)",
+      "es": "Emparejado con (estrategia de gestión)",
+      "fr": "Associé à (stratégie de gestion)",
+      "de": "Gekoppelt mit (Managementstrategie)",
+      "lt": "Susieta su (valdymo strategija)",
+      "pt": "Associado a (estratégia de gestão)",
+      "it": "Abbinato a (strategia di gestione)",
+      "no": "Koblet med (forvaltningsstrategi)",
+      "el": "Συνδέεται με (στρατηγική διαχείρισης)"
+    },
+    "modules.response.governance.tenets_title": {
+      "en": "Appraisal against the 11 tenets",
+      "es": "Evaluación según los 11 principios",
+      "fr": "Évaluation au regard des 11 principes",
+      "de": "Bewertung anhand der 11 Grundsätze",
+      "lt": "Vertinimas pagal 11 principų",
+      "pt": "Avaliação segundo os 11 princípios",
+      "it": "Valutazione rispetto agli 11 principi",
+      "no": "Vurdering etter de 11 prinsippene",
+      "el": "Αξιολόγηση με βάση τις 11 αρχές"
+    },
+    "modules.response.governance.tenet_level.minimal": {
+      "en": "Minimal compliance",
+      "es": "Cumplimiento mínimo",
+      "fr": "Conformité minimale",
+      "de": "Minimale Erfüllung",
+      "lt": "Minimalus atitikimas",
+      "pt": "Conformidade mínima",
+      "it": "Conformità minima",
+      "no": "Minimal oppfyllelse",
+      "el": "Ελάχιστη συμμόρφωση"
+    },
+    "modules.response.governance.tenet_level.intermediate": {
+      "en": "Intermediate",
+      "es": "Intermedio",
+      "fr": "Intermédiaire",
+      "de": "Mittel",
+      "lt": "Vidutinis",
+      "pt": "Intermédio",
+      "it": "Intermedio",
+      "no": "Middels",
+      "el": "Ενδιάμεση"
+    },
+    "modules.response.governance.tenet_level.full": {
+      "en": "Full compliance",
+      "es": "Cumplimiento pleno",
+      "fr": "Conformité totale",
+      "de": "Vollständige Erfüllung",
+      "lt": "Visiškas atitikimas",
+      "pt": "Conformidade plena",
+      "it": "Piena conformità",
+      "no": "Full oppfyllelse",
+      "el": "Πλήρης συμμόρφωση"
+    },
+    "modules.response.governance.tenet_level.not_assessed": {
+      "en": "Not assessed",
+      "es": "No evaluado",
+      "fr": "Non évalué",
+      "de": "Nicht bewertet",
+      "lt": "Neįvertinta",
+      "pt": "Não avaliado",
+      "it": "Non valutato",
+      "no": "Ikke vurdert",
+      "el": "Δεν αξιολογήθηκε"
+    },
+    "modules.response.governance.pestle": {
+      "en": "PESTLE elements addressed",
+      "es": "Elementos PESTLE abordados",
+      "fr": "Éléments PESTLE traités",
+      "de": "Angesprochene PESTLE-Elemente",
+      "lt": "Sprendžiami PESTLE elementai",
+      "pt": "Elementos PESTLE abordados",
+      "it": "Elementi PESTLE affrontati",
+      "no": "PESTLE-elementer som adresseres",
+      "el": "Στοιχεία PESTLE που αντιμετωπίζονται"
+    },
+    "modules.response.governance.pestle_hint": {
+      "en": "Links this response to the WP5 scenario and worldview results (Scenario Builder, WP5 scenarios tab).",
+      "es": "Vincula esta respuesta con los resultados de escenarios y visiones del mundo del WP5 (Constructor de escenarios, pestaña Escenarios del WP5).",
+      "fr": "Relie cette réponse aux résultats des scénarios et visions du monde du WP5 (Constructeur de Scénarios, onglet Scénarios du WP5).",
+      "de": "Verknüpft diese Reaktion mit den WP5-Ergebnissen zu Szenarien und Weltanschauungen (Szenario-Builder, Registerkarte WP5-Szenarien).",
+      "lt": "Susieja šį atsaką su WP5 scenarijų ir pasaulėžiūrų rezultatais (meniu punktas „Scenarijų kūrimas“, skirtukas „WP5 scenarijai“).",
+      "pt": "Associa esta resposta aos resultados de cenários e visões do mundo do WP5 (Construtor de cenários, separador Cenários do WP5).",
+      "it": "Collega questa risposta ai risultati di scenari e visioni del mondo del WP5 (Costruttore di scenari, scheda Scenari del WP5).",
+      "no": "Kobler denne responsen til WP5-resultatene for scenarier og verdensbilder (scenariobygger, fanen WP5-scenarier).",
+      "el": "Συνδέει αυτή την απόκριση με τα αποτελέσματα σεναρίων και κοσμοθεωριών του WP5 (Δημιουργός σεναρίων, καρτέλα Σενάρια WP5)."
+    }
+  }
+}

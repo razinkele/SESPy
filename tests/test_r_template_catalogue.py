@@ -70,6 +70,14 @@ def _fake_r(tmp_path: Path, tag: str = "v1.31.0") -> Path:
     (app / "functions" / "dapsiwrm_connection_rules.R").write_bytes(
         rules.read_bytes().replace(b"\r\n", b"\n"))
     (app / "functions" / "template_loader.R").write_bytes(LOADER_STUB)
+    # P1b inputs: the R sources are only hashed (stubs do); the translation
+    # files are parsed by the subset step, so they are the real fixtures.
+    for r_path in C.R_SOURCES:
+        (app / r_path).write_bytes(f"# stand-in for {r_path}\n".encode("utf-8"))
+    (app / "translations" / "modules").mkdir(parents=True)
+    for stem in C.TRANSLATION_SUBSETS:
+        (app / "translations" / "modules" / f"{stem}.json").write_bytes(
+            (PARITY / "r_translations" / f"{stem}.json").read_bytes().replace(b"\r\n", b"\n"))
     subprocess.run(["git", "-c", "core.longpaths=true", "init", "-q", "--template=", str(outer)],
                    check=True, capture_output=True)
     _git(outer, "add", "-A")
@@ -199,7 +207,7 @@ def test_shipped_project_metadata(fname):
     raw = RAW[fname]
     assert md["name"] == raw["template_name"] + " (MarineSABRES)"
     assert md["modified_at"] == md["created_at"] == raw["metadata"]["created_date"]
-    assert md["min_sespy_version"] == "1.13.0"        # schema floor, not the running version
+    assert md["min_sespy_version"] == "1.15.0"        # schema floor, not the running version
     assert md["origin"] == "r_template"
     assert md["ecosystem_type"] == ""
     assert md["regional_sea"] == ((raw.get("regional_context") or {}).get("regional_sea") or "")
@@ -279,13 +287,14 @@ def test_fixture_mode_writes_projects_and_catalogue_only(tmp_path):
     assert res.code == 0, res.lines
     changed = {p.relative_to(root).as_posix() for p, b in _snap(root).items()
                if before.get(p) != b}
-    assert changed == {f"{C.OUT_DIR}/{f}" for f in C.TEMPLATE_FILES} | {C.CATALOGUE_PATH}
+    vendored = {f"{C.VENDORED_DIR}/{s}.json" for s in C.TRANSLATION_SUBSETS}
+    assert changed == {f"{C.OUT_DIR}/{f}" for f in C.TEMPLATE_FILES} | {C.CATALOGUE_PATH} | vendored
     pin = _pin(root)
     cat = json.loads((root / C.CATALOGUE_PATH).read_bytes())
     assert (cat["r_tag"], cat["r_commit"]) == (pin["r_tag"], pin["r_commit"])
-    for p in (root / MS).glob("*.json"):
+    for p in [*(root / MS).glob("*.json"), *(root / C.VENDORED_DIR).glob("*.json")]:
         assert b"\r\n" not in p.read_bytes()                  # LF on disk
-    assert sum(line.startswith("wrote ") for line in res.lines) == 8
+    assert sum(line.startswith("wrote ") for line in res.lines) == 8 + len(vendored)
 
 
 def test_check_passes_on_a_crlf_copy(tmp_path):
@@ -311,7 +320,8 @@ def test_check_reports_drift_and_writes_nothing(tmp_path):
 
 def test_check_reports_missing_outputs(tmp_path):
     res = C.sync(repo_root=_tree(tmp_path), from_fixtures=True, check=True)
-    assert res.code == 1 and len(res.lines) == 8          # 7 projects + catalogue
+    # 7 projects + catalogue + the vendored translation subsets
+    assert res.code == 1 and len(res.lines) == 8 + len(C.TRANSLATION_SUBSETS)
 
 
 def test_value_error_writes_nothing(tmp_path):
@@ -393,7 +403,7 @@ def test_real_run_writes_everything_then_checks_clean(tmp_path, r_app):
     pin = _pin(root)
     commit = _git(app, "rev-parse", "--short=7", "v1.31.0^{commit}").strip()
     assert (pin["r_tag"], pin["r_commit"]) == ("v1.31.0", commit)
-    assert sorted(pin["files"]) == sorted(C.INPUTS.values()) and len(pin["files"]) == 9
+    assert sorted(pin["files"]) == sorted(C.INPUTS.values()) and len(pin["files"]) == 18
     assert pin["accepted_warnings"] == []
     assert any(line.startswith("hash tests/parity/r_source/template_loader.R: ")
                for line in res.lines)
@@ -639,7 +649,7 @@ def test_shipped_catalogue_equals_a_fresh_build(tmp_path):
     assert C.sync(repo_root=root, from_fixtures=True).code == 0
     fresh = json.loads((root / C.CATALOGUE_PATH).read_bytes())
     assert json.loads((ROOT / C.CATALOGUE_PATH).read_bytes().decode("utf-8-sig")) == fresh
-    assert (fresh["r_tag"], fresh["r_commit"]) == ("v1.31.0", "4b53b7d")
+    assert (fresh["r_tag"], fresh["r_commit"]) == ("v1.33.0", "4017feb")
 
 
 def test_committed_tree_has_no_drift():
@@ -652,10 +662,66 @@ def test_committed_tree_has_no_drift():
 def test_committed_tree_has_no_drift_as_crlf(tmp_path):
     root = _tree(tmp_path)
     shutil.copytree(SHIPPED, root / C.OUT_DIR)
-    for p in (root / C.OUT_DIR).glob("*.json"):
+    shutil.copytree(ROOT / C.VENDORED_DIR, root / C.VENDORED_DIR)     # P1b outputs
+    for p in [*(root / C.OUT_DIR).glob("*.json"), *(root / C.VENDORED_DIR).glob("*.json")]:
         p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
     res = C.sync(repo_root=root, from_fixtures=True, check=True)
     assert res.code == 0, res.lines
+
+
+def test_shipped_templates_are_schema_8():
+    # P1b: every shipped template is re-stamped by the v1.33.0 sync.
+    for fname in C.TEMPLATE_FILES:
+        md = json.loads((SHIPPED / fname).read_bytes().decode("utf-8-sig"))["metadata"]
+        assert (md["schema_version"], md["min_sespy_version"]) == (8, "1.15.0"), fname
+
+
+# ---- vendored R translation subsets (P1b spec §7) ---------------------------------
+
+VENDORED = ROOT / C.VENDORED_DIR
+TR_FIX = PARITY / "r_translations"
+
+
+def _vendored(stem: str) -> dict:
+    return json.loads((VENDORED / f"{stem}.json").read_bytes().decode("utf-8-sig"))["translation"]
+
+
+def test_vendored_translations_match_fixture_subsets():
+    from sespy.i18n import SUPPORTED_LANGUAGES
+    for stem, prefixes in C.TRANSLATION_SUBSETS.items():
+        fix = json.loads((TR_FIX / f"{stem}.json").read_bytes().decode("utf-8-sig"))
+        want = {k: v for k, v in fix["translation"].items()
+                if not prefixes or k.startswith(prefixes)}
+        got = json.loads((VENDORED / f"{stem}.json").read_bytes().decode("utf-8-sig"))
+        assert list(got) == ["languages", "translation"], stem
+        assert got["languages"] == fix["languages"], stem
+        assert list(got["translation"]) == list(want), stem        # R's key order
+        assert got["translation"] == want, stem                    # texts equal
+        for key, entry in got["translation"].items():
+            assert all(isinstance(entry.get(lg), str) and entry[lg].strip()
+                       for lg in SUPPORTED_LANGUAGES), (stem, key)
+
+
+def test_vendored_translation_key_counts():
+    assert {s: len(_vendored(s)) for s in C.TRANSLATION_SUBSETS} == {
+        "response_measures": 142, "response_governance": 26, "wp5_vocabulary": 47,
+        "wp5_scenarios": 6, "wp5_governance": 8, "indicator_registry": 10}
+
+
+def test_vendored_files_are_newline_terminated_json():
+    # The sync writes LF; a core.autocrlf=true checkout may turn it into CRLF.
+    for stem in C.TRANSLATION_SUBSETS:
+        data = (VENDORED / f"{stem}.json").read_bytes().replace(b"\r\n", b"\n")
+        assert data.endswith(b"}\n") and b"\r" not in data, stem
+
+
+def test_translation_prefix_that_selects_nothing_writes_nothing(tmp_path, monkeypatch):
+    root = _tree(tmp_path)
+    monkeypatch.setitem(C.TRANSLATION_SUBSETS, "wp5_scenarios", ("modules.wp5_scenarios.no_such.",))
+    before = _snap(root)
+    res = C.sync(repo_root=root, from_fixtures=True)
+    assert res.code == 1 and _snap(root) == before
+    assert any("modules.wp5_scenarios.no_such." in line for line in res.lines), res.lines
 
 
 @pytest.mark.parametrize("fname", C.TEMPLATE_FILES)

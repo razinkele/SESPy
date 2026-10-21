@@ -1,0 +1,81 @@
+{
+  "languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "lt",
+    "pt",
+    "it",
+    "no",
+    "el"
+  ],
+  "translation": {
+    "modules.wp5_scenarios.pestle.political": {
+      "en": "Political",
+      "es": "Político",
+      "fr": "Politique",
+      "de": "Politisch",
+      "lt": "Politinis",
+      "pt": "Político",
+      "it": "Politico",
+      "no": "Politisk",
+      "el": "Πολιτικό"
+    },
+    "modules.wp5_scenarios.pestle.economic": {
+      "en": "Economic",
+      "es": "Económico",
+      "fr": "Économique",
+      "de": "Wirtschaftlich",
+      "lt": "Ekonominis",
+      "pt": "Económico",
+      "it": "Economico",
+      "no": "Økonomisk",
+      "el": "Οικονομικό"
+    },
+    "modules.wp5_scenarios.pestle.social": {
+      "en": "Social",
+      "es": "Social",
+      "fr": "Social",
+      "de": "Sozial",
+      "lt": "Socialinis",
+      "pt": "Social",
+      "it": "Sociale",
+      "no": "Sosial",
+      "el": "Κοινωνικό"
+    },
+    "modules.wp5_scenarios.pestle.technological": {
+      "en": "Technological",
+      "es": "Tecnológico",
+      "fr": "Technologique",
+      "de": "Technologisch",
+      "lt": "Technologinis",
+      "pt": "Tecnológico",
+      "it": "Tecnologico",
+      "no": "Teknologisk",
+      "el": "Τεχνολογικό"
+    },
+    "modules.wp5_scenarios.pestle.legal": {
+      "en": "Legal",
+      "es": "Legal",
+      "fr": "Juridique",
+      "de": "Rechtlich",
+      "lt": "Teisinis",
+      "pt": "Legal",
+      "it": "Giuridico",
+      "no": "Juridisk",
+      "el": "Νομικό"
+    },
+    "modules.wp5_scenarios.pestle.environmental": {
+      "en": "Environmental",
+      "es": "Ambiental",
+      "fr": "Environnemental",
+      "de": "Ökologisch",
+      "lt": "Aplinkosauginis",
+      "pt": "Ambiental",
+      "it": "Ambientale",
+      "no": "Miljømessig",
+      "el": "Περιβαλλοντικό"
+    }
+  }
+}

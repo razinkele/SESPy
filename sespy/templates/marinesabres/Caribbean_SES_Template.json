@@ -12,10 +12,10 @@
     "system_in_focus": "",
     "created_at": "2025-11-13",
     "modified_at": "2025-11-13",
-    "schema_version": 7,
+    "schema_version": 8,
     "origin": "r_template",
     "r_template_version": "1.1",
-    "min_sespy_version": "1.13.0"
+    "min_sespy_version": "1.15.0"
   },
   "isa_data": {
     "elements": [
@@ -544,6 +544,7 @@
         "type": "Marine Processes & Functioning",
         "description": "Recurrent influxes (since 2011) of thick Sargassum mats washing ashore and accumulating in coastal waters",
         "confidence": 3,
+        "indicator": "Volume of Sargassum biomass on beaches (tons/year)",
         "r_extra": {
           "ecosystem_component": "Pelagic and coastal ecosystems",
           "pressures": [
@@ -551,7 +552,6 @@
             "P5",
             "P7"
           ],
-          "indicator": "Volume of Sargassum biomass on beaches (tons/year)",
           "baseline": "Minimal pre-2011",
           "current_status": "Massive and recurrent (millions of tons)",
           "trend": "Increasing frequency and intensity"
@@ -563,6 +563,7 @@
         "type": "Marine Processes & Functioning",
         "description": "Severe coral bleaching episodes (especially 2023) causing extensive coral death and reef degradation",
         "confidence": 3,
+        "indicator": "Percent coral cover and bleaching prevalence",
         "r_extra": {
           "ecosystem_component": "Coral reefs",
           "pressures": [
@@ -571,7 +572,6 @@
             "P1",
             "P4"
           ],
-          "indicator": "Percent coral cover and bleaching prevalence",
           "baseline": "Healthy reefs pre-1980s",
           "current_status": "Severely degraded, low coral cover",
           "trend": "Declining"
@@ -583,13 +583,13 @@
         "type": "Marine Processes & Functioning",
         "description": "Persistent chlordecone and heavy metal contamination in coastal sediments, fish, and seafood",
         "confidence": 3,
+        "indicator": "Chlordecone and heavy metal concentrations in sediment and tissue (μg/kg)",
         "r_extra": {
           "ecosystem_component": "Sediments and marine organisms",
           "pressures": [
             "P2",
             "P3"
           ],
-          "indicator": "Chlordecone and heavy metal concentrations in sediment and tissue (μg/kg)",
           "baseline": "Uncontaminated pre-1972",
           "current_status": "High contamination in multiple zones",
           "trend": "Slowly declining but persistent"
@@ -601,6 +601,7 @@
         "type": "Marine Processes & Functioning",
         "description": "Reduction in mangrove extent and health due to urbanization, pollution, and physical damage",
         "confidence": 3,
+        "indicator": "Mangrove area (hectares) and canopy health",
         "r_extra": {
           "ecosystem_component": "Mangrove ecosystems",
           "pressures": [
@@ -609,7 +610,6 @@
             "P1",
             "P10"
           ],
-          "indicator": "Mangrove area (hectares) and canopy health",
           "baseline": "Extensive mangrove coverage historically",
           "current_status": "Significantly reduced and fragmented",
           "trend": "Declining"
@@ -621,6 +621,7 @@
         "type": "Marine Processes & Functioning",
         "description": "Loss of seagrass beds due to sedimentation, pollution, physical damage, and Sargassum smothering",
         "confidence": 3,
+        "indicator": "Seagrass coverage area and density",
         "r_extra": {
           "ecosystem_component": "Seagrass ecosystems",
           "pressures": [
@@ -628,7 +629,6 @@
             "P1",
             "P10"
           ],
-          "indicator": "Seagrass coverage area and density",
           "baseline": "Extensive meadows historically",
           "current_status": "Reduced coverage and patchiness",
           "trend": "Declining"
@@ -640,13 +640,13 @@
         "type": "Marine Processes & Functioning",
         "description": "Declining populations of key commercial species (spiny lobster, queen conch, reef fish) due to overfishing",
         "confidence": 3,
+        "indicator": "Catch per unit effort (CPUE), stock biomass estimates",
         "r_extra": {
           "ecosystem_component": "Fish and shellfish populations",
           "pressures": [
             "P8",
             "P9"
           ],
-          "indicator": "Catch per unit effort (CPUE), stock biomass estimates",
           "baseline": "Abundant stocks pre-1980s",
           "current_status": "Overfished, low abundance",
           "trend": "Declining"
@@ -658,12 +658,12 @@
         "type": "Marine Processes & Functioning",
         "description": "Lionfish and other invasive species altering predator-prey dynamics and competing with native species",
         "confidence": 3,
+        "indicator": "Lionfish density, native fish diversity",
         "r_extra": {
           "ecosystem_component": "Reef fish communities",
           "pressures": [
             "P12"
           ],
-          "indicator": "Lionfish density, native fish diversity",
           "baseline": "No invasive predators historically",
           "current_status": "Widespread lionfish presence",
           "trend": "Stable at high invasive density"
@@ -675,6 +675,7 @@
         "type": "Marine Processes & Functioning",
         "description": "Elevated turbidity, nutrient levels, and pollutant concentrations in nearshore waters",
         "confidence": 3,
+        "indicator": "Water clarity (Secchi depth), nutrient concentrations, pollutant levels",
         "r_extra": {
           "ecosystem_component": "Coastal water column",
           "pressures": [
@@ -683,7 +684,6 @@
             "P3",
             "P4"
           ],
-          "indicator": "Water clarity (Secchi depth), nutrient concentrations, pollutant levels",
           "baseline": "Clear, oligotrophic waters historically",
           "current_status": "Degraded water quality in many areas",
           "trend": "Variable, generally declining"
@@ -695,6 +695,7 @@
         "type": "Marine Processes & Functioning",
         "description": "Accelerated shoreline erosion due to loss of protective coral reefs, mangroves, and seagrass beds",
         "confidence": 3,
+        "indicator": "Shoreline retreat rate (m/year)",
         "r_extra": {
           "ecosystem_component": "Coastal geomorphology",
           "pressures": [
@@ -702,7 +703,6 @@
             "P10",
             "P11"
           ],
-          "indicator": "Shoreline retreat rate (m/year)",
           "baseline": "Stable coastlines with natural protection",
           "current_status": "Active erosion in multiple locations",
           "trend": "Increasing"
@@ -714,6 +714,7 @@
         "type": "Marine Processes & Functioning",
         "description": "Reduction in three-dimensional reef structure due to coral mortality, bioerosion, and lack of recovery",
         "confidence": 3,
+        "indicator": "Reef rugosity index, structural complexity score",
         "r_extra": {
           "ecosystem_component": "Coral reef architecture",
           "pressures": [
@@ -723,7 +724,6 @@
             "P4",
             "P10"
           ],
-          "indicator": "Reef rugosity index, structural complexity score",
           "baseline": "Complex three-dimensional structures",
           "current_status": "Flattened, simplified reef structures",
           "trend": "Declining"

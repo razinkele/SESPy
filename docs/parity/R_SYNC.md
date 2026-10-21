@@ -14,11 +14,14 @@ generated block below together; never edit the block by hand.
 ## Current pin
 
 <!-- r-sync:begin -->
-- **R release:** MarineSABRES_SES_Shiny **v1.31.0**, commit `4b53b7d`.
+- **R release:** MarineSABRES_SES_Shiny **v1.33.0**, commit `4017feb`.
 
 | File | Hash |
 |---|---|
 | `tests/parity/r_rules/dapsiwrm_connection_rules.R` | `ca4294f10974af34adf7dad9fe029318955c1c498356224b656a3e69525422a5` |
+| `tests/parity/r_source/constants.R` | `27bdf3c7902c5ce602515ae448d6f81912edd5c9836672c1741650d3c0c42bc3` |
+| `tests/parity/r_source/response_measures_schema.R` | `ac3de5f9dbfb87d9451ae6cc3c8a0e3e12594c10a7253def09565e55ce34c9b7` |
+| `tests/parity/r_source/stakeholder_schema.R` | `489311719ba13863a0ae84934fa4116378736b52c41374d1b957da1354ee1bce` |
 | `tests/parity/r_source/template_loader.R` | `3ebe6c83a737ead8e91936f9f11ca5cfa4244d56d52f1644fc7df2af131d02d3` |
 | `tests/parity/r_templates/Aquaculture_SES_Template.json` | `d24154498ce843d0f10e2b724340ca63878002e63486132d933ef777d844c946` |
 | `tests/parity/r_templates/Caribbean_SES_Template.json` | `7c38efa11232215eea9754c2831e8beaec31eb8d7a90618a16d3834af9bd5961` |
@@ -27,16 +30,27 @@ generated block below together; never edit the block by hand.
 | `tests/parity/r_templates/OffshoreWind_SES_Template.json` | `a7657b88a1046d0590e4dcfdea39852cf2a4cdfa7629a2f14564753079c6debf` |
 | `tests/parity/r_templates/Pollution_SES_Template.json` | `d3da39cf77605a35c7d3accbdd4b37830753443230f88d22c59e971c60332e56` |
 | `tests/parity/r_templates/Tourism_SES_Template.json` | `1c0af86d3737cdb306ccc8eb0107fbe1ac75b41c4fede2dd56dc265c9983662e` |
+| `tests/parity/r_translations/indicator_registry.json` | `b8ec68a82ca57afdf160db2c1e7dc479e9b2721d8843555c1ca637efa3bbc4f8` |
+| `tests/parity/r_translations/response_governance.json` | `ff962cd5156fcbd14c33c3b17d74fc1073e99270b00f1aef102982fe2d2fc6a6` |
+| `tests/parity/r_translations/response_measures.json` | `94103aabca9cb51076fb0ff10d21c0f38b0d53b95114457ca0b64f905e04728b` |
+| `tests/parity/r_translations/wp5_governance.json` | `ebeb2c7553879c58f733654525f0c3e570c5fc92889df2b6e2355bd1a3e40276` |
+| `tests/parity/r_translations/wp5_scenarios.json` | `5ba25f38cfda9b2bbbcba6b2d0d18594ba8638de34bf38f15caa0998d6af4ef6` |
+| `tests/parity/r_translations/wp5_vocabulary.json` | `e4607ea6dadebea817e65aa873e9584d2ae65ec0e119e5d7be7293f48762591a` |
 
 **Accepted sync warnings:** none.
 <!-- r-sync:end -->
 
-- **Adopted in:** SESPy 1.14.0 (P2: curated R templates in the gallery);
-  laguna verification of the new pin follows the 1.14.0 deploy. The
-  previous pin, v1.29.0 (`e33faea`), was adopted in SESPy 1.13.0 (P1a).
-- **Roadmap baseline:** moved from v1.29.0 (`e33faea`) to v1.31.0
-  (`4b53b7d`). The pinned files are unchanged between the two tags
-  (`git diff --quiet e33faea v1.31.0 -- <the 9 paths>` exits 0).
+- **Adopted in:** SESPy 1.15.0 (P1b: response register, indicator fields,
+  stakeholder roles). The previous pin, v1.31.0 (`4b53b7d`), was adopted in
+  SESPy 1.14.0 (P2); before it, v1.29.0 (`e33faea`) in SESPy 1.13.0 (P1a).
+- **Roadmap baseline:** moved from v1.31.0 (`4b53b7d`) to v1.33.0
+  (`4017feb`), the release laguna runs. The 9 files pinned since P2 are
+  unchanged between the two tags (`git diff --quiet v1.31.0 v1.33.0 -- <the
+  9 paths>` exits 0). P1b adds 9 fixtures: `constants.R`,
+  `functions/response_measures_schema.R`, `functions/stakeholder_schema.R`
+  (the register and stakeholder ports are tested against them) and 6
+  `translations/modules/*.json` files, whose key subsets ship as
+  `sespy/translations/modules/*.json` (written by the sync).
 
 The JSON templates are hashed with `sespy.r_sync.sha256_norm` (the parsed
 JSON, so key order, CRLF and a BOM do not matter). The `.R` files are hashed
@@ -89,6 +103,26 @@ connection rules and the template loader, hashed with `sha256_norm` /
 Live drift against laguna (`tests/parity/check_live.py`) is owned by **K1**
 in the R-parity roadmap; P1a and P2 read R only through these fixtures and
 the sync script.
+
+## R changes v1.31.0 → v1.33.0 (triaged 2026-10-21)
+
+From the P1b spec (§9). R 1.32.0–1.32.4 = WS-10 workshop elicitation,
+R 1.33.0 = AI-template matrix repair and assistant fixes.
+
+| R change | Owner |
+|---|---|
+| `RM_REGISTER_COLUMNS` + `TenetSource`; tenet validation (`response_measures_schema.R`); register `update` API | **P1b** |
+| WS-10 workshop elicitation (1.32.0–1.32.4: `wp5_workshop.R`, `wp5_workshop_module.R`, `wp5_tenet_guiding_questions.json`, workshops block + 1.32.0 stamp) | **new sub-project, proposed P15** (after P4; it writes `TenetSource`) |
+| `repair_template_connection_matrices` (1.33.0, AI-template matrices) | not relevant (R-only matrix storage; SESPy templates are edge lists) |
+| AI assistant template fixes (`modules/ai_isa/*`, 1.33.0) | P13 / AI wizard parity, re-check then |
+| Report sections, plot downloads (`report_generation.R`, `prepare_report_module.R`, `export_reports_module.R`) | P14 / P6c |
+| Loop plots, decision lens, simplify, leverage, scenario network/builder fixes | not relevant now; re-triage when the owning analysis is ported |
+| `country_governance_db.json` | K1 (re-check counts at K1's pin) |
+| `wp5_readiness.R` | P4 |
+| `entry_point_module.R`, sidebar | P11 |
+| feedback analyzer, `.claude/`, CI | not relevant |
+
+Load DA actor list: P4 (user decision 2026-10-21).
 
 ## R changes v1.29.0 → v1.31.0 (triaged 2026-10-18)
 

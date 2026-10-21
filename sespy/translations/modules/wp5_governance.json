@@ -1,0 +1,103 @@
+{
+  "languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "lt",
+    "pt",
+    "it",
+    "no",
+    "el"
+  ],
+  "translation": {
+    "modules.wp5_governance.role.inputters": {
+      "en": "Inputters",
+      "es": "Aportadores",
+      "fr": "Apporteurs",
+      "de": "Zuführende",
+      "lt": "Resursų teikėjai",
+      "pt": "Fornecedores de recursos",
+      "it": "Apportatori",
+      "no": "Tilførere",
+      "el": "Εισφέροντες"
+    },
+    "modules.wp5_governance.role.extractors": {
+      "en": "Extractors",
+      "es": "Extractores",
+      "fr": "Extracteurs",
+      "de": "Entnehmende",
+      "lt": "Išteklių naudotojai",
+      "pt": "Extratores",
+      "it": "Estrattori",
+      "no": "Utvinnere",
+      "el": "Εξορύκτες"
+    },
+    "modules.wp5_governance.role.regulators": {
+      "en": "Regulators",
+      "es": "Reguladores",
+      "fr": "Régulateurs",
+      "de": "Regulierende",
+      "lt": "Reguliuotojai",
+      "pt": "Reguladores",
+      "it": "Regolatori",
+      "no": "Regulatorer",
+      "el": "Ρυθμιστές"
+    },
+    "modules.wp5_governance.role.affectees": {
+      "en": "Affectees",
+      "es": "Afectados",
+      "fr": "Personnes affectées",
+      "de": "Betroffene",
+      "lt": "Paveiktieji",
+      "pt": "Afetados",
+      "it": "Soggetti colpiti",
+      "no": "Berørte",
+      "el": "Θιγόμενοι"
+    },
+    "modules.wp5_governance.role.beneficiaries": {
+      "en": "Beneficiaries",
+      "es": "Beneficiarios",
+      "fr": "Bénéficiaires",
+      "de": "Begünstigte",
+      "lt": "Naudos gavėjai",
+      "pt": "Beneficiários",
+      "it": "Beneficiari",
+      "no": "Mottakere",
+      "el": "Δικαιούχοι"
+    },
+    "modules.wp5_governance.role.influencers": {
+      "en": "Influencers",
+      "es": "Influyentes",
+      "fr": "Influenceurs",
+      "de": "Einflussnehmende",
+      "lt": "Įtakos darytojai",
+      "pt": "Influenciadores",
+      "it": "Influenzatori",
+      "no": "Påvirkere",
+      "el": "Επηρεαστές"
+    },
+    "modules.wp5_governance.ne_roles": {
+      "en": "Roles (D5.4 actor typology)",
+      "es": "Roles (tipología de actores del D5.4)",
+      "fr": "Rôles (typologie des acteurs du D5.4)",
+      "de": "Rollen (Akteurstypologie des D5.4)",
+      "lt": "Vaidmenys (D5.4 veikėjų tipologija)",
+      "pt": "Papéis (tipologia de atores do D5.4)",
+      "it": "Ruoli (tipologia degli attori del D5.4)",
+      "no": "Roller (D5.4-aktørtypologi)",
+      "el": "Ρόλοι (τυπολογία φορέων του D5.4)"
+    },
+    "modules.wp5_governance.ne_roles_hint": {
+      "en": "Newton & Elliott (2016) roles used in WP5 D5.4; an actor can have several.",
+      "es": "Roles de Newton y Elliott (2016) utilizados en el D5.4 del WP5; un actor puede tener varios.",
+      "fr": "Rôles de Newton et Elliott (2016) utilisés dans le D5.4 du WP5 ; un acteur peut en avoir plusieurs.",
+      "de": "Rollen nach Newton & Elliott (2016), die im D5.4 des WP5 verwendet werden; ein Akteur kann mehrere haben.",
+      "lt": "Newton ir Elliott (2016) vaidmenys, naudoti WP5 D5.4; veikėjas gali turėti kelis.",
+      "pt": "Papéis de Newton e Elliott (2016) usados no D5.4 do WP5; um ator pode ter vários.",
+      "it": "Ruoli di Newton ed Elliott (2016) usati nel D5.4 del WP5; un attore può averne più di uno.",
+      "no": "Roller fra Newton og Elliott (2016) brukt i WP5 D5.4; en aktør kan ha flere.",
+      "el": "Ρόλοι των Newton και Elliott (2016) που χρησιμοποιούνται στο D5.4 του WP5· ένας φορέας μπορεί να έχει περισσότερους."
+    }
+  }
+}

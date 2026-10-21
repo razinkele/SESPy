@@ -41,12 +41,34 @@ MD_PATH = "docs/parity/R_SYNC.md"
 BEGIN, END = "<!-- r-sync:begin -->", "<!-- r-sync:end -->"
 TAG_RE = re.compile(r"^v\d+\.\d+\.\d+$")
 
+# P1b: R sources the register / stakeholder ports are checked against
+# (fixtures only, never shipped), and the R translation files whose key
+# subsets ship as sespy/translations/modules/<stem>.json (spec §7, §9).
+R_SOURCES = ("constants.R", "functions/response_measures_schema.R",
+             "functions/stakeholder_schema.R")
+VENDORED_DIR = "sespy/translations/modules"
+# File stem -> key prefixes to vendor (empty tuple = the whole file).
+TRANSLATION_SUBSETS: dict[str, tuple[str, ...]] = {
+    "response_measures": (),
+    "response_governance": (),
+    "wp5_vocabulary": ("modules.wp5_vocabulary.instrument.", "modules.wp5_vocabulary.measure.",
+                       "modules.wp5_vocabulary.tenet."),
+    "wp5_scenarios": ("modules.wp5_scenarios.pestle.",),
+    "wp5_governance": ("modules.wp5_governance.role.", "modules.wp5_governance.ne_roles"),
+    "indicator_registry": ("modules.indicator_registry.policy_target",
+                           "modules.indicator_registry.field_"),
+}
+_TR_PREFIX = "translations/modules/"
+
 # R app path -> fixture path under repo_root (spec §3.2, §3.3 step 6). A
 # template added or removed in R is a deliberate change to this list.
 INPUTS: dict[str, str] = {
     **{f"data/{f}": f"tests/parity/r_templates/{f}" for f in TEMPLATE_FILES},
     "functions/dapsiwrm_connection_rules.R": "tests/parity/r_rules/dapsiwrm_connection_rules.R",
     "functions/template_loader.R": "tests/parity/r_source/template_loader.R",
+    **{p: f"tests/parity/r_source/{p.rsplit('/', 1)[-1]}" for p in R_SOURCES},
+    **{f"{_TR_PREFIX}{s}.json": f"tests/parity/r_translations/{s}.json"
+       for s in TRANSLATION_SUBSETS},
 }
 
 # Port of R's .determine_template_category, in R's order (first match wins).
@@ -191,6 +213,32 @@ def build_outputs(raw_by_file: dict[str, dict], *, r_tag: str, r_commit: str
     return outputs, warnings, errors
 
 
+def build_vendored_translations(raw_by_stem: dict[str, Any]
+                                ) -> tuple[dict[str, bytes], list[str]]:
+    """The shipped R key subsets (P1b spec §7), in memory.
+
+    Each output is {"languages": R's list, "translation": the selected keys
+    in R's order}, indent=2, ensure_ascii=False, LF, newline-terminated.
+    Returns (outputs, errors); a prefix that selects no key is an error, so a
+    renamed R key family surfaces at re-pin instead of shipping fewer labels."""
+    outputs: dict[str, bytes] = {}
+    errors: list[str] = []
+    for stem, prefixes in TRANSLATION_SUBSETS.items():
+        src = f"{_TR_PREFIX}{stem}.json"
+        raw = raw_by_stem[stem]
+        tr = raw.get("translation") if isinstance(raw, dict) else None
+        if not isinstance(tr, dict):
+            errors.append(f"{src}: no translation object")
+            continue
+        selected = {k: v for k, v in tr.items() if not prefixes or k.startswith(prefixes)}
+        errors += [f"{src}: prefix {p!r} selects no key" for p in prefixes
+                   if not any(k.startswith(p) for k in selected)]
+        doc = {"languages": raw.get("languages", []), "translation": selected}
+        outputs[f"{VENDORED_DIR}/{stem}.json"] = (
+            json.dumps(doc, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    return outputs, errors
+
+
 def render_block(r_tag: str, r_commit: str, files: dict[str, str],
                  accepted: list[dict]) -> str:
     """The generated R_SYNC.md block (without the surrounding newlines)."""
@@ -274,7 +322,9 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
     if from_fixtures:
         r_tag, r_commit = pin_old["r_tag"], pin_old["r_commit"]
         for r_path, fixture in INPUTS.items():
-            if r_path.startswith("data/"):
+            # Templates and translation subsets are converted, so fixture mode
+            # reads them; the .R fixtures are only hashed (git mode).
+            if r_path.startswith(("data/", _TR_PREFIX)):
                 try:
                     raw_bytes[r_path] = (repo_root / fixture).read_bytes()
                 except OSError as e:
@@ -301,6 +351,11 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
         raw_by_file = {f: json.loads(raw_bytes[f"data/{f}"].decode("utf-8-sig"))
                        for f in TEMPLATE_FILES}
         outputs, warnings, errors = build_outputs(raw_by_file, r_tag=r_tag, r_commit=r_commit)
+        raw_by_stem = {s: json.loads(raw_bytes[f"{_TR_PREFIX}{s}.json"].decode("utf-8-sig"))
+                       for s in TRANSLATION_SUBSETS}
+        vendored, tr_errors = build_vendored_translations(raw_by_stem)
+        outputs.update(vendored)
+        errors += tr_errors
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         # JSON or mapper error, or a template that is not the expected shape
         # (e.g. not an object): exit 1, never a traceback.
