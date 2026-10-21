@@ -1,6 +1,6 @@
 # P1b — Response register, indicator fields, stakeholder roles (schema v8)
 
-**Status:** design, approved by the user 2026-10-21 · **Date:** 2026-10-21
+**Status:** design, approved by the user 2026-10-21; amended in plan review round 1 (2026-10-21) · **Date:** 2026-10-21
 **Roadmap:** `docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md` §2 P1b
 (branch `docs/r-parity-roadmap`). P0, P1a (v1.13.0) and P2 (v1.14.0) are shipped;
 SESPy main is v1.14.2 (`c7fde7f`).
@@ -32,8 +32,9 @@ roles, and all of it survives save → load. This is the data foundation P1c
    fixture table of inputs (label → code for all 9 languages, PESTLE ordering
    and dedupe, tenet-level blanking, `Cost` coercion, unknown columns dropped)
    and R's `normalize_stakeholders` `NERoles` cleaning.
-3. Measure IDs follow R's `safe_counter` rule (§4.3) on fixtures including a
-   loaded project whose counter is missing or too low.
+3. Measure and stakeholder IDs follow R's `safe_counter` rule (§4.2.3, §4.4) on
+   fixtures including a loaded project whose counter is missing or too low, and
+   a deleted ID is not handed out again.
 4. The Response Register page, the ISA edit panel and the stakeholder roles
    field work end to end (e2e scripts below).
 5. The full unit and e2e gates pass, and MosaicSES's unit suite and full e2e
@@ -51,6 +52,17 @@ roles, and all of it survives save → load. This is the data foundation P1c
 - **"Load DA actor list"** moves to P4 (§8, user decision); the 1.32.x WS-10
   workshop gets a new owner (§9).
 - **The roadmap's two P1b decisions** are made in §5.
+- **The Response Register page moves from P4 to P1b**: R `response_module.R`
+  tabs 1–5, minus the bandit suggestion, the Word exports, the WP5 mechanism tab
+  and the D5.4 governance-context tab. P4 keeps the mechanism pane, the
+  governance-context tab (its "Add to register" writes through P1b's
+  `add_measure`), the indicator picker and "Load DA actor list".
+- **`metadata.r_min_app_version` moves to P1c** (*my call*). Only an R import
+  writes it (R's top-level `min_app_version`, for import diagnostics), and P1c
+  bumps the schema anyway. P1b ships `min_sespy_version` only.
+- **The roadmap's `33ddd96` check** (one stakeholder row per add, safe id
+  counter; R_SYNC.md check item) is closed by §4.4: SESPy adds one row per
+  click, and stakeholder IDs now come from R's persisted counter.
 
 ## 3. Non-goals
 
@@ -82,9 +94,12 @@ roles, and all of it survives save → load. This is the data foundation P1c
   the new stakeholder fields, which are always serialised (4.4).
 - Tests that pin the number are updated: `tests/test_data_structure.py:17`,
   `tests/test_schema_v7.py:279-280` (the "newer file" becomes
-  `PROJECT_SCHEMA_VERSION + 1`), `tests/test_r_template_catalogue.py:202`.
+  `PROJECT_SCHEMA_VERSION + 1`), `tests/test_schema_v7.py:231-238` (the two
+  stamp tests compare with the floor, not "1.13.0"),
+  `tests/test_r_template_catalogue.py:202`.
   `tests/test_schema_v7.py:57` (`SCHEMA_MIN_READER[7] == "1.13.0"`) stays: the
-  v7 entry is kept.
+  v7 entry is kept. The first commit also regenerates the 7 shipped templates
+  from the committed fixtures (`--from-fixtures`), so every commit is green.
 - A v7 file loads as before (missing blocks default). A newer file still trips
   P0b's guard.
 
@@ -169,8 +184,12 @@ New measure ID = `"RM%03d" % n` where
 `n = max(counter, largest integer suffix of existing "RM…" IDs) + 1`
 (R `safe_counter` + `next_element_id`); `counter` is then set to `n`. Deleting
 never lowers `counter`, so IDs are not reused while the counter survives. One
-ID per add (the `33ddd96` bug cannot occur). SESPy's gap-filling `next_id`
-stays for elements and stakeholders (not part of P1b).
+ID per add (the `33ddd96` bug cannot occur). On load the stored `counter` is
+kept as it is (a non-numeric value → 0 with a log line); `safe_counter` applies
+only when a measure is added (R `response_module.R:494-509`). Stakeholder IDs
+follow the same rule (§4.4). Element IDs keep SESPy's gap-filling `next_id`
+(a SESPy design, `tests/test_utils.py`); the ISA page warns when a deleted
+element is still referenced by the register (§6.2).
 
 ### 4.3 Element indicator fields
 Six kw_only `str` fields on `Element`, default "": `indicator,
@@ -178,7 +197,13 @@ indicator_unit, data_source, registry_id, registry_version, policy_target`
 (R's `ISA_INDICATOR_COLUMNS`, in the lowercase form R's loader produces).
 Serialised by `_element_to_dict` **only when non-empty**, so a project without
 indicators has the v7 element shape. `_isa_from_dict` picks them up through
-`fields(Element)`; non-str values → `str()`, `None` → "" (tolerant load, log).
+`fields(Element)`; non-str values → `str()` with a log line, `None` → ""
+silently (as `Connection.description`).
+- **Saved projects (*my call*):** on load, a non-empty string
+  `r_extra["indicator"]` moves into `Element.indicator` when that field is
+  empty and is removed from `r_extra` (one log line per project), so projects
+  saved from the v1.14.x Caribbean template get the field like a fresh
+  conversion (§5(b)). `baseline` stays in `r_extra`.
 - Responses: the fields are **hidden in the UI only** (R `isa_form_builders.R:74-86`).
   Load and validation keep whatever a file carries on a Responses element and
   log nothing (R behaves the same).
@@ -191,9 +216,23 @@ indicators has the v7 element shape. `_isa_from_dict` picks them up through
 `STAKEHOLDER_TYPES` = Inputters, Extractors, Regulators, Affectees,
 Beneficiaries, Influencers (capitalised codes, as R stores them); unknown
 values are dropped with a log line (`normalize_stakeholders`,
-`stakeholder_schema.R:30-37`). `source_id` (`d54:<actor id>`) is never user-entered;
-P1b only stores it (it is written by the actor-list loader, §8). `Stakeholder`
-is serialised with `asdict`, so both keys are always written.
+`stakeholder_schema.R:30-37`). The Python name is `STAKEHOLDER_ROLES` (R
+`STAKEHOLDER_TYPES`; SESPy already has an unrelated `stakeholder_type`).
+`source_id` (`d54:<actor id>`) is never user-entered;
+P1b only stores it (it is written by the actor-list loader, §8) and loads it
+tolerantly like the indicator fields. `Stakeholder`
+is serialised with `asdict`, so both keys are always written (an exception to
+P1a's explicit-serialisation rule, kept because a v1.14 reader filters unknown
+stakeholder keys).
+- **Stakeholder IDs (R parity, *my call*):** `Project.stakeholder_counter: int`
+  (kw_only, default 0) is R's `pims$stakeholder_counter`. Adding a stakeholder
+  allocates `SH%03d` from `safe_counter(stakeholder_counter, ids, "SH") + 1`
+  and stores the new counter (`pims_stakeholder_module.R:458-460`); it is
+  written as a top-level key only when > 0. A deleted stakeholder's ID is
+  therefore never handed to a new stakeholder, so a measure's
+  `ImplementingStakeholders` cannot silently start naming someone else. P1c
+  maps R's `pims.stakeholder_counter`. Engagement and communication IDs keep
+  `next_id` (nothing refers to them).
 
 ### 4.5 Connection description
 `Connection.description` already exists (P1a) with no UI. P1b adds the UI only;
@@ -213,18 +252,21 @@ R writes template measures into `response_measures`. SESPy keeps the 11
 (`sespy/r_template_mapper.py:112-117`) maps the R key `indicator` to the field
 instead of `r_extra`. `baseline` has no field in R's `ISA_INDICATOR_COLUMNS`
 (R's legacy `baseline_value` column is unrelated), so it stays in `r_extra`.
-Chain: mapper change → `python -m scripts.sync_r_templates` regenerates the 7
-shipped templates (all of them change anyway, since `to_json` now writes schema
-8 and the 1.15.0 floor) and `catalogue.json` if its hash inputs change → the
-pin test and `tests/test_r_template_catalogue.py:202` move to "1.15.0".
-`ConversionReport.extra_fields` no longer lists `indicator`.
+Chain: the commit that changes the conversion regenerates the shipped templates
+with `python -m scripts.sync_r_templates --from-fixtures` (the schema bump
+rewrites all 7, the mapper change rewrites Caribbean); the re-pin then also
+moves `catalogue.json`'s `r_tag`/`r_commit` to v1.33.0 / `4017feb`, and
+`tests/test_r_template_catalogue.py:202` moves to "1.15.0" with the bump.
+`ConversionReport.extra_fields` no longer lists `indicator`. Projects already
+saved with `r_extra["indicator"]` are hoisted on load (§4.3).
 
 **(c) Excel import (*my call*).** `excel_import.py:29` uses an "Indicator"
 column as the element *description* fallback. From v1.15.0 an
 `Indicator`/`indicator` column fills `Element.indicator`, and the description
 comes only from `Description`/`description`. The other five R column names
 (`Indicator_Unit`, `Data_Source`, `Registry_Id`, `Registry_Version`,
-`Policy_Target`, any case) are read as well. CHANGELOG notes the behaviour change.
+`Policy_Target`) are read as well; all six headers match case-insensitively.
+CHANGELOG notes the behaviour change.
 
 ## 6. UI
 
@@ -240,43 +282,63 @@ placed directly after **Edit Data** (*my call*), stepper stage "create", and a
 R's tabs 1–5:
 
 1. **Register.** Add form with R's fields (`response_module.R:28-190`): name
-   and type required; target, status (default proposed), description,
+   and type required; target, status (default proposed, no blank choice), description,
    mechanism, target element, effectiveness, feasibility, cost (1–10, default 5),
    responsible stakeholders, barriers; a collapsible "EBM classification and
    governance" section with kind, EBM code (choices follow kind; picking a
    measure code suggests target), governance level, competent authority, legal
-   basis, paired with (select of existing "ID – Name"), implementing
+   basis, paired with (select of existing "ID - Name", R's hyphen), implementing
    stakeholders (multi-select of the project's PIMS stakeholders, stored as
    ";"-joined IDs), PESTLE (multi), and the 11 tenet selects. `TenetSource` is
-   shown read-only when set. Table: R's 15 `RM_DISPLAY_COLUMNS`, translated.
+   shown read-only when set. Table: R's 15 `RM_DISPLAY_COLUMNS`, with R's column
+   names as headers (untranslated, as R's DT table) and translated values as R's
+   `rm_display_label` (`response_measures_schema.R:146-157`): a blank value
+   shows "" in every column ("Not assessed" is only the label of a tenet
+   select's empty choice), an EBM code shows its vocabulary label without the
+   code (only the instrument picker prefixes the code).
    Row selection → **Edit** (repopulates the form; *my call*: R has add/delete
    only, SESPy's stakeholder page has edit and R's register API has `update`)
    and **Delete** (multi-select; counter unchanged).
+   **Edit keeps every stored value:** a select whose stored value is not one of
+   its choices (a hand-typed Type, an unvalidated Effectiveness, a dangling
+   `PairedWith` or `ImplementingStakeholders` ID) gets that value as an extra
+   choice shown raw, so saving never rewrites data the user did not touch.
    `TargetElement` is a **select of the project's non-Response element IDs**
    rather than R's free text (*my call*; it stores the same ";"-joined ID
    string, and IDs not in the project are kept and shown).
 2. **Impacts.** R's tab 2: measure, problem type, element (select, as above),
    strength, timeframe; table with delete (*my call*: R has no delete). R's
-   heatmap has no renderer in R and is not ported.
+   heatmap, its "Priority ranking" summary and its "Cost vs expected impact"
+   plot have no renderer in R and are not ported.
 3. **Prioritisation.** Weights (effectiveness 0.4, feasibility 0.3, cost 0.3),
    R's score `w_e*Eff/3 + w_f*Feas/3 + w_c*(11-Cost)/10` with HIGH 3 / MEDIUM 2 /
-   LOW 1 / else 0, ranked table (R's columns minus BanditSuggestion), and the
-   effectiveness-vs-feasibility scatter (3×3 grid, quadrant labels, IDs).
+   LOW 1 / else 0, ranked table (R's columns minus BanditSuggestion,
+   `PriorityScore` rounded to 3 places), and R's effectiveness-vs-feasibility
+   plot (`response_module.R:796-837`): only measures whose Effectiveness and
+   Feasibility are both HIGH/MEDIUM/LOW are drawn, x = feasibility,
+   y = effectiveness, axes 0.5–3.5 with Low/Medium/High ticks, dashed lines at
+   2, the four quadrant labels, points labelled by ID; with no rated measure an
+   empty plot titled "Add effectiveness and feasibility ratings".
    Unit tests reproduce R's scores on a fixture.
 4. **Milestones and export.** R's tab 4 form (measure, milestone, target date
    default today + 365, status, notes), table with delete; an **Excel download**
-   with R's three sheets `Response_Measures` (all 34 columns, translated
-   values), `Impact_Matrix`, `Implementation` (openpyxl, as
-   `stakeholder_reports.py`).
+   with R's three sheets `Response_Measures` (all 34 columns, values translated
+   as R's `rm_translate_for_display`), `Impact_Matrix`, `Implementation`
+   (openpyxl, as `stakeholder_reports.py`). R exports impacts and milestones as
+   stored, i.e. as labels; SESPy stores codes (§4.2.2), so it translates
+   ProblemType, ImpactStrength, Timeframe and Status on export to produce R's
+   output.
 
 **Deletes do not cascade (R parity, *my call*).** R's delete
 (`response_module.R:650-653`) drops only the measure rows. Impacts and
 milestones whose `ResponseID` is gone, a `PairedWith` that points at a deleted
 measure, and `ImplementingStakeholders` IDs of stakeholders deleted on the
-PIMS page are all kept and shown as the raw ID. The delete toast says how many
-impact and milestone rows still reference the deleted measures. Element
-deletion on the ISA page does not touch `TargetElement`/`ProblemElementID`
-either.
+PIMS page are all kept and shown as the raw ID (a stakeholder ID is never
+handed out again, §4.4). The delete toast is R's "deleted" message, followed,
+when any remain, by how many impact and milestone rows still reference the
+deleted measures. Element deletion on the ISA page does not touch
+`TargetElement`/`ProblemElementID` either; because element IDs can be reused
+(§4.2.3), it warns, naming the measures that still reference the element.
 
 The page writes through `project_data.set(project.replace(response_measures=…))`
 and emits the change event like the stakeholder page, so autosave picks it up.
@@ -287,17 +349,23 @@ The page is empty-state friendly (no stakeholders → hint, as R).
 an edit panel bound to the selected row (stakeholder-page pattern:
 `editing_id` + `_repopulate` on `@reactive.event(editing_id)` only):
 - **Element:** label, description, and (non-Responses only) indicator, unit,
-  data source, policy target (selectize, 5 codes + free text), and
-  registry id/version shown read-only when present.
+  data source, policy target (selectize, 5 codes + free text; a stored free
+  text is offered as a choice so it survives Edit), and registry id/version
+  shown read-only when present. Labels use R's
+  `modules.indicator_registry.field_*` keys.
 - **Connection:** description.
-Save goes through the existing `_replace(isa)` path. MosaicSES compartments
+Save goes through the existing `_replace(isa)` path. Deleting an element that
+the register references warns (§6.1). MosaicSES compartments
 reuse `isa_data_entry_server`, so the panel appears there too (§10).
 
 ### 6.3 Stakeholder roles
 `pims_stakeholders.py`: a "Roles (D5.4 actor typology)" multi-select in the
 register form (add and edit), and a Roles column in the table (translated
-labels, ", "-joined). `source_id` is never shown (R hides it).
-`stakeholder_reports.py` adds the Roles column to the xlsx export.
+labels, ", "-joined). `source_id` is never shown in the UI (R hides it).
+The xlsx export (`stakeholder_reports.py`) writes every `Stakeholder` field, so
+its Stakeholders sheet gains `ne_roles` (codes, ";"-joined) and `source_id`
+columns: they are data, as in R's register (*my call*). Adding a stakeholder
+adds exactly one row and takes its ID from the counter (§4.4).
 
 ## 7. i18n
 Strings with an R counterpart **adopt R's keys and R's text in all 9
@@ -312,6 +380,13 @@ listed keys from the R fixture files (§9) so re-pinning is mechanical; a test
 asserts each vendored string equals the fixture's. SESPy-only strings (nav
 label, edit-panel labels, the TargetElement hint) go in `core.json`. A
 `test_p1b_keys_present` test covers both.
+- Six form labels that R takes from `common.labels.*` (response name, response
+  type, implementation status, description, target date, status) live in
+  `translations/common/labels.json`, which is not vendored. `core.json` holds
+  them as `responses.*` keys with R's text in all 9 languages, copied from that
+  file at v1.33.0 (*my call*: vendoring a whole common file for six keys is
+  out of proportion).
+- Table headers are R's column names, untranslated, as in R's DT tables.
 
 ## 8. "Load DA actor list" moves to P4 (decided by the user, 2026-10-21)
 The roadmap listed it under P1b (stakeholder roles bullet) but put its data
@@ -329,16 +404,23 @@ sections are amended accordingly.
   stakeholder_schema.R}` (code lists and normalisers are test-checked against
   them: a parity test extracts each ported vector from `constants.R`) and the 6
   translation JSONs of §7 under `tests/parity/r_translations/`.
-- **Triage of v1.31.0 → v1.33.0** into `docs/parity/R_SYNC.md`:
+- **Triage of v1.31.0 → v1.33.0** into `docs/parity/R_SYNC.md`, one row per
+  path of `git diff --name-status v1.31.0 v1.33.0` (71 paths), as R_SYNC.md's
+  procedure requires. The table below summarises the owners:
 
 | R change | Owner |
 |---|---|
-| `RM_REGISTER_COLUMNS` + `TenetSource`; tenet validation (`response_measures_schema.R`); register `update` API | **P1b** |
-| WS-10 workshop elicitation (1.32.0–1.32.4: `wp5_workshop.R`, `wp5_workshop_module.R`, `wp5_tenet_guiding_questions.json`, workshops block + 1.32.0 stamp) | **new sub-project, proposed P15** (after P4; it writes `TenetSource`) |
+| `RM_REGISTER_COLUMNS` + `TenetSource`; tenet validation (`response_measures_schema.R`); register `update` API; `modules/response_module.R` register tabs | **P1b** (the governance-context tab: P4) |
+| WS-10 workshop elicitation (1.32.0–1.32.4: `wp5_workshop.R`, `wp5_workshop_module.R`, `wp5_tenet_guiding_questions.json` and its test, the sidebar entry, workshops block + 1.32.0 stamp) | **new sub-project, proposed P15** (after P4; it writes `TenetSource`) |
 | `repair_template_connection_matrices` (1.33.0, AI-template matrices) | not relevant (R-only matrix storage; SESPy templates are edge lists) |
 | AI assistant template fixes (`modules/ai_isa/*`, 1.33.0) | P13 / AI wizard parity, re-check then |
 | Report sections, plot downloads (`report_generation.R`, `prepare_report_module.R`, `export_reports_module.R`) | P14 / P6c |
-| Loop plots, decision lens, simplify, leverage, scenario network/builder fixes | not relevant now; re-triage when the owning analysis is ported |
+| Decision lens (`analysis_decision_lens.R`) | P3 |
+| Scenario builder and network (`scenario_builder_module.R`, `scenario_network.R`) | P8 |
+| User-level project test (`test-user-level-keeps-project.R`) | P12 |
+| Template-links toast (`server/project_io.R`) | P13 |
+| `translations/modules/isa_data_entry.json`, `server/modals.R`, `translations/common/{buttons,messages}.json` | inspected per path in the R_SYNC.md table (owner per change) |
+| Loop plots, simplify, leverage fixes | not relevant now; re-triage when the owning analysis is ported |
 | `country_governance_db.json` | K1 (re-check counts at K1's pin) |
 | `wp5_readiness.R` | P4 |
 | `entry_point_module.R`, sidebar | P11 |
@@ -348,7 +430,9 @@ sections are amended accordingly.
 - Before merge: MosaicSES unit suite and **full** e2e against the P1b branch
   (PYTHONPATH to the worktree; the env's editable sespy points elsewhere).
 - Check: the new ISA edit panel's ids are namespaced, so no cross-panel
-  selector collision with MosaicSES panels (all panels share one DOM).
+  selector collision with MosaicSES panels (all panels share one DOM). Checked
+  2026-10-21: MosaicSES's pattern selectors (`[id$=`, `[id^=`) match no new id;
+  the gate re-greps before merge.
 - `Project(...)` constructions at `multises_app/state.py:131` and
   `multises/archetypes.py:100` rely on the new fields' defaults; `materialise`
   uses `dataclasses.replace`, which carries `response_measures`.
@@ -362,14 +446,17 @@ sections are amended accordingly.
   `test-response-module.R`, `test-pims-stakeholder-module.R` at v1.33.0); each
   expected value cites its R file:line. No `Rscript` step: R is not in the
   `shiny` environment, and the fixtures are pinned so the source cannot drift
-  silently.
-- Unit: register normaliser and reverse map (9 languages), ID allocation,
-  prioritisation scores, v8 round trip incl. all 34 columns, omit-when-empty,
-  v7 file load, Element indicator fields, Responses hiding (UI) vs keep (load),
+  silently. The testthat files are not fixtures, so their citations name the
+  v1.33.0 commit (`4017feb`).
+- Unit: register normaliser and reverse map (9 languages), ID allocation
+  (measures and stakeholders), prioritisation scores, v8 round trip incl. all
+  34 columns, omit-when-empty, v7 file load, Element indicator fields,
+  Responses hiding (UI) vs keep (load), the load-time `indicator` hoist,
   stakeholder roles normalisation, mapper `indicator` hoist, Excel import
   columns, parity tests against the R fixtures.
-- Module (`shiny.testing`/server tests): register add/edit/delete, counter;
-  ISA edit panel saves description/indicators; stakeholder roles.
+- Module (`shiny.testing`/server tests): register add/edit/delete, counter,
+  values outside a select's choices kept through Edit; ISA edit panel saves
+  description/indicators; stakeholder roles, one row per add.
 - e2e: `test_response_register_e2e.py` (add two measures → IDs RM001/RM002,
   edit one, add an impact and a milestone, download Excel), an ISA edit e2e,
   a roles e2e step in the stakeholder e2e. Scoped, namespaced selectors; full
