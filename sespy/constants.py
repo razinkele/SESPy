@@ -164,6 +164,13 @@ TEMPORAL_SCALES: tuple[str, ...] = (
     "Decadal",
 )
 
+# --- Element indicator fields (P1b, schema v8) --------------------------------
+# R WP5_POLICY_TARGETS (constants.R:940, v1.33.0). Element.policy_target holds
+# one of these codes or free text (spec §4.3).
+POLICY_TARGET_CODES: tuple[str, ...] = (
+    "kmgbf_30x30", "eu_nrr", "msfd_ges_d1", "msfd_ges_d6", "national_mpa_pct",
+)
+
 # --- Connection delay vocabulary (QSEM time-delay surfacing) -----------------
 DELAY_LEVELS: tuple[str, ...] = ("immediate", "short", "long")
 

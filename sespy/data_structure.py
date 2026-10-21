@@ -94,6 +94,15 @@ _VALID_TYPE_PAIRS: frozenset[tuple[Slug, Slug]] = frozenset(
 )
 
 
+INDICATOR_FIELDS: tuple[str, ...] = (
+    "indicator", "indicator_unit", "data_source",
+    "registry_id", "registry_version", "policy_target",
+)
+"""Element indicator fields (schema v8): R's ISA_INDICATOR_COLUMNS
+(constants.R:855, v1.33.0), lowercased as R's JSON loader does
+(data_structure.R:947-949). Serialised only when non-empty."""
+
+
 @dataclass
 class Element:
     id: str
@@ -104,6 +113,14 @@ class Element:
     # Opaque passthrough for fields SESPy has no column for (R template
     # extras, r_type, r_kind). Serialised only when non-empty (schema v7).
     r_extra: dict[str, Any] = field(default_factory=dict, kw_only=True)
+    # Schema v8 indicator fields (INDICATOR_FIELDS). Hidden in the edit panel
+    # for Responses (R isa_form_builders.R:74-86) but kept on load and save.
+    indicator: str = field(default="", kw_only=True)
+    indicator_unit: str = field(default="", kw_only=True)
+    data_source: str = field(default="", kw_only=True)
+    registry_id: str = field(default="", kw_only=True)
+    registry_version: str = field(default="", kw_only=True)
+    policy_target: str = field(default="", kw_only=True)
 
 
 @dataclass
@@ -162,6 +179,14 @@ def _isa_from_dict(raw: dict[str, Any]) -> IsaData:
     elements = []
     for e in raw.get("elements", []):
         el_fields = {k: v for k, v in e.items() if k in el_keys}
+        for f in INDICATOR_FIELDS:          # schema v8: tolerant, never fatal
+            v = el_fields.get(f)
+            if v is None:
+                el_fields.pop(f, None)      # absent or null: default ""
+            elif not isinstance(v, str):
+                _log.warning("element %r: %s is %s, not a string; stored as %r",
+                             e.get("id"), f, type(v).__name__, str(v))
+                el_fields[f] = str(v)
         r_extra = e.get("r_extra")
         if r_extra is None:                 # absent or null: silently {}
             r_extra = {}
@@ -197,6 +222,10 @@ def _element_to_dict(e: Element) -> dict[str, Any]:
         "id": e.id, "label": e.label, "type": e.type,
         "description": e.description, "confidence": e.confidence,
     }
+    for f in INDICATOR_FIELDS:          # omitted when empty: v7 element shape
+        v = getattr(e, f)
+        if v:
+            d[f] = v
     if e.r_extra:                       # omitted when empty: v6 element shape
         d["r_extra"] = copy.deepcopy(e.r_extra)
     return d
