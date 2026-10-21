@@ -81,8 +81,10 @@ roles, and all of it survives save → load. This is the data foundation P1c
   (`_min_reader_stamp`). This is intended: a v1.14 reader would silently drop
   the new stakeholder fields, which are always serialised (4.4).
 - Tests that pin the number are updated: `tests/test_data_structure.py:17`,
-  `tests/test_schema_v7.py:57` and `:279-280` (the "newer file" becomes
+  `tests/test_schema_v7.py:279-280` (the "newer file" becomes
   `PROJECT_SCHEMA_VERSION + 1`), `tests/test_r_template_catalogue.py:202`.
+  `tests/test_schema_v7.py:57` (`SCHEMA_MIN_READER[7] == "1.13.0"`) stays: the
+  v7 entry is kept.
 - A v7 file loads as before (missing blocks default). A newer file still trips
   P0b's guard.
 
@@ -155,9 +157,10 @@ on load and on every write.
   value depends on the UI language at entry time. SESPy stores codes:
   ProblemType `specific_pressure|specific_activity|specific_driver|system_wide_issue`,
   ImpactStrength `strong|moderate|weak`, Timeframe
-  `immediate|short_term|medium_term|long_term`, Status
-  `pending|in_progress|completed|delayed` (codes = R's i18n key suffixes; the
-  builder confirms them against the vendored JSON). The normaliser maps any
+  `immediate|short_term_1_3y|medium_term_3_10y|long_term_10y`, Status
+  `pending|in_progress|completed|delayed`. Every code is exactly R's i18n key
+  suffix under `modules.response.measures.` (`response_module.R:208-224,340`),
+  so code → label is the key lookup, with no extra table. The normaliser maps any
   9-language label to its code the same way as Type/Target/Status, so P1c's
   importer gets R's labels mapped for free.
 
@@ -266,6 +269,15 @@ R's tabs 1–5:
    values), `Impact_Matrix`, `Implementation` (openpyxl, as
    `stakeholder_reports.py`).
 
+**Deletes do not cascade (R parity, *my call*).** R's delete
+(`response_module.R:650-653`) drops only the measure rows. Impacts and
+milestones whose `ResponseID` is gone, a `PairedWith` that points at a deleted
+measure, and `ImplementingStakeholders` IDs of stakeholders deleted on the
+PIMS page are all kept and shown as the raw ID. The delete toast says how many
+impact and milestone rows still reference the deleted measures. Element
+deletion on the ISA page does not touch `TargetElement`/`ProblemElementID`
+either.
+
 The page writes through `project_data.set(project.replace(response_measures=…))`
 and emits the change event like the stakeholder page, so autosave picks it up.
 The page is empty-state friendly (no stakeholders → hint, as R).
@@ -291,7 +303,11 @@ labels, ", "-joined). `source_id` is never shown (R hides it).
 Strings with an R counterpart **adopt R's keys and R's text in all 9
 languages**, vendored as a key subset into
 `sespy/translations/modules/{response_measures,response_governance,wp5_vocabulary,wp5_scenarios,wp5_governance,indicator_registry}.json`
-(the loader already merges sub-directories). A small sync helper copies the
+(the loader already merges sub-directories). The subset **must include every
+`modules.response.measures.<code>` key used by the Type, Target, Status,
+impact and milestone vocabularies**; at v1.33.0 they all live in
+`response_measures.json`, which is what makes the 9-language reverse map
+complete (a test checks every code has a label in every language). A small sync helper copies the
 listed keys from the R fixture files (§9) so re-pinning is mechanical; a test
 asserts each vendored string equals the fixture's. SESPy-only strings (nav
 label, edit-panel labels, the TargetElement hint) go in `core.json`. A
@@ -341,6 +357,13 @@ replace.
   SESPy through its symlink).
 
 ## 11. Testing and release
+- **Where expected values come from (*my call*):** derived by hand from the
+  pinned R source and R's own testthat cases
+  (`tests/testthat/test-response-measures-schema.R`,
+  `test-response-module.R`, `test-pims-stakeholder-module.R` at v1.33.0); each
+  expected value cites its R file:line. No `Rscript` step: R is not in the
+  `shiny` environment, and the fixtures are pinned so the source cannot drift
+  silently.
 - Unit: register normaliser and reverse map (9 languages), ID allocation,
   prioritisation scores, v8 round trip incl. all 34 columns, omit-when-empty,
   v7 file load, Element indicator fields, Responses hiding (UI) vs keep (load),
