@@ -1,6 +1,6 @@
 # P1b — Response register, indicator fields, stakeholder roles (schema v8)
 
-**Status:** design, awaiting user review · **Date:** 2026-10-21
+**Status:** design, approved by the user 2026-10-21 · **Date:** 2026-10-21
 **Roadmap:** `docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md` §2 P1b
 (branch `docs/r-parity-roadmap`). P0, P1a (v1.13.0) and P2 (v1.14.0) are shipped;
 SESPy main is v1.14.2 (`c7fde7f`).
@@ -48,8 +48,8 @@ roles, and all of it survives save → load. This is the data foundation P1c
   read `SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]` dynamically, so the v8 bump
   leaves them valid.
 - **Baseline re-pinned to R v1.33.0 (`4017feb`)**; triage of v1.31.0 → v1.33.0 in §9.
-- **"Load DA actor list"** and the 1.33.0 WS-10 workshop: see §8 (open
-  decision for the user) and §9.
+- **"Load DA actor list"** moves to P4 (§8, user decision); the 1.32.x WS-10
+  workshop gets a new owner (§9).
 - **The roadmap's two P1b decisions** are made in §5.
 
 ## 3. Non-goals
@@ -313,14 +313,13 @@ asserts each vendored string equals the fixture's. SESPy-only strings (nav
 label, edit-panel labels, the TargetElement hint) go in `core.json`. A
 `test_p1b_keys_present` test covers both.
 
-## 8. Open decision for the user: "Load DA actor list"
-The roadmap lists it under P1b (stakeholder roles bullet) but puts its data
+## 8. "Load DA actor list" moves to P4 (decided by the user, 2026-10-21)
+The roadmap listed it under P1b (stakeholder roles bullet) but put its data
 file, `wp5_governance_profiles.json` (88 KB, 89 actors, 3 DAs), on **P4's**
-allow-list for the K1 runtime loader. **Proposed:** move the button to P4,
-where the file, its loader and the D5.4 governance context land together; P1b
-ships the `ne_roles`/`source_id` fields it writes. The alternative is vendoring
-the file in P1b with a static load (no live override), which K1/P4 would later
-replace.
+allow-list for the K1 runtime loader. The user moved the button to **P4**,
+where the file, its loader and the D5.4 governance context land together. P1b
+ships the `ne_roles`/`source_id` fields it writes. The roadmap's P1b and P4
+sections are amended accordingly.
 
 ## 9. R sync
 
