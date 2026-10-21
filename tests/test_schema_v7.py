@@ -229,13 +229,13 @@ def test_stamp_never_lowered_for_in_memory_project():
 
 
 def test_stamp_equal_to_floor_is_kept():
-    p = Project(ProjectMetadata(min_sespy_version="1.13.0"), IsaData())
-    assert p.to_dict()["metadata"]["min_sespy_version"] == "1.13.0"
+    p = Project(ProjectMetadata(min_sespy_version=FLOOR), IsaData())
+    assert p.to_dict()["metadata"]["min_sespy_version"] == FLOOR
 
 
 def test_older_stamp_is_raised_to_floor():
     p = Project(ProjectMetadata(min_sespy_version="1.0.0"), IsaData())
-    assert p.to_dict()["metadata"]["min_sespy_version"] == "1.13.0"
+    assert p.to_dict()["metadata"]["min_sespy_version"] == FLOOR
 
 
 @pytest.mark.parametrize("bad", [13, 13.0, None, True, "", "not-a-version"])
@@ -277,5 +277,6 @@ def test_to_dict_does_not_mutate_metadata():
 
 
 def test_p0b_still_flags_a_v8_file():
-    p = Project.from_dict(_payload(schema_version=8))
-    assert p.newer_build == {"schema": 8, "schema_max": 7}
+    p = Project.from_dict(_payload(schema_version=PROJECT_SCHEMA_VERSION + 1))
+    assert p.newer_build == {"schema": PROJECT_SCHEMA_VERSION + 1,
+                             "schema_max": PROJECT_SCHEMA_VERSION}

@@ -18,12 +18,12 @@ from typing import Any, Iterable, Literal
 
 _log = logging.getLogger(__name__)
 
-PROJECT_SCHEMA_VERSION = 7
+PROJECT_SCHEMA_VERSION = 8
 
 # Oldest SESPy release that reads each schema without dropping data.
 # Project.to_dict() stamps metadata.min_sespy_version from this table, so a
 # schema bump must add an entry (guarded by tests/test_schema_v7.py).
-SCHEMA_MIN_READER: dict[int, str] = {7: "1.13.0"}
+SCHEMA_MIN_READER: dict[int, str] = {7: "1.13.0", 8: "1.15.0"}
 
 
 # ---------------------------------------------------------------------------
