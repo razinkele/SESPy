@@ -26,8 +26,19 @@ from .persistent_storage import ValidationResult, validate_project_payload
 ELEMENT_ID_COLS    = ("id", "ID", "Id", "node", "Node")
 ELEMENT_LABEL_COLS = ("label", "Label", "name", "Name")
 ELEMENT_TYPE_COLS  = ("type", "Type", "group", "Group", "category", "Category")
-ELEMENT_DESC_COLS  = ("description", "Description", "indicator", "Indicator")
+# P1b: "Indicator" no longer falls back into the description (spec §5(c));
+# it fills Element.indicator, read with the five other indicator columns.
+ELEMENT_DESC_COLS  = ("description", "Description")
 ELEMENT_CONF_COLS  = ("confidence", "Confidence")
+# Element field -> accepted columns: R's ISA_INDICATOR_COLUMNS name
+# (constants.R:855, v1.33.0) and its lowercase form.
+ELEMENT_INDICATOR_COLS: dict[str, tuple[str, ...]] = {
+    f: (r_name, r_name.lower()) for f, r_name in (
+        ("indicator", "Indicator"), ("indicator_unit", "Indicator_Unit"),
+        ("data_source", "Data_Source"), ("registry_id", "Registry_Id"),
+        ("registry_version", "Registry_Version"), ("policy_target", "Policy_Target"),
+    )
+}
 
 CONN_SOURCE_COLS   = ("source", "from", "from_node", "node1", "start",
                       "Source", "From")
@@ -188,6 +199,8 @@ def parse_excel(path: Path | str) -> ValidationResult:
             description=str(_pick(row, ELEMENT_DESC_COLS, default="")),
             confidence=int(el_conf if el_conf is not None and el_conf != "" else 3),
             r_extra=r_extra,
+            **{f: str(_pick(row, cols, default=""))
+               for f, cols in ELEMENT_INDICATOR_COLS.items()},
         ))
 
     connections: list[Connection] = []

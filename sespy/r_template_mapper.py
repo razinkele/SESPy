@@ -106,11 +106,17 @@ def convert_r_template(raw: dict, *, key: str) -> tuple[Project, ConversionRepor
             if eid in category_of:
                 raise ValueError(f"{key}: duplicate element id {eid!r}")
             r_extra: dict[str, Any] = {}
+            indicator = ""
             if item.get("type") is not None:      # only when the element has one
                 r_extra["r_type"] = item["type"]
                 extras.add("type")
             for f, v in item.items():
-                if f not in _ELEMENT_COLUMNS and f != "type":
+                if f == "indicator":
+                    # P1b (spec §5(b)): R's `indicator` has a field since
+                    # schema v8 (R ISA_INDICATOR_COLUMNS, constants.R:855);
+                    # `baseline` and every other extra stay in r_extra.
+                    indicator = "" if v is None else str(v)
+                elif f not in _ELEMENT_COLUMNS and f != "type":
                     r_extra[f] = v
                     extras.add(f)
             if cat == "measures":
@@ -125,6 +131,7 @@ def convert_r_template(raw: dict, *, key: str) -> tuple[Project, ConversionRepor
                 description="" if desc is None else str(desc),
                 confidence=3,
                 r_extra=r_extra,
+                indicator=indicator,
             ))
 
     type_of = {e.id: e.type for e in elements}

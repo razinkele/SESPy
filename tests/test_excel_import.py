@@ -310,6 +310,44 @@ def test_unknown_type_still_rejected(tmp_path):
     assert any("Banana" in e for e in res.errors)
 
 
+def _elements_with(tmp_path, extra_cols: dict) -> list:
+    els = [{"ID": "S1", "Name": "Coral", "Type": "Marine Processes & Functioning", **extra_cols},
+           {"ID": "D1", "Name": "Demand", "Type": "Drivers"}]
+    res = parse_excel(_write_workbook(tmp_path, elements=els, connections=[
+        {"source": "D1", "target": "S1"}]))
+    assert res.valid, res.errors
+    return res.project.isa_data.elements
+
+
+def test_excel_indicator_column_fills_the_field_not_description(tmp_path):
+    # P1b spec §5(c): from 1.15.0 "Indicator" no longer feeds the description.
+    s1, d1 = _elements_with(tmp_path, {"Indicator": "Coral cover", "Indicator_Unit": "%"})
+    assert s1.description == ""
+    assert (s1.indicator, s1.indicator_unit) == ("Coral cover", "%")
+    assert d1.indicator == "" and d1.description == ""
+
+
+@pytest.mark.parametrize("cols", [
+    {"Indicator": "i", "Indicator_Unit": "u", "Data_Source": "s", "Registry_Id": "r",
+     "Registry_Version": "v", "Policy_Target": "eu_nrr"},
+    {"indicator": "i", "indicator_unit": "u", "data_source": "s", "registry_id": "r",
+     "registry_version": "v", "policy_target": "eu_nrr"},
+])
+def test_excel_reads_all_six_indicator_columns(tmp_path, cols):
+    from sespy.excel_import import ELEMENT_INDICATOR_COLS
+    assert set(ELEMENT_INDICATOR_COLS) == {"indicator", "indicator_unit", "data_source",
+                                           "registry_id", "registry_version", "policy_target"}
+    s1 = _elements_with(tmp_path, cols)[0]
+    assert (s1.indicator, s1.indicator_unit, s1.data_source, s1.registry_id,
+            s1.registry_version, s1.policy_target) == ("i", "u", "s", "r", "v", "eu_nrr")
+
+
+@pytest.mark.parametrize("col", ["description", "Description"])
+def test_excel_description_still_read(tmp_path, col):
+    s1 = _elements_with(tmp_path, {col: "Live coral", "Indicator": "Coral cover"})[0]
+    assert (s1.description, s1.indicator) == ("Live coral", "Coral cover")
+
+
 def test_off_rule_link_imports_with_a_logged_warning(tmp_path, caplog):
     import logging
     els = [{"id": "D001", "label": "d", "type": "Drivers"},

@@ -113,11 +113,33 @@ def test_every_r_element_field_is_kept():
             assert el.label == item["name"] and el.confidence == 3
             assert el.description == item.get("description", "")
             for f, v in item.items():
-                if f not in ("id", "name", "description", "type"):
+                if f == "indicator":                  # a field since schema v8 (P1b)
+                    assert el.indicator == v and "indicator" not in el.r_extra
+                elif f not in ("id", "name", "description", "type"):
                     assert el.r_extra[f] == v
                     names.add(f)
     assert set(report.extra_fields) == names | {"type"}
     assert list(report.extra_fields) == sorted(report.extra_fields)
+
+
+def test_caribbean_indicator_moves_to_the_field():
+    # P1b spec §5(b): R's element `indicator` -> Element.indicator; `baseline`
+    # (no R ISA_INDICATOR_COLUMNS field, constants.R:855) stays in r_extra.
+    project, report = convert_r_template(_fixture("Caribbean"), key="Caribbean")
+    by_id = {e.id: e for e in project.isa_data.elements}   # mapper id rule: str(item["id"])
+    s1 = by_id["S1"]
+    assert s1.indicator == "Volume of Sargassum biomass on beaches (tons/year)"
+    assert "indicator" not in s1.r_extra and s1.r_extra["baseline"] == "Minimal pre-2011"
+    assert "indicator" not in report.extra_fields
+    assert sum(1 for e in project.isa_data.elements if e.indicator) == 10
+
+
+def test_indicator_survives_the_real_save_load():
+    project, _ = convert_r_template(_fixture("Caribbean"), key="Caribbean")
+    res = validate_project_payload(json.loads(project_to_bytes(project)))
+    assert res.valid, res.errors
+    assert {e.id: e.indicator for e in res.project.isa_data.elements if e.indicator} == \
+        {e.id: e.indicator for e in project.isa_data.elements if e.indicator}
 
 
 # ---- report and metadata --------------------------------------------------
