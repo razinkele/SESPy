@@ -433,20 +433,20 @@ micromamba install -c razinka -c conda-forge pyvis   # pulls pyvis 4.x (with .sh
 #   numpy, matplotlib, jinja2, openpyxl, python-docx, anthropic; weasyprint for PDF)
 ```
 
-**Library / programmatic use — pip.** The pure-Python layer (data model,
-network + dynamics analysis, connection scoring, HTML report) installs cleanly
-from source or the wheel:
+**pip.** The fork is also on PyPI as
+[`pyvis-optimized`](https://pypi.org/project/pyvis-optimized/), which
+pyproject.toml requires, so a pip install gets the full app too:
 
 ```bash
-pip install .            # core dependencies
+pip install .            # core dependencies, incl. the pyvis fork
 pip install ".[pdf]"     # + WeasyPrint for PDF export (needs native cairo/pango)
 pip install ".[bayes]"   # + pgmpy for the Intervention panel's Bayesian inference
 ```
 
-⚠️ A plain `pip install` pulls upstream pyvis from PyPI (0.3.x, no `.shiny`), so
-`import app` and the graph-rendering modules need the `razinka`-channel pyvis
-shown above — use the conda/micromamba path for the full app. (pip still gives
-the full pure-Python library layer.)
+⚠️ Never `pip install pyvis` into an env that has the fork (or install a
+package that requires plain `pyvis`): pip does not count the fork as `pyvis`
+and writes upstream 0.3.x (no `.shiny`) over it, which breaks every network
+view. `pip show pyvis-optimized` should list 4.x and `pip show pyvis` nothing.
 
 ### Run it
 

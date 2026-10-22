@@ -66,9 +66,9 @@ jobs:
         #     live Shiny server on :8000 and headless Chromium.
         # Auto-skipped here (optional deps absent from the [test] extra):
         #   * the PDF test (WeasyPrint — `pdf` extra, native libs)
-        #   * the pyvis-loop payload test (pyvis.shiny — the pyvis fork, not
-        #     on PyPI). Both use pytest.importorskip, so they run in dev where
-        #     those are installed and skip cleanly here.
+        # It uses pytest.importorskip, so it runs in dev where WeasyPrint is
+        # installed and skips cleanly here. (The pyvis-loop payload test runs
+        # here too now: the fork comes from PyPI as pyvis-optimized.)
         # Coverage is measured over the sespy package and printed as a summary
         # (term-missing). No hard --cov-fail-under gate yet: many UI modules
         # are e2e-only, so a coverage floor here would block on code that is
@@ -114,8 +114,9 @@ jobs:
 
       - name: Install sespy (editable) + test deps
         # Core/runtime deps + pyvis are already in the env; this adds the sespy
-        # package itself and the pytest tooling. pyvis 4.x (conda) satisfies
-        # pyvis>=0.3, so pip does not pull upstream pyvis over it.
+        # package itself and the pytest tooling. The conda fork installs as
+        # dist `pyvis_optimized`, which satisfies pyvis-optimized>=4.4, so pip
+        # leaves it alone.
         run: pip install -e .[test]
 
       - name: Smoke-test full-app import (exercises pyvis.shiny)

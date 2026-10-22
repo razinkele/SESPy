@@ -13,13 +13,13 @@ dependencies = [
     "pandas>=2.0",
     "packaging>=20.9",      # project-file version checks (data_structure.py); also shiny-transitive
     "numpy>=1.24",          # dynamics.py / Boolean + simulation matrices (also pandas-transitive, declared explicitly)
-    # pyvis>=0.3 keeps the pip/library layer + CI installable from PyPI (upstream
-    # 0.3.x). The full app's CLD/graph view needs `pyvis.shiny`, which lives in
-    # the pyvis fork (v4.x) published on the `razinka` Anaconda channel:
-    #   micromamba install -c razinka -c conda-forge pyvis
-    # PyPI has no 4.x, so a pip-only env runs the library but not the app.
-    # See README "Install it".
-    "pyvis>=0.3",
+    # The pyvis fork (v4.x, with `pyvis.shiny` for the CLD/graph view), on PyPI
+    # as pyvis-optimized and on the `razinka` Anaconda channel as `pyvis`; both
+    # install the `pyvis` import package under the dist name `pyvis_optimized`.
+    # Never plain `pyvis`: pip does not count the fork as `pyvis` and installs
+    # upstream 0.3.2 (no `.shiny`) over it — this broke every network view in
+    # laguna's shared env on 2026-10-11. See README "Install it".
+    "pyvis-optimized>=4.4",
     "matplotlib>=3.7",      # analysis @render.plot outputs (BOT, Boolean, simulation, metrics)
     "jinja2>=3.1",          # report.py HTML template rendering (hard import)
     "openpyxl>=3.1",        # pandas .xlsx engine for the Excel import feature

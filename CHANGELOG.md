@@ -4,6 +4,14 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+### Fixed
+- **pyvis requirement is the fork: `pyvis-optimized>=4.4`, not `pyvis>=0.3`.**
+  pip does not count the installed fork (dist `pyvis_optimized`) as `pyvis`,
+  so installing sespy into an env that had the fork wrote upstream pyvis 0.3.2
+  over it. That is what broke every network view in laguna's shared env on
+  2026-10-11 (`'Network' object has no attribute 'get_network_json'`). The
+  fork is on PyPI, so a plain pip install now gives the full app.
+
 ## [1.14.2] — 2026-10-20
 
 ### Fixed
