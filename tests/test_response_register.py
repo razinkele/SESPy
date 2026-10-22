@@ -51,6 +51,7 @@ from sespy.response_register import (
     priority_rows,
     references_to,
     reverse_label_map,
+    split_ids,
     suggest_target,
     update_measure,
 )
@@ -417,3 +418,14 @@ def test_references_to():
     assert references_to(reg, "P002") == ["RM001", "RM002"]
     assert references_to(reg, "P001") == ["RM001"]
     assert references_to(reg, "P00") == [] and references_to(reg, "") == []
+    # R's TargetElement is free text, usually comma-separated ("e.g., A001, D002")
+    reg, _ = add_measure(reg, {"Name": "c", "Type": "regulatory", "TargetElement": "P003, P004"},
+                         today="d")
+    assert references_to(reg, "P004") == ["RM003"] and references_to(reg, "P003") == ["RM003"]
+
+
+@pytest.mark.parametrize("given,want", [
+    ("A001;D002", ["A001", "D002"]), ("A001, D002", ["A001", "D002"]),
+    (" A001 ;; D002 ,", ["A001", "D002"]), ("", []), ("A001", ["A001"])])
+def test_split_ids(given, want):
+    assert split_ids(given) == want

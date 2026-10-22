@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
 from dataclasses import replace
 from functools import cache
 from pathlib import Path
@@ -478,14 +479,22 @@ def delete_milestone(reg: ResponseRegister, index: int) -> ResponseRegister:
     return replace(reg, milestones=[r for i, r in enumerate(reg.milestones) if i != index])
 
 
+def split_ids(value: str) -> list[str]:
+    """IDs in a TargetElement cell. R's field is free text, usually
+    comma-separated (placeholder `modules.response.measures.placeholder_element_ids`,
+    "e.g., A001, D002"); SESPy writes ";"-joined IDs. Both separators are read;
+    parts are stripped and empty ones dropped."""
+    return [p.strip() for p in re.split(r"[;,]", value or "") if p.strip()]
+
+
 def references_to(reg: ResponseRegister, element_id: str) -> list[str]:
-    """Sorted unique IDs of the measures whose TargetElement (";"-split, exact
+    """Sorted unique IDs of the measures whose TargetElement (split_ids, exact
     match) contains `element_id`, plus the ResponseID of impact rows whose
     ProblemElementID equals it (the ISA page's delete warning, spec §6.1)."""
     if not element_id:
         return []
     hits = {m.get("ID", "") for m in reg.measures
-            if element_id in m.get("TargetElement", "").split(";")}
+            if element_id in split_ids(m.get("TargetElement", ""))}
     hits |= {r.get("ResponseID", "") for r in reg.impacts
              if r.get("ProblemElementID") == element_id}
     return sorted(h for h in hits if h)
