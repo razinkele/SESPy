@@ -28,6 +28,7 @@ from sespy.stakeholders import (
     COMMUNICATION_TYPES,
     ENGAGEMENT_METHODS,
     ENGAGEMENT_STATUSES,
+    STAKEHOLDER_ROLES,
     add_communication,
     add_engagement,
     add_stakeholder,
@@ -35,6 +36,7 @@ from sespy.stakeholders import (
     count_by,
     engagement_rows,
     level_num,
+    normalize_ne_roles,
     remove_stakeholder,
     summarize_quadrants,
     update_stakeholder,
@@ -45,6 +47,7 @@ from sespy.stakeholders import (
 from sespy.stakeholders import (
     stakeholder_stats as compute_stakeholder_stats,
 )
+from sespy.utils import safe_counter
 
 # code -> i18n label-key suffix maps (codes are stored; labels are rendered)
 _TYPE_CODES = ["resource_users", "industry", "government", "ngo", "academic",
@@ -77,6 +80,16 @@ def _stamp() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
+def _role_choices(translate) -> dict[str, str]:
+    # Roles are normalised codes, so every stored value is one of these.
+    return {r: translate(f"modules.wp5_governance.role.{r.lower()}") for r in STAKEHOLDER_ROLES}
+
+
+def _role_labels(ne_roles: str, translate) -> str:
+    return ", ".join(translate(f"modules.wp5_governance.role.{r.lower()}")
+                     for r in ne_roles.split(";") if r)
+
+
 def _register_panel() -> ui.Tag:
     """The existing SH1 register content, extracted verbatim (no behaviour change).
 
@@ -102,6 +115,10 @@ def _register_panel() -> ui.Tag:
                             _choices(_ATTITUDE_CODES, "attitude", _t)),
             ui.input_select("sh_engagement_level", _t("stakeholders.engagement_level"),
                             _choices(_ENGAGE_CODES, "engagement", _t)),
+            # P1b: D5.4 actor roles (R STAKEHOLDER_TYPES); stored as ;-joined codes.
+            ui.input_selectize("sh_ne_roles", _t("modules.wp5_governance.ne_roles"),
+                               _role_choices(_t), multiple=True),
+            ui.tags.small(_t("modules.wp5_governance.ne_roles_hint"), class_="text-muted"),
             ui.input_action_button("save_stakeholder", _t("stakeholders.save"),
                                    class_="btn btn-primary"),
             ui.input_action_button("cancel_edit", _t("stakeholders.cancel")),
@@ -270,11 +287,13 @@ def pims_stakeholders_server(
         rows = [
             {"name": s.name, "type": s.stakeholder_type, "sector": s.sector,
              "power": s.power, "interest": s.interest,
-             "attitude": s.attitude, "engagement": s.engagement_level}
+             "attitude": s.attitude, "engagement": s.engagement_level,
+             "roles": _role_labels(s.ne_roles, tr)}
             for s in _items()
         ]
         stub = [{"name": tr("stakeholders.empty"), "type": "", "sector": "",
-                 "power": "", "interest": "", "attitude": "", "engagement": ""}]
+                 "power": "", "interest": "", "attitude": "", "engagement": "",
+                 "roles": ""}]
         return render.DataGrid(pd.DataFrame(rows or stub),
                                selection_mode="row", height="320px")
 
@@ -290,6 +309,7 @@ def pims_stakeholders_server(
             "interest": input.sh_interest(),
             "attitude": input.sh_attitude(),
             "engagement_level": input.sh_engagement_level(),
+            "ne_roles": normalize_ne_roles(input.sh_ne_roles()),
         }
 
     def _clear_form() -> None:
@@ -303,6 +323,7 @@ def pims_stakeholders_server(
         ui.update_select("sh_interest", selected="")
         ui.update_select("sh_attitude", selected="")
         ui.update_select("sh_engagement_level", selected="")
+        ui.update_selectize("sh_ne_roles", selected=[])
 
     @reactive.effect
     @reactive.event(input.save_stakeholder, ignore_init=True)
@@ -313,15 +334,25 @@ def pims_stakeholders_server(
                                  type="warning", duration=3)
             return
         eid = editing_id.get()
+        project = project_data.get()
         if eid is None:
-            new_list = add_stakeholder(_items(), f, today=date.today().isoformat())
+            # R pims_stakeholder_module.R:458-460: the ID comes from the
+            # persisted counter, so a deleted ID is never handed out again.
+            new_list = add_stakeholder(_items(), f, today=date.today().isoformat(),
+                                       counter=project.stakeholder_counter)
+            updated = project.replace(
+                stakeholders=new_list,
+                stakeholder_counter=safe_counter(project.stakeholder_counter,
+                                                 [s.id for s in new_list], "SH"))
         else:
-            new_list = update_stakeholder(_items(), eid, f)
+            # update_stakeholder replaces only the form's fields: source_id is
+            # kept, and the counter is left alone.
+            updated = project.replace(stakeholders=update_stakeholder(_items(), eid, f))
         # Return to "add" mode: reset editing_id (which gates _repopulate) and
         # clear the form. _repopulate is @reactive.event(editing_id), so the
         # project_data.set below cannot re-fire it and re-fill the form.
         editing_id.set(None)
-        project_data.set(project_data.get().replace(stakeholders=new_list))
+        project_data.set(updated)
         event_bus.emit_isa_change()
         _clear_form()
 
@@ -359,6 +390,8 @@ def pims_stakeholders_server(
         ui.update_select("sh_interest", selected=match.interest)
         ui.update_select("sh_attitude", selected=match.attitude)
         ui.update_select("sh_engagement_level", selected=match.engagement_level)
+        ui.update_selectize("sh_ne_roles",
+                            selected=match.ne_roles.split(";") if match.ne_roles else [])
 
     @reactive.effect
     @reactive.event(input.cancel_edit, ignore_init=True)

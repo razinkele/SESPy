@@ -183,3 +183,5 @@ engagement, communication and response-measure add sites. Check that
 SESPy's stakeholders page (`sespy/modules/pims_stakeholders.py`) adds exactly
 one row per click and allocates ids safely for loaded projects. Owners: P1b
 (stakeholder schema), P4 (response register).
+
+**Outcome (P1b, v1.15.0):** the stakeholders page adds one row per click (`tests/test_stakeholders_module.py::test_add_adds_exactly_one_row`) and allocates ids from R's persisted counter (`Project.stakeholder_counter`); response-measure ids use `safe_counter` (`add_measure`).

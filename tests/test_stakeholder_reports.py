@@ -37,6 +37,19 @@ def test_workbook_is_valid_xlsx_with_three_sheets():
     assert "Port Authority" in [c.value for c in ws[2]]
 
 
+def test_workbook_headers_are_the_stakeholder_fields():
+    # P1b spec §6.3: the generic writer already exports ne_roles (codes, ";"-joined)
+    # and source_id; no code change.
+    from dataclasses import fields
+    s = Stakeholder(id="SH001", name="Port", ne_roles="Inputters;Regulators", source_id="d54:x")
+    wb = load_workbook(io.BytesIO(build_stakeholder_workbook([s], [], [])))
+    ws = wb["Stakeholders"]
+    header = [c.value for c in ws[1]]
+    assert header == [f.name for f in fields(Stakeholder)]
+    row = dict(zip(header, [c.value for c in ws[2]]))
+    assert (row["ne_roles"], row["source_id"]) == ("Inputters;Regulators", "d54:x")
+
+
 def test_workbook_empty_inputs_header_only():
     data = build_stakeholder_workbook([], [], [])
     wb = load_workbook(io.BytesIO(data))
