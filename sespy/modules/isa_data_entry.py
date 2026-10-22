@@ -17,17 +17,21 @@ Scope vs. R:
 
 from __future__ import annotations
 
+import dataclasses
+
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from ..constants import (
     CONNECTION_POLARITY_LABELS,
     DAPSIWRM_ELEMENTS,
     DELAY_LEVELS,
+    POLICY_TARGET_CODES,
 )
 from ..data_structure import Connection, Element, IsaData, Project
 from ..event_bus import EventBus
 from ..i18n import Translator, t
 from ..link_rules import note_for, seed_polarity
+from ..response_register import references_to
 from ..utils import next_id
 
 
@@ -66,9 +70,13 @@ def isa_data_entry_ui() -> ui.Tag:
             ),
             ui.tags.div(
                 ui.output_data_frame("elements_table"),
+                ui.input_action_button("edit_element", t("entry.edit_selected"),
+                                       class_="btn btn-outline-primary",
+                                       style="margin-top: 8px; margin-right: 8px;"),
                 ui.input_action_button("remove_element", t("entry.remove_element"),
                                        class_="btn btn-outline-danger",
                                        style="margin-top: 8px;"),
+                ui.output_ui("element_editor"),
                 style="margin-top: 8px;",
             ),
 
@@ -99,9 +107,13 @@ def isa_data_entry_ui() -> ui.Tag:
             ui.output_ui("off_rule_note"),
             ui.tags.div(
                 ui.output_data_frame("connections_table"),
+                ui.input_action_button("edit_connection", t("entry.edit_selected"),
+                                       class_="btn btn-outline-primary",
+                                       style="margin-top: 8px; margin-right: 8px;"),
                 ui.input_action_button("remove_connection", t("entry.remove_connection"),
                                        class_="btn btn-outline-danger",
                                        style="margin-top: 8px;"),
+                ui.output_ui("connection_editor"),
                 style="margin-top: 8px;",
             ),
 
@@ -124,6 +136,11 @@ def isa_data_entry_server(
     event_bus: EventBus,
     translator: Translator | None = None,
 ) -> None:
+    tr = translator.t if translator is not None else t
+    # P1b edit panels: the element (by id) or connection (by source, target)
+    # being edited; None = no editor shown.
+    editing_element: reactive.Value[str | None] = reactive.value(None)
+    editing_connection: reactive.Value[tuple[str, str] | None] = reactive.value(None)
 
     # ---- Element-type-aware label pickers for connections ---------------
     # Both pickers re-render on every isa_change with no selected=, so they
@@ -266,6 +283,173 @@ def isa_data_entry_server(
             connections=[c for c in isa.connections
                          if c.source != target_id and c.target != target_id],
         ))
+        if editing_element.get() == target_id:
+            editing_element.set(None)
+        pair = editing_connection.get()
+        if pair is not None and target_id in pair:
+            editing_connection.set(None)
+        # Spec §6.1: deletes do not cascade into the register; element IDs can
+        # be reused (next_id), so say which measures still name this element.
+        refs = references_to(project_data.get().response_measures, target_id)
+        if refs:
+            ui.notification_show(
+                tr("responses.element_still_referenced", id=target_id,
+                   measures=", ".join(refs)),
+                type="warning", duration=8)
+
+    # ---- Edit panels (P1b, spec §6.2) -----------------------------------
+    # The editors render ONLY when editing_* changes (@reactive.event), never
+    # on project_data writes, so autosave or another module cannot clobber
+    # what the user is typing (the pims_stakeholders._repopulate pattern).
+    @reactive.effect
+    @reactive.event(input.edit_element, ignore_init=True)
+    def _edit_element():
+        sel = elements_table.cell_selection()
+        isa = project_data.get().isa_data
+        if not sel or not sel.get("rows") or sel["rows"][0] >= len(isa.elements):
+            ui.notification_show("Select an element first.", type="warning", duration=3)
+            return
+        editing_element.set(isa.elements[sel["rows"][0]].id)
+
+    @output
+    @render.ui
+    @reactive.event(editing_element)
+    def element_editor():
+        el = _element(editing_element.get())
+        if el is None:
+            return None
+        fields = [
+            ui.input_text("el_label", tr("entry.label"), value=el.label),
+            ui.input_text_area("el_description", tr("entry.description"),
+                               value=el.description),
+        ]
+        if el.type != "Responses":       # R isa_form_builders.R:74-86
+            choices = {"": ""}
+            choices.update({c: tr(f"modules.indicator_registry.policy_target.{c}")
+                            for c in POLICY_TARGET_CODES})
+            if el.policy_target and el.policy_target not in choices:
+                choices[el.policy_target] = el.policy_target     # free text, shown raw
+            fields += [
+                ui.input_text("el_indicator", tr("modules.indicator_registry.field_indicator"),
+                              value=el.indicator),
+                ui.input_text("el_indicator_unit", tr("modules.indicator_registry.field_unit"),
+                              value=el.indicator_unit),
+                ui.input_text("el_data_source",
+                              tr("modules.indicator_registry.field_data_source"),
+                              value=el.data_source),
+                ui.input_selectize("el_policy_target",
+                                   tr("modules.indicator_registry.field_policy_target"),
+                                   choices, selected=el.policy_target,
+                                   options={"create": True}),
+                ui.tags.small(tr("modules.indicator_registry.policy_target_help"),
+                              class_="text-muted"),
+            ]
+            if el.registry_id:
+                fields.append(ui.p(tr("entry.registry", id=el.registry_id,
+                                      version=el.registry_version),
+                                   class_="text-muted sespy-registry-line"))
+        return ui.div(
+            ui.h5(f"{el.id} · {el.type}"),
+            *fields,
+            ui.div(
+                ui.input_action_button("save_element", tr("entry.save_changes"),
+                                       class_="btn btn-primary", style="margin-right: 8px;"),
+                ui.input_action_button("cancel_element", tr("entry.cancel_edit")),
+                style="margin-top: 8px;",
+            ),
+            class_="sespy-edit-panel",
+            style="margin-top: 16px; padding: 12px; border: 1px solid #dee2e6;",
+        )
+
+    @reactive.effect
+    @reactive.event(input.save_element, ignore_init=True)
+    def _save_element():
+        eid = editing_element.get()
+        el = _element(eid)
+        if el is None:
+            editing_element.set(None)
+            return
+        label = (input.el_label() or "").strip()
+        if not label:
+            ui.notification_show("Label is required.", type="warning", duration=3)
+            return
+        changes = {"label": label, "description": input.el_description() or ""}
+        if el.type != "Responses":        # Responses: label and description only
+            changes.update(
+                indicator=input.el_indicator() or "",
+                indicator_unit=input.el_indicator_unit() or "",
+                data_source=input.el_data_source() or "",
+                policy_target=input.el_policy_target() or "",
+            )
+        # dataclasses.replace keeps r_extra, the registry fields and every
+        # field the panel does not show.
+        new = dataclasses.replace(el, **changes)
+        isa = project_data.get().isa_data
+        editing_element.set(None)
+        _replace(IsaData(elements=[new if e.id == eid else e for e in isa.elements],
+                         connections=isa.connections))
+
+    @reactive.effect
+    @reactive.event(input.cancel_element, ignore_init=True)
+    def _cancel_element():
+        editing_element.set(None)
+
+    def _connection(pair: tuple[str, str] | None) -> Connection | None:
+        if pair is None:
+            return None
+        return next((c for c in project_data.get().isa_data.connections
+                     if (c.source, c.target) == pair), None)
+
+    @reactive.effect
+    @reactive.event(input.edit_connection, ignore_init=True)
+    def _edit_connection():
+        sel = connections_table.cell_selection()
+        conns = project_data.get().isa_data.connections
+        if not sel or not sel.get("rows") or sel["rows"][0] >= len(conns):
+            ui.notification_show("Select a connection first.", type="warning", duration=3)
+            return
+        c = conns[sel["rows"][0]]
+        editing_connection.set((c.source, c.target))
+
+    @output
+    @render.ui
+    @reactive.event(editing_connection)
+    def connection_editor():
+        c = _connection(editing_connection.get())
+        if c is None:
+            return None
+        return ui.div(
+            ui.h5(f"{c.source} → {c.target}"),
+            ui.input_text_area("conn_description", tr("entry.connection_description"),
+                               value=c.description),
+            ui.div(
+                ui.input_action_button("save_connection", tr("entry.save_changes"),
+                                       class_="btn btn-primary", style="margin-right: 8px;"),
+                ui.input_action_button("cancel_connection", tr("entry.cancel_edit")),
+                style="margin-top: 8px;",
+            ),
+            class_="sespy-edit-panel",
+            style="margin-top: 16px; padding: 12px; border: 1px solid #dee2e6;",
+        )
+
+    @reactive.effect
+    @reactive.event(input.save_connection, ignore_init=True)
+    def _save_connection():
+        pair = editing_connection.get()
+        c = _connection(pair)
+        editing_connection.set(None)
+        if c is None:
+            return
+        new = dataclasses.replace(c, description=input.conn_description() or "")
+        isa = project_data.get().isa_data
+        _replace(IsaData(elements=isa.elements,
+                         connections=[new if (x.source, x.target) == pair else x
+                                      for x in isa.connections]))
+
+    @reactive.effect
+    @reactive.event(input.cancel_connection, ignore_init=True)
+    def _cancel_connection():
+        editing_connection.set(None)
 
     @reactive.effect
     @reactive.event(input.add_connection, ignore_init=True)
