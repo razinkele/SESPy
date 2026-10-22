@@ -323,3 +323,94 @@ def test_module_scopes_share_the_root_session_translator(translations, monkeypat
     assert seen["inner"] is seen["root"]
     assert seen["outer_text"] == translations["templates.load"]["de"]
     assert i18n._default_translator._lang == "en"  # the process default is untouched
+
+
+# ---- P1b (Task 8): SESPy-only keys in core.json; R keys used directly --------
+
+P1B_CORE_KEYS = [
+    # text copied from R translations/common/labels.json at v1.33.0
+    "responses.name", "responses.type", "responses.status", "responses.description",
+    "responses.target_date", "responses.milestone_status",
+    # SESPy text
+    "nav.responses", "responses.edit_selected", "responses.cancel", "responses.save",
+    "responses.select_first", "responses.select_one", "responses.name_type_required",
+    "responses.deleted_with_refs", "responses.tenet_source", "responses.target_element_hint",
+    "responses.element_still_referenced",
+    "entry.edit_selected", "entry.save_changes", "entry.cancel_edit", "entry.description",
+    "entry.registry", "entry.connection_description",
+]
+_RM = "modules.response.measures."
+_GOV = "modules.response.governance."
+P1B_R_KEYS = [
+    *(_RM + k for k in (
+        # tabs, buttons, toasts
+        "response_register", "impact_assessment", "prioritization", "implementation_plan",
+        "delete_selected", "download_response_data_excel",
+        "deleted_response_measures", "impact_linkage_added", "milestone_added",
+        # plot
+        "add_effectiveness_and_feasibility_ratings", "response_measure_prioritization_matrix",
+        "feasibility", "effectiveness", "low", "medium", "high",
+        "high_priorityneffective_feasible", "effective_butndifficult", "easy_butnlimited_impact",
+        "low_priority",
+        # the register, impact and milestone labels R uses at response_module.R:28-190,
+        # 196-232, 318-345 (v1.33.0; extracted by regex, 51 keys)
+        "management_measures_and_policy_interventions", "add_response_measure",
+        "eg_fishing_quota_reduction", "targets", "what_does_this_measure_do",
+        "mechanism_of_action", "how_will_this_intervention_work", "target_element_id",
+        "placeholder_element_ids", "expected_effectiveness", "unknown",
+        "estimated_cost_relative", "responsible_stakeholders", "who_implements_this_measure",
+        "implementation_barriers", "what_obstacles_exist", "response_measures_register",
+        "create_impact_linkage", "select_response", "addresses_problem", "specific_pressure",
+        "specific_activity", "specific_driver", "system_wide_issue", "problem_element_id",
+        "impact_strength", "strong", "moderate", "weak", "timeframe", "immediate",
+        "short_term_1_3y", "medium_term_3_10y", "long_term_10y", "add_impact_link",
+        "add_implementation_milestone", "response_measure", "milestone", "eg_legislation_passed",
+        "notesactions_required", "pending", "in_progress", "completed", "delayed",
+        "add_milestone")),
+    *(_GOV + k for k in (
+        "section_title", "kind", "ebm_code", "level", "competent_authority", "legal_basis",
+        "paired_with", "implementing_stakeholders", "pestle", "tenets_title", "ebm_code_hint",
+        "pestle_hint", "no_stakeholders_hint", "tenet_level.not_assessed")),
+    *(f"modules.indicator_registry.{k}" for k in (
+        "field_indicator", "field_unit", "field_data_source", "field_policy_target",
+        "policy_target_help", "policy_target.kmgbf_30x30", "policy_target.eu_nrr",
+        "policy_target.msfd_ges_d1", "policy_target.msfd_ges_d6", "policy_target.national_mpa_pct")),
+    "modules.wp5_governance.ne_roles", "modules.wp5_governance.ne_roles_hint",
+    *(f"modules.wp5_governance.role.{r.lower()}" for r in (
+        "Inputters", "Extractors", "Regulators", "Affectees", "Beneficiaries", "Influencers")),
+]
+
+
+def test_p1b_keys_present(translations):
+    for key in P1B_CORE_KEYS + P1B_R_KEYS:
+        assert key in translations, key
+        for lang in SUPPORTED_LANGUAGES:
+            assert (translations[key].get(lang) or "").strip(), (key, lang)
+
+
+def test_p1b_sespy_keys_live_in_core_json():
+    import json
+    core = json.loads((TRANSLATIONS / "core.json").read_text(encoding="utf-8"))["translation"]
+    assert set(P1B_CORE_KEYS) <= set(core)
+    assert not {k for k in P1B_R_KEYS if k in core}        # R keys stay vendored
+
+
+def test_p1b_common_labels_are_r_text(translations):
+    # R translations/common/labels.json at v1.33.0 (not vendored; spec §7).
+    assert translations["responses.name"]["en"] == "Response Name:"
+    assert translations["responses.type"]["lt"] == "Atsako Tipas:"
+    assert translations["responses.status"]["de"] == "Umsetzungsstatus:"
+    assert translations["responses.description"]["el"] == "Περιγραφή"
+    assert translations["responses.target_date"]["fr"] == "Date Cible:"
+    assert translations["responses.milestone_status"]["no"] == "Status"
+
+
+def test_p1b_placeholders_match_across_languages(translations):
+    import re
+    expected = {"responses.deleted_with_refs": {"n"},
+                "responses.element_still_referenced": {"id", "measures"},
+                "entry.registry": {"id", "version"}}
+    for key, names in expected.items():
+        for lang, text in translations[key].items():
+            assert set(re.findall(r"\{(\w+)\}", text)) == names, (key, lang, text)
+    assert translations["entry.registry"]["en"] == "WP5 registry: {id} (revision {version})"
