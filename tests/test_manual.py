@@ -53,6 +53,24 @@ def test_every_nav_panel_has_a_part_two_section(manual):
     assert not missing, missing
 
 
+def test_section_references_resolve(manual):
+    # P1b inserted §10 Response Register and renumbered §10–§45 to §11–§46:
+    # every "section N" / "sections N and M" must still name a heading, the
+    # Contents must list the headings in order, and three spot checks pin
+    # references that moved.
+    headings = [int(n) for n in re.findall(r"^## (\d+)\. ", manual, flags=re.M)]
+    assert headings == sorted(set(headings)), headings          # unique, ascending
+    refs = [int(n) for m in re.finditer(r"\bsections? (\d+)(?: and (\d+))?", manual)
+            for n in m.groups() if n]
+    assert refs, "no section references found"
+    assert not sorted({n for n in refs if n not in headings})
+    contents = manual.split("## Contents", 1)[1].split("\n---", 1)[0]
+    assert [int(n) for n in re.findall(r"(?:^|· )(\d+)\. ", contents, flags=re.M)] == headings
+    for s in ("Rate Connections (section 11)", "**Recent Projects** (section 23)",
+              "**Help** (section 25)"):
+        assert s in manual, s
+
+
 def test_every_docstring_doi_is_in_the_references(manual):
     dois = set()
     for name in ("network.py", "dynamics.py"):

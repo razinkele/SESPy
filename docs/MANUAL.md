@@ -17,13 +17,13 @@ This manual has four parts. Part I gets you started. Part II walks through every
 4. Projects: saving, loading, autosave, recovery, language and theme
 
 **Part II — Panels**
-5. Project Setup · 6. Stakeholders · 7. Templates · 8. SES Wizard · 9. Edit Data · 10. Rate Connections · 11. CLD Visualization · 12. Loop Analysis · 13. Network Metrics · 14. Leverage Points · 15. Factor Quadrant · 16. Boolean & Laplacian · 17. Dynamic Simulation · 18. Behaviour Over Time · 19. Intervention · 20. Simplify Network · 21. Import Data · 22. Recent Projects · 23. Export Report · 24. Topbar: Feedback, About, Options, Help
+5. Project Setup · 6. Stakeholders · 7. Templates · 8. SES Wizard · 9. Edit Data · 10. Response Register · 11. Rate Connections · 12. CLD Visualization · 13. Loop Analysis · 14. Network Metrics · 15. Leverage Points · 16. Factor Quadrant · 17. Boolean & Laplacian · 18. Dynamic Simulation · 19. Behaviour Over Time · 20. Intervention · 21. Simplify Network · 22. Import Data · 23. Recent Projects · 24. Export Report · 25. Topbar: Feedback, About, Options, Help
 
 **Part III — Scientific background**
-25. DAPSI(W)R(M) typing · 26. Causal loop diagrams · 27. Feedback loops and delay · 28. Centrality and the leverage composite · 29. Vester influence × dependence · 30. Meadows realms and adjusted loop centrality · 31. Social-ecological fit · 32. Governance gap · 33. Governance actor influence and concentration · 34. Cascade vulnerability and the KL early warning · 35. Causal paths · 36. SES subsystem modules (hypermodules) · 37. Uncertainty scoring (D2D) · 38. Loop dominance over time · 39. Token diffusion · 40. Laplacian stability and Boolean attractors · 41. Multi-rater consensus and contested edges · 42. Stakeholder power × interest · 43. Bayesian options: rater posteriors and the path-set belief network
+26. DAPSI(W)R(M) typing · 27. Causal loop diagrams · 28. Feedback loops and delay · 29. Centrality and the leverage composite · 30. Vester influence × dependence · 31. Meadows realms and adjusted loop centrality · 32. Social-ecological fit · 33. Governance gap · 34. Governance actor influence and concentration · 35. Cascade vulnerability and the KL early warning · 36. Causal paths · 37. SES subsystem modules (hypermodules) · 38. Uncertainty scoring (D2D) · 39. Loop dominance over time · 40. Token diffusion · 41. Laplacian stability and Boolean attractors · 42. Multi-rater consensus and contested edges · 43. Stakeholder power × interest · 44. Bayesian options: rater posteriors and the path-set belief network
 
 **Part IV — References**
-44. Foundations · 45. Literature that shaped v1.0 to v1.7
+45. Foundations · 46. Literature that shaped v1.0 to v1.7
 
 **Appendix**
 A. File formats · B. URL parameters · C. Glossary · D. Known limitations
@@ -53,9 +53,9 @@ Across the top of the page is a six-step **workflow stepper**. It is a guide, no
 | Analyze | Loop Analysis | Loop Analysis, Network Metrics, Leverage Points, Factor Quadrant, Boolean & Laplacian, Dynamic Simulation, Behaviour Over Time, Intervention, Simplify Network |
 | Report | Export Report | Export Report |
 
-Down the left is the **navigation** listing all nineteen panels. The burger icon collapses it to icons only. Pinned to the bottom of the sidebar, below the navigation, sit three **quick actions**: Save Project, Load Project and New Project (section 4). The app opens on CLD Visualization.
+Down the left is the **navigation** listing all twenty panels. The burger icon collapses it to icons only. Pinned to the bottom of the sidebar, below the navigation, sit three **quick actions**: Save Project, Load Project and New Project (section 4). The app opens on CLD Visualization.
 
-In the top right are four small buttons: **Feedback**, **About**, **Options** and **Help** (section 24). The manual you are reading is the Manual tab of the About dialog.
+In the top right are four small buttons: **Feedback**, **About**, **Options** and **Help** (section 25). The manual you are reading is the Manual tab of the About dialog.
 
 ## 3. The sample project
 
@@ -81,7 +81,7 @@ Loop Analysis finds five feedback loops in it. The three that close through dema
 
 **Files from a newer SESPy.** A project file saved by a newer version of SESPy still loads, but the information this version does not understand is left out. A warning says so and names the file format or SESPy version the file needs. Autosave is off for that project. **Save Project** then writes a separate copy named `…-older-format.json`, and leaves your earlier autosave in place: keep your original file and open it in the newer version.
 
-**Recent Projects** (section 22) lists files opened with Load Project.
+**Recent Projects** (section 23) lists files opened with Load Project.
 
 **Language and theme** are set in the Options dialog. Nine interface languages are available; the language resets to English at the start of each session unless a `?lang=` URL parameter is used (Appendix B). Two themes exist, Light Marine and Deep Ocean (dark).
 
@@ -109,7 +109,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 ![Stakeholders](docs/screenshots/stakeholders.png)
 
-**Purpose.** A stakeholder register with a power × interest grid, engagement and communication planning, summary analytics and exports (section 42).
+**Purpose.** A stakeholder register with a power × interest grid, engagement and communication planning, summary analytics and exports (section 43).
 
 **Controls.** Five tabs. **Register**: "Add / edit stakeholder" with Name, Type, Sector, Contact, Interests, Role, Power (High/Medium/Low), Interest (High/Medium/Low), Attitude and Engagement level; "Save stakeholder" and "Cancel"; "Edit selected" and "Remove selected" act on the highlighted row of the register table. **Power-Interest Grid** has no controls. **Engagement Planning**: Stakeholder, Engagement method, date, objectives, outcomes, Status, Facilitator, "Add activity". **Communication Plan**: Target audience, Communication type, date, Frequency, key message, responsible person, "Add communication". **Analysis** carries the export buttons: "Download full report (Excel)", "Download Power-Interest grid (PNG)", "Download summary (PDF)".
 
@@ -117,7 +117,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Reading it.** Key players (high power, high interest) are managed closely; keep satisfied means high power and lower interest; keep informed means lower power and high interest; monitor is the rest.
 
-**Caveats.** Name and Type are required. Stakeholders are also the rater list for Rate Connections (section 10), so register them before rating. The stakeholder register is saved with the project but is not part of the report export.
+**Caveats.** Name and Type are required. Stakeholders are also the rater list for Rate Connections (section 11), so register them before rating. The stakeholder register is saved with the project but is not part of the report export.
 
 ## 7. Templates
 
@@ -161,13 +161,17 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** This panel has no strength or confidence inputs. A new connection gets medium strength and confidence 3; those change only through Rate Connections or an import. Source and target must differ, and duplicate connections are refused.
 
-## 10. Rate Connections
+## 10. Response Register
+
+The Response Register keeps the measures a case study proposes to address its problems, their expected impacts, a prioritisation and an implementation plan, following the MarineSABRES R app's register.
+
+## 11. Rate Connections
 
 ![Rate Connections](docs/screenshots/rate.png)
 
-**Purpose.** Multi-rater elicitation (section 41). Each registered stakeholder records their own view of every connection; a consensus is recomputed and written back so every analysis sees it.
+**Purpose.** Multi-rater elicitation (section 42). Each registered stakeholder records their own view of every connection; a consensus is recomputed and written back so every analysis sees it.
 
-**Controls.** In the sidebar: "Rating as" picks the stakeholder whose rating you are entering, "Show contested only" filters the table to connections whose raters disagree on sign, and "Blind mode (hide others' ratings)" hides the other ratings until you have submitted your own. "Bayesian consensus (posteriors)" adds two columns, P(+) with its 95% credible interval and the most probable strength, weights every rating by its rater's confidence, and switches the contested criterion to "the interval straddles 0.5" (section 43). The stored consensus is not changed. Selecting a row opens "Your rating": Polarity, Strength (Weak, Medium, Strong), Confidence (1 to 5), Delay, "Save my rating" and "Remove mine".
+**Controls.** In the sidebar: "Rating as" picks the stakeholder whose rating you are entering, "Show contested only" filters the table to connections whose raters disagree on sign, and "Blind mode (hide others' ratings)" hides the other ratings until you have submitted your own. "Bayesian consensus (posteriors)" adds two columns, P(+) with its 95% credible interval and the most probable strength, weights every rating by its rater's confidence, and switches the contested criterion to "the interval straddles 0.5" (section 44). The stored consensus is not changed. Selecting a row opens "Your rating": Polarity, Strength (Weak, Medium, Strong), Confidence (1 to 5), Delay, "Save my rating" and "Remove mine".
 
 **Outputs.** A count of contested edges, the connections table with the consensus values, the number of ratings, whether you have rated it, and a disagreement marker; and "Current ratings", one line per rater.
 
@@ -175,7 +179,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** Stakeholders must exist in the register before anyone can rate. No structural editing happens here.
 
-## 11. CLD Visualization
+## 12. CLD Visualization
 
 ![CLD Visualization](docs/screenshots/cld.png)
 
@@ -183,25 +187,25 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Controls.** In the sidebar, "Layout" chooses between "Hierarchical (DAPSI)" and "Physics-based". Hierarchical arranges elements in typed rows, from Goods & Benefits at one end through Ecosystem Services, Marine Processes & Functioning, Responses, Pressures and Activities to Drivers at the other; physics lets a force layout settle. "Node size" and "Label size" scale the drawing. In hierarchical mode, "Direction" (Down-Up, Up-Down, Left-Right, Right-Left), "Vertical (row) spacing" and "Horizontal (node) spacing" tune the grid. "Element types" is a checkbox group over the seven DAPSI(W)R(M) types; unticking one hides those elements. "Fit to view" recentres. The sidebar also shows the counts of nodes and edges and the density.
 
-**Outputs.** The diagram. Positive links are drawn in one colour, negative in another; a dashed edge is a delayed link. A thick edge with a warning marker means the raters disagree on its sign (section 10). Clicking a node shows its id below the canvas.
+**Outputs.** The diagram. Positive links are drawn in one colour, negative in another; a dashed edge is a delayed link. A thick edge with a warning marker means the raters disagree on its sign (section 11). Clicking a node shows its id below the canvas.
 
 **Reading it.** Colour is type, position is tier in hierarchical mode, dash is delay, thickness is disagreement. Elements that carry no DAPSI(W)R(M) type, for instance themes imported from a QSEM file and left unmapped, are always drawn regardless of the type filter.
 
-## 12. Loop Analysis
+## 13. Loop Analysis
 
 ![Loop Analysis](docs/screenshots/loops.png)
 
 **Purpose.** Enumerate the feedback loops in the diagram and classify each one.
 
-**Controls.** "Max loop length" (default 6) and "Max loops to find" (default 200) bound the search; "Detect loops" runs it. "Show uncertainty (Monte Carlo)" adds four probability columns computed by resampling the diagram (section 37) with "Monte Carlo samples" draws. "Inspect a loop" picks one loop for the detail view. "Flip signs by rater posterior" makes the Monte Carlo sign flips follow the rater posterior (section 43) instead of the confidence heuristic.
+**Controls.** "Max loop length" (default 6) and "Max loops to find" (default 200) bound the search; "Detect loops" runs it. "Show uncertainty (Monte Carlo)" adds four probability columns computed by resampling the diagram (section 38) with "Monte Carlo samples" draws. "Inspect a loop" picks one loop for the detail view. "Flip signs by rater posterior" makes the Monte Carlo sign flips follow the rater posterior (section 44) instead of the confidence heuristic.
 
 **Outputs.** The "Classification" block counts Reinforcing, Balancing and Oscillation-prone loops. The "Detected feedback loops" table lists every loop with its behaviour, whether it is delayed, its type, length and path; a warning marker after the behaviour means one of its edges has a contested sign. With uncertainty on, the columns "Existence %", "Reinforcing %", "Balancing %" and "Contested" appear. "Selected loop" shows the chosen loop as a small diagram with its path spelled out.
 
-**Reading it.** A loop is reinforcing when it has an even number of negative links and balancing when the number is odd (section 27). Oscillation-prone marks a balancing loop that contains a delayed link. The caption says it plainly: this is a structural signature, not a simulation, and actual behaviour depends on gains and delay magnitudes the diagram does not carry.
+**Reading it.** A loop is reinforcing when it has an even number of negative links and balancing when the number is odd (section 28). Oscillation-prone marks a balancing loop that contains a delayed link. The caption says it plainly: this is a structural signature, not a simulation, and actual behaviour depends on gains and delay magnitudes the diagram does not carry.
 
-**Caveats.** Any edit to the project clears the detected set; run "Detect loops" again. Dense diagrams can have more loops than the cap; when that happens other panels that sum over loops say so (section 14).
+**Caveats.** Any edit to the project clears the detected set; run "Detect loops" again. Dense diagrams can have more loops than the cap; when that happens other panels that sum over loops say so (section 15).
 
-## 13. Network Metrics
+## 14. Network Metrics
 
 ![Network Metrics](docs/screenshots/metrics.png)
 
@@ -211,12 +215,12 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Outputs, top to bottom.**
 
-1. **Social-ecological fit** (section 31). One number and a caption of the form "x of y edges cross the social–ecological boundary".
-2. **Governance gap** (section 32). The pressure-gap fraction, how many pressure nodes lack a direct governance response, and any governance elements with no path into the ecological subsystem. Five plain-language messages cover the degenerate cases, from "not enough structure" to "model is largely untyped — map themes to DAPSI(W)R(M) first".
-3. **Governance actor influence** (section 33). A one-line verdict, either "Governance influence is distributed across n actors" or "concentrated in <actor>", with the dominant actor's share and the normalised entropy. Below it, a table of governance elements with betweenness, eigenvector, PageRank and the composite influence.
-4. **Cascade vulnerability** (section 34). Button-gated: press "Run cascade analysis". The result names the cascade threshold node, names the early-warning node with both step numbers, and lists every removal step with the surviving connected fraction, the surviving loop count, the single-step drop and the KL divergence.
-5. **Causal pathways** (section 35). Button-gated: choose "From" and "To", press "Trace paths". The result counts positive, negative and ambiguous paths and lists each path with its length and polarity.
-6. **SES subsystem modules** (section 36). Button-gated: press "Detect subsystem modules". The result counts modules, gives the share of typed elements that belong to one, and lists each module with its tier composition and member labels.
+1. **Social-ecological fit** (section 32). One number and a caption of the form "x of y edges cross the social–ecological boundary".
+2. **Governance gap** (section 33). The pressure-gap fraction, how many pressure nodes lack a direct governance response, and any governance elements with no path into the ecological subsystem. Five plain-language messages cover the degenerate cases, from "not enough structure" to "model is largely untyped — map themes to DAPSI(W)R(M) first".
+3. **Governance actor influence** (section 34). A one-line verdict, either "Governance influence is distributed across n actors" or "concentrated in <actor>", with the dominant actor's share and the normalised entropy. Below it, a table of governance elements with betweenness, eigenvector, PageRank and the composite influence.
+4. **Cascade vulnerability** (section 35). Button-gated: press "Run cascade analysis". The result names the cascade threshold node, names the early-warning node with both step numbers, and lists every removal step with the surviving connected fraction, the surviving loop count, the single-step drop and the KL divergence.
+5. **Causal pathways** (section 36). Button-gated: choose "From" and "To", press "Trace paths". The result counts positive, negative and ambiguous paths and lists each path with its length and polarity.
+6. **SES subsystem modules** (section 37). Button-gated: press "Detect subsystem modules". The result counts modules, gives the share of typed elements that belong to one, and lists each module with its tier composition and member labels.
 7. **Top-ranked elements**, the table for the chosen metric.
 8. **Distribution**, a histogram of the chosen metric.
 9. **Network sized by metric**, the diagram with node size proportional to the metric.
@@ -227,7 +231,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** The three button-gated blocks are cleared by any project change and must be re-run. Each block has its own idle hint so a blank block is never silent.
 
-## 14. Leverage Points
+## 15. Leverage Points
 
 ![Leverage Points](docs/screenshots/leverage.png)
 
@@ -237,15 +241,15 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Outputs.** "Highest leverage elements": rank, id, label, type, realm (Parameters, Feedbacks, Design, Intent), ALC and the leverage score. With uncertainty on, a 95% confidence interval and an "unstable" flag per element. "Network sized by leverage" draws the diagram with node size proportional to the score.
 
-**Reading it.** Score is the sum of standardised betweenness, eigenvector and PageRank (section 28). Realm is the Meadows level an intervention at that element would act on; an Activity that sits inside a detected feedback loop is placed in Feedbacks rather than Design, so two Activities can differ (section 30). ALC sums the signed strength of every loop the element sits in: positive is amplifying, negative is damping, zero means it is on no loop. It is not on the same scale as the leverage score beside it.
+**Reading it.** Score is the sum of standardised betweenness, eigenvector and PageRank (section 29). Realm is the Meadows level an intervention at that element would act on; an Activity that sits inside a detected feedback loop is placed in Feedbacks rather than Design, so two Activities can differ (section 31). ALC sums the signed strength of every loop the element sits in: positive is amplifying, negative is damping, zero means it is on no loop. It is not on the same scale as the leverage score beside it.
 
 **Caveats.** When the model has more feedback loops than the detection limit, the ALC column is hidden and a line explains why: a score summed over a partial loop set is not reproducible.
 
-## 15. Factor Quadrant
+## 16. Factor Quadrant
 
 ![Factor Quadrant](docs/screenshots/quadrant.png)
 
-**Purpose.** Vester's influence × dependence classification of every element (section 29).
+**Purpose.** Vester's influence × dependence classification of every element (section 30).
 
 **Controls.** "Cross-hair split": Mean or Median.
 
@@ -255,11 +259,11 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** With an empty or perfectly uniform diagram the plot says so instead of drawing a meaningless cross-hair.
 
-## 16. Boolean & Laplacian
+## 17. Boolean & Laplacian
 
 ![Boolean & Laplacian](docs/screenshots/boolean.png)
 
-**Purpose.** Two structural stability views of the signed adjacency matrix (section 40).
+**Purpose.** Two structural stability views of the signed adjacency matrix (section 41).
 
 **Controls.** "Laplacian direction" (columns, in-degree, or rows, out-degree); "Max nodes (cap on 2^N search)" from 4 to 12; "Run analysis".
 
@@ -267,9 +271,9 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Reading it.** The Laplacian spectrum characterises how perturbations spread; the algebraic connectivity is the second-smallest eigenvalue, zero when the graph is disconnected. Boolean attractors are the states or cycles the system settles into when every element is on or off and updates by the sign of its inputs. A large basin means many starting states end there.
 
-**Caveats.** The Boolean search is exhaustive over 2^N states and hard-capped at 12 nodes. The sample has 17, so on a first run the Boolean tab shows the cap message while the Laplacian tab works. The message suggests Simplify Network, but that panel is preview-only (section 20); to run the Boolean search you have to reduce the project in Edit Data. Results are marked stale after any edit until re-run.
+**Caveats.** The Boolean search is exhaustive over 2^N states and hard-capped at 12 nodes. The sample has 17, so on a first run the Boolean tab shows the cap message while the Laplacian tab works. The message suggests Simplify Network, but that panel is preview-only (section 21); to run the Boolean search you have to reduce the project in Edit Data. Results are marked stale after any edit until re-run.
 
-## 17. Dynamic Simulation
+## 18. Dynamic Simulation
 
 ![Dynamic Simulation](docs/screenshots/simulation.png)
 
@@ -277,7 +281,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Controls.** "Simulation controls": "Iterations" (50 to 2000), "Initial state" (Zeros, Random Gaussian, Uniform 1.0), "Show loop dominance", "Seed (optional)", "Run simulation". "Monte Carlo controls": "Number of simulations", "Perturbation kind" (uniform ±20%, sign flip 10%, Gaussian σ = 0.1), seed, "Run Monte Carlo".
 
-**Outputs.** "Trajectories" plots every element over the iterations. With loop dominance on, the background is shaded by the loop that carries most of the activity at each step and a list of dominance shifts follows (section 38). "Final state" is a bar chart of the last iteration. "Monte Carlo" reports how many runs completed, a per-element table of mean, standard deviation and the 5th and 95th percentiles, and a grid of histograms.
+**Outputs.** "Trajectories" plots every element over the iterations. With loop dominance on, the background is shaded by the loop that carries most of the activity at each step and a list of dominance shifts follows (section 39). "Final state" is a bar chart of the last iteration. "Monte Carlo" reports how many runs completed, a per-element table of mean, standard deviation and the 5th and 95th percentiles, and a grid of histograms.
 
 ![Monte Carlo tab](docs/screenshots/simulation_montecarlo.png)
 
@@ -285,7 +289,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** With loop dominance on, a run that diverges beyond floating-point range or decays to exactly zero is truncated at that step and a message says so. Results are marked stale after any edit.
 
-## 18. Behaviour Over Time
+## 19. Behaviour Over Time
 
 ![Behaviour Over Time](docs/screenshots/bot.png)
 
@@ -297,11 +301,11 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** Series live in the session only. They are not part of the project file and are lost on reload. If the element is deleted elsewhere the data is cleared.
 
-## 19. Intervention
+## 20. Intervention
 
 ![Intervention](docs/screenshots/intervention.png)
 
-**Purpose.** Three what-if tools: remove elements and watch centrality shift, inject tokens at one element and watch them spread (section 39), and ask a Bayesian belief network how likely a change at one element makes a change at another (section 43).
+**Purpose.** Three what-if tools: remove elements and watch centrality shift, inject tokens at one element and watch them spread (section 40), and ask a Bayesian belief network how likely a change at one element makes a change at another (section 44).
 
 **Controls.** "Remove these nodes" (multi-select), "Metric", "Reset (no ablation)". In "Intervention simulation": "Intervene at", "Steps", "Tokens", "Run simulation". In "Bayesian inference (path set)": "From", "To", "Also high" and "Also low" (extra evidence on elements of the causal paths), "Query" (forward: the source is high; diagnostic: the target is high), "Link probabilities from rater posteriors", "Run inference".
 
@@ -313,7 +317,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** The diffusion always uses the full model and ignores the ablation above it. Any change to the model, the source or the sliders clears the previous result. The belief network covers only the acyclic paths between the two chosen elements, not the whole diagram, and needs the optional pgmpy package. Picking the same element as both high and low, or against the query preset, is a conflict: it is reported and nothing is computed.
 
-## 20. Simplify Network
+## 21. Simplify Network
 
 ![Simplify Network](docs/screenshots/simplify.png)
 
@@ -325,7 +329,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** This panel is preview-only. Nothing is written back to the project and no other panel sees the reduction. To actually shrink a project, delete elements or connections in Edit Data.
 
-## 21. Import Data
+## 22. Import Data
 
 ![Import Data](docs/screenshots/import.png)
 
@@ -339,7 +343,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** A `.json` uploaded here is read as QSEM, not as a SESPy project. To reopen a saved project use Load Project in the quick actions.
 
-## 22. Recent Projects
+## 23. Recent Projects
 
 ![Recent Projects](docs/screenshots/recent.png)
 
@@ -349,7 +353,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** Only Load Project adds entries, and the path recorded is the browser upload's temporary copy, so entries can disappear when that copy is cleaned up. Save Project is a browser download and does not add an entry.
 
-## 23. Export Report
+## 24. Export Report
 
 ![Export Report](docs/screenshots/report.png)
 
@@ -361,7 +365,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Caveats.** PDF needs WeasyPrint installed (`pip install sespy[pdf]`); HTML and Word always work. The report does not include stakeholders, the quadrant, Boolean or simulation results, or Behaviour Over Time series.
 
-## 24. Topbar: Feedback, About, Options, Help
+## 25. Topbar: Feedback, About, Options, Help
 
 **Feedback** opens a form with a message, a rating and a category, and lists the ten most recent entries. Entries are stored on the server.
 
@@ -377,89 +381,89 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 Each section says what the idea is, how SESPy computes it, where SESPy departs from the source, and how to read the number on screen.
 
-## 25. DAPSI(W)R(M) typing
+## 26. DAPSI(W)R(M) typing
 
-DAPSI(W)R(M) (Elliott, Burdon and Atkins, 2017) refines the older DPSIR chain for marine management. Drivers of basic human need require Activities, which exert Pressures, which change the State of the natural system (Marine Processes & Functioning in SESPy), which alters the Impacts on human Welfare (Ecosystem Services and Goods & Benefits), which call for Responses as Measures. SESPy uses the framework as a node typology: every element carries one of seven types, and several analyses partition the diagram by tier on that basis. Two partitions are in use, and they differ by design. The social-ecological fit metric (section 31) uses a two-way split: Pressures, Marine Processes & Functioning and Ecosystem Services are ecological; Drivers, Activities, Goods & Benefits and Responses are social; Measures is left out. The subsystem-module detection (section 36) and the governance diagnostics (sections 32 and 33) use a three-way split with the same ecological set, a social tier of Drivers, Activities and Goods & Benefits, and a governance tier of Responses and Measures. In the governance-gap test the pressures are the ecological targets that governance is expected to reach.
+DAPSI(W)R(M) (Elliott, Burdon and Atkins, 2017) refines the older DPSIR chain for marine management. Drivers of basic human need require Activities, which exert Pressures, which change the State of the natural system (Marine Processes & Functioning in SESPy), which alters the Impacts on human Welfare (Ecosystem Services and Goods & Benefits), which call for Responses as Measures. SESPy uses the framework as a node typology: every element carries one of seven types, and several analyses partition the diagram by tier on that basis. Two partitions are in use, and they differ by design. The social-ecological fit metric (section 32) uses a two-way split: Pressures, Marine Processes & Functioning and Ecosystem Services are ecological; Drivers, Activities, Goods & Benefits and Responses are social; Measures is left out. The subsystem-module detection (section 37) and the governance diagnostics (sections 33 and 34) use a three-way split with the same ecological set, a social tier of Drivers, Activities and Goods & Benefits, and a governance tier of Responses and Measures. In the governance-gap test the pressures are the ecological targets that governance is expected to reach.
 
-## 26. Causal loop diagrams
+## 27. Causal loop diagrams
 
 A CLD is a directed graph whose edges say "a change in A causes a change in B". SESPy stores four attributes on each edge. **Polarity** is + when B moves the same way as A and − when it moves the opposite way. **Strength** (weak, medium, strong) is a coarse weight used by the simulation and the simplifier. **Confidence** (1 to 5) records how sure the group is. **Delay** (immediate, short, long) records whether the effect lags. The diagram is qualitative: it has structure and sign but no calibrated equations, and every analysis in SESPy respects that limit. Signed, weighted edges of this kind are also the substance of fuzzy cognitive maps (Kosko, 1986), which is why a numeric edge weight in an imported workbook is mapped to a signed strength. The QSEM framework (Hulme, Radley and Brown, 2025) formalises structural analysis of exactly such diagrams, and SESPy's factor quadrant, multi-rater elicitation and `.qsem` import follow its conventions.
 
-## 27. Feedback loops and delay
+## 28. Feedback loops and delay
 
 A feedback loop is a directed cycle. Its polarity is the product of its edge polarities: an even number of negative edges gives a **reinforcing** loop, which amplifies change, and an odd number gives a **balancing** loop, which counteracts it. SESPy enumerates simple cycles up to a length bound and a count cap, then classifies each. A balancing loop that contains a delayed edge is additionally flagged **oscillation-prone**, the classic system-dynamics signature of overshoot when a correction arrives late (Sterman, 2000). The flag is structural. Whether oscillation actually occurs depends on gains and delay lengths the diagram does not contain, and the panel says so.
 
-## 28. Centrality and the leverage composite
+## 29. Centrality and the leverage composite
 
-Three centralities from network science are combined. **Betweenness** counts how often an element lies on shortest paths between others, so it finds brokers. **Eigenvector centrality** scores an element by the scores of its neighbours, so it finds elements embedded in influential clusters. **PageRank** is the stationary distribution of a random walk with restarts, so it finds elements that accumulate influence along directed paths. Each is standardised to a z-score across the whole diagram and the three are summed; the sum is the leverage score. The same composite, restricted to governance elements, is the actor-influence score in section 33, so the two panels agree by construction. Ratnayake et al. (2026) use degree, betweenness and eigenvector centrality in the same way to identify influential elements in a participatory social-ecological map.
+Three centralities from network science are combined. **Betweenness** counts how often an element lies on shortest paths between others, so it finds brokers. **Eigenvector centrality** scores an element by the scores of its neighbours, so it finds elements embedded in influential clusters. **PageRank** is the stationary distribution of a random walk with restarts, so it finds elements that accumulate influence along directed paths. Each is standardised to a z-score across the whole diagram and the three are summed; the sum is the leverage score. The same composite, restricted to governance elements, is the actor-influence score in section 34, so the two panels agree by construction. Ratnayake et al. (2026) use degree, betweenness and eigenvector centrality in the same way to identify influential elements in a participatory social-ecological map.
 
-## 29. Vester influence × dependence
+## 30. Vester influence × dependence
 
 Frederic Vester's sensitivity model classifies the variables of a system by their **active sum** (how much a variable influences the others, the row sum of the influence matrix) and **passive sum** (how much it is influenced, the column sum). Plotting one against the other and splitting at a cross-hair yields four classes. Active variables drive the system and are the best levers; critical variables are strongly connected in both directions and behave unpredictably when pushed; reactive variables are indicators; buffering variables are inert. SESPy weights each edge by its strength rank (weak 1, medium 2, strong 3) times its confidence (1 to 5), ignores sign, sums outgoing edges for influence and incoming edges for dependence, and offers a mean or median split. The median split is suggested when the influence distribution is hub-skewed, because one dominant element then drags the mean cross-hair away from the bulk of the points.
 
-## 30. Meadows realms and adjusted loop centrality
+## 31. Meadows realms and adjusted loop centrality
 
 Donella Meadows (1999) ranked twelve "places to intervene in a system" from shallow (parameters) to deep (the paradigm the system arises from). Abson et al. (2017) grouped them into four realms: **parameters**, **feedbacks**, **design** and **intent**. SESPy assigns a realm to each element from its DAPSI(W)R(M) type, with one structural refinement: Pressures, Ecosystem Services and Goods & Benefits are parameters; Marine Processes & Functioning is feedbacks; Activities and Responses are design, except that an Activity inside a detected feedback loop is promoted to feedbacks; Drivers are intent; Measures carries no realm. The realm column was added after García et al. (2026), and the loop-aware promotion after Geekiyanage et al. (2026) and Brons et al. (2026). This is an operationalisation motivated by those papers, not a method they publish, and the manual states it as such.
 
 **Adjusted loop centrality (ALC)** is named after Rozhkov, Zellner and Murphy (2025). The published formula was not reachable in full, so SESPy's version is a documented reconstruction: for each element, sum the signed gain of every detected feedback loop it lies on. A positive ALC means the element mostly sits in amplifying loops and a negative one in damping loops; zero means either that it is on no loop or that its amplifying and damping loops cancel. The paper's distinction between loops an element initiates and loops it merely reinforces is not implemented. Because ALC is a sum over loops, it is hidden when the loop enumeration hit its cap.
 
-## 31. Social-ecological fit
+## 32. Social-ecological fit
 
 Fang, Wang and Duan et al. (2026) evaluate whether the pattern of governance interactions matches the pattern of ecological interactions in a watershed. SESPy takes the simplest structural reading: partition elements into social and ecological subsystems by type and report the fraction of edges that cross the boundary. A higher fit means the diagram couples the two subsystems more densely. It says nothing about whether the coupling is the right one, which is what the next two diagnostics probe.
 
-## 32. Governance gap
+## 33. Governance gap
 
 Fraga, Defeo and Borthagaray et al. (2026) map governance gaps in a newly designated marine protected area by asking which ecological components no governance actor reaches. SESPy operationalises the idea as a directed coverage test. A **pressure** is covered when a governance element (Response or Measure) has a direct edge into it. The headline is the fraction of pressures left uncovered. A governance element with no directed path into the ecological subsystem at all is reported as an orphan. The test is over Pressures only because pooled or undirected variants scored a healthy demo model badly on topology alone.
 
-## 33. Governance actor influence and concentration
+## 34. Governance actor influence and concentration
 
-Senghor and Schlüter (2026) show, for two Senegalese fisheries, how hierarchical versus distributed power among governance actors shapes outcomes. SESPy's **actor influence** table is the leverage composite of section 28 restricted to governance elements, computed on the full diagram so cross-boundary influence counts, and sorted. The **concentration** verdict summarises the spread. Influence scores are turned into shares with a softmax, then Shannon entropy (normalised by its maximum), the Gini coefficient and the dominant actor's share are reported. Heredia, Chalcobsky and Fracchia (2026, preprint) tie polycentric governance, several actors of comparable weight, to four decades of resilience at Península Valdés; the verdict sentence reads "distributed" when normalised entropy is at least 0.5 as displayed, else "concentrated in <actor>". Softmax was chosen over min-shifted normalisation because the latter pins the weakest actor's share to zero and would call every two-actor model fully concentrated.
+Senghor and Schlüter (2026) show, for two Senegalese fisheries, how hierarchical versus distributed power among governance actors shapes outcomes. SESPy's **actor influence** table is the leverage composite of section 29 restricted to governance elements, computed on the full diagram so cross-boundary influence counts, and sorted. The **concentration** verdict summarises the spread. Influence scores are turned into shares with a softmax, then Shannon entropy (normalised by its maximum), the Gini coefficient and the dominant actor's share are reported. Heredia, Chalcobsky and Fracchia (2026, preprint) tie polycentric governance, several actors of comparable weight, to four decades of resilience at Península Valdés; the verdict sentence reads "distributed" when normalised entropy is at least 0.5 as displayed, else "concentrated in <actor>". Softmax was chosen over min-shifted normalisation because the latter pins the weakest actor's share to zero and would call every two-actor model fully concentrated.
 
-## 34. Cascade vulnerability and the KL early warning
+## 35. Cascade vulnerability and the KL early warning
 
 Liu, Li and Zhao et al. (2026) remove nodes from a land-use transition network in order of importance and show that ecological vulnerability responds non-linearly, with thresholds. SESPy removes elements in descending leverage order, up to twenty removals, and tracks, after each removal, the largest weakly connected component as a fraction of the original element count and the number of surviving feedback loops. The **cascade threshold node** is the removal that caused the largest single-step drop in connectivity. Both it and the early-warning node are chosen among the removals actually made, and the caption states how many of the elements were removed.
 
 Kraehling (2026, preprint) proposes an earlier signal: the Kullback–Leibler divergence between successive degree distributions accelerates before connectivity collapses. SESPy computes a smoothed divergence at each step and names the **early-warning node** as the first step whose divergence exceeds twice the median of all earlier steps, with at least two earlier steps required. One limitation must be stated plainly. The rule cannot fire before step 3, and removal runs in descending leverage order, so on hub-shaped models the connectivity collapse is step 1 and the departure can only follow it. On the sample the threshold is step 1 and the departure is step 7. The panel prints both step numbers so a post-threshold departure is never mistaken for a precursor; the signal earns its name when the collapse comes late in the removal order.
 
-## 35. Causal paths
+## 36. Causal paths
 
 Benito, Aguilar and Ramírez (2026) explain fuzzy cognitive maps by tracing causal chains and their temporal evolution. SESPy implements the static layer: all simple directed paths from one element to another, bounded in length and count, each annotated with its compound polarity, the product of its edge polarities. Counting positive, negative and ambiguous paths answers "how does A influence B, and do the routes agree?". The temporal layer of the paper is out of scope.
 
-## 36. SES subsystem modules (hypermodules)
+## 37. SES subsystem modules (hypermodules)
 
 Pinheiro, Peralta and Lewinsohn (2026) formalise **hypermodules** in tripartite ecological networks: cohesive groups of species that co-cluster across two or more interlinked bipartite networks. A DAPSI(W)R(M) diagram is also multipartite, with ecological, social and governance tiers. SESPy builds the three bipartite tier-pair projections, runs community detection on each, links modules from different projections when they share hinge-tier elements, and reports each connected group of linked modules as one subsystem module whose members are the union of the linked modules' elements, together with a hypermodularity score (the share of typed elements that belong to one). The procedure is a reconstruction rather than a re-implementation: the published algorithm was not reachable in full, congruence works through hinge-tier elements because a cross-tier pair co-occurs in exactly one projection, and the threshold is size-aware because a flat threshold cannot fire on chain-shaped models. Every way a model can yield zero modules has its own explanation on screen.
 
-## 37. Uncertainty scoring (D2D)
+## 38. Uncertainty scoring (D2D)
 
 Uleman, Crielaard and Elsenburg et al. (2026) propose Diagrams-to-Dynamics: rather than trust one CLD, sample many plausible variants and ask which conclusions survive. SESPy's Monte Carlo option, offered on the Loop Analysis and Leverage Points panels, drops edges and flips signs at random for a chosen number of samples and recomputes. The probability that an edge is dropped, or kept but flipped, falls with its confidence: 0.5 times (5 minus confidence) over 4, so a confidence-5 edge is never perturbed and a confidence-1 edge is perturbed half the time. For each element it reports a 95% interval of the leverage score and an "unstable" flag when that interval straddles zero; for each loop it reports the probability that the loop exists at all and the probabilities of it being reinforcing or balancing, with a "contested" flag when neither dominates. Read a narrow interval as a robust conclusion and a contested loop as one whose behaviour depends on links the group is unsure about.
 
-## 38. Loop dominance over time
+## 39. Loop dominance over time
 
 Which feedback loop governs the behaviour at a given moment is the classic question of loop-dominance analysis (Ford, 1999; Schoenberg, Davidsen and Eberlein, 2020). Nguyen, Dinh and Tran (2026) and Imtihan, Edinov and Suhaemi (2026) both use shifts in loop dominance to explain transitions in qualitative CLDs. SESPy attributes activity in the linear simulation to loops: at each iteration, each loop's raw activity is the absolute product of its edge weights times the mean absolute state of its nodes, its share is that activity relative to all loops (self-loops are excluded), and the dominant loop is the one with the largest share. A dominance shift is reported when the leading loop changes and holds for several steps. The overlay is explicitly an attribution on one run from one initial state, not a proof that the loop causes the behaviour.
 
-## 39. Token diffusion
+## 40. Token diffusion
 
 Donlan, Arteaga-Bengoa and Carrasco (2026, preprint) evaluate interventions in small-scale fisheries by releasing tokens at an intervention node and letting them random-walk through the CLD. SESPy seeds a chosen number of tokens at one element, moves each along a random outgoing edge per step, flips its sign on a negative edge, and records per element the arrivals, the net sign and the first step of arrival. Because the counts are a random sample, SESPy computes a 95% sampling margin from batch means, draws it as error bars, groups elements whose arrivals cannot be separated into tied ranks, and prints "~" when a separate test on the signed batch means cannot tell positive from negative arrivals apart. The random stream is fixed so that two intervention points can be compared on structure.
 
-## 40. Laplacian stability and Boolean attractors
+## 41. Laplacian stability and Boolean attractors
 
 Two views from dynamical systems, ported from the R toolbox. SESPy builds the **graph Laplacian** from the magnitudes of the weighted adjacency matrix, in the chosen direction; signs are dropped for this view but still drive the Boolean rules. Its spectrum is summarised as the spectral radius, the largest eigenvalue modulus, which bounds how fast perturbations can grow, and the algebraic connectivity, the real part of the second-smallest eigenvalue. For an undirected graph the latter is zero exactly when the graph is disconnected; for the directed Laplacian used here it is a heuristic of how well connected the diagram is. A coarse stability class is derived from both. A **Boolean network** treats each element as on or off and updates it by the sign of its weighted inputs; iterating from every one of the 2^N starting states finds the attractors, fixed points or cycles, and their basin sizes. The search is exhaustive, hence the cap of 12 elements.
 
-## 41. Multi-rater consensus and contested edges
+## 42. Multi-rater consensus and contested edges
 
 QSEM elicitation (Hulme, Radley and Brown, 2025) has several participants rate each connection independently. SESPy stores one rating per rater per connection, aggregates them into a consensus polarity and strength, and flags a connection as **contested** when the raters disagree on its sign. Contested edges are drawn thick with a warning marker on the diagram, propagate a warning into any loop they belong to, and are listed in their own view on the Rate Connections panel. A blind mode hides other raters' answers while a participant rates.
 
-## 42. Stakeholder power × interest
+## 43. Stakeholder power × interest
 
 The Stakeholders panel follows the MarineSABRES participatory-information management approach. Each stakeholder carries a power level and an interest level (Low, Medium, High); plotting them yields the four familiar engagement classes (key players to manage closely, keep satisfied, keep informed, monitor), with Medium counted on the high side of the cross-hair. Engagement activities and communications are logged by hand on the panel's own tabs; the class is a guide to what to plan, not something the panel plans for you.
 
-## 43. Bayesian options: rater posteriors and the path-set belief network
+## 44. Bayesian options: rater posteriors and the path-set belief network
 
 Both are opt-in and neither writes to the stored consensus.
 
-**Rater posteriors.** Each rating of a connection is treated as a partial observation weighted by the rater's confidence (confidence 5 counts as one observation, confidence 1 as a fifth). The sign gets a Beta(1,1) prior updated by the weighted counts of "+" and "−" ratings; the panel shows the posterior probability of a positive sign with its 95% credible interval. The strength gets a Dirichlet(1,1,1) prior over weak, medium and strong; the panel shows the most probable strength and its posterior mean. A connection is contested under this view when raters disagree on the sign and the credible interval still straddles 0.5; a unanimous edge is never marked contested, however few its raters, and a lone dissenter among many is discounted. With the flat prior a unanimous edge never reaches certainty: three confidence-5 raters still leave a one-in-five chance the sign is wrong, and that residual shrinks as raters accumulate. On the Loop Analysis panel the Monte Carlo option can flip each edge with the posterior probability that its stored sign is wrong, instead of the confidence heuristic of section 37; an edge whose stored majority sign disagrees with the confidence-weighted posterior therefore flips more often than not, and edges nobody has rated keep the heuristic.
+**Rater posteriors.** Each rating of a connection is treated as a partial observation weighted by the rater's confidence (confidence 5 counts as one observation, confidence 1 as a fifth). The sign gets a Beta(1,1) prior updated by the weighted counts of "+" and "−" ratings; the panel shows the posterior probability of a positive sign with its 95% credible interval. The strength gets a Dirichlet(1,1,1) prior over weak, medium and strong; the panel shows the most probable strength and its posterior mean. A connection is contested under this view when raters disagree on the sign and the credible interval still straddles 0.5; a unanimous edge is never marked contested, however few its raters, and a lone dissenter among many is discounted. With the flat prior a unanimous edge never reaches certainty: three confidence-5 raters still leave a one-in-five chance the sign is wrong, and that residual shrinks as raters accumulate. On the Loop Analysis panel the Monte Carlo option can flip each edge with the posterior probability that its stored sign is wrong, instead of the confidence heuristic of section 38; an edge whose stored majority sign disagrees with the confidence-weighted posterior therefore flips more often than not, and edges nobody has rated keep the heuristic.
 
-**Path-set belief network.** A belief network must be acyclic, and a causal loop diagram is not. SESPy therefore builds one per question: for a chosen source and target it takes the simple causal paths between them (section 35), unions them, and if the union still contains a cycle removes the weakest link on it, says so, and counts only the paths left intact. Inference is exact but the engine is loaded on first use, so the first run in a session can take up to a minute. Every element on the paths becomes a binary node (low, high). Its probability of being high given its parents follows a noisy-OR: each parent that is "active" (high through a positive link, or low through a negative one) independently pushes the child high with a link probability derived from strength and confidence (weak 0.30, medium 0.55, strong 0.80 at confidence 5, halved at confidence 1), and a leak of 0.05 stands for everything outside the paths. Inference is exact (variable elimination), so the answer is reproducible. A forward query fixes the source high and reads the change everywhere downstream; a diagnostic query fixes the target high and asks how likely that makes the source. Read the change against the baseline: the baseline is the marginal with nothing observed, so a small change on a strongly connected element is still a real signal. With "Link probabilities from rater posteriors" on, a link that has ratings takes its sign probability and its expected strength from the rater posteriors of the paragraph above, and the sign is marginalised inside the noisy-OR: a parent pushes its child with the link strength times the probability that the link points that way. A link whose raters split evenly therefore carries no information at all rather than half as much, and because every uncertain link also feeds its child a little regardless of the parent's state, baselines under this option are not comparable with the stored-value baselines. With few raters the expected strength is pulled toward the middle value (about 0.55), so a stored strong link becomes weaker and a stored weak one stronger, until ratings accumulate. Links nobody has rated keep the stored values, the summary says how many links were rated, and in the per-route table the polarity column is still the diagram's sign while the change is the inference's.
+**Path-set belief network.** A belief network must be acyclic, and a causal loop diagram is not. SESPy therefore builds one per question: for a chosen source and target it takes the simple causal paths between them (section 36), unions them, and if the union still contains a cycle removes the weakest link on it, says so, and counts only the paths left intact. Inference is exact but the engine is loaded on first use, so the first run in a session can take up to a minute. Every element on the paths becomes a binary node (low, high). Its probability of being high given its parents follows a noisy-OR: each parent that is "active" (high through a positive link, or low through a negative one) independently pushes the child high with a link probability derived from strength and confidence (weak 0.30, medium 0.55, strong 0.80 at confidence 5, halved at confidence 1), and a leak of 0.05 stands for everything outside the paths. Inference is exact (variable elimination), so the answer is reproducible. A forward query fixes the source high and reads the change everywhere downstream; a diagnostic query fixes the target high and asks how likely that makes the source. Read the change against the baseline: the baseline is the marginal with nothing observed, so a small change on a strongly connected element is still a real signal. With "Link probabilities from rater posteriors" on, a link that has ratings takes its sign probability and its expected strength from the rater posteriors of the paragraph above, and the sign is marginalised inside the noisy-OR: a parent pushes its child with the link strength times the probability that the link points that way. A link whose raters split evenly therefore carries no information at all rather than half as much, and because every uncertain link also feeds its child a little regardless of the parent's state, baselines under this option are not comparable with the stored-value baselines. With few raters the expected strength is pulled toward the middle value (about 0.55), so a stored strong link becomes weaker and a stored weak one stronger, until ratings accumulate. Links nobody has rated keep the stored values, the summary says how many links were rated, and in the per-route table the polarity column is still the diagram's sign while the change is the inference's.
 
 **Extra evidence.** Besides the preset (source high or target high) any other element on the paths can be fixed high or low. The evidence is merged into one query: an element outside the paths is ignored and listed as such, and an element picked as both high and low, or against the preset, is a conflict that blocks the run. The summary names the focus element (the target, or the source when the target is fixed); with both fixed there is no focus and no per-route table.
 
@@ -471,7 +475,7 @@ Both are opt-in and neither writes to the stored consensus.
 
 Bibliographic details were verified against the scite index on 2026-09-05. Preprints are marked; they have not been peer reviewed.
 
-## 44. Foundations
+## 45. Foundations
 
 - Abson, D. J., Fischer, J., Leventon, J., et al. (2017). Leverage points for sustainability transformation. *Ambio*, 46(1), 30–39. https://doi.org/10.1007/s13280-016-0800-y
 - Elliott, M., Burdon, D., & Atkins, J. P. (2017). "And DPSIR begat DAPSI(W)R(M)!" A unifying framework for marine environmental management. *Marine Pollution Bulletin*, 118(1–2), 27–40. https://doi.org/10.1016/j.marpolbul.2017.03.049
@@ -483,7 +487,7 @@ Bibliographic details were verified against the scite index on 2026-09-05. Prepr
 - Sterman, J. D. (2000). *Business Dynamics: Systems Thinking and Modeling for a Complex World*. Irwin/McGraw-Hill, Boston. (Book; no DOI.)
 - Vester, F. (2007). *The Art of Interconnected Thinking: Ideas and Tools for a New Approach to Tackling Complexity*. MCB Verlag, Munich. (Book; no DOI.)
 
-## 45. Literature that shaped v1.0 to v1.7
+## 46. Literature that shaped v1.0 to v1.7
 
 Listed by the SESPy feature each paper informed, with the release that shipped it.
 
