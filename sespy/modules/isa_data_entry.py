@@ -141,6 +141,11 @@ def isa_data_entry_server(
     # being edited; None = no editor shown.
     editing_element: reactive.Value[str | None] = reactive.value(None)
     editing_connection: reactive.Value[tuple[str, str] | None] = reactive.value(None)
+    # The record each editor opened (spec §6.2 stale check): Save writes only
+    # if the current project still holds an equal record. A project load or a
+    # MosaicSES compartment switch replaces the project under an open editor,
+    # and compartments repeat element IDs. Plain dict: never a dependency.
+    snapshot: dict[str, Element | Connection | None] = {"element": None, "connection": None}
 
     # ---- Element-type-aware label pickers for connections ---------------
     # Both pickers re-render on every isa_change with no selected=, so they
@@ -307,9 +312,11 @@ def isa_data_entry_server(
         sel = elements_table.cell_selection()
         isa = project_data.get().isa_data
         if not sel or not sel.get("rows") or sel["rows"][0] >= len(isa.elements):
-            ui.notification_show("Select an element first.", type="warning", duration=3)
+            ui.notification_show(tr("entry.select_first"), type="warning", duration=3)
             return
-        editing_element.set(isa.elements[sel["rows"][0]].id)
+        el = isa.elements[sel["rows"][0]]
+        snapshot["element"] = el
+        editing_element.set(el.id)
 
     @output
     @render.ui
@@ -365,13 +372,16 @@ def isa_data_entry_server(
     @reactive.event(input.save_element, ignore_init=True)
     def _save_element():
         eid = editing_element.get()
+        if eid is None:
+            return
         el = _element(eid)
-        if el is None:
+        if el is None or el != snapshot["element"]:     # stale: write nothing
+            ui.notification_show(tr("entry.record_changed"), type="warning", duration=6)
             editing_element.set(None)
             return
         label = (input.el_label() or "").strip()
         if not label:
-            ui.notification_show("Label is required.", type="warning", duration=3)
+            ui.notification_show(tr("entry.label_required"), type="warning", duration=3)
             return
         changes = {"label": label, "description": input.el_description() or ""}
         if el.type != "Responses":        # Responses: label and description only
@@ -406,9 +416,10 @@ def isa_data_entry_server(
         sel = connections_table.cell_selection()
         conns = project_data.get().isa_data.connections
         if not sel or not sel.get("rows") or sel["rows"][0] >= len(conns):
-            ui.notification_show("Select a connection first.", type="warning", duration=3)
+            ui.notification_show(tr("entry.select_first"), type="warning", duration=3)
             return
         c = conns[sel["rows"][0]]
+        snapshot["connection"] = c
         editing_connection.set((c.source, c.target))
 
     @output
@@ -436,9 +447,12 @@ def isa_data_entry_server(
     @reactive.event(input.save_connection, ignore_init=True)
     def _save_connection():
         pair = editing_connection.get()
+        if pair is None:
+            return
         c = _connection(pair)
         editing_connection.set(None)
-        if c is None:
+        if c is None or c != snapshot["connection"]:    # stale: write nothing
+            ui.notification_show(tr("entry.record_changed"), type="warning", duration=6)
             return
         new = dataclasses.replace(c, description=input.conn_description() or "")
         isa = project_data.get().isa_data

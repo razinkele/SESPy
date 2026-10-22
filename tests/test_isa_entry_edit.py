@@ -208,6 +208,60 @@ def test_editor_not_clobbered_by_project_writes(monkeypatch):
         assert 'value="B"' in ui.html("element_editor")
 
 
+def test_save_after_project_swap_does_not_write(monkeypatch):
+    # spec §6.2: a Save is refused when the record changed or the project was replaced.
+    start = _sample()
+    with _entry(monkeypatch, start) as ui:
+        ui.select("elements_table", MPF1, N_ELEMENTS)
+        ui.click("edit_element")
+        ui.write_project(_with_element(start, MPF1, label="Swapped meadows"))   # another project
+        ui.scope.set_inputs(el_label="My edit", el_description="", el_indicator="",
+                            el_indicator_unit="", el_data_source="", el_policy_target="")
+        ui.click("save_element")
+        assert _el(ui.project(), "MPF1").label == "Swapped meadows"           # nothing written
+        assert ui.toasts == [TR.t("entry.record_changed")]
+        assert ui.html("element_editor") is None                              # editor closed
+        ui.click("edit_element")                                              # positive control
+        ui.scope.set_inputs(el_label="My edit")
+        ui.click("save_element")
+        assert _el(ui.project(), "MPF1").label == "My edit"
+
+
+def test_connection_save_after_project_swap_does_not_write(monkeypatch):
+    start = _sample()
+    swapped_conn = dataclasses.replace(start.isa_data.connections[D001_A001], description="other")
+    swapped = start.replace(isa_data=IsaData(
+        elements=start.isa_data.elements,
+        connections=[swapped_conn, *start.isa_data.connections[1:]]))
+    with _entry(monkeypatch, start) as ui:
+        ui.select("connections_table", D001_A001, 20)
+        ui.click("edit_connection")
+        ui.write_project(swapped)
+        ui.scope.set_inputs(conn_description="mine")
+        ui.click("save_connection")
+        assert ui.project().isa_data.connections[0].description == "other"
+        assert ui.toasts == [TR.t("entry.record_changed")]
+        assert ui.html("connection_editor") is None
+
+
+def test_editor_toasts_are_translated(monkeypatch):
+    TR.set_language("de")                      # TR is shared by this file's tests
+    try:
+        with _entry(monkeypatch) as ui:
+            ui.scope.set_inputs(elements_table_cell_selection={"type": "row", "rows": []},
+                                elements_table_data_view_rows=list(range(N_ELEMENTS)))
+            ui.click("edit_element")
+            assert ui.toasts == [TR.t("entry.select_first")]
+            ui.select("elements_table", MPF1, N_ELEMENTS)
+            ui.click("edit_element")
+            ui.scope.set_inputs(el_label=" ", el_description="", el_indicator="",
+                                el_indicator_unit="", el_data_source="", el_policy_target="")
+            ui.click("save_element")
+            assert ui.toasts[-1] == TR.t("entry.label_required") != "Label is required."
+    finally:
+        TR.set_language("en")
+
+
 def test_delete_referenced_element_warns(monkeypatch):
     reg, mid = add_measure(ResponseRegister(), {"Name": "Anchoring ban", "Type": "regulatory",
                                                 "TargetElement": "P001"}, today="2026-10-22")
