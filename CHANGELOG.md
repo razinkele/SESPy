@@ -4,6 +4,8 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.14.3] — 2026-10-23
+
 ### Fixed
 - **pyvis requirement is the fork: `pyvis-optimized>=4.4`, not `pyvis>=0.3`.**
   pip does not count the installed fork (dist `pyvis_optimized`) as `pyvis`,
