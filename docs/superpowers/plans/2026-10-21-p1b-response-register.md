@@ -28,7 +28,10 @@
   - A `reactive.event(..., ignore_init=True)` button needs `set_inputs(x=0)` then `set_inputs(x=1)` (then 2, 3, … for later clicks).
   - Selecting row *i* of a data grid needs **both** inputs: `scope.set_inputs(**{"<id>_cell_selection": {"type": "row", "rows": [i]}, "<id>_data_view_rows": list(range(n))})` (`n` = rows in the grid). The selection alone is silently ignored (shiny `render/_data_frame.py:503-514`). Several rows: `"rows": [0, 2]`.
   - `ui.update_*` and `ui.notification_show` calls are not reflected back into inputs. Record them by monkeypatching `shiny.ui.<function>` (as `tests/test_isa_entry_link_rules.py:37-42`), or assert on an `output_ui`'s HTML (`scope.get_output(<id>).value["html"]`).
-  - A "not clobbered" test changes `project_data` and asserts the editor's HTML or the recorded update calls did **not** change. Every "no write" test also performs a valid write in the same test (positive control).
+  - A "not clobbered" test must write the project **inside the session**: a bare `pd.set(...)` from the test body runs no flush, so the assertion would pass even for a broken editor (measured in the round-2 dry run). The test's server function registers `@reactive.effect @reactive.event(input.inject_project) def _(): pd.set(pending.pop(0))`, and the test does `pending.append(p); scope.set_inputs(inject_project=n)` (n = 1, 2, …). Prove non-vacuity once: removing the `@reactive.event` gate from the editor must make the test fail. Every "no write" test also performs a valid write in the same test (positive control).
+  - Inputs rendered inside an `output_ui` (and any input a handler reads) have no value until the test sets them; an unset one raises `SilentException` inside the handler, which then stops silently while `is_ok` stays `True`. Set **every** input the handler reads.
+  - Also read `references/test-server.md` (shiny 1.8.0 ships it; it documents `test_server`).
+  - A module that renders matplotlib plots needs `test_server(server, timeout_secs=30.0)`: the stakeholders page's first flush took 5.7–8.7 s against the 5 s default (round-2 dry run), and a `set_inputs` that re-renders plots raises `TimeoutError` past it.
 - Merge, tag, push, deploy (Task 16) each need the user's explicit go-ahead.
 
 ## Review Focus
@@ -203,7 +206,7 @@ Modify `tests/test_schema_read_ahead.py:43-49` → `test_unknown_element_keys_ar
 - `Stakeholder.ne_roles: str = field(default="", kw_only=True)`, `Stakeholder.source_id: str = field(default="", kw_only=True)`.
 - `stakeholders.STAKEHOLDER_ROLES: tuple[str, ...] = ("Inputters", "Extractors", "Regulators", "Affectees", "Beneficiaries", "Influencers")` (R's `STAKEHOLDER_TYPES`, `constants.R:564-571`; renamed because SESPy already has an unrelated `stakeholder_type`).
 - `stakeholders.normalize_ne_roles(value: str | Sequence[str] | None) -> str` — a str splits on `;`, a list or tuple (what a selectize returns) is taken item by item, any other value is read as `str(value)` first (a hand-edited `5` is then dropped); strip, drop unknown values (one `logging` warning listing them once, deduplicated), dedupe, order as `STAKEHOLDER_ROLES`, join with `;` (`stakeholder_schema.R:30-37`).
-- `Project.stakeholder_counter: int = field(default=0, kw_only=True)` (R `pims$stakeholder_counter`, `data_structure.R:222`), declared before `newer_build`. `to_dict` writes a top-level `"stakeholder_counter"` only when > 0. `from_dict` reads it through a private `_coerce_counter(value, where: str) -> int` (also used by Task 7): an absent key or JSON `null` → 0 **silently** (every file without stakeholder adds lacks the key); an `int` (not `bool`) as is; a numeric string or finite float → `int(float(v))`; anything else → 0 with one warning.
+- `Project.stakeholder_counter: int = field(default=0, kw_only=True)` (R `pims$stakeholder_counter`, `data_structure.R:222`), declared before `newer_build`. `to_dict` writes a top-level `"stakeholder_counter"` only when > 0. `from_dict` reads it through a private `_coerce_counter(value, where: str) -> int` (also used by Task 7): an absent key or JSON `null` → 0 **silently** (every file without stakeholder adds lacks the key); an `int` (not `bool`) as is; a numeric string or finite float → `int(float(v))`; a negative result or anything else → 0 with one warning.
 - `from_dict` normalises each loaded stakeholder's `ne_roles` and coerces `source_id` (`None` → "" silently, non-str → `str()` with a warning). It imports `sespy.stakeholders` **inside the function**: `stakeholders.py` imports `data_structure` at module level, so a top-level import would be a cycle.
 - `stakeholders.add_stakeholder(items, fields_, *, today, counter: int = 0) -> list[Stakeholder]` — the new ID is `f"SH{safe_counter(counter, [s.id for s in items], 'SH') + 1:03d}"` (R `pims_stakeholder_module.R:458-460`), no longer `next_id`; `fields_["ne_roles"]`, when present, goes through `normalize_ne_roles`. `update_stakeholder` normalises `ne_roles` the same way. The caller stores the new counter as `safe_counter(counter, [s.id for s in new_list], "SH")` (Task 10). Engagement and communication IDs keep `next_id`.
 
@@ -388,7 +391,7 @@ Expected: `hash ...: (none) -> <hash>` for the 9 new inputs, no hash line for th
   - `GOVERNANCE_LEVELS` (`:828`), `TENET_LEVELS` (`:829`), `PESTLE_CODES` (`:933`).
   - `EBM_POLICY_INSTRUMENTS: tuple[tuple[str, str], ...]` — all 24 rows (code, level), category rows included (`:780-790`); `EBM_MANAGEMENT_MEASURES: tuple[tuple[str, str, str], ...]` (code, category, dapsiwrm_target) (`:793-801`).
   - UI choice lists from `response_module.R` (not a fixture; cite the lines): `KIND_CODES = ("instrument", "measure")`, `EFFECTIVENESS_LEVELS = ("HIGH", "MEDIUM", "LOW", "UNKNOWN")`, `FEASIBILITY_LEVELS = ("HIGH", "MEDIUM", "LOW")` (`:91-102`), `IMPACT_PROBLEM_TYPES = ("specific_pressure", "specific_activity", "specific_driver", "system_wide_issue")`, `IMPACT_STRENGTHS = ("strong", "moderate", "weak")`, `TIMEFRAMES = ("immediate", "short_term_1_3y", "medium_term_3_10y", "long_term_10y")` (`:207-224`), `MILESTONE_STATUSES = ("pending", "in_progress", "completed", "delayed")` (`:340`); `IMPACT_COLUMNS`, `MILESTONE_COLUMNS` (`data_structure.R:292-305`).
-- `reverse_label_map() -> dict[str, dict[str, str]]` — vocab name (`type, target, status, problem_type, strength, timeframe, milestone_status`) → {label (stripped, every language of the vendored `sespy/translations/modules/response_measures.json`) → code}; first occurrence wins; `functools.cache`. Reads the vendored file, never the fixture. Lookups use the stored value as it is, untrimmed, as R's `.map_codes` does (`response_measures_schema.R:40-45`): `" Activities: "` stays unmapped.
+- `reverse_label_map() -> dict[str, dict[str, str]]` — vocab name (`type, target, status, problem_type, strength, timeframe, milestone_status`) → {label (stripped, every language of the vendored `sespy/translations/modules/response_measures.json`) → code}; first occurrence wins; `functools.cache`. Reads the vendored file itself with `json` (`Path(__file__).resolve().parent / "translations" / "modules" / "response_measures.json"`), never the fixture, and not through `sespy.i18n`, which imports Shiny. Lookups use the stored value as it is, untrimmed, as R's `.map_codes` does (`response_measures_schema.R:40-45`): `" Activities: "` stays unmapped.
 - `normalize_measures(rows: Any) -> list[dict[str, Any]]` — R `normalize_response_measures` (`response_measures_schema.R:49-107`) step for step (spec §4.2.1). `Cost` → a finite float, else `None` (`"cheap"`, `"nan"`, `"inf"` → `None`, so the JSON stays valid).
 - `normalize_impacts(rows: Any) -> list[dict[str, str]]`, `normalize_milestones(rows: Any) -> list[dict[str, str]]` — exactly the 5 columns; labels → codes for ProblemType/ImpactStrength/Timeframe/Status; unknown values pass through.
 - `ebm_code_choices(kind: str) -> list[str]` — instruments: the 20 codes with level `"type"`; measures: all 12; else `[]` (`response_measures_schema.R:118-129`).
@@ -471,14 +474,15 @@ class ResponseRegister:
     @classmethod
     def from_dict(cls, raw: Any) -> "ResponseRegister": ...
 ```
-  `from_dict` imports `sespy.response_register` inside the function and runs the three normalisers; a non-dict `raw` → empty + one warning; `counter` → `_coerce_counter` (Task 3) and is then **kept as loaded** (R `response_module.R:494-501`); `safe_counter` applies only in `add_measure`.
+  `from_dict` imports `sespy.response_register` inside the function and runs the three normalisers; an absent or `null` block → empty silently, any other non-dict `raw` → empty + one warning; `counter` → `_coerce_counter` (Task 3) and is then **kept as loaded** (R `response_module.R:494-501`); `safe_counter` applies only in `add_measure`.
 - `Project.response_measures: ResponseRegister = field(default_factory=ResponseRegister, kw_only=True)` (before `newer_build`). `to_dict` adds `"response_measures"` only when `not is_empty()`; `from_dict` reads it when present.
 - In `sespy/response_register.py` (register-level; all return new objects, never mutate):
   - `add_measure(reg: ResponseRegister, fields: dict[str, Any], *, today: str) -> tuple[ResponseRegister, str]` — `n = safe_counter(reg.counter, ids, "RM") + 1`, ID `f"RM{n:03d}"`, `counter = n`, `DateAdded = today`, row normalised (spec §4.2.3, `response_module.R:507-509`).
-  - `update_measure(reg, measure_id: str, fields: dict[str, Any]) -> tuple[ResponseRegister, bool]` — R `update` (`response_module.R:515-525`): never changes `ID` or `DateAdded`; columns absent from `fields` are kept; the row is re-normalised; `False` and unchanged when the ID is absent.
+  - `update_measure(reg, measure_id: str, fields: dict[str, Any]) -> tuple[ResponseRegister, bool]` — R `update` (`response_module.R:515-525`): never changes `ID` (R) or `DateAdded` (SESPy's addition); columns absent from `fields` are kept; the row is re-normalised; `False` and unchanged when the ID is absent.
   - `delete_measures(reg, ids: Iterable[str]) -> tuple[ResponseRegister, int]` — counter unchanged; the int counts impact + milestone rows whose `ResponseID` is in `ids` (they are kept).
   - `add_impact(reg, fields) -> ResponseRegister`, `delete_impact(reg, index: int) -> ResponseRegister`, `add_milestone(reg, fields) -> ResponseRegister`, `delete_milestone(reg, index: int) -> ResponseRegister`; an out-of-range index returns `reg` unchanged.
-  - `references_to(reg, element_id: str) -> list[str]` — sorted unique IDs of the measures whose `TargetElement` (`;`-split, exact match) contains `element_id`, plus the `ResponseID` of impact rows whose `ProblemElementID` equals it (used by Task 9's delete warning).
+  - `split_ids(value: str) -> list[str]` — R's `TargetElement` is free text, usually comma-separated (its placeholder `modules.response.measures.placeholder_element_ids` is "e.g., A001, D002"); split on both `;` and `,`, strip, drop empties. SESPy writes `;`-joined IDs.
+  - `references_to(reg, element_id: str) -> list[str]` — sorted unique IDs of the measures whose `TargetElement` (`split_ids`, exact match) contains `element_id`, plus the `ResponseID` of impact rows whose `ProblemElementID` equals it (used by Task 9's delete warning).
 
 - [ ] **Step 1: Failing tests**
 
@@ -507,7 +511,8 @@ def test_counter_coercion():                     # 3.0 -> 3; True -> 0 with a wa
 def test_replace_carries_register():             # project.replace(metadata=...) keeps response_measures
 def test_add_update_delete_cycle():              # RM001, RM002; update keeps ID/DateAdded; delete RM001 -> refs count;
                                                  # add -> RM003
-def test_references_to():                        # TargetElement "P001;P002" and an impact on P002 -> ["RM001", "RM002"]
+def test_references_to():                        # TargetElement "P001;P002" and an impact on P002 -> ["RM001", "RM002"];
+                                                 # R's comma form "P003, P004" names P004 too (split_ids)
 ```
 
 - [ ] **Steps 2–5:** fail → implement → pass + CI unit → commit `feat(schema): response register block (P1b)`.
@@ -520,8 +525,10 @@ def test_references_to():                        # TargetElement "P001;P002" and
 
 **Interfaces.** Strings with a vendored R key use it (spec §7); `core.json` gets only these keys, in all 9 languages (keep `{n}`, `{id}`, `{measures}`, `{version}` placeholders identical across languages):
 - **Text copied from R's `translations/common/labels.json` at v1.33.0** (all 9 languages, via `git -C <R> show v1.33.0:MarineSABRES_SES_Shiny/translations/common/labels.json`): `responses.name` ← `common.labels.response_name`, `responses.type` ← `common.labels.response_type`, `responses.status` ← `common.labels.implementation_status`, `responses.description` ← `common.labels.description`, `responses.target_date` ← `common.labels.target_date`, `responses.milestone_status` ← `common.labels.status`.
+- `nav.responses`: R's `modules.response.measures.response_register` texts in all 9 languages (navigation keys stay in `nav.*`; copying R's texts keeps the nav item and the tab title identical in every language).
 - **SESPy text** (translate the English):
-  - `nav.responses` "Response Register" (navigation keys stay in `nav.*`);
+  - `responses.record_changed` and `entry.record_changed` "This record changed or the project was replaced since you opened it. Open it again to edit.";
+  - `entry.label_required` "Label is required.", `entry.select_first` "Select a row first.";
   - `responses.edit_selected` "Edit selected", `responses.cancel` "Cancel", `responses.save` "Save measure";
   - `responses.select_first` "Select a row first.", `responses.select_one` "Select exactly one row to edit.", `responses.name_type_required` "Name and type are required.";
   - `responses.deleted_with_refs` "{n} impact or milestone rows still refer to the deleted measures.";
@@ -531,13 +538,15 @@ def test_references_to():                        # TargetElement "P001;P002" and
 - **R keys used directly** (already vendored; listed so module code and tests agree):
   - tabs: `modules.response.measures.response_register`, `impact_assessment`, `prioritization`, `implementation_plan`;
   - buttons: `modules.response.measures.delete_selected`, `download_response_data_excel`;
-  - toasts: `modules.response.measures.deleted_response_measures`, `impact_linkage_added`, `milestone_added`;
+  - toasts: `modules.response.measures.deleted_response_measures`, `response_measure_added`, `impact_linkage_added`, `milestone_added`;
   - plot: `add_effectiveness_and_feasibility_ratings`, `response_measure_prioritization_matrix`, `feasibility`, `effectiveness`, `low`, `medium`, `high`, `high_priorityneffective_feasible`, `effective_butndifficult`, `easy_butnlimited_impact`, `low_priority` (all `modules.response.measures.*`);
   - the governance section: `modules.response.governance.section_title` and the field labels `kind`, `ebm_code`, `level`, `competent_authority`, `legal_basis`, `paired_with`, `implementing_stakeholders`, `pestle`, `tenets_title`, the hints `ebm_code_hint`, `pestle_hint`, `no_stakeholders_hint`, and `tenet_level.not_assessed` for each tenet select's empty choice;
-  - the other register, impact and milestone labels: the `modules.response.measures.*` key R uses at `response_module.R:28-190, 196-232, 318-345`;
+  - the other register, impact and milestone labels: the `modules.response.measures.*` key R uses at `response_module.R:28-190, 196-232, 318-345` (51 keys at v1.33.0, all in the vendored `response_measures.json`; measured in the round-2 dry run);
   - ISA panel: `modules.indicator_registry.field_indicator`, `field_unit`, `field_data_source`, `field_policy_target`, help `policy_target_help`, choice labels `modules.indicator_registry.policy_target.<code>`;
   - roles: `modules.wp5_governance.ne_roles` (label), `ne_roles_hint` (help), `role.<lower code>` (choices).
 - Table headers are R's column names, untranslated (spec §7).
+
+`core.json` cannot be rewritten with `json.dump` (it mixes indent-2 and one-line entries; no dump setting reproduces it): add the keys by appending them as text before the closing `  }` of the `translation` object (CRLF kept), then re-parse and check that the old keys are unchanged and in order.
 
 - [ ] **Step 1:** failing `test_p1b_keys_present(translations)`: every `core.json` key above and every R key above present with all 9 languages non-empty. `test_p1b_placeholders_match_across_languages`: as `test_bbn_evidence_placeholders_match_across_languages`, for the keys with placeholders. **Steps 2–5:** fail → add keys → pass + CI unit → commit `feat(i18n): P1b UI strings (P1b)`.
 
@@ -552,7 +561,8 @@ def test_references_to():                        # TargetElement "P001;P002" and
 **Interfaces:** Consumes `INDICATOR_FIELDS`, `POLICY_TARGET_CODES`, `references_to` (Task 7). New ids (module namespace `entry`):
 - Elements: button `edit_element` (under `elements_table`) sets `editing_element: reactive.Value[str | None]` from the selected row with the module's own idiom (`isa.elements[elements_table.cell_selection()["rows"][0]].id`, as `_remove_element`, `:251-268`; py-shiny applies a row selection to the source data before sorting). `output_ui("element_editor")` renders under `@reactive.event(editing_element)` only (never re-rendered by `project_data` writes) and shows, while editing: `el_label`, `el_description` (text area), and for non-Responses `el_indicator`, `el_indicator_unit`, `el_data_source`, `el_policy_target` (`input_selectize`, choices `""` + `POLICY_TARGET_CODES` labelled `modules.indicator_registry.policy_target.<code>`, **plus the stored value when it is not one of them, shown raw**, `options={"create": True}`), labels from `modules.indicator_registry.field_*`, a read-only `entry.registry` line when `registry_id` is set, buttons `save_element`, `cancel_element`.
 - Connections: button `edit_connection`, `output_ui("connection_editor")` (same gating) with `conn_description` (text area), `save_connection`, `cancel_connection`; `editing_connection: reactive.Value[tuple[str, str] | None]` keyed by (source, target).
-- Save goes through `_replace(...)` with `dataclasses.replace(element, ...)`, so `r_extra`, the registry fields and every untouched field survive; for a Responses element only label and description are written. An empty label → warning toast, no write; then `editing_*` resets to `None`.
+- Save goes through `_replace(...)` with `dataclasses.replace(element, ...)`, so `r_extra`, the registry fields and every untouched field survive; for a Responses element only label and description are written. An empty label → warning toast `entry.label_required`, no write, the editor stays open; a successful save (or cancel) resets `editing_*` to `None`. Edit with no row selected → `entry.select_first`.
+- **Stale check** (spec §6.2): Edit also stores `editing_snapshot` (the element, or the connection, it opened). Save writes only when the current project's record with that ID (or that source/target pair) still equals the snapshot; otherwise a warning toast `entry.record_changed`, the editor closes, nothing is written (a project load or a MosaicSES compartment switch replaced the project; compartments repeat element IDs). Removing the element (or a connection endpoint) being edited closes its editor.
 - `_remove_element`, after the removal: when `references_to(project.response_measures, target_id)` is non-empty, a warning toast `tr("responses.element_still_referenced", id=target_id, measures=", ".join(refs))`. The references are kept (spec §6.1).
 
 - [ ] **Step 1: Failing `test_server` tests** (Global Constraints: selection needs both inputs; assert on the editor HTML):
@@ -565,8 +575,11 @@ def test_free_text_policy_target_kept():          # MPF1 stored with policy_targ
                                                   # HTML has '<option value="My national 25% target" selected'; saving
                                                   # with that input leaves the value unchanged
 def test_edit_connection_description():
-def test_editor_not_clobbered_by_project_writes(): # while editing MPF1 (HTML shows indicator "A"), project_data.set(a
-    # project where MPF1.indicator == "B") -> HTML still shows "A"; positive control: cancel, edit again -> shows "B"
+def test_editor_not_clobbered_by_project_writes(): # while editing MPF1 (HTML shows indicator "A"), inject (Global
+    # Constraints) a project where MPF1.indicator == "B" -> HTML still shows "A"; positive control: cancel, edit
+    # again -> shows "B"; removing the @reactive.event gate makes this test fail
+def test_save_after_project_swap_does_not_write(): # edit MPF1, inject a project whose MPF1 has another label, save ->
+    # toast tr("entry.record_changed"), no write, editor closed; positive control: no swap -> the save writes
 def test_delete_referenced_element_warns():       # register measure with TargetElement "P001": remove P001's row ->
                                                   # one toast containing "P001" and "RM001"; the measure keeps "P001"
 ```
@@ -582,7 +595,9 @@ def test_delete_referenced_element_warns():       # register measure with Target
 **Interfaces:**
 - Input `sh_ne_roles`: `input_selectize`, multiple, choices `STAKEHOLDER_ROLES` labelled `modules.wp5_governance.role.<lower>`, label `modules.wp5_governance.ne_roles`, help text `modules.wp5_governance.ne_roles_hint`. Roles are normalised codes, so every stored value is a choice.
 - `_form_fields` adds `"ne_roles": normalize_ne_roles(input.sh_ne_roles())`; `_clear_form` sends `ui.update_selectize("sh_ne_roles", selected=[])`; `_repopulate` sends `selected=match.ne_roles.split(";")` (or `[]`).
-- `_save`, add branch: `add_stakeholder(items, f, today=..., counter=project.stakeholder_counter)` and `project.replace(stakeholders=new_list, stakeholder_counter=safe_counter(project.stakeholder_counter, [s.id for s in new_list], "SH"))`; the edit branch leaves the counter alone. `source_id` is never shown or edited, and an edit keeps it (`update_stakeholder` replaces only the form's fields).
+- `_save`, add branch: `add_stakeholder(items, f, today=..., counter=project.stakeholder_counter)` and `project.replace(stakeholders=new_list, stakeholder_counter=safe_counter(project.stakeholder_counter, [s.id for s in new_list], "SH"))`; the edit branch leaves the counter alone.
+- `_remove`: `project.replace(stakeholders=remove_stakeholder(items, sid), stakeholder_counter=safe_counter(project.stakeholder_counter, [s.id for s in items], "SH"))` — the counter covers the IDs present **before** the removal, so a project saved before v1.15 (no counter in the file) cannot hand the deleted ID out again (spec §4.4; R files always carry the counter, so this changes nothing for them).
+- The page's existing stakeholder editor has the same project-switch exposure as the editors of Tasks 9 and 11; it predates P1b and stays out of scope (ledger follow-up). `source_id` is never shown or edited, and an edit keeps it (`update_stakeholder` replaces only the form's fields).
 - Table column `roles`: translated labels, `", "`-joined.
 - Workbook: `build_stakeholder_workbook` already writes one column per `Stakeholder` field, so the Stakeholders sheet gains `ne_roles` (codes, `;`-joined) and `source_id`; no code change (spec §6.3).
 
@@ -593,6 +608,8 @@ def test_add_with_two_roles_stores_canonical_order():  # sh_ne_roles ("Regulator
 def test_add_adds_exactly_one_row():                   # R 33ddd96: one save click -> +1 row; a second -> SH001, SH002
 def test_deleted_id_is_not_reused():                   # add A, B; select B and remove; add C -> C.id == "SH003",
                                                        # project.stakeholder_counter == 3
+def test_deleted_id_is_not_reused_on_a_pre_1_15_project():  # load a schema-7 payload with SH001, SH002 and no counter;
+                                                       # remove SH002, add -> SH003, stakeholder_counter == 3
 def test_edit_repopulates_roles_and_keeps_source_id(): # stored ne_roles "Regulators", source_id "d54:x": edit ->
     # recorded update_selectize("sh_ne_roles", selected=["Regulators"]); save a new name -> source_id still "d54:x"
 def test_workbook_headers_are_the_stakeholder_fields():  # tests/test_stakeholder_reports.py: header row ==
