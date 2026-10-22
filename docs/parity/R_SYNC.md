@@ -104,23 +104,97 @@ Live drift against laguna (`tests/parity/check_live.py`) is owned by **K1**
 in the R-parity roadmap; P1a and P2 read R only through these fixtures and
 the sync script.
 
-## R changes v1.31.0 → v1.33.0 (triaged 2026-10-21)
+## R changes v1.31.0 → v1.33.0 (triaged 2026-10-22)
 
-From the P1b spec (§9). R 1.32.0–1.32.4 = WS-10 workshop elicitation,
-R 1.33.0 = AI-template matrix repair and assistant fixes.
+`git -C <R app dir> diff --name-status v1.31.0 v1.33.0`: 71 paths, all
+under `MarineSABRES_SES_Shiny/` (prefix omitted). The 9 files SESPy pinned
+before P1b (the 7 templates, `functions/dapsiwrm_connection_rules.R` and
+`functions/template_loader.R`) are identical at the two tags (`git diff
+--quiet v1.31.0 v1.33.0 -- <the 9 paths>` exits 0). P1b adds 3 R sources
+(`constants.R`, `functions/response_measures_schema.R`,
+`functions/stakeholder_schema.R`) and 6 translation files to the pin, at
+v1.33.0; 3 of those 9 changed since v1.31.0 (rows 11, 19 and 67), the other 6
+did not. R 1.32.0 = WS-10 workshop elicitation (D5.2); R 1.32.1–1.32.3 =
+WS-10 follow-ups (tenet validation, translated workbooks); R 1.32.4 =
+feedback-list fix and triage skill (not WS-10); R 1.33.0 = user-feedback fixes
+(AI-assistant templates and connection review, reports and plot downloads,
+loop plots, Scenario Builder, user level, Getting Started, Caribbean
+countries). P15 is the proposed new sub-project for WS-10 (after P4; it
+writes `TenetSource`).
 
-| R change | Owner |
-|---|---|
-| `RM_REGISTER_COLUMNS` + `TenetSource`; tenet validation (`response_measures_schema.R`); register `update` API | **P1b** |
-| WS-10 workshop elicitation (1.32.0–1.32.4: `wp5_workshop.R`, `wp5_workshop_module.R`, `wp5_tenet_guiding_questions.json`, workshops block + 1.32.0 stamp) | **new sub-project, proposed P15** (after P4; it writes `TenetSource`) |
-| `repair_template_connection_matrices` (1.33.0, AI-template matrices) | not relevant (R-only matrix storage; SESPy templates are edge lists) |
-| AI assistant template fixes (`modules/ai_isa/*`, 1.33.0) | P13 / AI wizard parity, re-check then |
-| Report sections, plot downloads (`report_generation.R`, `prepare_report_module.R`, `export_reports_module.R`) | P14 / P6c |
-| Loop plots, decision lens, simplify, leverage, scenario network/builder fixes | not relevant now; re-triage when the owning analysis is ported |
-| `country_governance_db.json` | K1 (re-check counts at K1's pin) |
-| `wp5_readiness.R` | P4 |
-| `entry_point_module.R`, sidebar | P11 |
-| feedback analyzer, `.claude/`, CI | not relevant |
+| # | Status | Path | Change | Owner |
+|---|---|---|---|---|
+| 1 | D | `.claude/settings.local.json` | personal Claude Code permissions file untracked (`035a3d9`) | not relevant |
+| 2 | M | `.claude/skills/feedback-triage/SKILL.md` | feedback-triage skill also triages the fallback feedback log; confirm step no longer puts the title in an ssh command | not relevant |
+| 3 | M | `.claude/skills/feedback-triage/mark_resolved_remote.R` | marker writes `null` as null and keeps the log's group and mode | not relevant |
+| 4 | M | `.gitattributes` | `text eol=lf` for `data/wp5_tenet_guiding_questions.json` | not relevant |
+| 5 | M | `.gitignore` | ignores `.claude/settings.local.json` | not relevant |
+| 6 | M | `CHANGELOG.md` | 1.32.0–1.33.0 entries (source of this triage) | not relevant |
+| 7 | M | `DESCRIPTION` | version 1.33.0; `testthat (>= 3.1.7)` | not relevant |
+| 8 | M | `VERSION` | version 1.33.0 | not relevant |
+| 9 | M | `VERSION_INFO.json` | version metadata ("User feedback fixes (October 2026)") | not relevant |
+| 10 | M | `app.R` | loads `modules/wp5_workshop_module.R`, adds the `pims_workshops` tab and passes the register API returned by `response_measures_server` to `wp5_workshop_server` (P15); passes `project_data` to the user-level modal handlers (P12) | P12, P15 |
+| 11 | M | `constants.R` | `TenetSource` appended as the 34th and last `RM_REGISTER_COLUMNS` entry (after the 11 `Tenet_*`; default `""`; not in `RM_DISPLAY_COLUMNS`; R 1.32.0) (P1b); `WORKSHOP_*` constants and `WP5_WORKSHOP_MIN_APP_VERSION` = "1.32.0" (P15) | P1b, P15 |
+| 12 | M | `data/country_governance_db.json` | 99 → 105 countries (+MQ, GP, MF as EU members; +HN, NI, GT as `latin_american`); Caribbean list 21 → 27; 11 seas and 15 conventions/bodies unchanged; `version` still `1.0` and `last_updated` unchanged | K1 |
+| 13 | A | `data/wp5_tenet_guiding_questions.json` | D5.2 Annex 4 tenet guiding questions: 11 English texts in `EBM_TENETS` order with source page, plus the 5-point scale codes | P15 (§3 allow-list) |
+| 14 | A | `docs/superpowers/plans/2026-10-18-wp5-ws10-workshop-elicitation.md` | R plan (reference reading) | not relevant |
+| 15 | A | `docs/superpowers/specs/2026-10-18-wp5-ws10-workshop-elicitation-design.md` | R spec (reference for P15) | not relevant |
+| 16 | M | `functions/data_structure.R` | JSON load runs `normalize_workshops` on `data$data$pims$workshops` and stamps `min_app_version` 1.32.0 when a workshop or a `TenetSource` value exists (P15); also calls `repair_template_connection_matrices` (R-only matrix storage, not relevant) | P15 |
+| 17 | M | `functions/feedback_analyzer.R` | feedback-log loader tolerates `{}` and `[]` fields; mark functions write `null` as null (1.32.4) | not relevant |
+| 18 | M | `functions/report_generation.R` | `generate_full_content(data, sections)` honours the Prepare Report section ids; new DAPSI(W)R(M) elements and CLD summary sections; recommendations text follows its checkbox | P14 / P6c |
+| 19 | M | `functions/response_measures_schema.R` | `normalize_response_measures` validates tenet levels (1.32.1): case and spaces tidied, only `TENET_LEVELS` codes kept, `intermediate` only on `ecol_effective`, anything else blanked and logged | P1b |
+| 20 | M | `functions/scenario_network.R` | `scenario_baseline_edges()`: a saved CLD without edge ids or labels gets `from->to` ids and node labels; removing links on a CLD without edges no longer errors | P8 |
+| 21 | M | `functions/ui_sidebar.R` | PIMS menu item `pims_workshops` ("Workshop elicitation (D5.2)") | P15 |
+| 22 | M | `functions/wp5_readiness.R` | `xl_translate_headers()`: readiness template and export workbooks get translated column headers, the `answers` sheets keep code headers; the workshop workbook shares the helper (1.32.2) | P4 |
+| 23 | A | `functions/wp5_workshop.R` | workshop helpers: storage and `normalize_workshops`, poll and tenet summaries, write-back proposal (median ≥ 4 full; 3 to 4 intermediate on `ecol_effective`, otherwise minimal; below 3 minimal; at least 3 valid ratings), apply records with undo, multilingual template import, xlsx template and export | P15 |
+| 24 | M | `global.R` | sources `functions/wp5_workshop.R` | P15 |
+| 25 | M | `modules/ai_isa/action_handlers.R` | the preview window's Save calls the assistant's save (it only showed a message); AI wizard parity, re-check then | P13 |
+| 26 | M | `modules/ai_isa/data_persistence.R` | connections go to the forward matrix of their category pair (`AI_ISA_FORWARD_MATRIX`); the reverse matrix of a swap starts as `""`, not `0`; `apply_connection_swaps` refuses a swap whose reversed pair is not a DAPSIWRM link; `repair_template_connection_matrices` rebuilds legacy-named matrices (R-only storage, not relevant); AI wizard parity, re-check then | P13 |
+| 27 | M | `modules/ai_isa/template_handlers.R` | the 4 assistant templates (overfishing, pollution, tourism, climate) use the current matrix names (`d_a`, `a_p`, `p_mpf`, `mpf_es`, `es_gb`) instead of legacy ones (R-only storage); AI wizard parity, re-check then | P13 |
+| 28 | M | `modules/ai_isa_assistant_module.R` | swaps go through `apply_connection_swaps` (refused ones are left out and reported); Save always saves the current state (it returned early after the auto-save) | P13 |
+| 29 | M | `modules/analysis_decision_lens.R` | factor plot built once for the page and a new PNG download; headroom so the top labels are not clipped | P3 |
+| 30 | M | `modules/analysis_leverage.R` | PNG export button on the leverage network; re-triage when the owning analysis is ported | not relevant |
+| 31 | M | `modules/analysis_loops.R` | loop strength and reinforcing/balancing distribution plots were blank, now drawn; participation plot labels no longer cut off; PNG downloads and PNG export on the loop network; re-triage when the owning analysis is ported | not relevant |
+| 32 | M | `modules/analysis_simplify.R` | PNG download of the impact chart and PNG export on the network views; re-triage when the owning analysis is ported | not relevant |
+| 33 | M | `modules/entry_point_module.R` | Getting Started steps 2–4: checkbox ticks are stored when the user leaves the step, not on every tick (flicker, lost ticks); Skip clears the step | P11 |
+| 34 | M | `modules/export_reports_module.R` | after the HTML report opens, a dialog offers it as a download and says the link only works during the session; SESPy's `report_export` already downloads directly | P14 / P6c |
+| 35 | M | `modules/prepare_report_module.R` | HTML, PDF and Word pass the "Include sections" checkboxes (`options$sections`); Word uses `generate_report_content` and `render_report_safely` instead of `generate_word_report` (same content as HTML); same download dialog | P14 / P6c |
+| 36 | M | `modules/response_module.R` | register API gains `update(id, fields)` (merges into the row, re-normalises, syncs to the project; FALSE for an unknown ID; `Cost` as a number) and the server now returns the API plus `data` (1.32.0) | P1b |
+| 37 | M | `modules/scenario_builder_module.R` | uses `scenario_baseline_edges`, so creating a scenario on a CLD without edge ids no longer ends the session | P8 |
+| 38 | A | `modules/wp5_workshop_module.R` | PIMS "Workshop elicitation (D5.2)" page: set-up, entry (form or xlsx/csv template, consent gate), results (poll ranking, tenet heat table, xlsx export), apply to the register with undo | P15 |
+| 39 | A | `scripts/tests/test_wp5_tenet_questions.py` | R's data-file test: the 11 questions are found in D5.2 Annex 4 (pp. 219–222) | P15 |
+| 40 | M | `server/modals.R` | `stash_project_before_reload()`: changing the user level keeps the project across the page reload, as the language change does; a failed stash cancels the change | P12 |
+| 41 | M | `server/project_io.R` | toast after loading a project whose template links were rebuilt ("N links restored"); R-only repair, re-check with AI wizard parity | P13 |
+| 42 | M | `tests/ci_run_file.R` | CI runner reads the zero-pass allowlist before running the test file | not relevant |
+| 43 | A | `tests/testthat/test-ai-isa-save-after-autosave.R` | AI assistant Save and preview Save after the auto-save | P13 |
+| 44 | A | `tests/testthat/test-ai-isa-swap-validity.R` | `apply_connection_swaps` refuses invalid reversals, applies valid ones | P13 |
+| 45 | A | `tests/testthat/test-ai-isa-template-connections.R` | every approved connection of the 4 assistant templates appears in the diagram | P13 |
+| 46 | A | `tests/testthat/test-analysis-loops-plots.R` | loop plots render and download | not relevant |
+| 47 | A | `tests/testthat/test-analysis-plot-downloads.R` | Decision Lens factor plot and simplification impact chart PNG downloads, network PNG export | P3 |
+| 48 | M | `tests/testthat/test-entry-point-module.R` | ticks committed on leaving the step; Skip clears them | P11 |
+| 49 | M | `tests/testthat/test-feedback-analyzer.R` | feedback loader tolerates `{}` and `[]` fields | not relevant |
+| 50 | M | `tests/testthat/test-knowledge-base.R` | Caribbean list includes MQ, GP, MF (EU members) and HN, NI, GT; every country listed for a sea has a record | K1 |
+| 51 | M | `tests/testthat/test-prepare-report-module.R` | HTML download dialog; Word report uses the shared content | P14 / P6c |
+| 52 | A | `tests/testthat/test-repair-template-matrices.R` | `repair_template_connection_matrices` rebuilds forward matrices from the saved connection list | not relevant |
+| 53 | A | `tests/testthat/test-report-sections.R` | `generate_full_content(sections)`: section ids, DAPSI(W)R(M) elements, CLD summary | P14 / P6c |
+| 54 | M | `tests/testthat/test-response-measures-schema.R` | tenet-level validation: invalid values and `intermediate` outside `ecol_effective` blanked, case and spaces tidied, idempotent | P1b |
+| 55 | M | `tests/testthat/test-response-module.R` | register API: `update` merges and re-normalises, FALSE for an unknown ID, the server returns the API | P1b |
+| 56 | M | `tests/testthat/test-scenario-builder-module.R` | activating a scenario on a CLD without edge ids does not close the session | P8 |
+| 57 | M | `tests/testthat/test-scenario-network.R` | `scenario_baseline_edges` ids and labels; removed links on a CLD without edges | P8 |
+| 58 | A | `tests/testthat/test-user-level-keeps-project.R` | changing the user level stashes the project before the reload | P12 |
+| 59 | M | `tests/testthat/test-wp5-readiness.R` | translated workbook headers; the answers sheets keep their import codes | P4 |
+| 60 | A | `tests/testthat/test-wp5-workshop-integration.R` | real register and real workshop page on one project: apply and undo survive later register edits | P15 |
+| 61 | A | `tests/testthat/test-wp5-workshop-module.R` | workshop module: consent gate, set-up lock, apply and undo through a fake register | P15 |
+| 62 | A | `tests/testthat/test-wp5-workshop.R` | workshop helpers: storage, summaries, write-back mapping, import and export, version stamp | P15 |
+| 63 | M | `translations/common/buttons.json` | `common.buttons.download_png` ("Download PNG"), used by the Decision Lens plot (P3) and by loop, leverage and simplify (not relevant) | P3 |
+| 64 | M | `translations/common/messages.json` | new `context_user_level_change_save` (P12), `html_report_link_temporary` (P14 / P6c) and `template_links_restored` (P13); `progress_restored_after_language_change` now says "after the page reload" (P12) | P12, P13, P14 / P6c |
+| 65 | M | `translations/modules/analysis_loops.json` | 3 new keys for the loop plots (`length_axis`, `dominance_axis`, `download_png`) | not relevant |
+| 66 | M | `translations/modules/isa_data_entry.json` | AI-assistant strings only (all five keys are `modules.isa.ai_assistant.*`): "Save to project", "connections saved to the project", new `swap_refused`, two "navigate to ISA Data Entry" keys removed; no ISA-entry string changed, nothing for P1b | P13 |
+| 67 | M | `translations/modules/response_measures.json` | register titles reworded (1.32.2): `modules.response.measures.response_measures_register` in lt, no, el and `modules.response.measures.response_register` in de, lt, no, el; both keys are in the subset SESPy ships | P1b |
+| 68 | M | `translations/modules/scenario_builder.json` | `modules.scenario.builder.create`: "Create CLD networks and run analysis tools" → "Create" | P8 |
+| 69 | M | `translations/modules/wp5_readiness.json` | 15 new `modules.wp5_readiness.xl.*` workbook header keys, 9 languages (1.32.2, LT label word 1.32.3) | P4 |
+| 70 | A | `translations/modules/wp5_workshop.json` | 127 keys, 9 languages: page strings and the 11 tenet questions (`modules.wp5_workshop.question.<tenet>`); outside `data/`, so always vendored | P15 |
+| 71 | M | `translations/ui/sidebar.json` | `ui.sidebar.workshop_elicitation` | P15 |
 
 Load DA actor list: P4 (user decision 2026-10-21).
 
