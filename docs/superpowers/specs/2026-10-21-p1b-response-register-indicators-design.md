@@ -321,8 +321,10 @@ R's tabs 1–5:
    project load, a MosaicSES compartment switch), Save writes nothing and says
    why. After a successful add the page shows R's "Response measure added!".
    `TargetElement` is a **select of the project's non-Response element IDs**
-   rather than R's free text (*my call*; it stores the same ";"-joined ID
-   string, and IDs not in the project are kept and shown).
+   rather than R's free text (*my call*). R's field is free text, usually
+   comma-separated (its placeholder reads "e.g., A001, D002"); SESPy reads both
+   `;` and `,` as separators and writes `;`-joined IDs, and IDs not in the
+   project are kept and shown.
 2. **Impacts.** R's tab 2: measure, problem type, element (select, as above),
    strength, timeframe; table with delete (*my call*: R has no delete). R's
    heatmap, its "Priority ranking" summary and its "Cost vs expected impact"
