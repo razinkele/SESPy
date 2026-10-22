@@ -6,6 +6,47 @@ shared by 2+ modules can land here.
 """
 from __future__ import annotations
 
+import math
+from typing import Any, Iterable
+
+
+def _finite_number(v: Any) -> float | None:
+    """R `as.numeric` on one scalar, finite values only: an int, a float or a
+    numeric string (surrounding whitespace allowed) -> float; a bool, None, a
+    non-numeric value, NaN or +-inf -> None."""
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        f = float(v)
+    elif isinstance(v, str):
+        try:
+            f = float(v)
+        except ValueError:
+            return None
+    else:
+        return None
+    return f if math.isfinite(f) else None
+
+
+def safe_counter(counter: Any, ids: Iterable[Any], prefix: str) -> int:
+    """R `safe_counter` (functions/data_structure.R:25-33, v1.33.0): the
+    larger of the stored counter and the largest numeric suffix of the str
+    ids that start with `prefix`.
+
+    The counter counts only as a finite number (`_finite_number`; anything
+    else is 0). Suffixes are read like R's `as.numeric` (pending D4):
+    "RM1e2" -> 100, "RM 7" -> 7, "RM12.5" -> 12.5; non-numeric and
+    non-finite suffixes are ignored. Result `int(max(...))`, so the next ID
+    is `prefix + f"{safe_counter(...) + 1:03d}"` (R next_element_id).
+    """
+    nums = [_finite_number(counter) or 0.0]
+    for i in ids:
+        if isinstance(i, str) and i.startswith(prefix):
+            n = _finite_number(i[len(prefix):])
+            if n is not None:
+                nums.append(n)
+    return int(max(nums))
+
 
 def next_id(existing_ids: list[str], prefix: str) -> str:
     """Return the next available id for a given DAPSIWRM type prefix.

@@ -170,8 +170,10 @@ def test_stakeholder_roles_are_r_stakeholder_types():
 @pytest.mark.parametrize("raw,expected", [
     ("Regulators;Inputters", "Inputters;Regulators"),
     (["Influencers", "Influencers", " Affectees "], "Affectees;Influencers"),
+    (("Regulators", "Inputters"), "Inputters;Regulators"),     # a selectize returns a tuple
     ("regulators;Bogus", ""),            # codes are case-sensitive, as R
     (None, ""), ("", ""),
+    (5, ""),                             # pending D3: a hand-edited number -> str() -> dropped
 ])
 def test_normalize_ne_roles(raw, expected):
     assert normalize_ne_roles(raw) == expected
@@ -190,6 +192,19 @@ def test_add_stakeholder_normalises_roles():
     assert out[0].ne_roles == "Inputters;Regulators"
     out = update_stakeholder(out, "SH001", {"ne_roles": ["Influencers", "Extractors"]})
     assert out[0].ne_roles == "Extractors;Influencers"
+    # the plan's case: a selectize tuple
+    out = add_stakeholder([], {"name": "A", "ne_roles": ("Regulators", "Inputters")},
+                          today="2026-10-21")
+    assert out[0].ne_roles == "Inputters;Regulators"
+
+
+def test_add_stakeholder_uses_the_counter():
+    # R pims_stakeholder_module.R:458-460: safe_counter(counter, ids, "SH") + 1.
+    items = add_stakeholder([], {"name": "A"}, today="2026-10-21")
+    items = add_stakeholder(items, {"name": "B"}, today="2026-10-21", counter=1)
+    items = remove_stakeholder(items, "SH002")
+    assert add_stakeholder(items, {"name": "C"}, today="2026-10-21", counter=2)[-1].id == "SH003"
+    assert add_stakeholder([Stakeholder(id="SH007", name="X")], {"name": "Y"}, today="d")[-1].id == "SH008"
 
 
 def test_update_keeps_source_id():

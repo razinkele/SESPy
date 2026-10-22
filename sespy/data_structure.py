@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import math
 from dataclasses import asdict, dataclass, field, fields
 from dataclasses import replace as _dc_replace
 from datetime import datetime, timezone
@@ -177,6 +178,7 @@ def _isa_from_dict(raw: dict[str, Any]) -> IsaData:
     # connections below, instead of raising TypeError in Element(**e).
     el_keys = {f.name for f in fields(Element)} - {"r_extra"}
     elements = []
+    hoisted = 0
     for e in raw.get("elements", []):
         el_fields = {k: v for k, v in e.items() if k in el_keys}
         for f in INDICATOR_FIELDS:          # schema v8: tolerant, never fatal
@@ -197,7 +199,17 @@ def _isa_from_dict(raw: dict[str, Any]) -> IsaData:
                 e.get("id"), type(r_extra).__name__,
             )
             r_extra = {}
+        # Spec §4.3 hoist: a project saved from the v1.14.x Caribbean template
+        # keeps R's `indicator` in r_extra; it belongs in the v8 field.
+        moved = r_extra.get("indicator")
+        if not el_fields.get("indicator") and isinstance(moved, str) and moved:
+            el_fields["indicator"] = moved
+            r_extra = {k: v for k, v in r_extra.items() if k != "indicator"}
+            hoisted += 1
         elements.append(Element(**el_fields, r_extra=dict(r_extra)))
+    if hoisted:
+        _log.info("moved r_extra['indicator'] into the Indicator field of %d element(s)",
+                  hoisted)
     conn_keys = {f.name for f in fields(Connection)} - {"ratings", "description"}
     rating_keys = {f.name for f in fields(Rating)}
     connections = []
@@ -426,6 +438,25 @@ def _min_reader_stamp(current: Any, *, newer_build: bool) -> str:
         return floor
 
 
+def _coerce_counter(value: Any, where: str) -> int:
+    """A loaded ID counter (schema v8: `stakeholder_counter`, the register's
+    `counter`). An int (not a bool) is kept as is; a numeric string or a
+    finite float -> int(float(v)); anything else -> 0 with one warning.
+    The counter is kept as loaded: safe_counter applies only when an ID is
+    allocated (R response_module.R:494-509, pims_stakeholder_module.R:458)."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, (float, str)) and not isinstance(value, bool):
+        try:
+            f = float(value)
+        except ValueError:
+            f = math.nan
+        if math.isfinite(f):
+            return int(f)
+    _log.warning("%s: counter %r is not a number; using 0", where, value)
+    return 0
+
+
 @dataclass
 class Project:
     """A complete saveable project: metadata + ISA data."""
@@ -434,6 +465,10 @@ class Project:
     stakeholders: list["Stakeholder"] = field(default_factory=list)
     engagements: list["Engagement"] = field(default_factory=list)
     communications: list["Communication"] = field(default_factory=list)
+    # Schema v8 (P1b): R's pims$stakeholder_counter (data_structure.R:222).
+    # New stakeholder IDs are safe_counter(counter, ids, "SH") + 1, so a
+    # deleted ID is never handed out again. Serialised only when > 0.
+    stakeholder_counter: int = field(default=0, kw_only=True)
     # Runtime only, never serialised: set by from_dict when the file came
     # from a newer SESPy (see newer_build_info()). Data this build does not
     # understand was dropped on load, so autosave refuses such a project.
@@ -455,7 +490,7 @@ class Project:
         meta = asdict(self.metadata)
         meta["min_sespy_version"] = _min_reader_stamp(
             self.metadata.min_sespy_version, newer_build=bool(self.newer_build))
-        return {
+        out: dict[str, Any] = {
             "metadata": meta,
             "isa_data": {
                 "elements": [_element_to_dict(e) for e in self.isa_data.elements],
@@ -467,6 +502,9 @@ class Project:
             "engagements": [asdict(e) for e in self.engagements],
             "communications": [asdict(c) for c in self.communications],
         }
+        if self.stakeholder_counter > 0:     # omitted when 0: v7 project shape
+            out["stakeholder_counter"] = self.stakeholder_counter
+        return out
 
     def to_json(self, *, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
@@ -490,7 +528,17 @@ class Project:
         for s in (raw.get("stakeholders") or []):
             sh = {k: v for k, v in s.items() if k in sh_keys}
             sh["ne_roles"] = normalize_ne_roles(sh.get("ne_roles"))
+            src = sh.get("source_id")
+            if src is None:                  # absent or null: default "", silently
+                sh.pop("source_id", None)
+            elif not isinstance(src, str):
+                _log.warning("stakeholder %r: source_id is %s, not a string; stored as %r",
+                             s.get("id"), type(src).__name__, str(src))
+                sh["source_id"] = str(src)
             stakeholders.append(Stakeholder(**sh))
+        stakeholder_counter = (
+            _coerce_counter(raw["stakeholder_counter"], "stakeholder_counter")
+            if "stakeholder_counter" in raw else 0)
         eng_keys = {f.name for f in fields(Engagement)}
         engagements = [
             Engagement(**{k: v for k, v in e.items() if k in eng_keys})
@@ -513,6 +561,7 @@ class Project:
             stakeholders=stakeholders,
             engagements=engagements,
             communications=communications,
+            stakeholder_counter=stakeholder_counter,
             newer_build=newer,
         )
 

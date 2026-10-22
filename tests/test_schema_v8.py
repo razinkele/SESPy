@@ -82,6 +82,41 @@ def test_indicator_field_non_str_is_coerced(caplog, given, want, logged):
     assert any("S1" in m and "registry_version" in m for m in msgs) is logged
 
 
+def test_indicator_field_coercion(caplog):        # the plan's literal test (Task 2)
+    d = Project.from_isa(IsaData(elements=[Element(id="D1", label="x", type="Drivers")])).to_dict()
+    d["isa_data"]["elements"][0].update(indicator=12, indicator_unit=None)
+    with caplog.at_level(logging.WARNING):
+        el = Project.from_dict(d).isa_data.elements[0]
+    assert (el.indicator, el.indicator_unit) == ("12", "")
+    assert sum("indicator" in r.getMessage() for r in caplog.records) == 1   # the int warns, None is silent
+
+
+def test_saved_r_extra_indicator_is_hoisted_on_load():
+    raw = {"metadata": {"name": "P", "schema_version": 7}, "isa_data": {"elements": [
+        {"id": "S1", "label": "Sargassum", "type": "Marine Processes & Functioning",
+         "r_extra": {"indicator": "Volume (t/yr)", "baseline": "Minimal pre-2011"}},
+        {"id": "S2", "label": "Reef", "type": "Marine Processes & Functioning",
+         "indicator": "kept", "r_extra": {"indicator": "left alone"}}], "connections": []}}
+    s1, s2 = Project.from_dict(raw).isa_data.elements
+    assert s1.indicator == "Volume (t/yr)" and s1.r_extra == {"baseline": "Minimal pre-2011"}
+    assert s2.indicator == "kept" and s2.r_extra == {"indicator": "left alone"}
+
+
+def test_hoist_logs_once_per_project_with_the_count(caplog):
+    raw = {"metadata": {"name": "P"}, "isa_data": {"elements": [
+        {"id": f"S{i}", "label": "x", "type": "Marine Processes & Functioning",
+         "r_extra": {"indicator": f"ind {i}"}} for i in (1, 2, 3)] + [
+        {"id": "S4", "label": "x", "type": "Drivers", "r_extra": {"indicator": 7}},     # not a str: stays
+        {"id": "S5", "label": "x", "type": "Drivers", "r_extra": {"indicator": ""}}],   # empty: stays
+        "connections": []}}
+    with caplog.at_level(logging.INFO, logger="sespy.data_structure"):
+        els = Project.from_dict(raw).isa_data.elements
+    assert [e.indicator for e in els] == ["ind 1", "ind 2", "ind 3", "", ""]
+    assert els[3].r_extra == {"indicator": 7} and els[4].r_extra == {"indicator": ""}
+    hoist = [r.getMessage() for r in caplog.records if "r_extra" in r.getMessage()]
+    assert len(hoist) == 1 and "3" in hoist[0]
+
+
 def test_indicator_fields_on_responses_survive_round_trip():
     r = Element(id="R1", label="Quota", type="Responses", indicator="TAC")
     assert Project.from_dict(Project.from_isa(IsaData(elements=[r])).to_dict()
@@ -118,6 +153,47 @@ def test_loaded_roles_are_normalised():
                             {"id": "SH003", "name": "Z", "ne_roles": None}]}
     got = [s.ne_roles for s in Project.from_dict(raw).stakeholders]
     assert got == ["Inputters;Regulators", "Affectees", ""]
+
+
+def test_loaded_source_id_is_coerced(caplog):
+    # Task 3 Interfaces: source_id None -> "" silently, non-str -> str() with a warning.
+    raw = {"metadata": {"name": "T"}, "isa_data": {"elements": [], "connections": []},
+           "stakeholders": [{"id": "SH001", "name": "X", "source_id": None},
+                            {"id": "SH002", "name": "Y", "source_id": 54},
+                            {"id": "SH003", "name": "Z", "source_id": "d54:x"}]}
+    with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
+        got = [s.source_id for s in Project.from_dict(raw).stakeholders]
+    assert got == ["", "54", "d54:x"]
+    assert sum("source_id" in r.getMessage() for r in caplog.records) == 1
+
+
+def test_stakeholder_counter_round_trip(caplog):
+    p = Project(ProjectMetadata(), IsaData(), stakeholder_counter=4)
+    d = p.to_dict()
+    assert d["stakeholder_counter"] == 4
+    assert Project.from_dict(json.loads(json.dumps(d))).stakeholder_counter == 4
+    assert p.replace(stakeholders=[]).stakeholder_counter == 4            # replace() carries it
+    assert "stakeholder_counter" not in Project(ProjectMetadata(), IsaData()).to_dict()   # 0 -> absent
+    d.pop("stakeholder_counter")
+    with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
+        assert Project.from_dict(d).stakeholder_counter == 0             # v7 file: silent default
+    assert not caplog.records
+    d["stakeholder_counter"] = "4"
+    assert Project.from_dict(d).stakeholder_counter == 4
+    d["stakeholder_counter"] = "x"
+    with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
+        assert Project.from_dict(d).stakeholder_counter == 0
+    assert sum("stakeholder_counter" in r.getMessage() for r in caplog.records) == 1
+
+
+@pytest.mark.parametrize("given,want,warns", [
+    (3, 3, False), (3.0, 3, False), ("3", 3, False), (" 2.9 ", 2, False),
+    (True, 0, True), (None, 0, True), ("x", 0, True), (float("inf"), 0, True),
+    ("nan", 0, True), ([4], 0, True)])
+def test_coerce_counter(caplog, given, want, warns):
+    with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
+        assert data_structure._coerce_counter(given, "test") == want
+    assert bool(caplog.records) is warns
 
 
 def test_new_stakeholder_fields_are_keyword_only():

@@ -40,15 +40,16 @@ def isolated_home(tmp_path, monkeypatch):
 
 # ---- tolerance -----------------------------------------------------------
 
-def test_unknown_element_keys_are_dropped_not_fatal():
+def test_unknown_element_keys_are_dropped_known_ones_load():
     # `indicator` was this test's unknown key until schema v8 (P1b) made it a
-    # field; any key Element does not declare must still be dropped.
+    # field: it now loads, and a key Element does not declare is still dropped.
     raw = _payload()
-    raw["isa_data"]["elements"][0]["future_scalar"] = "SST"
+    raw["isa_data"]["elements"][0]["indicator"] = "SST"
     raw["isa_data"]["elements"][0]["future_field"] = {"category": "x"}
-    proj = Project.from_dict(raw)
-    assert proj.isa_data.elements[0].id == "A"
-    assert not hasattr(proj.isa_data.elements[0], "future_scalar")
+    el = Project.from_dict(raw).isa_data.elements[0]
+    assert el.id == "A"
+    assert not hasattr(el, "future_field")
+    assert el.indicator == "SST"
 
 
 # ---- detection -----------------------------------------------------------

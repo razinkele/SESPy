@@ -13,7 +13,7 @@ from dataclasses import replace
 from typing import Any
 
 from sespy.data_structure import Communication, Engagement, Stakeholder
-from sespy.utils import next_id
+from sespy.utils import next_id, safe_counter
 
 _log = logging.getLogger(__name__)
 
@@ -51,12 +51,15 @@ def _with_roles(fields_: dict) -> dict:
 
 
 def add_stakeholder(
-    items: list[Stakeholder], fields_: dict, *, today: str
+    items: list[Stakeholder], fields_: dict, *, today: str, counter: int = 0
 ) -> list[Stakeholder]:
     # INVARIANT: `fields_` contains only valid Stakeholder field names and
     # NEVER `id` or `created_at` (those are assigned here). The module layer
     # builds it from exactly the form inputs, so this holds.
-    sid = next_id([s.id for s in items], "SH")
+    # R pims_stakeholder_module.R:458-460: the ID comes from the persisted
+    # counter (Project.stakeholder_counter), so a deleted ID is not reused.
+    # The caller stores safe_counter(counter, new ids, "SH") as the new counter.
+    sid = f"SH{safe_counter(counter, [s.id for s in items], 'SH') + 1:03d}"
     return [*items, Stakeholder(id=sid, created_at=today, **_with_roles(fields_))]
 
 
