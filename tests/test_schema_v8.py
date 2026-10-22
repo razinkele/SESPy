@@ -1,9 +1,11 @@
 """P1b — schema v8: version 1.15.0, the v8 min-reader floor (spec §4.1),
-Element indicator fields (§4.3)."""
+Element indicator fields (§4.3), stakeholder roles and counter (§4.4), the
+response register block (§4.2)."""
 from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -13,14 +15,18 @@ from sespy.data_structure import (
     INDICATOR_FIELDS,
     PROJECT_SCHEMA_VERSION,
     SCHEMA_MIN_READER,
+    Connection,
     Element,
     IsaData,
     Project,
     ProjectMetadata,
+    ResponseRegister,
     Stakeholder,
     _isa_from_dict,
     newer_build_info,
 )
+from sespy.persistent_storage import project_to_bytes, validate_project_payload
+from sespy.response_register import RM_REGISTER_COLUMNS, add_measure
 
 # ---- Task 1: version and schema bump ----------------------------------------
 
@@ -202,3 +208,145 @@ def test_new_stakeholder_fields_are_keyword_only():
     with pytest.raises(TypeError):
         Stakeholder("SH001", "X", "t", "s", "c", "i", "r", "HIGH", "LOW", "a", "e", "2026",
                     "Inputters")
+
+
+# ---- Task 7: the response register block (spec §4.2) ---------------------------
+
+_VENDORED_RM = json.loads(
+    (Path(__file__).resolve().parents[1] / "sespy" / "translations" / "modules"
+     / "response_measures.json").read_text(encoding="utf-8"))["translation"]
+LT_IMPLEMENTED = _VENDORED_RM["modules.response.measures.implemented"]["lt"]
+
+
+def _full_measure() -> dict:
+    """One normalised measure with a non-empty value in all 34 R columns."""
+    m = {c: f"{c} text" for c in RM_REGISTER_COLUMNS}
+    m.update(ID="RM001", Type="regulatory", Target="multiple", Effectiveness="HIGH",
+             Feasibility="LOW", Cost=7.5, Status="partially_implemented",
+             DateAdded="2026-10-22", Kind="measure", EbmCode="output", GovernanceLevel="eu",
+             ImplementingStakeholders="SH001;SH404", PairedWith="RM099",
+             PestleTag="political;legal", TargetElement="MPF1;P404",
+             TenetSource="workshop:WS-10")
+    for c in RM_REGISTER_COLUMNS:
+        if c.startswith("Tenet_") and c != "TenetSource":
+            m[c] = "full"
+    m["Tenet_ecol_effective"] = "intermediate"
+    m["Tenet_communicable"] = "minimal"
+    return m
+
+
+def test_round_trip_all_features():
+    # spec §1 done-when 1, through the real upload path.
+    measure = _full_measure()
+    impact = {"ResponseID": "RM001", "ProblemType": "specific_pressure",
+              "ProblemElementID": "P404", "ImpactStrength": "strong", "Timeframe": "long_term_10y"}
+    milestone = {"ResponseID": "RM001", "Milestone": "Consultation", "TargetDate": "2027-10-22",
+                 "Status": "in_progress", "Notes": "first round"}
+    reg = ResponseRegister(measures=[measure], impacts=[impact], milestones=[milestone], counter=1)
+    mpf = Element(id="MPF1", label="Reef", type="Marine Processes & Functioning",
+                  indicator="Coral cover", indicator_unit="%", data_source="Survey",
+                  registry_id="WP5-IND-07", registry_version="3", policy_target="My 25% target")
+    d1 = Element(id="D1", label="Demand", type="Drivers")
+    conn = Connection(source="D1", target="MPF1", description="Visitors bring boats")
+    sh = Stakeholder(id="SH001", name="Port", ne_roles="Inputters;Regulators", source_id="d54:tus_07")
+    p = Project(ProjectMetadata.new("RT"), IsaData(elements=[d1, mpf], connections=[conn]),
+                stakeholders=[sh], stakeholder_counter=1, response_measures=reg)
+    raw = json.loads(project_to_bytes(p))
+    res = validate_project_payload(raw)
+    assert res.valid, res.errors
+    back = res.project
+    got = back.response_measures
+    assert len(got.measures) == 1
+    for c in RM_REGISTER_COLUMNS:
+        assert got.measures[0][c] == measure[c], c
+    assert got.impacts == [impact] and got.milestones == [milestone] and got.counter == 1
+    assert back.isa_data.elements == [d1, mpf]
+    assert back.isa_data.connections[0].description == "Visitors bring boats"
+    assert back.stakeholders == [sh] and back.stakeholder_counter == 1
+    assert back.response_measures == reg
+
+
+def test_v7_file_loads_with_new_defaults():
+    raw = {"metadata": {"name": "Old", "schema_version": 7, "min_sespy_version": "1.13.0"},
+           "isa_data": {"elements": [{"id": "D1", "label": "x", "type": "Drivers"}],
+                        "connections": []},
+           "stakeholders": [{"id": "SH001", "name": "Port", "stakeholder_type": "government"}]}
+    p = Project.from_dict(raw)
+    assert p.response_measures == ResponseRegister() and p.response_measures.is_empty()
+    assert p.stakeholder_counter == 0
+    assert (p.stakeholders[0].ne_roles, p.stakeholders[0].source_id) == ("", "")
+    assert all(getattr(p.isa_data.elements[0], f) == "" for f in INDICATOR_FIELDS)
+    assert p.newer_build == {}
+
+
+def test_empty_register_is_omitted():
+    assert "response_measures" not in Project(ProjectMetadata(), IsaData()).to_dict()
+
+
+def test_counter_alone_is_kept():
+    d = Project(ProjectMetadata(), IsaData(),
+                response_measures=ResponseRegister(counter=3)).to_dict()
+    assert d["response_measures"] == {"measures": [], "impacts": [], "milestones": [], "counter": 3}
+    assert Project.from_dict(d).response_measures.counter == 3
+
+
+@pytest.mark.parametrize("bad,check", [
+    ({"measures": {"ID": "RM001"}}, lambda r: r.measures == []),               # D11: object -> empty
+    ({"measures": ["oops"]}, lambda r: r.measures == []),                      # D11: string row dropped
+    ({"measures": [{"ID": "RM001", "Cost": "cheap"}]},
+     lambda r: r.measures[0]["Cost"] is None),
+    ({"measures": [{"ID": "RM001", "PestleTag": ["legal", "social"]}]},
+     lambda r: r.measures[0]["PestleTag"] == "social;legal"),
+    ({"measures": [{"ID": "RM001", "Status": LT_IMPLEMENTED}]},
+     lambda r: r.measures[0]["Status"] == "implemented"),
+    ({"counter": "7"}, lambda r: r.counter == 7),
+    ({"counter": None}, lambda r: r.counter == 0),
+])
+def test_from_dict_tolerates_malformed_register(bad, check):
+    raw = {"metadata": {"name": "M"}, "isa_data": {"elements": [], "connections": []},
+           "response_measures": bad}
+    assert check(Project.from_dict(raw).response_measures)
+
+
+def test_non_dict_register_block_is_empty_with_a_warning(caplog):
+    raw = {"metadata": {"name": "M"}, "isa_data": {"elements": [], "connections": []},
+           "response_measures": ["not", "a", "block"]}
+    with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
+        assert Project.from_dict(raw).response_measures == ResponseRegister()
+    assert len(caplog.records) == 1
+
+
+def test_loaded_counter_is_kept_not_raised():
+    # R response_module.R:494-501: the stored counter is loaded as is;
+    # safe_counter applies only when a measure is added (:507-509).
+    raw = {"metadata": {"name": "M"}, "isa_data": {"elements": [], "connections": []},
+           "response_measures": {"measures": [{"ID": "RM012", "Name": "x"}], "counter": 0}}
+    p = Project.from_dict(raw)
+    assert p.response_measures.counter == 0
+    assert p.to_dict()["response_measures"]["counter"] == 0
+    reg, mid = add_measure(p.response_measures, {"Name": "y", "Type": "regulatory"},
+                           today="2026-10-22")
+    assert mid == "RM013" and reg.counter == 13
+
+
+def test_counter_coercion(caplog):
+    base = {"metadata": {"name": "M"}, "isa_data": {"elements": [], "connections": []}}
+    assert Project.from_dict({**base, "response_measures": {"counter": 3.0}}).response_measures.counter == 3
+    with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
+        assert Project.from_dict({**base, "response_measures": {"counter": True}}
+                                 ).response_measures.counter == 0
+    assert len(caplog.records) == 1
+
+
+def test_replace_carries_register():
+    reg = ResponseRegister(measures=[_full_measure()], counter=1)
+    p = Project(ProjectMetadata(), IsaData(), response_measures=reg)
+    assert p.replace(metadata=ProjectMetadata(name="Renamed")).response_measures == reg
+    assert p.with_modified_now().response_measures == reg
+
+
+def test_register_to_dict_is_a_deep_copy():
+    reg = ResponseRegister(measures=[_full_measure()], counter=1)
+    d = reg.to_dict()
+    d["measures"][0]["Name"] = "changed"
+    assert reg.measures[0]["Name"] == "Name text"

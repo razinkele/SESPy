@@ -359,6 +359,49 @@ class Communication:
     created_at: str = ""
 
 
+@dataclass
+class ResponseRegister:
+    """R's response register (schema v8, spec §4.2): rows are plain dicts keyed
+    by R's column names (sespy.response_register.RM_REGISTER_COLUMNS,
+    IMPACT_COLUMNS, MILESTONE_COLUMNS); `counter` is R's
+    response_measures$counter. Serialised by Project.to_dict only when not
+    is_empty(). Edit it through the helpers in sespy.response_register,
+    which return new objects."""
+    measures: list[dict[str, Any]] = field(default_factory=list)
+    impacts: list[dict[str, str]] = field(default_factory=list)
+    milestones: list[dict[str, str]] = field(default_factory=list)
+    counter: int = 0
+
+    def is_empty(self) -> bool:
+        return not (self.measures or self.impacts or self.milestones) and self.counter == 0
+
+    def to_dict(self) -> dict[str, Any]:
+        # Row-wise, as R's jsonlite::toJSON writes a data.frame; deep copies.
+        return {
+            "measures": copy.deepcopy(self.measures),
+            "impacts": copy.deepcopy(self.impacts),
+            "milestones": copy.deepcopy(self.milestones),
+            "counter": self.counter,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: Any) -> "ResponseRegister":
+        # Lazy: sespy.response_register imports this module.
+        from .response_register import normalize_impacts, normalize_measures, normalize_milestones
+        if not isinstance(raw, dict):
+            _log.warning("response_measures is %s, not an object; loaded as empty",
+                         type(raw).__name__)
+            return cls()
+        counter = (_coerce_counter(raw["counter"], "response_measures.counter")
+                   if "counter" in raw else 0)
+        return cls(
+            measures=normalize_measures(raw.get("measures")),
+            impacts=normalize_impacts(raw.get("impacts")),
+            milestones=normalize_milestones(raw.get("milestones")),
+            counter=counter,   # kept as loaded (R response_module.R:494-501)
+        )
+
+
 def _running_version() -> str:
     # Lazy: sespy/__init__.py must stay importable without data_structure.
     from . import __version__
@@ -469,6 +512,9 @@ class Project:
     # New stakeholder IDs are safe_counter(counter, ids, "SH") + 1, so a
     # deleted ID is never handed out again. Serialised only when > 0.
     stakeholder_counter: int = field(default=0, kw_only=True)
+    # Schema v8 (P1b): R's Response register (spec §4.2). Serialised only
+    # when not empty.
+    response_measures: ResponseRegister = field(default_factory=ResponseRegister, kw_only=True)
     # Runtime only, never serialised: set by from_dict when the file came
     # from a newer SESPy (see newer_build_info()). Data this build does not
     # understand was dropped on load, so autosave refuses such a project.
@@ -504,6 +550,8 @@ class Project:
         }
         if self.stakeholder_counter > 0:     # omitted when 0: v7 project shape
             out["stakeholder_counter"] = self.stakeholder_counter
+        if not self.response_measures.is_empty():   # omitted when empty: v7 shape
+            out["response_measures"] = self.response_measures.to_dict()
         return out
 
     def to_json(self, *, indent: int = 2) -> str:
@@ -539,6 +587,8 @@ class Project:
         stakeholder_counter = (
             _coerce_counter(raw["stakeholder_counter"], "stakeholder_counter")
             if "stakeholder_counter" in raw else 0)
+        response_measures = (ResponseRegister.from_dict(raw["response_measures"])
+                             if "response_measures" in raw else ResponseRegister())
         eng_keys = {f.name for f in fields(Engagement)}
         engagements = [
             Engagement(**{k: v for k, v in e.items() if k in eng_keys})
@@ -562,6 +612,7 @@ class Project:
             engagements=engagements,
             communications=communications,
             stakeholder_counter=stakeholder_counter,
+            response_measures=response_measures,
             newer_build=newer,
         )
 

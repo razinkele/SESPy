@@ -32,11 +32,12 @@ def newer_build_file(dest: Path) -> Path:
         "metadata": {"name": "From the future", "schema_version": 99,
                      "min_sespy_version": "99.0.0"},
         "isa_data": raw.get("isa_data", raw),
-        # A block this build does not know; it is dropped on load.
-        "response_measures": {"measures": [{"ID": "RM1"}]},
+        # A block this build does not know; it is dropped on load. (Until P1b
+        # this was `response_measures`, which schema 8 now loads.)
+        "future_block": {"rows": [{"ID": "X1"}]},
     }
     # And an element field this build does not know (must not crash load).
-    payload["isa_data"]["elements"][0]["indicator"] = "SST"
+    payload["isa_data"]["elements"][0]["future_field"] = "SST"
     dest.write_text(json.dumps(payload), encoding="utf-8")
     return dest
 

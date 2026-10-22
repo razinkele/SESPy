@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from sespy.data_structure import ResponseRegister
 from sespy.response_register import (
     EBM_MANAGEMENT_MEASURES,
     EBM_POLICY_INSTRUMENTS,
@@ -34,6 +35,12 @@ from sespy.response_register import (
     RM_TYPE_CODES,
     TENET_CODES,
     TIMEFRAMES,
+    add_impact,
+    add_measure,
+    add_milestone,
+    delete_impact,
+    delete_measures,
+    delete_milestone,
     display_value,
     ebm_code_choices,
     ebm_picker_label,
@@ -42,8 +49,10 @@ from sespy.response_register import (
     normalize_measures,
     normalize_milestones,
     priority_rows,
+    references_to,
     reverse_label_map,
     suggest_target,
+    update_measure,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -341,8 +350,70 @@ def test_display_value():
 
 
 def test_response_register_imports_without_shiny():
+    # exit 2: the register did not load (Task 7 makes the from_dict half meaningful);
+    # exit 1: Shiny was imported.
     code = ("import sys, sespy.response_register; from sespy.data_structure import Project; "
             "p = Project.from_dict({'metadata': {'name': 'x'}, 'isa_data': {'elements': [], "
             "'connections': []}, 'response_measures': {'measures': [{'ID': 'RM001', 'Name': 'n'}], "
-            "'counter': 1}}); sys.exit(1 if 'shiny' in sys.modules else 0)")
+            "'counter': 1}}); "
+            "ok = getattr(getattr(p, 'response_measures', None), 'measures', [{}])[0].get('ID') == 'RM001'; "
+            "sys.exit(1 if 'shiny' in sys.modules else 0 if ok else 2)")
     assert subprocess.run([sys.executable, "-c", code], cwd=ROOT).returncode == 0
+
+
+# ---- register-level helpers (Task 7; response_module.R:504-525, 650-657) ----------
+
+def _reg(**kw):
+    return ResponseRegister(**kw)
+
+
+def test_add_update_delete_cycle():
+    reg0 = _reg()
+    reg1, a = add_measure(reg0, {"Name": "No-take zone", "Type": "regulatory", "Cost": 5,
+                                 "ID": "RM999", "DateAdded": "1999-01-01"}, today="2026-10-21")
+    reg2, b = add_measure(reg1, {"Name": "Moorings", "Type": _rm("technical", "de")},
+                          today="2026-10-22")
+    assert (a, b) == ("RM001", "RM002") and reg2.counter == 2
+    assert reg0.measures == [] and len(reg1.measures) == 1          # never mutated
+    m1, m2 = reg2.measures
+    assert (m1["ID"], m1["DateAdded"], m1["Cost"]) == ("RM001", "2026-10-21", 5.0)
+    assert m2["Type"] == "technical" and list(m2) == list(RM_REGISTER_COLUMNS)
+    reg3, ok = update_measure(reg2, "RM001", {"Status": "implemented", "ID": "RM777",
+                                              "DateAdded": "2000-01-01", "Bogus": 1,
+                                              "Cost": "8"})
+    assert ok
+    u = reg3.measures[0]
+    assert (u["ID"], u["DateAdded"], u["Status"], u["Name"], u["Cost"]) == (
+        "RM001", "2026-10-21", "implemented", "No-take zone", 8.0)
+    assert reg2.measures[0]["Status"] == ""                          # old object untouched
+    reg_same, ok = update_measure(reg3, "RM404", {"Name": "x"})
+    assert not ok and reg_same == reg3
+    reg4 = add_impact(reg3, {"ResponseID": "RM001", "ProblemType": "specific_pressure"})
+    reg4 = add_milestone(reg4, {"ResponseID": "RM001", "Milestone": "Law", "Status": "pending"})
+    reg4 = add_milestone(reg4, {"ResponseID": "RM002", "Milestone": "Buoys", "Status": "pending"})
+    reg5, n = delete_measures(reg4, ["RM001"])
+    assert [m["ID"] for m in reg5.measures] == ["RM002"] and n == 2
+    assert len(reg5.impacts) == 1 and len(reg5.milestones) == 2       # kept: no cascade
+    assert reg5.counter == 2
+    reg6, c = add_measure(reg5, {"Name": "Seasonal closure", "Type": "regulatory"}, today="d")
+    assert c == "RM003"
+
+
+def test_impact_and_milestone_delete_by_index():
+    reg = add_impact(_reg(), {"ResponseID": "RM001", "ProblemType": "Strong"})
+    reg = add_impact(reg, {"ResponseID": "RM002", "ImpactStrength": "Strong"})
+    assert reg.impacts[1]["ImpactStrength"] == "strong"               # label -> code
+    assert delete_impact(reg, 0).impacts == [reg.impacts[1]]
+    assert delete_impact(reg, 5) is reg and delete_impact(reg, -1) is reg
+    assert delete_milestone(reg, 0) is reg                            # no milestones
+
+
+def test_references_to():
+    reg, _ = add_measure(_reg(), {"Name": "a", "Type": "regulatory", "TargetElement": "P001;P002"},
+                         today="d")
+    reg, _ = add_measure(reg, {"Name": "b", "Type": "regulatory", "TargetElement": "P0021"},
+                         today="d")
+    reg = add_impact(reg, {"ResponseID": "RM002", "ProblemElementID": "P002"})
+    assert references_to(reg, "P002") == ["RM001", "RM002"]
+    assert references_to(reg, "P001") == ["RM001"]
+    assert references_to(reg, "P00") == [] and references_to(reg, "") == []

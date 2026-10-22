@@ -18,9 +18,13 @@ from __future__ import annotations
 import json
 import logging
 import math
+from dataclasses import replace
 from functools import cache
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
+
+from .data_structure import ResponseRegister
+from .utils import safe_counter
 
 _log = logging.getLogger(__name__)
 
@@ -411,3 +415,77 @@ def display_value(column: str, value: Any, tr: Callable[[str], str]) -> str:
         return ", ".join(_translate(key + t if t in PESTLE_CODES else None, t, tr)
                          for t in raw.split(";"))
     return _translate(_display_key(column, raw), raw, tr)
+
+
+# ---- register-level helpers (return new objects, never mutate) ------------------
+
+def add_measure(reg: ResponseRegister, fields: dict[str, Any], *,
+                today: str) -> tuple[ResponseRegister, str]:
+    """R register add (response_module.R:507-511, 562-585): n = safe_counter(
+    counter, ids, "RM") + 1, ID "RM%03d", counter = n, DateAdded = today; the
+    row goes through normalize_measures. Returns (new register, new ID)."""
+    n = safe_counter(reg.counter, [m.get("ID") for m in reg.measures], "RM") + 1
+    new_id = f"RM{n:03d}"
+    row = normalize_measures([{**fields, "ID": new_id, "DateAdded": today}])[0]
+    return replace(reg, measures=[*reg.measures, row], counter=n), new_id
+
+
+def update_measure(reg: ResponseRegister, measure_id: str,
+                   fields: dict[str, Any]) -> tuple[ResponseRegister, bool]:
+    """R register update (response_module.R:515-525): the first row with
+    `measure_id` gets the known columns of `fields` (R skips only ID; SESPy
+    also keeps DateAdded); other columns are kept; the row is re-normalised.
+    (unchanged register, False) when the ID is absent."""
+    for i, m in enumerate(reg.measures):
+        if m.get("ID") == measure_id:
+            changes = {k: v for k, v in fields.items()
+                       if k in RM_REGISTER_COLUMNS and k not in ("ID", "DateAdded")}
+            row = normalize_measures([{**m, **changes}])[0]
+            measures = [*reg.measures[:i], row, *reg.measures[i + 1:]]
+            return replace(reg, measures=measures), True
+    return reg, False
+
+
+def delete_measures(reg: ResponseRegister,
+                    ids: Iterable[str]) -> tuple[ResponseRegister, int]:
+    """R delete (response_module.R:650-657): only the measure rows go; the
+    counter is unchanged and impacts/milestones are kept (no cascade, spec
+    §6.1). The int counts the impact + milestone rows whose ResponseID is in
+    `ids`."""
+    gone = set(ids)
+    measures = [m for m in reg.measures if m.get("ID") not in gone]
+    refs = sum(1 for r in (*reg.impacts, *reg.milestones) if r.get("ResponseID") in gone)
+    return replace(reg, measures=measures), refs
+
+
+def add_impact(reg: ResponseRegister, fields: dict[str, Any]) -> ResponseRegister:
+    return replace(reg, impacts=[*reg.impacts, *normalize_impacts([fields])])
+
+
+def delete_impact(reg: ResponseRegister, index: int) -> ResponseRegister:
+    if not 0 <= index < len(reg.impacts):
+        return reg
+    return replace(reg, impacts=[r for i, r in enumerate(reg.impacts) if i != index])
+
+
+def add_milestone(reg: ResponseRegister, fields: dict[str, Any]) -> ResponseRegister:
+    return replace(reg, milestones=[*reg.milestones, *normalize_milestones([fields])])
+
+
+def delete_milestone(reg: ResponseRegister, index: int) -> ResponseRegister:
+    if not 0 <= index < len(reg.milestones):
+        return reg
+    return replace(reg, milestones=[r for i, r in enumerate(reg.milestones) if i != index])
+
+
+def references_to(reg: ResponseRegister, element_id: str) -> list[str]:
+    """Sorted unique IDs of the measures whose TargetElement (";"-split, exact
+    match) contains `element_id`, plus the ResponseID of impact rows whose
+    ProblemElementID equals it (the ISA page's delete warning, spec §6.1)."""
+    if not element_id:
+        return []
+    hits = {m.get("ID", "") for m in reg.measures
+            if element_id in m.get("TargetElement", "").split(";")}
+    hits |= {r.get("ResponseID", "") for r in reg.impacts
+             if r.get("ProblemElementID") == element_id}
+    return sorted(h for h in hits if h)
