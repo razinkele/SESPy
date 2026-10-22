@@ -1,6 +1,6 @@
 # P1b — Response register, indicator fields, stakeholder roles (schema v8)
 
-**Status:** design, approved by the user 2026-10-21; amended in plan review round 1 (2026-10-21) · **Date:** 2026-10-21
+**Status:** design, approved by the user 2026-10-21; amended in plan review rounds 1–2 (2026-10-21/22) · **Date:** 2026-10-21
 **Roadmap:** `docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md` §2 P1b
 (branch `docs/r-parity-roadmap`). P0, P1a (v1.13.0) and P2 (v1.14.0) are shipped;
 SESPy main is v1.14.2 (`c7fde7f`).
@@ -181,7 +181,8 @@ on load and on every write.
 
 #### 4.2.3 IDs and counter (R parity, not SESPy's `next_id`)
 New measure ID = `"RM%03d" % n` where
-`n = max(counter, largest integer suffix of existing "RM…" IDs) + 1`
+`n = max(counter, largest numeric suffix of existing "RM…" IDs) + 1` (suffixes
+read as R's `as.numeric` reads them: `RM1e2` → 100)
 (R `safe_counter` + `next_element_id`); `counter` is then set to `n`. Deleting
 never lowers `counter`, so IDs are not reused while the counter survives. One
 ID per add (the `33ddd96` bug cannot occur). On load the stored `counter` is
@@ -233,6 +234,11 @@ stakeholder keys).
   `ImplementingStakeholders` cannot silently start naming someone else. P1c
   maps R's `pims.stakeholder_counter`. Engagement and communication IDs keep
   `next_id` (nothing refers to them).
+- **Projects saved before v1.15 (*my call*):** they carry no counter, so it
+  loads as 0. Deleting a stakeholder therefore also raises the counter to cover
+  the IDs present before the removal; otherwise deleting the highest ID before
+  any add would hand it out again. R files always carry the counter, so this
+  guard is SESPy-only and changes nothing for them.
 
 ### 4.5 Connection description
 `Connection.description` already exists (P1a) with no UI. P1b adds the UI only;
@@ -303,6 +309,17 @@ R's tabs 1–5:
    its choices (a hand-typed Type, an unvalidated Effectiveness, a dangling
    `PairedWith` or `ImplementingStakeholders` ID) gets that value as an extra
    choice shown raw, so saving never rewrites data the user did not touch.
+   Two more rules serve the same promise (*my call*; R has no Edit):
+   - Filling the form for Edit must not trigger R's follow-up rules, which
+     clear the EBM code when Kind changes and replace Target with the EBM
+     code's suggestion. Those rules run only on the user's own change of Kind
+     or EBM code.
+   - When a picker's choices refresh because the project changed (a
+     stakeholder added on the PIMS page), the user's current picks are kept.
+   **Stale edits are refused (*my call*):** Edit remembers the record it
+   opened; if the project was replaced or the record changed before Save (a
+   project load, a MosaicSES compartment switch), Save writes nothing and says
+   why. After a successful add the page shows R's "Response measure added!".
    `TargetElement` is a **select of the project's non-Response element IDs**
    rather than R's free text (*my call*; it stores the same ";"-joined ID
    string, and IDs not in the project are kept and shown).
@@ -354,7 +371,9 @@ an edit panel bound to the selected row (stakeholder-page pattern:
   shown read-only when present. Labels use R's
   `modules.indicator_registry.field_*` keys.
 - **Connection:** description.
-Save goes through the existing `_replace(isa)` path. Deleting an element that
+Save goes through the existing `_replace(isa)` path, and is refused like the
+register's when the project was replaced or the record changed since Edit
+(MosaicSES compartments repeat element IDs). Deleting an element that
 the register references warns (§6.1). MosaicSES compartments
 reuse `isa_data_entry_server`, so the panel appears there too (§10).
 

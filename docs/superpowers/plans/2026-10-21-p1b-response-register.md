@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13 (env `shiny`), Shiny for Python **1.8.0** (the env's version; `shiny.testserver.test_server` for module tests), pandas, matplotlib (`render.plot`), openpyxl, pytest, Playwright (standalone async e2e scripts run by `tests/run_e2e.py`).
 
-**Spec:** `docs/superpowers/specs/2026-10-21-p1b-response-register-indicators-design.md` (approved 2026-10-21; amended in plan review round 1). Section numbers below (§) refer to it.
+**Spec:** `docs/superpowers/specs/2026-10-21-p1b-response-register-indicators-design.md` (approved 2026-10-21; amended in plan review rounds 1–2). Section numbers below (§) refer to it.
 
 ## Global Constraints
 
@@ -33,10 +33,10 @@
 
 ## Review Focus
 
-1. **Stored values outside a select's choices** — a hand-typed `Type`, an unvalidated `Effectiveness` ("Very high"), a dangling `PairedWith` (RM099) or `ImplementingStakeholders` (SH404), a free-text `policy_target`: opening the record in Edit and saving must not rewrite them (Shiny drops a `selected` value that is not a choice). Owning tasks: **Task 9** (`test_free_text_policy_target_kept`), **Task 11** (`test_edit_keeps_dangling_and_pass_through_values`).
+1. **Edit must not rewrite what the user did not touch** — a hand-typed `Type`, an unvalidated `Effectiveness` ("Very high"), a dangling `PairedWith` (RM099) or `ImplementingStakeholders` (SH404), a free-text `policy_target` (Shiny drops a `selected` value that is not a choice); a stored `Target` or `EbmCode` that R's kind/EBM-code follow-up rules would overwrite when Edit's own updates echo back from the browser; picks lost when a picker refreshes; a Save after the project was replaced. Owning tasks: **Task 9** (`test_free_text_policy_target_kept`, `test_save_after_project_swap_does_not_write`), **Task 11** (`test_edit_keeps_dangling_and_pass_through_values`, `test_echo_guard`, `test_choice_refresh_keeps_current_pick`), **Task 13** (register e2e step 7).
 2. **Hand-edited or legacy register data** — measures as a JSON object instead of a list, a row that is a string, `Cost` `"cheap"`, `PestleTag` as a JSON array, a Lithuanian Status label, `counter` `"7"` or `null`: load never fails; the value is normalised or defaulted with one log line. Owning task: **Task 7** (`test_from_dict_tolerates_malformed_register`, seven cases).
-3. **IDs after delete and on loaded projects** — measures: delete RM003 of RM001–RM003 then add → RM004; a file with `counter` 0 and IDs up to RM012 keeps counter 0 on load and adds RM013. Stakeholders: delete SH002 of SH001–SH002 then add → SH003, never SH002 again. Owning tasks: **Task 3** (`test_safe_counter_cases`, `test_add_stakeholder_uses_the_counter`), **Task 7** (`test_loaded_counter_is_kept_not_raised`), **Task 10** (`test_deleted_id_is_not_reused`).
-4. **Files from older builds** — a project saved from the v1.14.x Caribbean template keeps `r_extra["indicator"]` and must show it in the new Indicator field; a Responses element carrying indicator fields keeps them; a v7 file loads with empty defaults; a v1.14 reader refuses to overwrite a v8 file. Owning tasks: **Task 2** (`test_saved_r_extra_indicator_is_hoisted_on_load`, `test_indicator_fields_on_responses_survive_round_trip`), **Task 7** (`test_v7_file_loads_with_new_defaults`), **Task 1** (`test_v8_file_is_newer_build_for_a_1_14_reader`).
+3. **IDs after delete and on loaded projects** — measures: delete RM003 of RM001–RM003 then add → RM004; a file with `counter` 0 and IDs up to RM012 keeps counter 0 on load and adds RM013. Stakeholders: delete SH002 of SH001–SH002 then add → SH003, never SH002 again, also on a project saved before v1.15 (no counter in the file). Owning tasks: **Task 3** (`test_safe_counter_cases`, `test_add_stakeholder_uses_the_counter`), **Task 7** (`test_loaded_counter_is_kept_not_raised`), **Task 10** (`test_deleted_id_is_not_reused`, `test_deleted_id_is_not_reused_on_a_pre_1_15_project`).
+4. **Files from older builds** — a project saved from the v1.14.x Caribbean template keeps `r_extra["indicator"]` and must show it in the new Indicator field; a Responses element carrying indicator fields keeps them; a v7 file loads with empty defaults; a v1.14 reader refuses to overwrite a v8 file. Owning tasks: **Task 4** (`test_saved_r_extra_indicator_is_hoisted_on_load`), **Task 2** (`test_indicator_fields_on_responses_survive_round_trip`), **Task 7** (`test_v7_file_loads_with_new_defaults`), **Task 1** (`test_v8_file_is_newer_build_for_a_1_14_reader`).
 5. **Language switch while the register is open** — stored values are codes, so switching the UI language re-labels the table without changing data; labels typed in another language on import map back to codes. Owning tasks: **Task 6** (`test_reverse_map_all_languages`), **Task 11** (`test_language_switch_relabels_not_rewrites`).
 
 ---
@@ -79,6 +79,7 @@ git -C $W status -sb                # "## feat/p1b-response-register...origin/ma
 ```
 
 - [ ] **Step 2: Baselines.** Run the CI unit command and the lint statistics from `<W>`; write both numbers into the ledger (expected 1230 passed, 1 skipped; 54). Confirm `git -C <R> rev-parse --short=7 'v1.33.0^{commit}'` prints `4017feb`.
+  The ledger lives in the **main checkout**: `<S>\.superpowers\sdd\2026-10-21-p1b-response-register\progress.md` (gitignored there too). `.superpowers/` and `.remember/` are gitignored in `<W>`, and `git worktree remove` (Task 16 Step 7) deletes ignored files without asking, so a ledger inside `<W>` would be lost.
 
 ---
 
@@ -98,6 +99,10 @@ git -C $W status -sb                # "## feat/p1b-response-register...origin/ma
 - [ ] **Step 1: Write the failing tests** in `tests/test_schema_v8.py`:
 
 ```python
+from sespy import data_structure
+from sespy.data_structure import (PROJECT_SCHEMA_VERSION, SCHEMA_MIN_READER, IsaData, Project,
+                                  newer_build_info)
+
 def test_schema_8_and_floor():
     assert PROJECT_SCHEMA_VERSION == 8
     assert SCHEMA_MIN_READER == {7: "1.13.0", 8: "1.15.0"}
@@ -124,9 +129,11 @@ try {
   "sync exit: $LASTEXITCODE"            # 0, eight "wrote ..." lines
   micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check
   "check exit: $LASTEXITCODE"           # 0, no other output
-  git status --short sespy/templates    # exactly the 7 *_SES_Template.json files
+  git status --short sespy/templates    # the 7 *_SES_Template.json files, plus catalogue.json
+  git diff --stat sespy/templates       # only the 7 templates
 } finally { Pop-Location }
 ```
+`catalogue.json` shows ` M` only because the checkout is `core.autocrlf=true` and the sync rewrote its CRLF working copy as LF; its content is unchanged (it holds no SESPy version) and staging the directory records nothing for it.
 - [ ] **Step 5:** `micromamba run -n shiny python -m pytest tests/test_schema_v8.py tests/test_schema_v7.py tests/test_data_structure.py tests/test_manual.py tests/test_schema_read_ahead.py tests/test_r_template_catalogue.py -q` → all pass. Then the CI unit command → green, no exceptions.
 - [ ] **Step 6: Commit** `feat(schema): v1.15.0 and project schema 8 (P1b)`, staging the files above and `sespy/templates/marinesabres`.
 
@@ -143,7 +150,8 @@ try {
 - Produces `data_structure.INDICATOR_FIELDS: tuple[str, ...] = ("indicator", "indicator_unit", "data_source", "registry_id", "registry_version", "policy_target")` (R `ISA_INDICATOR_COLUMNS`, `constants.R:855`, lowercased as R's loader does, `data_structure.R:947-949`).
 - `Element` gains these six as `str = field(default="", kw_only=True)`, declared after `r_extra`.
 - `constants.POLICY_TARGET_CODES: tuple[str, ...] = ("kmgbf_30x30", "eu_nrr", "msfd_ges_d1", "msfd_ges_d6", "national_mpa_pct")` (`constants.R:940`).
-- `_isa_from_dict`: each indicator value `None` → `""` silently (as `Connection.description`, `data_structure.py:185-189`); a non-str → `str(v)` with one `_log.warning` naming the element id and the field. **Hoist (spec §4.3):** when an element's `indicator` is empty and `r_extra.get("indicator")` is a non-empty `str`, move it into `indicator` and drop the key from `r_extra`; one `_log.info` per project with the count. `_element_to_dict` writes each non-empty field after `confidence` and before `r_extra`, in `INDICATOR_FIELDS` order.
+- `_isa_from_dict`: each indicator value `None` → `""` silently (as `Connection.description`, `data_structure.py:185-189`); a non-str → `str(v)` with one `_log.warning` naming the element id and the field. `_element_to_dict` writes each non-empty field after `confidence` and before `r_extra`, in `INDICATOR_FIELDS` order. (The load-time `r_extra["indicator"]` hoist is Task 4's: it must land in the same commit as the mapper change, or the Caribbean drift guard goes red.)
+- `qsem_import.py:191` and `excel_import.py:232` build payloads from `e.__dict__`, so they now carry the six keys as `""`; the loader treats them as empty, no change needed.
 
 - [ ] **Step 1: Failing tests**
 
@@ -172,24 +180,14 @@ def test_indicator_fields_on_responses_survive_round_trip():
     r = Element(id="R1", label="Quota", type="Responses", indicator="TAC")
     assert Project.from_dict(Project.from_isa(IsaData(elements=[r])).to_dict()).isa_data.elements[0].indicator == "TAC"
 
-def test_new_element_fields_are_keyword_only():
+def test_new_element_fields_are_keyword_only():     # a guard: it already passes before the change
     Element("D1", "x", "Drivers", "d", 3)                      # positional shape unchanged
     with pytest.raises(TypeError):
         Element("D1", "x", "Drivers", "d", 3, {}, "Coral cover")
-
-def test_saved_r_extra_indicator_is_hoisted_on_load():
-    raw = {"metadata": {"name": "P", "schema_version": 7}, "isa_data": {"elements": [
-        {"id": "S1", "label": "Sargassum", "type": "Marine Processes & Functioning",
-         "r_extra": {"indicator": "Volume (t/yr)", "baseline": "Minimal pre-2011"}},
-        {"id": "S2", "label": "Reef", "type": "Marine Processes & Functioning",
-         "indicator": "kept", "r_extra": {"indicator": "left alone"}}], "connections": []}}
-    s1, s2 = Project.from_dict(raw).isa_data.elements
-    assert s1.indicator == "Volume (t/yr)" and s1.r_extra == {"baseline": "Minimal pre-2011"}
-    assert s2.indicator == "kept" and s2.r_extra == {"indicator": "left alone"}
 ```
 Modify `tests/test_schema_read_ahead.py:43-49` → `test_unknown_element_keys_are_dropped_known_ones_load`: keep both keys in the payload; assert `not hasattr(el, "future_field")` and `el.indicator == "SST"`.
 
-- [ ] **Step 2:** run → fail. **Step 3:** implement as Interfaces say.
+- [ ] **Step 2:** run → the new tests fail (except the keyword-only guard). **Step 3:** implement as Interfaces say.
 - [ ] **Step 4:** tests + CI unit command → green. **Step 5: Commit** `feat(schema): indicator fields on elements (P1b)`.
 
 ---
@@ -201,11 +199,11 @@ Modify `tests/test_schema_read_ahead.py:43-49` → `test_unknown_element_keys_ar
 - Test: `tests/test_utils.py`, `tests/test_schema_v8.py`, `tests/test_stakeholders.py`
 
 **Interfaces:**
-- `utils.safe_counter(counter: Any, ids: Iterable[str], prefix: str) -> int` — R `data_structure.R:25-33`: the counter as a finite number (an int, a float, a numeric string; `bool`, `None`, non-numeric, NaN/inf → 0), the integer suffixes of the `str` ids that start with `prefix` (non-numeric suffixes ignored), result `int(max(counter, *suffixes))`. Task 6/7 import it from here.
+- `utils.safe_counter(counter: Any, ids: Iterable[str], prefix: str) -> int` — R `data_structure.R:25-33`: the counter as a finite number (an int, a float, a numeric string; `bool`, `None`, non-numeric, NaN/inf → 0), the suffixes of the `str` ids that start with `prefix`, read as numbers the way R's `as.numeric` reads them (`float()` of the rest, surrounding whitespace allowed, finite values only, non-numeric ones ignored: `RM1e2` → 100, `RM 7` → 7, `RM12.5` → 12.5), result `int(max(counter, *suffixes))`. Task 6/7 import it from here.
 - `Stakeholder.ne_roles: str = field(default="", kw_only=True)`, `Stakeholder.source_id: str = field(default="", kw_only=True)`.
 - `stakeholders.STAKEHOLDER_ROLES: tuple[str, ...] = ("Inputters", "Extractors", "Regulators", "Affectees", "Beneficiaries", "Influencers")` (R's `STAKEHOLDER_TYPES`, `constants.R:564-571`; renamed because SESPy already has an unrelated `stakeholder_type`).
-- `stakeholders.normalize_ne_roles(value: str | Sequence[str] | None) -> str` — a str splits on `;`, a list or tuple (what a selectize returns) is taken item by item; strip, drop unknown values (one `logging` warning listing them), dedupe, order as `STAKEHOLDER_ROLES`, join with `;` (`stakeholder_schema.R:30-37`).
-- `Project.stakeholder_counter: int = field(default=0, kw_only=True)` (R `pims$stakeholder_counter`, `data_structure.R:222`), declared before `newer_build`. `to_dict` writes a top-level `"stakeholder_counter"` only when > 0. `from_dict` reads it through a private `_coerce_counter(value, where: str) -> int` (also used by Task 7): an `int` (not `bool`) as is, a numeric string or finite float → `int(float(v))`, anything else → 0 with one warning.
+- `stakeholders.normalize_ne_roles(value: str | Sequence[str] | None) -> str` — a str splits on `;`, a list or tuple (what a selectize returns) is taken item by item, any other value is read as `str(value)` first (a hand-edited `5` is then dropped); strip, drop unknown values (one `logging` warning listing them once, deduplicated), dedupe, order as `STAKEHOLDER_ROLES`, join with `;` (`stakeholder_schema.R:30-37`).
+- `Project.stakeholder_counter: int = field(default=0, kw_only=True)` (R `pims$stakeholder_counter`, `data_structure.R:222`), declared before `newer_build`. `to_dict` writes a top-level `"stakeholder_counter"` only when > 0. `from_dict` reads it through a private `_coerce_counter(value, where: str) -> int` (also used by Task 7): an absent key or JSON `null` → 0 **silently** (every file without stakeholder adds lacks the key); an `int` (not `bool`) as is; a numeric string or finite float → `int(float(v))`; anything else → 0 with one warning.
 - `from_dict` normalises each loaded stakeholder's `ne_roles` and coerces `source_id` (`None` → "" silently, non-str → `str()` with a warning). It imports `sespy.stakeholders` **inside the function**: `stakeholders.py` imports `data_structure` at module level, so a top-level import would be a cycle.
 - `stakeholders.add_stakeholder(items, fields_, *, today, counter: int = 0) -> list[Stakeholder]` — the new ID is `f"SH{safe_counter(counter, [s.id for s in items], 'SH') + 1:03d}"` (R `pims_stakeholder_module.R:458-460`), no longer `next_id`; `fields_["ne_roles"]`, when present, goes through `normalize_ne_roles`. `update_stakeholder` normalises `ne_roles` the same way. The caller stores the new counter as `safe_counter(counter, [s.id for s in new_list], "SH")` (Task 10). Engagement and communication IDs keep `next_id`.
 
@@ -219,6 +217,7 @@ def test_safe_counter_cases():            # tests/test_utils.py; R data_structur
     assert safe_counter(3.0, ["SH001"], "SH") == 3
     assert safe_counter(True, ["SH002"], "SH") == 2      # a bool is not a count
     assert safe_counter("x", ["SH007", None], "SH") == 7
+    assert safe_counter(0, ["RM1e2", "RM 7", "RM12.5", "RMinf"], "RM") == 100   # R as.numeric, finite only
 
 @pytest.mark.parametrize("raw,expected", [
     ("Regulators;Inputters", "Inputters;Regulators"),
@@ -230,7 +229,9 @@ def test_safe_counter_cases():            # tests/test_utils.py; R data_structur
 def test_normalize_ne_roles(raw, expected): ...
 
 def test_stakeholder_roles_round_trip():   # ne_roles + source_id survive to_dict/from_dict; both keys always present
-def test_stakeholder_counter_round_trip():  # 4 -> "stakeholder_counter": 4; 0 -> key absent; "4" loads as 4; "x" loads as 0 with a warning
+def test_new_stakeholder_fields_are_keyword_only():   # positional Stakeholder(...) calls keep working (a guard)
+def test_stakeholder_counter_round_trip():  # 4 -> "stakeholder_counter": 4; 0 -> key absent; "4" loads as 4;
+                                            # "x" loads as 0 with a warning; an absent key loads as 0 with no warning
 def test_add_stakeholder_uses_the_counter():
     items = add_stakeholder([], {"name": "A"}, today="2026-10-21")
     items = add_stakeholder(items, {"name": "B"}, today="2026-10-21", counter=1)
@@ -245,15 +246,21 @@ The existing `tests/test_stakeholders.py:127-153` tests stay as they are (`SH001
 
 ---
 
-### Task 4: Mapper `indicator` hoist and Excel indicator columns
+### Task 4: R indicator into `Element.indicator` — mapper, load-time hoist, Excel columns
 
 **Files:**
-- Modify: `sespy/r_template_mapper.py` (the generic extras loop, `:110-117`), `sespy/excel_import.py` (`ELEMENT_DESC_COLS`, element construction `:184-191`)
+- Modify: `sespy/data_structure.py` (`indicator_text`, the `_isa_from_dict` hoist), `sespy/r_template_mapper.py` (the generic extras loop, `:110-117`), `sespy/excel_import.py` (`ELEMENT_DESC_COLS`, element construction `:184-191`)
 - Modify tests: `tests/test_r_template_mapper.py::test_every_r_element_field_is_kept` (`:105-120`)
-- Test: `tests/test_r_template_mapper.py`, `tests/test_excel_import.py`
+- Test: `tests/test_r_template_mapper.py`, `tests/test_excel_import.py`, `tests/test_schema_v8.py`
 - Regenerate: `sespy/templates/marinesabres/Caribbean_SES_Template.json`
 
-**Interfaces:** Consumes `INDICATOR_FIELDS` (Task 2). Produces `excel_import.ELEMENT_INDICATOR_COLS: dict[str, str]` = field → R header (`"indicator": "Indicator", "indicator_unit": "Indicator_Unit", "data_source": "Data_Source", "registry_id": "Registry_Id", "registry_version": "Registry_Version", "policy_target": "Policy_Target"`), matched **case-insensitively** by a new `_pick_casefold(row, name, default="")` (the first column whose `str(col).casefold() == name.casefold()` and whose value is not NA). `ELEMENT_DESC_COLS = ("description", "Description")`: an Indicator column no longer feeds the description.
+The three parts land in one commit: once `from_dict` hoists, the shipped Caribbean template (loaded) and a fresh conversion must both carry the indicators in the field, or `tests/test_r_template_catalogue.py::test_drift_guard_shipped_project_equals_the_conversion` (`:609-623`) goes red.
+
+**Interfaces:** Consumes `INDICATOR_FIELDS` (Task 2).
+- `data_structure.indicator_text(value: Any) -> str` — `None` or NaN → `""`, an integral float → its int text (`2.0` → `"2"`), anything else → `str(value)`. The mapper and the Excel import pass every indicator value through it.
+- **Hoist (spec §4.3)** in `_isa_from_dict`: when an element's `indicator` is empty and `r_extra.get("indicator")` is a non-empty `str`, move it into `indicator` and drop the key from `r_extra`; one `_log.info` per project with the count.
+- Mapper: the R key `indicator` goes to `Element(indicator=indicator_text(v))` instead of `r_extra`; all other extras unchanged.
+- Produces `excel_import.ELEMENT_INDICATOR_COLS: dict[str, str]` = field → R header (`"indicator": "Indicator", "indicator_unit": "Indicator_Unit", "data_source": "Data_Source", "registry_id": "Registry_Id", "registry_version": "Registry_Version", "policy_target": "Policy_Target"`), matched **case-insensitively** by a new `_pick_casefold(row, name, default="")` (the first column whose `str(col).casefold() == name.casefold()` and whose value is not NA). `ELEMENT_DESC_COLS = ("description", "Description")`: an Indicator column no longer feeds the description.
 
 - [ ] **Step 1: Failing tests**
 
@@ -276,10 +283,23 @@ def test_excel_indicator_columns_fill_the_fields_not_description(tmp_path):
         "Visitors", "per year", "Stats office", "eu_nrr")
 
 def test_excel_description_still_read(tmp_path):   # a "Description" column -> description; indicator fields ""
+def test_excel_numeric_registry_version(tmp_path): # a Registry_Version column holding 2 (and a blank) -> "2", ""
+
+def test_saved_r_extra_indicator_is_hoisted_on_load():   # tests/test_schema_v8.py
+    raw = {"metadata": {"name": "P", "schema_version": 7}, "isa_data": {"elements": [
+        {"id": "S1", "label": "Sargassum", "type": "Marine Processes & Functioning",
+         "r_extra": {"indicator": "Volume (t/yr)", "baseline": "Minimal pre-2011"}},
+        {"id": "S2", "label": "Reef", "type": "Marine Processes & Functioning",
+         "indicator": "kept", "r_extra": {"indicator": "left alone"}}], "connections": []}}
+    s1, s2 = Project.from_dict(raw).isa_data.elements
+    assert s1.indicator == "Volume (t/yr)" and s1.r_extra == {"baseline": "Minimal pre-2011"}
+    assert s2.indicator == "kept" and s2.r_extra == {"indicator": "left alone"}
+
+def test_indicator_text():   # None, float("nan") -> ""; 2.0 -> "2"; 2.5 -> "2.5"; "x" -> "x"
 ```
 Modify `test_every_r_element_field_is_kept`: inside the loop, `if f == "indicator": assert el.indicator == v; continue` before the `r_extra` assert (so `names` never holds `indicator` and `set(report.extra_fields) == names | {"type"}` still holds).
 
-- [ ] **Step 2:** fail. **Step 3:** mapper: the R key `indicator` goes to `Element(indicator=str(v))` instead of `r_extra`; all other extras unchanged. Excel as Interfaces say.
+- [ ] **Step 2:** fail. **Step 3:** implement as Interfaces say.
 - [ ] **Step 4: Regenerate Caribbean** — the Task 1 Step 4 block again: `sync exit: 0`, `check exit: 0`, and `git status --short sespy/templates` lists only `Caribbean_SES_Template.json`.
 - [ ] **Step 5:** tests + CI unit → green. **Step 6: Commit** `feat(import): R indicator into Element.indicator; Excel indicator columns (P1b)`.
 
@@ -297,6 +317,7 @@ Modify `test_every_r_element_field_is_kept`: inside the loop, `if f == "indicato
     - `test_fixture_mode_writes_projects_and_catalogue_only` → `test_fixture_mode_writes_projects_catalogue_and_translations`: the changed set gains the 6 `sespy/translations/modules/<stem>.json`, and `wrote` lines 8 → 14;
     - `test_check_reports_missing_outputs` (`:312-314`): 8 → 14;
     - `test_shipped_catalogue_equals_a_fresh_build` (`:642`): `("v1.31.0", "4b53b7d")` → `("v1.33.0", "4017feb")`.
+    - `test_committed_tree_has_no_drift_as_crlf` (`:652`): its temp tree also gets `shutil.copytree(ROOT / "sespy/translations/modules", root / "sespy/translations/modules")`, CRLF-converted with the templates, so the check covers the vendored files too (without it the check reports 6 `differs:` lines).
     - `test_build_is_deterministic_lf_and_newline_terminated` (`:184`) stays unchanged: `build_outputs()` is not touched.
   - `tests/parity/test_r_sync.py::test_pin_shape` (`:27`): `len(paths) == 18`; add `sum(p.startswith("tests/parity/r_translations/") for p in paths) == 6` and that the 3 new `tests/parity/r_source/` paths are present.
 - Generated by the sync: `tests/parity/r_sync.json`, `tests/parity/r_source/{constants.R,response_measures_schema.R,stakeholder_schema.R}`, `tests/parity/r_translations/*.json` (6), `sespy/translations/modules/*.json` (6), the generated block of `docs/parity/R_SYNC.md`, `sespy/templates/marinesabres/catalogue.json` (its `r_tag`/`r_commit` move to v1.33.0 / `4017feb`; the 7 templates are byte-identical, the R files being unchanged)
@@ -311,7 +332,7 @@ Modify `test_every_r_element_field_is_kept`: inside the loop, `if f == "indicato
   `wp5_governance: ("modules.wp5_governance.role.", "modules.wp5_governance.ne_roles")`,
   `indicator_registry: ("modules.indicator_registry.policy_target", "modules.indicator_registry.field_")`.
   Measured while planning at v1.33.0: 142, 26, 47, 6, 8, 10 keys = **239**, all 9 languages complete, no clash with `core.json`.
-- `build_vendored_translations(raw_by_stem: dict[str, bytes]) -> dict[str, bytes]` (pure): for each stem, parse the R file (`utf-8-sig`), select keys in R's order, return `{f"sespy/translations/modules/{stem}.json": (json.dumps({"languages": <R's list>, "translation": {...}}, indent=2, ensure_ascii=False) + "\n").encode("utf-8")}`. A file without a `translation` object raises `ValueError` (`sync()` already turns that into exit 1 with nothing written).
+- `build_vendored_translations(raw_by_stem: dict[str, bytes]) -> dict[str, bytes]` (pure): for each stem, parse the R file (`utf-8-sig`), select keys in R's order, return `{f"sespy/translations/modules/{stem}.json": (json.dumps({"languages": <R's list>, "translation": {...}}, indent=2, ensure_ascii=False) + "\n").encode("utf-8")}`. A file without a `translation` object, or a prefix that selects no key (R renamed a key family), raises `ValueError`; `sync()` already turns that into exit 1 with nothing written, as long as the call sits inside the `try` around `build_outputs()` (`r_template_catalogue.py:300-307`).
 - `sync()`: git mode reads the translation inputs with `git show` like the others; fixture mode reads them from `tests/parity/r_translations/` (extend the `if r_path.startswith("data/")` loop to `translations/`). `outputs.update(build_vendored_translations(...))` right after `build_outputs()`; translation inputs never enter `raw_by_file`. So `--from-fixtures` writes and checks 14 outputs (7 templates, catalogue, 6 vendored files), and `--check` reports vendored drift in either mode.
 
 - [ ] **Step 1: Failing tests** (in `tests/test_r_template_catalogue.py`, plus the modifications above):
@@ -325,11 +346,13 @@ def test_vendored_translation_key_counts():
         "response_measures": 142, "response_governance": 26, "wp5_vocabulary": 47,
         "wp5_scenarios": 6, "wp5_governance": 8, "indicator_registry": 10}
 def test_build_vendored_translations_is_pure_and_lf():    # a fake input -> the exact expected bytes; no "\r"
+def test_translation_prefix_that_selects_nothing_writes_nothing(tmp_path, monkeypatch):
+    # monkeypatch a TRANSLATION_SUBSETS prefix to "modules.nothing." -> sync exit 1, the tree unchanged
 def test_package_data_ships_vendored_translations():      # as tests/test_templates.py:207-214
     # tomllib.load(pyproject) -> "translations/modules/*.json" in tool.setuptools.package-data.sespy
 ```
 
-- [ ] **Step 2:** fail. **Step 3:** implement.
+- [ ] **Step 2:** fail. **Step 3:** implement. Expect about 40 reds in `tests/test_r_template_catalogue.py` and `tests/parity/test_r_sync.py` after Step 3 (every fixture-mode test needs `tests/parity/r_translations/`, which only Step 4's real sync writes); they go green after Step 4.
 - [ ] **Step 4: Run the real sync** (no `--accept-warnings`: the 7 templates are byte-identical v1.31.0 → v1.33.0, so the pinned accepted warnings still match; any `warning (unaccepted)` line is a stop)
 
 ```powershell
@@ -345,7 +368,7 @@ try {
   git status --short
 } finally { Pop-Location }
 ```
-Expected: `hash ...: (none) -> <hash>` for the 9 new inputs, no hash line for the 9 old ones, and `git status --short` shows exactly the generated paths in Files plus this task's hand edits.
+Expected: `hash ...: (none) -> <hash>` for the 9 new inputs, no hash line for the 9 old ones, and `git status --short` shows the generated paths in Files plus this task's hand edits (new directories collapse to `?? sespy/translations/modules/` and `?? tests/parity/r_translations/`). It also lists the 9 previously pinned fixtures as ` M`: git mode rewrote their CRLF working copies with R's LF blobs, and `git diff --stat` lists none of them. Stage them with the commit (`git add tests/parity/r_templates tests/parity/r_rules tests/parity/r_source/template_loader.R`); git records no content change for them (`git diff --cached --stat` does not list them), and the worktree is clean afterwards.
 - [ ] **Step 5: R_SYNC.md prose** (outside the generated block; no 64-hex string anywhere in the prose, `tests/parity/test_r_sync.py:52-54` compares every one with the pin):
   - Update the prose that names v1.31.0 as the current pin: adopted in 1.15.0 (P1b), previous pin v1.31.0; the 9 previously pinned files are identical v1.31.0 → v1.33.0; P1b adds 3 R sources and 6 translation files (vendored subsets in `sespy/translations/modules/`).
   - Add `## R changes v1.31.0 → v1.33.0 (triaged <date>)`: one row per path of `git -C <R> diff --name-status v1.31.0 v1.33.0` (71 paths, prefix omitted), columns `# | Status | Path | Change | Owner`, as the v1.29.0 → v1.31.0 table. Owners follow spec §9's summary table; read each path's diff (or R's CHANGELOG 1.32.0–1.33.0 entries) for the Change column; every row has an owner or "not relevant". Then the line "Load DA actor list: P4 (user decision 2026-10-21)." (The `33ddd96` check item is closed in Task 10, once its test exists.)
@@ -365,7 +388,7 @@ Expected: `hash ...: (none) -> <hash>` for the 9 new inputs, no hash line for th
   - `GOVERNANCE_LEVELS` (`:828`), `TENET_LEVELS` (`:829`), `PESTLE_CODES` (`:933`).
   - `EBM_POLICY_INSTRUMENTS: tuple[tuple[str, str], ...]` — all 24 rows (code, level), category rows included (`:780-790`); `EBM_MANAGEMENT_MEASURES: tuple[tuple[str, str, str], ...]` (code, category, dapsiwrm_target) (`:793-801`).
   - UI choice lists from `response_module.R` (not a fixture; cite the lines): `KIND_CODES = ("instrument", "measure")`, `EFFECTIVENESS_LEVELS = ("HIGH", "MEDIUM", "LOW", "UNKNOWN")`, `FEASIBILITY_LEVELS = ("HIGH", "MEDIUM", "LOW")` (`:91-102`), `IMPACT_PROBLEM_TYPES = ("specific_pressure", "specific_activity", "specific_driver", "system_wide_issue")`, `IMPACT_STRENGTHS = ("strong", "moderate", "weak")`, `TIMEFRAMES = ("immediate", "short_term_1_3y", "medium_term_3_10y", "long_term_10y")` (`:207-224`), `MILESTONE_STATUSES = ("pending", "in_progress", "completed", "delayed")` (`:340`); `IMPACT_COLUMNS`, `MILESTONE_COLUMNS` (`data_structure.R:292-305`).
-- `reverse_label_map() -> dict[str, dict[str, str]]` — vocab name (`type, target, status, problem_type, strength, timeframe, milestone_status`) → {label (stripped, every language of the vendored `sespy/translations/modules/response_measures.json`) → code}; first occurrence wins; `functools.cache`. Reads the vendored file, never the fixture.
+- `reverse_label_map() -> dict[str, dict[str, str]]` — vocab name (`type, target, status, problem_type, strength, timeframe, milestone_status`) → {label (stripped, every language of the vendored `sespy/translations/modules/response_measures.json`) → code}; first occurrence wins; `functools.cache`. Reads the vendored file, never the fixture. Lookups use the stored value as it is, untrimmed, as R's `.map_codes` does (`response_measures_schema.R:40-45`): `" Activities: "` stays unmapped.
 - `normalize_measures(rows: Any) -> list[dict[str, Any]]` — R `normalize_response_measures` (`response_measures_schema.R:49-107`) step for step (spec §4.2.1). `Cost` → a finite float, else `None` (`"cheap"`, `"nan"`, `"inf"` → `None`, so the JSON stays valid).
 - `normalize_impacts(rows: Any) -> list[dict[str, str]]`, `normalize_milestones(rows: Any) -> list[dict[str, str]]` — exactly the 5 columns; labels → codes for ProblemType/ImpactStrength/Timeframe/Status; unknown values pass through.
 - `ebm_code_choices(kind: str) -> list[str]` — instruments: the 20 codes with level `"type"`; measures: all 12; else `[]` (`response_measures_schema.R:118-129`).
@@ -414,7 +437,7 @@ def test_response_register_imports_without_shiny():   # subprocess, cwd <W>: imp
     # run Project.from_dict on a payload with a register, exit 1 if "shiny" in sys.modules (as tests/parity/test_r_sync.py:78-82)
 ```
 
-`tests/parity/test_r_register_parity.py` reads `tests/parity/r_source/constants.R` (CRLF → LF) through a small R-literal parser: balanced parentheses, string literals with escapes, `name = "value"` pairs (→ dict), `rep("x", n)`, `paste0("p", c(...))`, `c(...)`, `list(...)` and `data.frame(col = c(...), ...)` (→ dict of columns); anything else raises. It asserts, order included:
+`tests/parity/test_r_register_parity.py` reads `tests/parity/r_source/constants.R` (CRLF → LF) through a small R-literal parser: balanced parentheses, string literals with escapes, `name = "value"` pairs (→ dict), `rep("x", n)`, `paste0("p", c(...))`, `c(...)`, `list(...)` and `data.frame(col = c(...), ...)` (→ dict of columns); it skips `#` comments outside string literals (`ELEMENT_ID_PREFIX` has them, `constants.R:140-149`), accepts `TRUE`/`FALSE`, and ignores a `data.frame`'s `stringsAsFactors = …` argument; anything else raises. It asserts, order included:
 - `RM_TYPE_CODES`, `RM_TARGET_CODES`, `RM_STATUS_CODES` (names → values);
 - `GOVERNANCE_LEVELS`, `TENET_LEVELS`, `PESTLE_CODES`, `RM_REGISTER_COLUMNS`, `RM_DISPLAY_COLUMNS`;
 - `EBM_TENETS$code` ↔ `TENET_CODES`; `EBM_POLICY_INSTRUMENTS` (code, level); `EBM_MANAGEMENT_MEASURES` (code, category, dapsiwrm_target);
@@ -468,12 +491,17 @@ def test_v7_file_loads_with_new_defaults():      # a schema-7 payload: empty reg
     # ne_roles == source_id == "", indicator fields "", newer_build == {}
 def test_empty_register_is_omitted():            # "response_measures" not in to_dict()
 def test_counter_alone_is_kept():                # counter 3, no rows -> serialised
-@pytest.mark.parametrize("bad", [
-    {"measures": {"ID": "RM001"}}, {"measures": ["oops"]}, {"measures": [{"ID": "RM001", "Cost": "cheap"}]},
-    {"measures": [{"ID": "RM001", "PestleTag": ["legal", "social"]}]},
-    {"measures": [{"ID": "RM001", "Status": "<lt label of implemented>"}]},
-    {"counter": "7"}, {"counter": None}])
-def test_from_dict_tolerates_malformed_register(bad): ...   # loads; values normalised/defaulted
+@pytest.mark.parametrize("bad,expect", [
+    ({"measures": {"ID": "RM001"}}, {"n_measures": 0}),     # R keeps list-valued entries only
+                                                            # (response_measures_schema.R:54); one warning
+    ({"measures": ["oops"]}, {"n_measures": 0}),            # a string row is dropped; one warning
+    ({"measures": [{"ID": "RM001", "Cost": "cheap"}]}, {"Cost": None}),
+    ({"measures": [{"ID": "RM001", "PestleTag": ["legal", "social"]}]}, {"PestleTag": "social;legal"}),
+    ({"measures": [{"ID": "RM001", "Status": "Įgyvendintas"}]}, {"Status": "implemented"}),   # the lt label
+    ({"counter": "7"}, {"counter": 7}),
+    ({"counter": None}, {"counter": 0}),                    # silent
+])
+def test_from_dict_tolerates_malformed_register(bad, expect): ...   # loads without raising; each expectation holds
 def test_loaded_counter_is_kept_not_raised():    # counter 0 + RM012 -> loads 0, re-serialises 0; add_measure -> RM013
 def test_counter_coercion():                     # 3.0 -> 3; True -> 0 with a warning
 def test_replace_carries_register():             # project.replace(metadata=...) keeps response_measures
@@ -578,21 +606,38 @@ def test_workbook_headers_are_the_stakeholder_fields():  # tests/test_stakeholde
 
 **Files:**
 - Create: `sespy/modules/response_register.py`, `tests/test_response_register_module.py`
-- Modify: `app.py` (`NAV` after `entry`: `NavItem(id="responses", icon="list-check", label="Response Register", label_key="nav.responses")`; `PANELS` after Edit Data: `ui.nav_panel("Response Register", response_register_ui("responses"), value="responses")`; `NAV_TO_STEP["responses"] = "create"`; `response_register_server("responses", project_data=..., event_bus=..., translator=translator)`), `docs/MANUAL.md`, `README.md` (`:10`, `:50`, `:61`, `:121`), `tests/test_manual.py`
+- Modify: `app.py` (`NAV` after `entry`: `NavItem(id="responses", icon="list-check", label="Response Register", label_key="nav.responses")`; `PANELS` after Edit Data: `ui.nav_panel("Response Register", response_register_ui("responses"), value="responses")`; `NAV_TO_STEP["responses"] = "create"`; `response_register_server("responses", project_data=..., event_bus=..., translator=translator)`), `docs/MANUAL.md`, `README.md` (`:10`, `:50`, `:61`, `:78`, `:121`), `tests/test_manual.py`
 
 **Interfaces:** `response_register_ui()` / `response_register_server(input, output, session, *, project_data, event_bus, translator=None)` mirroring `pims_stakeholders`. Tabs `navset_tab(id="response_tabs")` with values `register`, `impacts`, `priority`, `milestones`, titled by the four R tab keys (Task 8).
-- Register tab ids and choices, as R `response_module.R:28-190` (blank first choice `""` where R has one): `rm_name`, `rm_type` (`""` + the 7 codes), `rm_target` (`""` + the 5 codes), `rm_status` (the 5 codes, **no blank choice, default `proposed`**, `:68-70`), `rm_description`, `rm_mechanism`, `rm_target_element` (selectize multiple: project element IDs except Responses, plus any stored IDs not in the project; stored `;`-joined; R has a text input, spec §6.1), `rm_effectiveness` (`""` + HIGH/MEDIUM/LOW/UNKNOWN), `rm_feasibility` (`""` + HIGH/MEDIUM/LOW), `rm_cost` (numeric 1–10, default 5), `rm_stakeholders`, `rm_barriers` (text areas); inside `ui.tags.details` (summary `modules.response.governance.section_title`): `rm_kind` (`""` + instrument/measure), `rm_ebm_code` (choices `{"": " "}` + `{c: ebm_picker_label(kind, c, tr)}` over `ebm_code_choices(kind)`; a measure code calls `suggest_target` and, when it returns non-empty, `ui.update_select("rm_target", selected=...)`), `rm_gov_level` (`""` + the 7 levels), `rm_competent_authority`, `rm_legal_basis`, `rm_paired_with` (`""` + `"<ID> - <Name>"` with R's hyphen, `response_module.R:554`, excluding the measure being edited), `rm_impl_stakeholders` (selectize multiple, `"<Name> (<ID>)"`, stored `;`-joined IDs; hint `modules.response.governance.no_stakeholders_hint` when the project has none), `rm_pestle` (multiple), `rm_tenet_<code>` ×11 (labelled `modules.wp5_vocabulary.tenet.<code>`; choices `""` labelled `tenet_level.not_assessed`, `minimal`, `intermediate` only for `ecol_effective`, `full`); `output_ui("tenet_source")` read-only when set. Buttons `save_measure`, `cancel_measure`, `edit_measure`, `delete_measures`; table `measures_table` (`RM_DISPLAY_COLUMNS` as headers, values through `display_value`, `selection_mode="rows"`, built in register order).
-- **Edit** takes the selected row (none → `responses.select_first`; more than one → `responses.select_one`), sets `editing_measure: reactive.Value[str | None]`, and repopulates the form with `ui.update_*` from `@reactive.event(editing_measure)` only (the `pims_stakeholders._repopulate` pattern). **Every select or selectize it repopulates gets the stored value(s) added to its choices, shown raw, when they are not known codes or IDs**: `rm_type`, `rm_target`, `rm_status`, `rm_effectiveness`, `rm_feasibility`, `rm_kind`, `rm_ebm_code`, `rm_gov_level`, `rm_paired_with` (a dangling ID), `rm_impl_stakeholders` (dangling IDs), `rm_target_element` (foreign IDs). The update dict never contains `ID`, `DateAdded` or `TenetSource`.
-- **Save** (`save_measure`): name and type required (`responses.name_type_required`, no write); `add_measure` or `update_measure`; then the form is cleared as R does after an add (`response_module.R:589-599`: the text fields, stakeholders, PESTLE and tenets; not type, target, status, cost or the other selects) and `editing_measure` resets.
+- Register tab ids and choices, as R `response_module.R:28-190` (blank first choice `""` where R has one): `rm_name`, `rm_type` (`""` + the 7 codes), `rm_target` (`""` + the 5 codes), `rm_status` (the 5 codes, **no blank choice, default `proposed`**, `:68-70`), `rm_description`, `rm_mechanism`, `rm_target_element` (selectize multiple: project element IDs except Responses, plus any stored IDs not in the project; stored `;`-joined; R has a text input, spec §6.1), `rm_effectiveness` (`""` + HIGH/MEDIUM/LOW/UNKNOWN), `rm_feasibility` (`""` + HIGH/MEDIUM/LOW), `rm_cost` (numeric 1–10, default 5), `rm_stakeholders`, `rm_barriers` (text areas); inside `ui.tags.details` (summary `modules.response.governance.section_title`): `rm_kind` (`""` + instrument/measure), `rm_ebm_code` (choices `{"": " "}` + `{c: ebm_picker_label(kind, c, tr)}` over `ebm_code_choices(kind)`; a measure code calls `suggest_target` and, when it returns non-empty, `ui.update_select("rm_target", selected=...)`; both are plain `ui.input_select`s, so the browser's echo is exact and the e2e drives them with `select_option`), `rm_gov_level` (`""` + the 7 levels), `rm_competent_authority`, `rm_legal_basis`, `rm_paired_with` (`""` + `"<ID> - <Name>"` with R's hyphen, `response_module.R:554`, excluding the measure being edited), `rm_impl_stakeholders` (selectize multiple, `"<Name> (<ID>)"`, stored `;`-joined IDs; hint `modules.response.governance.no_stakeholders_hint` when the project has none), `rm_pestle` (multiple), `rm_tenet_<code>` ×11 (labelled `modules.wp5_vocabulary.tenet.<code>`; choices `""` labelled `tenet_level.not_assessed`, `minimal`, `intermediate` only for `ecol_effective`, `full`); `output_ui("tenet_source")` read-only when set. Buttons `save_measure`, `cancel_measure`, `edit_measure`, `delete_measures`; table `measures_table` (`RM_DISPLAY_COLUMNS` as headers, values through `display_value`, `selection_mode="rows"`, built in register order).
+- **Edit** takes the selected row (none → `responses.select_first`; more than one → `responses.select_one`), sets `editing_measure: reactive.Value[str | None]` and `editing_snapshot` (a copy of that row, for the stale check below), and repopulates the form with `ui.update_*` from `@reactive.event(editing_measure)` only (the `pims_stakeholders._repopulate` pattern), sending `choices=` with `selected=` for every select. **Every stored value that is not among the choices offered is added to them, shown raw**: `rm_type`, `rm_target`, `rm_status`, `rm_effectiveness`, `rm_feasibility`, `rm_kind`, `rm_ebm_code` (choices: the stored Kind's `ebm_code_choices`), `rm_gov_level`, `rm_paired_with` (a dangling ID, or the edited measure itself), `rm_impl_stakeholders` (dangling IDs), `rm_target_element` (any stored ID not offered, e.g. a Responses element). The update dict never contains `ID`, `DateAdded` or `TenetSource`.
+- **Edit's own updates must not trigger the follow-up effects** (spec §6.1). In a browser each value `_repopulate` sends comes back as an input change in a later flush, so R's two rules would fire on it: the Kind effect (`@reactive.event(input.rm_kind)`, R `response_module.R:531-533`: new choices for `rm_ebm_code`, selection reset to `""`) and the EBM-code effect (`@reactive.event(input.rm_ebm_code)`, R `:535-538`: a measure code's `suggest_target` replaces `rm_target`). A small pure class in the module, `EchoGuard`, decides: `expect(name: str, sent: Any, current: Any) -> None` records `sent` only when it differs from the input's current value (read under `reactive.isolate()`; only then does the browser send it back), and `consume(name: str, incoming: Any) -> bool` forgets the record and returns `True` when `incoming` equals it, `False` otherwise (then the user's change applies). `_repopulate` calls `expect` for `rm_kind` and `rm_ebm_code` before sending them; each effect does nothing when `consume(...)` is `True`. A user's own change of Kind or EBM code still behaves as R. The load-bearing check is Task 13's register e2e step 7.
+- **Choice refresh** (spec §6.1): one `@reactive.effect` per picker whose choices come from the project (`rm_target_element`, `rm_paired_with`, `rm_impl_stakeholders`; Task 12's `impact_response`, `impact_element`, `impl_response`) builds the choices from the project, plus the stored raw values while `editing_measure` is set; reads the current value under `reactive.isolate()` with an `is_set()` guard (as `pims_stakeholders._populate_eng_stakeholders`, `:474-481`); skips the update when the choices equal the last ones sent (R `stakeholder_picker_update`, `response_measures_schema.R:202-209`); otherwise sends `choices=` with `selected=` = the current value(s) that are still choices. `_repopulate` and these effects share one `last_choices: dict[str, Any]`, so a refresh right after an Edit sees unchanged choices and stays quiet.
+- **Save** (`save_measure`): name and type required (`responses.name_type_required`, no write). An edit first runs the **stale check**: when the register's current row with `editing_measure`'s ID differs from `editing_snapshot`, or no longer exists (a project load, an import, a template, a MosaicSES compartment switch replaced the project), toast `responses.record_changed`, close the edit (`editing_measure` and `editing_snapshot` → `None`) and write nothing. Otherwise `update_measure`, or for an add `add_measure` followed by R's toast `modules.response.measures.response_measure_added` (R `:638`). Then clear exactly what R clears after an add (`response_module.R:589-599`): `rm_name`, `rm_description`, `rm_mechanism`, `rm_target_element`, `rm_stakeholders`, `rm_barriers`, `rm_competent_authority`, `rm_legal_basis`, `rm_impl_stakeholders`, `rm_pestle` and the 11 `rm_tenet_*`; `editing_measure` and `editing_snapshot` reset.
 - **Delete** (`delete_measures`, multi-row): `delete_measures(reg, ids)`, then **one** toast: `tr("modules.response.measures.deleted_response_measures")`, followed by `" " + tr("responses.deleted_with_refs", n=n)` when `n > 0`.
 - Every write: `project_data.set(project.replace(response_measures=...))` + `event_bus.emit_isa_change()`.
-- **MANUAL:** a new `## 10. Response Register` after `## 9. Edit Data` (a one-paragraph stub, finished in Task 14). Renumber with a one-off scratch script `<scratchpad>\renumber_manual.py` (not committed; it only rewrites text, so the import rule does not matter): every number N ≥ 10 becomes N + 1 in (a) headings `^## (\d+)\. `, (b) the Contents lines (`docs/MANUAL.md:11-33`, items `N. Title` separated by ` · `), (c) prose `\bsections? (\d+)` and the second number of `sections (\d+) and (\d+)` (30 references today). Numbers < 10 and appendix letters stay. Then insert `10. Response Register · ` into the Contents line after `9. Edit Data · `. `docs/MANUAL.md:56` "all nineteen panels" → "all twenty panels". README: `:10` "**19 modules**" → "**20 modules**", `:50` and `:61` "See manual sections 19 and 43" → "20 and 44", `:121` "all 19 panels" → "all 20 panels".
+- **MANUAL**, in this order:
+  1. Run a one-off scratch script `<scratchpad>\renumber_manual.py` (not committed; it only rewrites text, so the import rule does not matter) on the **unmodified** `docs/MANUAL.md`: every number N ≥ 10 becomes N + 1 in (a) headings `^## (\d+)\. `, (b) the Contents lines (`docs/MANUAL.md:11-33`, items `N. Title` separated by ` · `), (c) prose `\bsections? (\d+)` and the second number of `sections (\d+) and (\d+)`. Numbers < 10 and appendix letters stay. Before rewriting, the script maps every referenced number to its `## N.` heading title; after rewriting, it asserts each reference still maps to the same title, and prints its counts. Expected today: 36 headings, 36 Contents items and 33 prose numbers (32 references with N ≥ 10 plus the second number of "sections 32 and 33"), 66 changed lines.
+  2. Insert the stub as its own section immediately before `## 11. Rate Connections` (after the whole of §9): `## 10. Response Register`, a blank line, one paragraph (finished in Task 14). Insert `10. Response Register · ` into the Contents line after `9. Edit Data · `.
+  3. `docs/MANUAL.md:56` "all nineteen panels" → "all twenty panels". README: `:10` "**19 modules**" → "**20 modules**", `:50` and `:61` "See manual sections 19 and 43" → "20 and 44", `:78` "See manual section 43" → "See manual section 44", `:121` "all 19 panels" → "all 20 panels".
 
 - [ ] **Step 1: Failing tests** (`tests/test_response_register_module.py`; recorded `ui.update_*` and toasts, Global Constraints):
 
 ```python
-def test_add_two_measures_ids():                   # RM001, RM002; DateAdded today; Type stored as the code
+def test_add_two_measures_ids():                   # RM001, RM002; DateAdded today; Type stored as the code;
+                                                   # each add toasts tr("modules.response.measures.response_measure_added")
 def test_add_requires_name_and_type():             # a valid add first (+1 row), then a blank name -> toast, no new row
+def test_echo_guard():                             # pure: expect("rm_kind", "measure", current="instrument") then
+    # consume("rm_kind", "measure") -> True, a second consume -> False; expect with sent == current records nothing
+    # (consume -> False); consume of a different value -> False and the record is gone
+def test_edit_echo_does_not_reset_ebm_code_or_target():  # RM004 stored Kind "measure", EbmCode "output", Target
+    # "state"; the form shows Kind "instrument". Edit, then replay the browser's echo by setting rm_kind "measure" and
+    # rm_ebm_code "output" -> no recorded update_select("rm_target", ...) and no rm_ebm_code reset; positive control:
+    # the user then picks rm_ebm_code "restoration.habitat" -> recorded update_select("rm_target", selected="state")
+def test_choice_refresh_keeps_current_pick():      # rm_paired_with set to RM001; project_data.set(... a stakeholder
+    # added ...) -> any recorded update_select("rm_paired_with", ...) carries selected="RM001"
+def test_save_after_project_swap_does_not_write(): # Edit RM001, project_data.set(a project whose RM001 has another
+    # Name), save -> toast tr("responses.record_changed"), no write; positive control: the same project -> written
 def test_edit_repopulates_and_updates_in_place():  # recorded update calls carry the stored values; save -> ID,
                                                    # DateAdded and counter unchanged
 def test_edit_keeps_dangling_and_pass_through_values():  # PairedWith "RM099", ImplementingStakeholders "SH404",
@@ -605,10 +650,21 @@ def test_delete_reports_references():              # 1 impact + 1 milestone on R
 def test_measure_code_suggests_target():           # rm_kind "measure", rm_ebm_code "output" -> recorded
                                                    # update_select("rm_target", selected="pressures")
 def test_language_switch_relabels_not_rewrites():  # TR.set_language("de"): measures_table shows the German Type label;
-                                                   # the stored row is unchanged
-def test_section_references_resolve():             # tests/test_manual.py: every "section N" / "sections N and M" names an
-    # existing "## N." heading; the Contents numbers in order equal the heading numbers in order; spot checks:
-    # "Rate Connections (section 11)", "**Recent Projects** (section 23)", "**Help** (section 25)"
+    # the stored row is unchanged; switch back to "en" in a finally (TR is shared by the file's tests)
+```
+In `tests/test_manual.py` (`manual` = the text of `docs/MANUAL.md`):
+```python
+def test_section_references_resolve(manual):
+    headings = [int(n) for n in re.findall(r"^## (\d+)\. ", manual, flags=re.M)]
+    assert headings == sorted(set(headings)), headings          # unique, ascending
+    refs = [int(n) for m in re.finditer(r"\bsections? (\d+)(?: and (\d+))?", manual)
+            for n in m.groups() if n]
+    assert refs, "no section references found"
+    assert not sorted({n for n in refs if n not in headings})
+    contents = manual.split("## Contents", 1)[1].split("\n---", 1)[0]
+    assert [int(n) for n in re.findall(r"(?:^|· )(\d+)\. ", contents, flags=re.M)] == headings
+    for s in ("Rate Connections (section 11)", "**Recent Projects** (section 23)", "**Help** (section 25)"):
+        assert s in manual, s
 ```
 Also run, unchanged: `tests/test_help_offcanvas.py` and `tests/test_manual.py` (every nav panel still has a manual section).
 
@@ -621,9 +677,9 @@ Also run, unchanged: `tests/test_help_offcanvas.py` and `tests/test_manual.py` (
 **Files:** Modify `sespy/modules/response_register.py`; Create `sespy/response_reports.py`; Test `tests/test_response_register_module.py`, `tests/test_response_register.py`.
 
 **Interfaces:**
-- Impacts tab ids: `impact_response` (select `""` + `"<ID>: <Name>"`, `response_module.R:663-666`), `impact_problem` (`IMPACT_PROBLEM_TYPES`), `impact_element` (select, as `rm_target_element` but single), `impact_strength`, `impact_timeframe`, `add_impact` (requires response and problem; toast `impact_linkage_added`), `impacts_table` (values through `display_value`), `delete_impact`.
+- Impacts tab ids: `impact_response` (select `""` + `"<ID>: <Name>"`, `response_module.R:663-666`), `impact_problem` (`""` + `IMPACT_PROBLEM_TYPES`), `impact_element` (select, as `rm_target_element` but single), `impact_strength` (`""` + `IMPACT_STRENGTHS`), `impact_timeframe` (`""` + `TIMEFRAMES`) (blank first choices as R `:207-224`; the three project-fed pickers refresh by Task 11's choice-refresh rule), `add_impact` (requires response and problem; toast `impact_linkage_added`), `impacts_table` (values through `display_value`), `delete_impact`.
 - Priority tab: sliders `weight_effectiveness` 0.4, `weight_feasibility` 0.3, `weight_cost` 0.3 (0–1, step 0.1); `priority_table` from `priority_rows` with R's visible columns minus BanditSuggestion (`Rank, ID, Name, Type, Target, Kind, EbmCode, GovernanceLevel, Effectiveness, Feasibility, Cost, PriorityScore, Status`, `response_module.R:782-784`), values through `display_value`; `ef_plot` (`render.plot`, matplotlib) as R `response_module.R:796-837`: the points of `ef_points`, x = feasibility, y = effectiveness, limits 0.5–3.5, ticks 1–3 labelled `low`/`medium`/`high`, dashed grey lines at 2, title `response_measure_prioritization_matrix`, the four quadrant labels at (2.5, 2.5), (1.25, 2.5), (2.5, 1.25), (1.25, 1.25), points labelled by ID; with no point, empty axes titled `add_effectiveness_and_feasibility_ratings`.
-- Milestones tab: `impl_response`, `impl_milestone`, `impl_date` (default today + 365 days), `impl_status` (`MILESTONE_STATUSES`), `impl_notes`, `add_milestone` (requires response and milestone; clears milestone and notes; toast `milestone_added`), `milestones_table` (values through `display_value`), `delete_milestone`, `download_response_xlsx`.
+- Milestones tab: `impl_response`, `impl_milestone`, `impl_date` (default today + 365 days), `impl_status` (the 4 `MILESTONE_STATUSES`, no blank choice, R `:340`), `impl_notes`, `add_milestone` (requires response and milestone; clears milestone and notes; toast `milestone_added`), `milestones_table` (values through `display_value`), `delete_milestone`, `download_response_xlsx`.
 - `response_reports.build_response_workbook(reg: ResponseRegister, tr: Callable[[str], str]) -> bytes` (R `build_response_excel`, `response_module.R:1178-1192`): sheets `Response_Measures` (header `RM_REGISTER_COLUMNS`; the columns R translates go through `display_value`, `Cost` stays a number, blank when `None`), `Impact_Matrix` (header `IMPACT_COLUMNS`; ProblemType, ImpactStrength, Timeframe through `display_value`), `Implementation` (header `MILESTONE_COLUMNS`; Status through `display_value`). Lazy `openpyxl` import, as `stakeholder_reports.py`.
 
 - [ ] Tests: impact add/delete (with the required-field toast); milestone add with the default date; `priority_table` rows match `priority_rows`; the workbook's sheet names and header rows, a coded Type rendered as `tr("modules.response.measures.regulatory")`, a Timeframe `short_term_1_3y` as "Short-term (1-3y)", `Cost` as a number. **Steps:** fail → implement → pass + CI unit + lint → commit `feat(responses): impacts, prioritisation, milestones, Excel (P1b)`.
@@ -648,14 +704,15 @@ Each new session starts on `data/sample_ses.json` (17 elements: MPF1 "Posidonia 
   4. tab `impacts`: an impact for RM002 (`impact_problem` `specific_pressure`) → one row in `#responses-impacts_table`; tab `milestones`: milestone "Consultation" for RM002 → one row.
   5. tab `register`: select RM002, `delete_measures` → a toast whose own text contains "Deleted response measure(s)" and "2 impact or milestone rows still refer"; the table lacks `RM002`.
   6. add "Seasonal closure" → `RM003` (IDs are not reused).
-  7. tab `milestones`: `download_response_xlsx` → name ends `.xlsx`, magic bytes `PK\x03\x04`.
+  7. **Edit does not rewrite Target or EBM code** (spec §6.1; Task 11's echo guard): add RM004 "Output quota" with `rm_kind` `measure` and `rm_ebm_code` `output` (Target becomes `pressures`), then set `rm_target` `state` and save; add RM005 "Port levy" with `rm_kind` `instrument` and `rm_ebm_code` `1.1`; select RM004, `edit_measure`, change only `rm_status`, save → the RM004 row still shows Target "State" and EbmCode "Output control (e.g. TAC/quota)" (the vendored English texts of `modules.response.measures.state` and `modules.wp5_vocabulary.measure.output`).
+  8. tab `milestones`: `download_response_xlsx` → name ends `.xlsx`, magic bytes `PK\x03\x04`.
   Last line: `response register e2e: all assertions passed`.
 - `test_isa_edit_e2e.py`:
-  1. nav `entry`; select the `MPF1` row of `#entry-elements_table` (the first `td` of the `tbody tr` whose first cell is `MPF1`), `edit_element`; set `el_indicator` "Shoot density" and `el_indicator_unit` "shoots/m2"; `save_element`; select MPF1 again and edit → both inputs hold the saved values.
-  2. select `R001`, `edit_element` → `#entry-el_label` attached and `#entry-el_indicator` absent (`query_selector` → `None`).
+  1. nav `entry`; select the `MPF1` row of `#entry-elements_table` (the first `td` of the `tbody tr` whose first cell is `MPF1`), `edit_element`; set `el_indicator` "Shoot density" and `el_indicator_unit` "shoots/m2"; `save_element`; select MPF1 again and edit → both inputs hold the saved values; then `cancel_element`.
+  2. select `R001`, `edit_element`; poll until `#entry-el_label` has the value "MPA enforcement" (the editor re-rendered for R001), then assert `#entry-el_indicator` is absent (`query_selector` → `None`).
   3. select the D001 → A001 row of `#entry-connections_table`, `edit_connection`, `conn_description` "Visitors bring boats", save; edit again → the text area holds it.
   Last line: `isa edit e2e: all assertions passed`.
-- `test_stakeholders_e2e.py`: in step 2, before saving "Port Authority", set `stakeholders-sh_ne_roles` to `["Regulators", "Inputters"]`; after the row appears, the table text contains both English role labels (`modules.wp5_governance.role.inputters` / `.regulators` in the vendored file). Every later step stays unchanged.
+- `test_stakeholders_e2e.py`: in step 2, before saving "Port Authority", set `stakeholders-sh_ne_roles` to `["Regulators", "Inputters"]`; after the row appears, the table text contains `Inputters, Regulators` (the `", "` join of the translated labels; the stored value is `Inputters;Regulators`, and in English the labels equal the codes, so only the separator tells them apart). Every later step stays unchanged.
 
 - [ ] **Step 1:** from `<W>`: `micromamba run -n shiny python -m py_compile tests/test_response_register_e2e.py tests/test_isa_edit_e2e.py tests/test_stakeholders_e2e.py` → exit 0.
 - [ ] **Step 2: Run the three solo against a fresh server.** `run_e2e.py` has no single-script option, so write `<scratchpad>\e2e_solo.py` (it loads the runner by path; a `from tests.run_e2e` import would hit the stray site-packages `tests`):
@@ -680,9 +737,13 @@ try:
         sys.exit("server never answered")
     E.warm_session(url)
     for s in sys.argv[1:]:
-        r = E.run_script(E.ROOT / s)
-        print(f"{'PASS' if r.returncode == 0 else 'FAIL'} {s}\n{r.stdout[-1500:]}{r.stderr[-1500:]}")
-        code |= r.returncode != 0
+        try:
+            r = E.run_script(E.ROOT / s)
+            rc, out, err = r.returncode, r.stdout, r.stderr
+        except E.subprocess.TimeoutExpired as e:
+            rc, out, err = 1, E._txt(e.stdout), E._txt(e.stderr) + f"\nTIMEOUT after {E.SCRIPT_TIMEOUT}s"
+        print(f"{'PASS' if rc == 0 else 'FAIL'} {s}\n{out[-1500:]}{err[-1500:]}")
+        code |= rc != 0
 finally:
     E.stop_server(proc)
 sys.exit(code)
@@ -701,18 +762,35 @@ Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
 ### Task 14: Docs and roadmap
 
 **Files:**
-- `docs/MANUAL.md`: §10 Response Register (what each tab does, IDs never reused, deletes do not cascade and what the toast says, values outside a list kept on Edit, Excel export); §9 Edit Data (the edit panels, the six indicator fields, Responses excluded, the referenced-element warning); §6 Stakeholders (roles; IDs never reused); `:130` "converted from R release v1.31.0" → v1.33.0.
+- `docs/MANUAL.md`: §10 Response Register starts with `![Response Register](docs/screenshots/responses.png)` like every Part II section (`test_every_manual_image_exists` checks the file), then what each tab does, IDs never reused, deletes do not cascade and what the toast says, values kept on Edit and stale edits refused, Excel export; §9 Edit Data (the edit panels, the six indicator fields, Responses excluded, the referenced-element warning); §6 Stakeholders (roles; IDs never reused); §2's stepper table (`:47-54`): add Response Register to the Create SES row; `:130` "converted from R release v1.31.0" → v1.33.0.
 - `CHANGELOG.md`: `## [1.15.0] — <date>`, intro "Roadmap P1b …; ports R …, against R v1.33.0 (`4017feb`)", then Added / Changed: schema 8 with the "an older SESPy refuses to overwrite a v1.15 file" note; the Excel "Indicator column now fills the Indicator field, not the description" change; stakeholder IDs now follow R's counter (a deleted ID is not reused); saved Caribbean projects get their indicators in the new field; deferred: the indicator registry picker and "Load DA actor list" → P4, Word exports → P6c/P14, the workshop → proposed P15, `r_min_app_version` → P1c.
 - `README.md`: the feature line (unit and e2e counts are Task 15's).
-- `tests/make_docs_screenshots.py`: docstring "the 19 nav panels" → "the 20 nav panels"; `NAV_ORDER` gains `("responses", ("sel", "#responses-measures_table"))` after `entry` (the default sample has no register, so the shot shows the empty form; the script keeps its "never mutate the project" rule). Shoot with port 8000 free (`shiny run --port 8000 app.py` from `<W>` with `$env:PYTHONPATH = '<W>'`), commit only `responses.png`, `entry.png` and `stakeholders.png`.
-- **Roadmap** (spec §2, §8; branch `docs/r-parity-roadmap`, edited in a scratchpad worktree so no checkout is switched: `git -C <S> fetch origin`; check `git -C <S> rev-parse docs/r-parity-roadmap origin/docs/r-parity-roadmap` prints one SHA twice; `git -c core.longpaths=true -C <S> worktree add <scratchpad>\p1b-roadmap docs/r-parity-roadmap`; commit there; pushed in Task 16 Step 6). Edit `docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md` so that:
-  - the header names baseline R v1.33.0 (`4017feb`, re-pinned by P1b) and SESPy v1.15.0 (P0, P1a, P2, P1b shipped);
-  - node M says shipped in MosaicSES 0.4.0 (live 0.4.1), with spec §2's line refs;
-  - P1b: R sources gain 1.32.0 (`TenetSource`, tenet validation); decisions (a) and (b) as spec §5 records them, with the load-time hoist; "Load DA actor list" → P4; the `33ddd96` check closed (stakeholder counter); the "two version stamps" bullet moves to P1c;
-  - P4: gains "Load DA actor list" with `wp5_governance_profiles.json`; its page bullet becomes "WP5 mechanism and D5.4 governance-context tabs on the Response Register page shipped by P1b (v1.15.0)"; "five indicator fields" → "six indicator fields incl. `Policy_Target`";
-  - P1c: maps R `NERoles`/`SourceId`/`pims.stakeholder_counter` to `ne_roles`/`source_id`/`stakeholder_counter`; imports registers through `normalize_measures`; owns `r_min_app_version`;
-  - §3 sync tracking: baseline v1.33.0; §3 testing: "P1b = v1.15.0";
-  - the dependency graph and §5 gain P15 (WS-10 workshop elicitation, after P4).
+- `tests/make_docs_screenshots.py`: docstring "the 19 nav panels" → "the 20 nav panels", `:391` `>= 19` → `>= 20`; `NAV_ORDER` gains `("responses", ("sel", "#responses-measures_table"))` after `entry` (the default sample has no register, so the shot shows the empty form; the script keeps its "never mutate the project" rule). The script rewrites every panel's PNG, so shoot into the scratchpad, never into the tracked `docs/screenshots`:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue   # must print nothing
+$W = 'C:/Users/arturas.baziukas/AppData/Local/sespy-p1b'
+$env:PYTHONPATH = $W
+Start-Process micromamba.exe -ArgumentList "run -n shiny python -m shiny run --port 8000 app.py" -WorkingDirectory $W -WindowStyle Hidden
+# poll until http://127.0.0.1:8000/ answers (about 30 s cold), then:
+Push-Location $W; try { micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000 --out '<scratchpad>\p1b-shots'; "shots exit: $LASTEXITCODE" } finally { Pop-Location }
+Get-NetTCPConnection -LocalPort 8000 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }   # stop by port
+```
+  Copy only `responses.png`, `entry.png`, `stakeholders.png` and `full_app.png` (the nav gained an item) from `<scratchpad>\p1b-shots` into `docs/screenshots/`; `git -C <W> status --short docs/screenshots` then lists exactly those four.
+- **Roadmap** (spec §2, §8; branch `docs/r-parity-roadmap`, edited in a scratchpad worktree so no checkout is switched: `git -C <S> fetch origin`; check `git -C <S> rev-parse docs/r-parity-roadmap origin/docs/r-parity-roadmap` prints one SHA twice; `git -c core.longpaths=true -C <S> worktree add <scratchpad>\p1b-roadmap docs/r-parity-roadmap`; commit there; pushed in Task 16 Step 6). Edit `docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md` (line numbers at `ac74b71`; replace `<date>` with the release date):
+  - **Header** `:3-9` → "Date: 2026-10-16 (revised after review loops 1–3; amended 2026-10-17 after P0 shipped and the P1a spec converged; amended 2026-10-18 by P2; amended <date> by P1b)" / "Baseline: MarineSABRES_SES_Shiny **v1.33.0** (`4017feb`, re-pinned by P1b on <date>), the version laguna runs (verified 2026-10-20). The 9 files pinned since P2 are identical to v1.31.0 (`4b53b7d`) and v1.29.0 (`e33faea`), which was verified against the laguna deployment on 2026-10-17. The original baseline was v1.28.0 (`e3c3b77`) against SESPy v1.12.1. SESPy is now at **v1.15.0** (P0, P1a, P2 and P1b shipped)."
+  - **Graph** `:100` → `P0 → P1a ─┬→ M (MosaicSES 0.4.0) ┄→ first schema bump after P1a (P1b, v1.15.0)`; `:102-103` gain P15 under P4:
+    ```
+              ├→ K1 ─┬→ P4 (also P1b) ─┬→ P5 → P6a (also P1c) → P6b → P6c
+              │      │                 └→ P15 (WS-10 workshop, proposed)
+              │      └→ P9
+    ```
+  - **Node M** `:173`: prepend "**Shipped** in MosaicSES v0.4.0 (2026-10-18), live as v0.4.1; P1b (SESPy v1.15.0, schema 8) was the first schema bump after P1a. M's tests read SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION] dynamically, so later bumps leave them valid."; refs `:180` `project_setup.py:229-259` → `project_setup.py:257-288`, `:182` `(:262-275)` → `(:320-351)`, `:184` `(:295)` → `(:371)`; `:185` unchanged.
+  - **P1b** `:206-207` R source: append ", 1.32.0 (`TenetSource`, tenet-level validation); pinned at v1.33.0 (`4017feb`). **Detailed spec:** `docs/superpowers/specs/2026-10-21-p1b-response-register-indicators-design.md`. Shipped in **SESPy v1.15.0** (schema 8)."; prerequisite `:209-211` → "- **Prerequisite (MosaicSES):** node **M** — satisfied: shipped in MosaicSES 0.4.0 (2026-10-18), live as 0.4.1 before the v1.15.0 deploy."; after the register bullet (`:212-219`) a new bullet "- **Response Register page** (R `response_module.R` tabs 1–5, minus the bandit suggestion, the Word exports, the WP5 mechanism tab and the D5.4 governance-context tab), moved from P4."; decisions `:220-225` → "- **Decided in the P1b spec (§5):** (a) template measures (`r_extra["r_kind"] = "measure"`) are not promoted into `response_measures` (R never does, `template_loader.R:186-189`); (b) `r_extra["indicator"]` moves into `Element.indicator` (mapper and Excel import), `baseline` stays in `r_extra`, and projects saved with `r_extra["indicator"]` are hoisted on load."; roles `:236-240`: end the bullet with "… as `ne_roles`/`source_id`. "Load DA actor list" moved to P4 (user decision 2026-10-21). The `33ddd96` check is closed: one row per add, and stakeholder ids follow R's persisted counter (`Project.stakeholder_counter`)."; delete the version-stamps bullet `:241-244` (it moves to P1c).
+  - **P1c**, before "Done when" (`:277`): "- Maps R's stakeholder `NERoles`/`SourceId` and `pims$stakeholder_counter` to `ne_roles`/`source_id`/`stakeholder_counter`, and imports R registers through `sespy.response_register.normalize_measures` (and `normalize_impacts`/`normalize_milestones`)." and "- `metadata.r_min_app_version` (moved from P1b): copied from an R import's top-level `min_app_version`, used only for import diagnostics, never compared with SESPy's version; carried by P1c's schema bump."
+  - **P4** title `:370` → "### P4 — WP5 data layer, mechanism and governance-context tabs"; `:373` "- Response register page (R `response_module.R`) on the P1b block." → "- WP5 mechanism and D5.4 governance-context tabs on the Response Register page shipped by P1b (v1.15.0)."; `:384` "five indicator fields, so" → "six indicator fields incl. `Policy_Target`, so"; after `:393` "…are always vendored." append " Also the stakeholder register's "Load DA actor list" (R `modules/pims_stakeholder_module.R`, data `wp5_governance_profiles.json`; moved from P1b, user decision 2026-10-21), which fills P1b's `ne_roles`/`source_id`."
+  - **P15** — a new §2 entry after P10's section (before `## 3.` at `:543`), not in §5 (§5 holds R modules older than v1.17): "### P15 — WS-10 workshop elicitation (proposed by P1b, <date>)" / "R source: 1.32.0–1.32.4 (`functions/wp5_workshop.R`, `modules/wp5_workshop_module.R`, `data/wp5_tenet_guiding_questions.json` and its test, the sidebar entry, the `workshops` block and its 1.32.0 stamp). Depends on P4. It writes the register's `TenetSource`, which P1b stores and shows read-only, so the §3 schema-bump and MosaicSES rules apply."
+  - **§3** sync tracking `:629-630` "(baseline v1.31.0 @ `4b53b7d` since P2; the pinned files are identical to v1.29.0 @ `e33faea`, verified against laguna on 2026-10-17)," → "(baseline v1.33.0 @ `4017feb` since P1b, the version laguna runs (verified 2026-10-20); the 9 files pinned since P2 are identical to v1.31.0 @ `4b53b7d` and v1.29.0 @ `e33faea`),"; testing `:668` "P2 = v1.14.0. Then one minor release" → "P2 = v1.14.0; P1b = v1.15.0. Then one minor release".
 
 - [ ] `micromamba run -n shiny python -m pytest tests/test_manual.py tests/test_help_offcanvas.py -q` green; commit `docs: P1b manual, changelog, screenshots (P1b)` on the feature branch and `docs(roadmap): P1b amendments` on the roadmap branch (explicit paths, trailer, each).
 
@@ -761,7 +839,7 @@ $env:PYTHONPATH = 'C:/Users/arturas.baziukas/AppData/Local/sespy-p1b'
 $mlog = '<scratchpad>\mosaicses-p1b.log'
 Start-Process micromamba.exe -ArgumentList "run -n shiny python -m pytest tests -q -p no:cacheprovider" -WorkingDirectory 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\MosaicSES' -RedirectStandardOutput $mlog -RedirectStandardError "$mlog.err" -WindowStyle Hidden
 ```
-Poll with bounded `Start-Sleep -Seconds 240; Get-Content '<scratchpad>\mosaicses-p1b.log' -Tail 5` calls. Expected: all green (≈ 590 passed at v1.14.2). Before believing a green, prove the import: with the same `PYTHONPATH` and the MosaicSES dir as cwd, `micromamba run -n shiny python -c "import sespy; print(sespy.__file__, sespy.__version__)"` → `...sespy-p1b\sespy\__init__.py 1.15.0`. Then a compartment round trip as a scratch script `<scratchpad>\mosaic_rt.py`, run the same way: a SESPy `Project` with one measure (`add_measure`), one impact, one milestone, an `Element(indicator=...)` and a stakeholder from `add_stakeholder(..., {"name": "Port authority", "ne_roles": "Regulators"}, ...)`, put in `multises.data_structure.Compartment(id="c1", label="C1", archetype="lagoon", project=...)` inside `MultiSES(metadata=MultiSESMetadata(), compartments=[...])`; `MultiSES.to_dict()` (`multises/data_structure.py:601`, which calls `Project.to_dict`) → `json.dumps` → `json.loads` → `MultiSES.from_dict(...)` (`:642`, a `LoadResult`; take `.multises`); assert the five values survive on `compartments[0].project`. A MosaicSES test for this is a MosaicSES commit: only with the user's go-ahead.
+Poll with bounded `Start-Sleep -Seconds 240; Get-Content '<scratchpad>\mosaicses-p1b.log' -Tail 5` calls. Expected: all green (≈ 590 passed at v1.14.2). Before believing a green, prove the import: with the same `PYTHONPATH` and the MosaicSES dir as cwd, `micromamba run -n shiny python -c "import sespy; print(sespy.__file__, sespy.__version__)"` → `...sespy-p1b\sespy\__init__.py 1.15.0`. Then a compartment round trip as a scratch script `<scratchpad>\mosaic_rt.py`, run the same way: a SESPy `Project` with one measure (`add_measure`), one impact, one milestone, an `Element(indicator=...)` and a stakeholder from `add_stakeholder(..., {"name": "Port authority", "ne_roles": "Regulators"}, ...)`, put in `multises.data_structure.Compartment(id="c1", label="C1", archetype="lagoon", project=...)` inside `MultiSES(metadata=MultiSESMetadata(), compartments=[...])`; `MultiSES.to_dict()` (`multises/data_structure.py:601`, which calls `Project.to_dict`) → `json.dumps` → `json.loads` → `MultiSES.from_dict(...)` (`:642`, a `LoadResult`; take `.multises`); assert the five values survive on `compartments[0].project`. A MosaicSES test for this is a MosaicSES commit: only with the user's go-ahead. MosaicSES has untracked in-progress files of the user's (`git -C <MosaicSES> status --short`, e.g. `tests/test_venice_seed.py`); a failure there is not P1b's: confirm with `--deselect tests/test_venice_seed.py` and report it to the user.
 
 ---
 
@@ -810,17 +888,19 @@ if ($LASTEXITCODE -ne 0) { throw 'tag push failed: main is pushed but v1.15.0 is
 git -c core.longpaths=true -C $W ls-remote --tags origin v1.15.0     # must print one line
 ```
 
-- [ ] **Step 3 (user go-ahead): Deploy from the worktree.** First confirm node M is live (roadmap: it must precede the first schema bump after P1a; MosaicSES 0.4.0 shipped it, live 0.4.1 since 2026-10-18): `Push-Location 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\MosaicSES'; try { micromamba run -n shiny python deploy/verify_live.py; "verify exit: $LASTEXITCODE" } finally { Pop-Location }` → all checks pass, `verify exit: 0`. Then:
+- [ ] **Step 3 (user go-ahead): Deploy from the worktree.** First confirm node M is live (roadmap: it must precede the first schema bump after P1a; MosaicSES 0.4.0 shipped it, live 0.4.1 since 2026-10-18): `Push-Location 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\MosaicSES'; try { micromamba run -n shiny python deploy/verify_live.py --expect-version 0.4.1; "verify exit: $LASTEXITCODE" } finally { Pop-Location }` → `verify_live: all checks passed`, `verify exit: 0` (without `--expect-version` the script skips its version check). Then:
 
 ```powershell
 $S = 'C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESPy'
 $W = 'C:/Users/arturas.baziukas/AppData/Local/sespy-p1b'
 git -c core.longpaths=true -C $W describe --tags --exact-match HEAD
 if ($LASTEXITCODE -ne 0) { throw 'HEAD is untagged: run Step 2 first' }
+if (git -C $W status --short) { throw 'worktree not clean: deploy.sh ships the working tree, not the tag' }
 Copy-Item "$S\deploy\config.env" "$W/deploy/config.env"   # gitignored, so absent from the worktree
 bash "$W/deploy/deploy.sh"
+"deploy exit: $LASTEXITCODE"                              # 0
 ```
-Expected: `v1.15.0`, then `==> Deploying SESPy v1.15.0 to ...` and `==> Done.`. `deploy.sh` copies the whole `sespy/` tree, so `sespy/translations/modules/` and the regenerated templates ship; the deployed `sespy/` is symlinked into the live MosaicSES, so MosaicSES changes immediately.
+Expected: `v1.15.0`, then `==> Deploying SESPy v1.15.0 to ...`, `==> Done.` and `deploy exit: 0`. `deploy.sh` copies the whole `sespy/` tree, so `sespy/translations/modules/` and the regenerated templates ship; the deployed `sespy/` is symlinked into the live MosaicSES, so MosaicSES changes immediately.
 
 - [ ] **Step 4 (user go-ahead): Verify on laguna with the worker's Python** (`-s`: user site disabled). Write `<scratchpad>\verify_p1b.py`:
 
@@ -876,7 +956,7 @@ scp "<scratchpad>/verify_p1b.py" "$DEPLOY_SERVER:/tmp/verify_p1b.py" && \
 ssh "$DEPLOY_SERVER" "cd '$DEPLOY_DIR' && /opt/micromamba/envs/shiny/bin/python3 -s /tmp/verify_p1b.py; s=\$?; rm -f /tmp/verify_p1b.py; exit \$s"
 echo "verify exit: $?"
 ```
-Expected: `P1b OK: <DEPLOY_DIR>/sespy/__init__.py` and `verify exit: 0` (pre-existing `off-rule link` warnings on stderr are not errors). Then, in a browser (the user), the live app shows the Response Register nav item, and adding a measure shows RM001.
+Expected: `P1b OK: <DEPLOY_DIR>/sespy/__init__.py` and `verify exit: 0` (pre-existing `off-rule link` warnings on stderr are not errors). If scp reports `Could not resolve hostname c` (MSYS scp reading `C:/…` as a host), replace the scp line with `cd "<scratchpad>" && scp verify_p1b.py "$DEPLOY_SERVER:/tmp/verify_p1b.py" && \` inside the same `&&` chain; `verify exit` then reports the first failing command of the chain. Then, in a browser (the user), the live app shows the Response Register nav item, and adding a measure shows RM001.
 
 - [ ] **Step 5 (user go-ahead; read-only): Recheck the live MosaicSES** — the `verify_live.py` call of Step 3 again → all checks pass.
 
@@ -890,10 +970,15 @@ $W = 'C:/Users/arturas.baziukas/AppData/Local/sespy-p1b'
 git -C $S fetch origin
 $left = git -C $S log --oneline origin/main..feat/p1b-response-register
 if ($left) { throw "feat/p1b-response-register has commits not on origin/main: $left" }
-Remove-Item "$W/deploy/config.env" -ErrorAction SilentlyContinue   # untracked copy from Step 3, else worktree remove refuses
+# worktree remove deletes ignored files without asking: copy anything SDD or .remember left inside <W> first
+if (Test-Path "$W/.superpowers/sdd") { New-Item -ItemType Directory -Force "$S/.superpowers/sdd" | Out-Null; Copy-Item -Recurse -Force "$W/.superpowers/sdd/*" "$S/.superpowers/sdd/" }
+if (Test-Path "$W/.remember") { Copy-Item -Recurse -Force "$W/.remember" "$S/.superpowers/sdd/p1b-worktree-remember" }
+Remove-Item "$W/deploy/config.env" -ErrorAction SilentlyContinue   # the ignored copy from Step 3
 git -c core.longpaths=true -C $S worktree remove $W                # 'Permission denied' on .git/worktrees/... = harmless OneDrive lock
 git -C $S worktree prune
+if (git -C $S worktree list --porcelain | Select-String -Pattern '^worktree .*/sespy-p1b$') { throw 'worktree still registered: branch -d would be refused' }
 git -C $S branch -d feat/p1b-response-register                      # -d: its upstream origin/main (Task 0) contains it
 git -C $S fetch origin main:main                                    # fast-forward only
 ```
-`docs/p1b-design` stays (its spec and plan commits are on `main` via the feature branch); delete it with `branch -d` only if `git branch --merged origin/main` lists it. Then update `.remember/remember.md` and the memory index (P1b shipped as v1.15.0, schema 8, R pin v1.33.0 `4017feb`; stakeholder IDs follow R's counter; deferred: indicator registry picker + Load DA actor list → P4, Word exports → P6c/P14, workshop → proposed P15, `r_min_app_version` → P1c).
+If the "still registered" throw fires (an OneDrive lock kept `.git\worktrees\sespy-p1b` alive), wait until OneDrive releases it, delete that admin folder by hand (or `git -c core.longpaths=true -C $S worktree remove --force $W` if the folder still exists), then re-run the block; its guards are safe to repeat. The pattern matches only this worktree (the dry-run sandbox `sespy-p1b-dry` is a different entry).
+`docs/p1b-design` stays (its spec and plan commits are on `main` via the feature branch); delete it with `branch -d` only if `git branch --merged origin/main` lists it. Then update `<S>\.remember\remember.md` (never a copy inside `<W>`) and the memory index (P1b shipped as v1.15.0, schema 8, R pin v1.33.0 `4017feb`; stakeholder IDs follow R's counter; deferred: indicator registry picker + Load DA actor list → P4, Word exports → P6c/P14, workshop → proposed P15, `r_min_app_version` → P1c).
