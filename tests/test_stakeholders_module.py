@@ -120,6 +120,23 @@ def test_deleted_id_is_not_reused(monkeypatch):
         assert p.stakeholder_counter == 3
 
 
+def test_deleted_id_is_not_reused_on_a_pre_1_15_project(monkeypatch):
+    # spec §4.4: a file saved before v1.15 has no counter (loads as 0); removing
+    # its highest ID before any add must not hand that ID out again.
+    raw = {"metadata": {"name": "Old", "schema_version": 7}, "isa_data": {"elements": [], "connections": []},
+           "stakeholders": [{"id": "SH001", "name": "A"}, {"id": "SH002", "name": "B"}]}
+    start = Project.from_dict(raw)
+    assert start.stakeholder_counter == 0
+    with _stakeholders(monkeypatch, start) as ui:
+        ui.select(1, 2)
+        ui.click("remove_selected")
+        assert [s.id for s in ui.project().stakeholders] == ["SH001"]
+        ui.add("C")
+        p = ui.project()
+        assert [s.id for s in p.stakeholders] == ["SH001", "SH003"]
+        assert p.stakeholder_counter == 3
+
+
 def test_loaded_project_without_counter_continues_after_its_ids(monkeypatch):
     start = Project(ProjectMetadata(name="Old"), IsaData(),
                     stakeholders=[Stakeholder(id="SH007", name="X")])     # counter 0 (v7 file)

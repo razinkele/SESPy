@@ -409,8 +409,14 @@ def pims_stakeholders_server(
                                  type="warning", duration=3)
             return
         sid = items[sel["rows"][0]].id
-        project_data.set(project_data.get().replace(
-            stakeholders=remove_stakeholder(items, sid)))
+        project = project_data.get()
+        # The counter first covers the IDs present BEFORE the removal: a project
+        # saved before v1.15 has no counter (loads as 0) and would otherwise hand
+        # the deleted ID out again (spec §4.4; R files always carry the counter).
+        project_data.set(project.replace(
+            stakeholders=remove_stakeholder(items, sid),
+            stakeholder_counter=safe_counter(project.stakeholder_counter,
+                                             [s.id for s in items], "SH")))
         event_bus.emit_isa_change()
         if editing_id.get() == sid:
             editing_id.set(None)
