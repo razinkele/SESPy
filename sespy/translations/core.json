@@ -6097,6 +6097,50 @@
       "it": "Descrizione della connessione",
       "no": "Beskrivelse av koblingen",
       "el": "Περιγραφή σύνδεσης"
+    },
+    "responses.record_changed": {
+      "en": "This record changed or the project was replaced since you opened it. Open it again to edit.",
+      "es": "Este registro cambió o el proyecto se sustituyó desde que lo abrió. Ábralo de nuevo para editarlo.",
+      "fr": "Cet enregistrement a changé ou le projet a été remplacé depuis son ouverture. Rouvrez-le pour le modifier.",
+      "de": "Dieser Eintrag wurde geändert oder das Projekt wurde ersetzt, seit Sie ihn geöffnet haben. Öffnen Sie ihn erneut, um ihn zu bearbeiten.",
+      "lt": "Šis įrašas pasikeitė arba projektas buvo pakeistas po to, kai jį atidarėte. Atidarykite jį iš naujo, kad redaguotumėte.",
+      "pt": "Este registo mudou ou o projeto foi substituído desde que o abriu. Abra-o novamente para o editar.",
+      "it": "Questo record è cambiato o il progetto è stato sostituito da quando lo hai aperto. Riaprilo per modificarlo.",
+      "no": "Denne posten er endret, eller prosjektet er erstattet siden du åpnet den. Åpne den på nytt for å redigere.",
+      "el": "Αυτή η εγγραφή άλλαξε ή το έργο αντικαταστάθηκε από τότε που την ανοίξατε. Ανοίξτε την ξανά για επεξεργασία."
+    },
+    "entry.record_changed": {
+      "en": "This record changed or the project was replaced since you opened it. Open it again to edit.",
+      "es": "Este registro cambió o el proyecto se sustituyó desde que lo abrió. Ábralo de nuevo para editarlo.",
+      "fr": "Cet enregistrement a changé ou le projet a été remplacé depuis son ouverture. Rouvrez-le pour le modifier.",
+      "de": "Dieser Eintrag wurde geändert oder das Projekt wurde ersetzt, seit Sie ihn geöffnet haben. Öffnen Sie ihn erneut, um ihn zu bearbeiten.",
+      "lt": "Šis įrašas pasikeitė arba projektas buvo pakeistas po to, kai jį atidarėte. Atidarykite jį iš naujo, kad redaguotumėte.",
+      "pt": "Este registo mudou ou o projeto foi substituído desde que o abriu. Abra-o novamente para o editar.",
+      "it": "Questo record è cambiato o il progetto è stato sostituito da quando lo hai aperto. Riaprilo per modificarlo.",
+      "no": "Denne posten er endret, eller prosjektet er erstattet siden du åpnet den. Åpne den på nytt for å redigere.",
+      "el": "Αυτή η εγγραφή άλλαξε ή το έργο αντικαταστάθηκε από τότε που την ανοίξατε. Ανοίξτε την ξανά για επεξεργασία."
+    },
+    "entry.label_required": {
+      "en": "Label is required.",
+      "es": "La etiqueta es obligatoria.",
+      "fr": "Le libellé est obligatoire.",
+      "de": "Eine Bezeichnung ist erforderlich.",
+      "lt": "Pavadinimas yra privalomas.",
+      "pt": "O rótulo é obrigatório.",
+      "it": "L'etichetta è obbligatoria.",
+      "no": "Etikett er påkrevd.",
+      "el": "Η ετικέτα είναι υποχρεωτική."
+    },
+    "entry.select_first": {
+      "en": "Select a row first.",
+      "es": "Seleccione primero una fila.",
+      "fr": "Sélectionnez d'abord une ligne.",
+      "de": "Wählen Sie zuerst eine Zeile aus.",
+      "lt": "Pirmiausia pasirinkite eilutę.",
+      "pt": "Selecione primeiro uma linha.",
+      "it": "Seleziona prima una riga.",
+      "no": "Velg en rad først.",
+      "el": "Επιλέξτε πρώτα μια γραμμή."
     }
   }
 }

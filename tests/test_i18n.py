@@ -338,6 +338,9 @@ P1B_CORE_KEYS = [
     "responses.element_still_referenced",
     "entry.edit_selected", "entry.save_changes", "entry.cancel_edit", "entry.description",
     "entry.registry", "entry.connection_description",
+    # plan review round 2: stale-edit refusal and the ISA editors' own toasts
+    "responses.record_changed", "entry.record_changed", "entry.label_required",
+    "entry.select_first",
 ]
 _RM = "modules.response.measures."
 _GOV = "modules.response.governance."
