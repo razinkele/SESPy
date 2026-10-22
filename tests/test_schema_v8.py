@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,7 @@ from sespy.data_structure import (
     ResponseRegister,
     Stakeholder,
     _isa_from_dict,
+    indicator_text,
     newer_build_info,
 )
 from sespy.persistent_storage import project_to_bytes, validate_project_payload
@@ -134,6 +136,14 @@ def test_new_element_fields_are_keyword_only():
     assert all(getattr(e, f) == "" for f in INDICATOR_FIELDS)
     with pytest.raises(TypeError):
         Element("D1", "x", "Drivers", "d", 3, "positional indicator")
+    assert all(f.kw_only for f in fields(Element) if f.name in INDICATOR_FIELDS)
+
+
+@pytest.mark.parametrize("given,want", [
+    (None, ""), (float("nan"), ""), (2.0, "2"), (2.5, "2.5"), (7, "7"), ("x", "x"), ("", "")])
+def test_indicator_text(given, want):
+    # Task 4: one text rule for indicator values from the R mapper and Excel.
+    assert indicator_text(given) == want
 
 
 # ---- Task 3: stakeholder roles (spec §4.4) ------------------------------------
@@ -184,6 +194,10 @@ def test_stakeholder_counter_round_trip(caplog):
     with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
         assert Project.from_dict(d).stakeholder_counter == 0             # v7 file: silent default
     assert not caplog.records
+    d["stakeholder_counter"] = None
+    with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
+        assert Project.from_dict(d).stakeholder_counter == 0             # null: silent default
+    assert not caplog.records
     d["stakeholder_counter"] = "4"
     assert Project.from_dict(d).stakeholder_counter == 4
     d["stakeholder_counter"] = "x"
@@ -194,8 +208,9 @@ def test_stakeholder_counter_round_trip(caplog):
 
 @pytest.mark.parametrize("given,want,warns", [
     (3, 3, False), (3.0, 3, False), ("3", 3, False), (" 2.9 ", 2, False),
-    (True, 0, True), (None, 0, True), ("x", 0, True), (float("inf"), 0, True),
-    ("nan", 0, True), ([4], 0, True)])
+    (None, 0, False),                                  # JSON null: silent, like every other null
+    (True, 0, True), ("x", 0, True), (float("inf"), 0, True),
+    ("nan", 0, True), ([4], 0, True), (-3, 0, True), ("-2", 0, True)])
 def test_coerce_counter(caplog, given, want, warns):
     with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
         assert data_structure._coerce_counter(given, "test") == want
@@ -306,6 +321,14 @@ def test_from_dict_tolerates_malformed_register(bad, check):
     raw = {"metadata": {"name": "M"}, "isa_data": {"elements": [], "connections": []},
            "response_measures": bad}
     assert check(Project.from_dict(raw).response_measures)
+
+
+def test_null_register_block_is_empty_silently(caplog):
+    raw = {"metadata": {"name": "M"}, "isa_data": {"elements": [], "connections": []},
+           "response_measures": None}
+    with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
+        assert Project.from_dict(raw).response_measures == ResponseRegister()
+    assert not caplog.records
 
 
 def test_non_dict_register_block_is_empty_with_a_warning(caplog):

@@ -104,6 +104,20 @@ INDICATOR_FIELDS: tuple[str, ...] = (
 (data_structure.R:947-949). Serialised only when non-empty."""
 
 
+def indicator_text(value: Any) -> str:
+    """Text of an imported indicator value (R template mapper, Excel import):
+    None or NaN -> "", an integral float -> its int text (a numeric Excel
+    column reads 2 as 2.0), anything else -> str(value)."""
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        if math.isnan(value):
+            return ""
+        if value.is_integer():
+            return str(int(value))
+    return str(value)
+
+
 @dataclass
 class Element:
     id: str
@@ -388,6 +402,8 @@ class ResponseRegister:
     def from_dict(cls, raw: Any) -> "ResponseRegister":
         # Lazy: sespy.response_register imports this module.
         from .response_register import normalize_impacts, normalize_measures, normalize_milestones
+        if raw is None:              # a null block: silently empty, like every other null
+            return cls()
         if not isinstance(raw, dict):
             _log.warning("response_measures is %s, not an object; loaded as empty",
                          type(raw).__name__)
@@ -483,20 +499,27 @@ def _min_reader_stamp(current: Any, *, newer_build: bool) -> str:
 
 def _coerce_counter(value: Any, where: str) -> int:
     """A loaded ID counter (schema v8: `stakeholder_counter`, the register's
-    `counter`). An int (not a bool) is kept as is; a numeric string or a
-    finite float -> int(float(v)); anything else -> 0 with one warning.
-    The counter is kept as loaded: safe_counter applies only when an ID is
-    allocated (R response_module.R:494-509, pims_stakeholder_module.R:458)."""
+    `counter`). JSON null -> 0 silently (an absent key never reaches here:
+    callers default it to 0); an int (not a bool) as is; a numeric string or
+    a finite float -> int(float(v)); a negative result or anything else -> 0
+    with one warning. The counter is kept as loaded: safe_counter applies
+    only when an ID is allocated (R response_module.R:494-509,
+    pims_stakeholder_module.R:458)."""
+    if value is None:
+        return 0
+    n: int | None = None
     if isinstance(value, int) and not isinstance(value, bool):
-        return value
-    if isinstance(value, (float, str)) and not isinstance(value, bool):
+        n = value
+    elif isinstance(value, (float, str)):
         try:
             f = float(value)
         except ValueError:
             f = math.nan
         if math.isfinite(f):
-            return int(f)
-    _log.warning("%s: counter %r is not a number; using 0", where, value)
+            n = int(f)
+    if n is not None and n >= 0:
+        return n
+    _log.warning("%s: counter %r is not a non-negative number; using 0", where, value)
     return 0
 
 

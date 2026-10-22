@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .data_structure import Connection, Element, IsaData, Project, ProjectMetadata
+from .data_structure import Connection, Element, IsaData, Project, ProjectMetadata, indicator_text
 from .link_rules import classify
 
 # (canonical key, legacy alias, SESPy type). Order = DAPSI(W)R(M) flow.
@@ -115,7 +115,7 @@ def convert_r_template(raw: dict, *, key: str) -> tuple[Project, ConversionRepor
                     # P1b (spec §5(b)): R's `indicator` has a field since
                     # schema v8 (R ISA_INDICATOR_COLUMNS, constants.R:855);
                     # `baseline` and every other extra stay in r_extra.
-                    indicator = "" if v is None else str(v)
+                    indicator = indicator_text(v)
                 elif f not in _ELEMENT_COLUMNS and f != "type":
                     r_extra[f] = v
                     extras.add(f)

@@ -332,14 +332,25 @@ def test_excel_indicator_column_fills_the_field_not_description(tmp_path):
      "Registry_Version": "v", "Policy_Target": "eu_nrr"},
     {"indicator": "i", "indicator_unit": "u", "data_source": "s", "registry_id": "r",
      "registry_version": "v", "policy_target": "eu_nrr"},
+    # spec §5(c): any case
+    {"Indicator": "i", "indicator_unit": "u", "DATA_SOURCE": "s", "Registry_id": "r",
+     "REGISTRY_VERSION": "v", "Policy_target": "eu_nrr"},
 ])
 def test_excel_reads_all_six_indicator_columns(tmp_path, cols):
     from sespy.excel_import import ELEMENT_INDICATOR_COLS
-    assert set(ELEMENT_INDICATOR_COLS) == {"indicator", "indicator_unit", "data_source",
-                                           "registry_id", "registry_version", "policy_target"}
+    assert ELEMENT_INDICATOR_COLS == {
+        "indicator": "Indicator", "indicator_unit": "Indicator_Unit", "data_source": "Data_Source",
+        "registry_id": "Registry_Id", "registry_version": "Registry_Version",
+        "policy_target": "Policy_Target"}
     s1 = _elements_with(tmp_path, cols)[0]
     assert (s1.indicator, s1.indicator_unit, s1.data_source, s1.registry_id,
             s1.registry_version, s1.policy_target) == ("i", "u", "s", "r", "v", "eu_nrr")
+
+
+def test_excel_numeric_registry_version(tmp_path):
+    # A numeric column with a blank reads back as float (2.0, NaN): indicator_text gives "2", "".
+    s1, d1 = _elements_with(tmp_path, {"Registry_Version": 2})
+    assert (s1.registry_version, d1.registry_version) == ("2", "")
 
 
 @pytest.mark.parametrize("col", ["description", "Description"])

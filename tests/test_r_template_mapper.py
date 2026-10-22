@@ -134,6 +134,16 @@ def test_caribbean_indicator_moves_to_the_field():
     assert sum(1 for e in project.isa_data.elements if e.indicator) == 10
 
 
+@pytest.mark.parametrize("given,want", [(None, ""), (2.0, "2"), ("Coral cover", "Coral cover")])
+def test_mapper_indicator_text(given, want):
+    # Task 4: indicator values go through data_structure.indicator_text.
+    raw = _fixture("Caribbean")
+    item = raw["dapsiwrm_framework"]["marine_processes"][0]
+    item["indicator"] = given
+    project, _ = convert_r_template(raw, key="Caribbean")
+    assert next(e for e in project.isa_data.elements if e.id == item["id"]).indicator == want
+
+
 def test_indicator_survives_the_real_save_load():
     project, _ = convert_r_template(_fixture("Caribbean"), key="Caribbean")
     res = validate_project_payload(json.loads(project_to_bytes(project)))
