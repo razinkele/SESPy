@@ -129,7 +129,7 @@ class Element:
     # extras, r_type, r_kind). Serialised only when non-empty (schema v7).
     r_extra: dict[str, Any] = field(default_factory=dict, kw_only=True)
     # Schema v8 indicator fields (INDICATOR_FIELDS). Hidden in the edit panel
-    # for Responses (R isa_form_builders.R:74-86) but kept on load and save.
+    # for Responses (R functions/isa_form_builders.R:74-86) but kept on load and save.
     indicator: str = field(default="", kw_only=True)
     indicator_unit: str = field(default="", kw_only=True)
     data_source: str = field(default="", kw_only=True)

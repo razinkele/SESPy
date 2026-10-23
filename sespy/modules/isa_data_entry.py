@@ -334,7 +334,7 @@ def isa_data_entry_server(
             ui.input_text_area("el_description", tr("entry.description"),
                                value=el.description),
         ]
-        if el.type != "Responses":       # R isa_form_builders.R:74-86
+        if el.type != "Responses":       # R functions/isa_form_builders.R:74-86
             choices = {"": ""}
             choices.update({c: tr(f"modules.indicator_registry.policy_target.{c}")
                             for c in POLICY_TARGET_CODES})
