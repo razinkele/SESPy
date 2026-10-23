@@ -226,3 +226,49 @@ Report depth next to the z-score composite in the Leverage module and allow sort
 - Existing composite ranking unchanged; depth is additive.
 
 **Effort:** Moderate. **Labels:** enhancement, analysis, leverage, decision-support.
+
+---
+
+## [High] Core–periphery & DAPSI(W)R(M) layer-mixing summary in `sespy/network.py`
+
+**Source paper:** Quillet, Fofack-Garcia, Poisson & Ben Rais Lasram (2026). *Highlighting the structural complexity of Europe's leading seafood processing hub: Building a social-ecological network with actor-network theory.* Ambio. https://doi.org/10.1007/s13280-026-02485-w
+**Alert week:** 2026-09-22
+
+**Motivation.** Quillet et al. build a participatory marine-sector SEN (227 nodes / 595 links, typed environmental / economic / productive / social) and their headline result is structural: operational production entities form the network core. SESPy has `subsystem()`, `social_ecological_fit()` and `hypermodules()` but no explicit core–periphery or layer-mixing read-out, so a user cannot make the equivalent "which element type holds this system together" statement.
+
+**Proposal.**
+- New `core_periphery(isa) -> dict` returning `core_number` per node (`nx.core_number` on the undirected projection), mean coreness per DAPSI(W)R(M) type, the type with highest mean coreness (`core_group`), and a 6×6 `mixing_matrix` of intra/inter-type edge counts (plus density-normalised version).
+- One summary paragraph in the HTML/PDF/Word report: "Network core: <type> (mean k-core = …); <x>% of edges are within-type."
+- Optional: expose `core_number` as a node-size option in the network view.
+
+**Acceptance criteria.**
+- Function returns deterministic output on the bundled example ISA; golden test added.
+- Mixing matrix rows/cols ordered Driver → Activity → Pressure → Marine Process & Function → Ecosystem Service → Good & Benefit; sums equal edge count.
+- Report paragraph appears only when the graph has ≥ 2 node types.
+- No change to existing goldens.
+
+**Effort:** quick. **Labels:** enhancement, analysis, network, report.
+
+---
+
+## [High] Leverage-ranking robustness (leave-one-out + weight perturbation) in `sespy/network.py`
+
+**Source paper:** Pérez, H., Paramo, J., Berrio, J., et al. (2026). *Social–ecological vulnerability and adaptive capacity in data-poor artisanal fisheries: integrating local ecological knowledge and socioeconomic indicators.* Frontiers in Marine Science 13. https://doi.org/10.3389/fmars.2026.1880882
+**Alert week:** 2026-09-23
+
+**Motivation.** `leverage_scores()` is an equal-weight sum of z(betweenness) + z(eigenvector) + z(PageRank), and `governance_actor_influence()` depends on it. Pérez et al. tested a comparable 3-indicator marine SES index. Its community rankings held when the normalisation changed but **moved when the weighting changed**, and a leave-one-out test showed a single component drove the differences. SESPy currently gives users no way to tell whether its top leverage nodes are equally fragile. The shipped uncertainty-aware scoring perturbs *edges*; this perturbs the *metric definition*.
+
+**Proposal.** Add `leverage_robustness(isa, n_samples=500, top_k=5, seed=None) -> list[dict]`:
+- Baseline = current `leverage_scores(isa)`.
+- Leave-one-out: 3 rankings, each with one z-term dropped.
+- Weight perturbation: `n_samples` weight vectors drawn from Dirichlet(1,1,1) and scaled so they sum to 3 (so the baseline corresponds to (1,1,1)).
+- Per node: `topk_share` (fraction of rankings where the node is in the top-k), `loo_min_rank` / `loo_max_rank`, and `label` ∈ {robust (topk_share ≥ 0.8), weight-sensitive (otherwise, if in baseline top-k)}.
+- Global: Kendall τ between the baseline and each LOO ranking (`scipy.stats.kendalltau`).
+- Add a `robustness` column to the leverage table and one report sentence.
+
+**Acceptance criteria.**
+- Deterministic under a fixed `seed`. Pure function, with no change to `leverage_scores()` output (existing goldens pass).
+- On sample data, baseline top-k nodes each receive a label. Degenerate graphs (< 3 nodes or no edges) return [].
+- Runtime < 1 s for 200 nodes at `n_samples=500` (reuse the single `centrality_metrics()` call).
+
+**Effort:** quick. **Labels:** enhancement, analysis, leverage, robustness.
