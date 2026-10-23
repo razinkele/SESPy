@@ -638,6 +638,10 @@ body.sespy-sidebar-mini .sespy-quick-actions .btn {
 }
 
 .card-header {
+  /* Bootstrap's own .card-header rule (same specificity, loaded after this
+     file) sets color: var(--bs-card-cap-color); set the variable too, or
+     the header text falls back to the dark body colour on this gradient. */
+  --bs-card-cap-color: #fff;
   font-family: var(--font-display);
   background: linear-gradient(135deg,
                               var(--ocean-mid) 0%,

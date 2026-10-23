@@ -475,7 +475,7 @@ def _goto(
     only moves the highlight — both calls are required (this mirrors the
     existing nav/stepper handlers)."""
     active_panel.set(view)
-    ui.update_navs("main_nav", selected=view, session=session)
+    ui.update_navset("main_nav", selected=view, session=session)
 
 
 def _wire_nav_button(

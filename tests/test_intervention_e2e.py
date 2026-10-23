@@ -74,6 +74,20 @@ async def main():
 
         await page.screenshot(path="tests/screenshots/intervention.png")
 
+        # The diffusion leaves out removed elements, so clear the removal
+        # before the full-model goldens below.
+        await page.evaluate(
+            "() => Shiny.setInputValue('intervention-ablate', [], "
+            "{priority: 'event'})"
+        )
+        await page.wait_for_function(
+            "() => { const s = window.pyvisNetworks"
+            " && window.pyvisNetworks['intervention-intervention_network'];"
+            " const n = s && s.nodes && s.nodes.get('P001');"
+            " return !!n && (n.opacity == null || n.opacity >= 1); }",
+            timeout=30000,
+        )
+
         # --- Intervention simulation (token diffusion), fixed seed 0 ---
         await page.wait_for_selector("#intervention-diffusion_summary", timeout=15000)
         hint = (await page.inner_text("#intervention-diffusion_summary")).strip()
@@ -143,6 +157,29 @@ async def main():
                 break
         assert "13 of 17 elements reached by 1000 tokens in 10 steps" in diff_text, \
             f"expected P002 summary, got: {diff_text!r}"
+        # Removing an element takes it out of the diffusion (MosaicSES tester
+        # report, 23 Oct 2026): the previous run is cleared, and a re-run
+        # from D001 counts 16 elements and never reaches Anchor damage (P001).
+        await page.select_option("#intervention-diffusion_source", "D001")
+        await page.evaluate(
+            "() => Shiny.setInputValue('intervention-ablate', ['P001'], "
+            "{priority: 'event'})"
+        )
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-diffusion_summary')?.innerText || '')"
+            ".includes('not simulated')", timeout=30000)
+        await page.click("#intervention-run_diffusion")
+        await page.wait_for_function(
+            "() => (document.getElementById('intervention-diffusion_summary')?.innerText || '')"
+            ".includes('elements reached')", timeout=60000)
+        reduced = (await page.inner_text("#intervention-diffusion_summary")).strip()
+        assert "of 16 elements reached" in reduced and "Anchor damage" not in reduced, (
+            f"expected the run without P001, got: {reduced!r}")
+        await page.evaluate(
+            "() => Shiny.setInputValue('intervention-ablate', [], "
+            "{priority: 'event'})"
+        )
+
         print(f"intervention simulation: OK ({diff_text[:90]!r})")
 
         # --- Option B: path-set BBN, forward query D001 -> GB01 (2 paths, one

@@ -17,6 +17,7 @@ from ..data_structure import Project
 from ..event_bus import EventBus
 from ..input_utils import safe_int
 from ..i18n import Translator, t
+from ._notify import notify_data_changed
 
 
 def _dominance_segments(res: dict, shifts: list[dict]) -> list[tuple[int, int, str]]:
@@ -194,11 +195,7 @@ def analysis_simulation_server(
         event_bus.isa_change.get()
         with reactive.isolate():
             if sim_store.get() is not None or mc_store.get() is not None:
-                ui.notification_show(
-                    t("analysis.common.data_changed_rerun"),
-                    duration=5,
-                    type="warning",
-                )
+                notify_data_changed()
 
     # ---- Trajectory plot ----
 

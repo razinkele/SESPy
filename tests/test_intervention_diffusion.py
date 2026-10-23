@@ -79,7 +79,10 @@ def test_run_shows_computing_then_the_result(gated_diffusion):
         # still blocked in token_diffusion.
         assert RUNNING in _summary(iv), _summary(iv)
         release.set()
-        _settle(ts, iv, lambda s: "elements reached" in s)
+        # Generous: run alone, this is the process's first token_diffusion,
+        # so it pays the cold scipy.stats import that the module docstring
+        # describes (well over 15 s on a busy laptop).
+        _settle(ts, iv, lambda s: "elements reached" in s, secs=45.0)
         assert "7 of 17 elements reached by 1000 tokens in 10 steps" in _summary(iv)
         assert calls == [("D001", {"n_steps": 10, "n_tokens": 1000, "seed": 0})]
 
@@ -95,3 +98,58 @@ def test_input_change_while_running_drops_the_stale_result(gated_diffusion):
         release.set()
         _settle(ts, iv, lambda s: "elements reached" in s, secs=3.0)
         assert "not simulated" in _summary(iv), _summary(iv)
+
+
+# --- the diffusion reads the model with the removed elements taken out ------
+# MosaicSES tester report, 23 Oct 2026: removing an element (e.g. "Cropland
+# cultivation") left the arrivals chart unchanged, removed element included,
+# because the diffusion always ran on the full model.
+
+def test_diffusion_runs_without_the_removed_elements(gated_diffusion):
+    release, calls = gated_diffusion
+    seen = []
+    real = mod.dyn.token_diffusion
+
+    def recording(isa, src, **kw):
+        seen.append({e.id for e in isa.elements})
+        return real(isa, src, **kw)
+
+    release.set()
+    with test_server(_server, timeout_secs=20.0) as ts:
+        mod.dyn.token_diffusion = recording
+        try:
+            iv = ts.make_scope("intervention")
+            iv.set_inputs(ablate=["P001"], diffusion_source="D001", n_steps=10,
+                          n_tokens=1000, run_diffusion=0)
+            iv.set_inputs(run_diffusion=1)
+            _settle(ts, iv, lambda s: "elements reached" in s, secs=45.0)
+        finally:
+            mod.dyn.token_diffusion = real
+        assert seen and "P001" not in seen[0]
+        summary = _summary(iv)
+        assert "of 16 elements reached" in summary, summary
+        assert "Anchor damage" not in summary
+
+
+def test_changing_the_removal_clears_the_previous_result(gated_diffusion):
+    release, _ = gated_diffusion
+    release.set()
+    with test_server(_server, timeout_secs=20.0) as ts:
+        iv = ts.make_scope("intervention")
+        iv.set_inputs(ablate=[], diffusion_source="D001", n_steps=10,
+                      n_tokens=1000, run_diffusion=0)
+        iv.set_inputs(run_diffusion=1)
+        _settle(ts, iv, lambda s: "elements reached" in s, secs=45.0)
+        assert "elements reached" in _summary(iv)
+        iv.set_inputs(ablate=["P001"])
+        ts.flush()
+        assert "not simulated" in _summary(iv), _summary(iv)
+
+
+def test_a_removed_element_is_not_offered_as_the_source():
+    with test_server(_server, timeout_secs=20.0) as ts:
+        iv = ts.make_scope("intervention")
+        iv.set_inputs(ablate=["A001"])
+        ts.flush()
+        html = iv.get_output("diffusion_controls").value["html"]
+        assert 'value="A001"' not in html and 'value="D001"' in html
