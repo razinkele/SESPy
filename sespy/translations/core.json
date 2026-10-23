@@ -6123,9 +6123,9 @@
     "entry.label_required": {
       "en": "Label is required.",
       "es": "La etiqueta es obligatoria.",
-      "fr": "Le libellé est obligatoire.",
-      "de": "Eine Bezeichnung ist erforderlich.",
-      "lt": "Pavadinimas yra privalomas.",
+      "fr": "L'étiquette est obligatoire.",
+      "de": "Eine Beschriftung ist erforderlich.",
+      "lt": "Etiketė yra privaloma.",
       "pt": "O rótulo é obrigatório.",
       "it": "L'etichetta è obbligatoria.",
       "no": "Etikett er påkrevd.",

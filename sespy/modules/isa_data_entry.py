@@ -316,6 +316,9 @@ def isa_data_entry_server(
             return
         el = isa.elements[sel["rows"][0]]
         snapshot["element"] = el
+        # None first, so a re-click on the open element re-renders it with the new
+        # snapshot: reactive.Value ignores a set() of the identical id object.
+        editing_element.set(None)
         editing_element.set(el.id)
 
     @output

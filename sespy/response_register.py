@@ -480,21 +480,23 @@ def delete_milestone(reg: ResponseRegister, index: int) -> ResponseRegister:
 
 
 def split_ids(value: str) -> list[str]:
-    """IDs in a TargetElement cell. R's field is free text, usually
-    comma-separated (placeholder `modules.response.measures.placeholder_element_ids`,
-    "e.g., A001, D002"); SESPy writes ";"-joined IDs. Both separators are read;
-    parts are stripped and empty ones dropped."""
+    """IDs in a TargetElement or ProblemElementID cell. R's fields are free
+    text, usually comma-separated (textInput placeholder
+    `modules.response.measures.placeholder_element_ids`, "e.g., A001, D002",
+    response_module.R:87-88, 212-213); SESPy writes ";"-joined IDs. Both
+    separators are read; parts are stripped and empty ones dropped."""
     return [p.strip() for p in re.split(r"[;,]", value or "") if p.strip()]
 
 
 def references_to(reg: ResponseRegister, element_id: str) -> list[str]:
-    """Sorted unique IDs of the measures whose TargetElement (split_ids, exact
-    match) contains `element_id`, plus the ResponseID of impact rows whose
-    ProblemElementID equals it (the ISA page's delete warning, spec §6.1)."""
+    """Sorted unique IDs of the measures whose TargetElement contains
+    `element_id`, plus the ResponseID of impact rows whose ProblemElementID
+    contains it (split_ids, exact match per ID; the ISA page's delete warning,
+    spec §6.1)."""
     if not element_id:
         return []
     hits = {m.get("ID", "") for m in reg.measures
             if element_id in split_ids(m.get("TargetElement", ""))}
     hits |= {r.get("ResponseID", "") for r in reg.impacts
-             if r.get("ProblemElementID") == element_id}
+             if element_id in split_ids(r.get("ProblemElementID", ""))}
     return sorted(h for h in hits if h)

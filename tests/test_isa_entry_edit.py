@@ -208,6 +208,23 @@ def test_editor_not_clobbered_by_project_writes(monkeypatch):
         assert 'value="B"' in ui.html("element_editor")
 
 
+def test_reclick_edit_shows_the_new_snapshot(monkeypatch):
+    # A re-click on the open element takes a new snapshot, so the editor must
+    # show that record, or Save writes stale values over it (Task R review).
+    start = _with_element(_sample(), MPF1, indicator="A")
+    with _entry(monkeypatch, start) as ui:
+        ui.select("elements_table", MPF1, N_ELEMENTS)
+        ui.click("edit_element")
+        assert 'value="A"' in ui.html("element_editor")
+        ui.write_project(_with_element(start, MPF1, indicator="B"))    # keeps the id object
+        ui.click("edit_element")                                        # no Cancel first
+        assert 'value="B"' in ui.html("element_editor")
+        ui.scope.set_inputs(el_label="Posidonia meadows", el_description="", el_indicator="B2",
+                            el_indicator_unit="", el_data_source="", el_policy_target="")
+        ui.click("save_element")
+        assert _el(ui.project(), "MPF1").indicator == "B2"
+
+
 def test_save_after_project_swap_does_not_write(monkeypatch):
     # spec §6.2: a Save is refused when the record changed or the project was replaced.
     start = _sample()
@@ -242,6 +259,9 @@ def test_connection_save_after_project_swap_does_not_write(monkeypatch):
         assert ui.project().isa_data.connections[0].description == "other"
         assert ui.toasts == [TR.t("entry.record_changed")]
         assert ui.html("connection_editor") is None
+        ui.click("edit_connection")                                    # positive control
+        ui.click("save_connection")
+        assert ui.project().isa_data.connections[0].description == "mine"
 
 
 def test_editor_toasts_are_translated(monkeypatch):
@@ -252,6 +272,10 @@ def test_editor_toasts_are_translated(monkeypatch):
                                 elements_table_data_view_rows=list(range(N_ELEMENTS)))
             ui.click("edit_element")
             assert ui.toasts == [TR.t("entry.select_first")]
+            ui.scope.set_inputs(connections_table_cell_selection={"type": "row", "rows": []},
+                                connections_table_data_view_rows=list(range(20)))
+            ui.click("edit_connection")
+            assert ui.toasts == [TR.t("entry.select_first")] * 2
             ui.select("elements_table", MPF1, N_ELEMENTS)
             ui.click("edit_element")
             ui.scope.set_inputs(el_label=" ", el_description="", el_indicator="",

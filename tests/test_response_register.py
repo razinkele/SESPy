@@ -422,6 +422,9 @@ def test_references_to():
     reg, _ = add_measure(reg, {"Name": "c", "Type": "regulatory", "TargetElement": "P003, P004"},
                          today="d")
     assert references_to(reg, "P004") == ["RM003"] and references_to(reg, "P003") == ["RM003"]
+    # ProblemElementID is the same free-text field in R (response_module.R:212-213)
+    reg = add_impact(reg, {"ResponseID": "RM001", "ProblemElementID": "P005, P006"})
+    assert references_to(reg, "P006") == ["RM001"] and references_to(reg, "P005") == ["RM001"]
 
 
 @pytest.mark.parametrize("given,want", [

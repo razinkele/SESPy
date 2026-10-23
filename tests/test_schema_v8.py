@@ -204,6 +204,11 @@ def test_stakeholder_counter_round_trip(caplog):
     with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
         assert Project.from_dict(d).stakeholder_counter == 0
     assert sum("stakeholder_counter" in r.getMessage() for r in caplog.records) == 1
+    caplog.clear()
+    d["stakeholder_counter"] = -3
+    with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
+        assert Project.from_dict(d).stakeholder_counter == 0             # negative: one warning
+    assert sum("stakeholder_counter" in r.getMessage() for r in caplog.records) == 1
 
 
 @pytest.mark.parametrize("given,want,warns", [
@@ -328,6 +333,14 @@ def test_null_register_block_is_empty_silently(caplog):
            "response_measures": None}
     with caplog.at_level(logging.WARNING, logger="sespy.data_structure"):
         assert Project.from_dict(raw).response_measures == ResponseRegister()
+    assert not caplog.records
+
+
+def test_null_register_counter_is_silent(caplog):
+    raw = {"metadata": {"name": "M"}, "isa_data": {"elements": [], "connections": []},
+           "response_measures": {"counter": None}}
+    with caplog.at_level(logging.WARNING):
+        assert Project.from_dict(raw).response_measures.counter == 0
     assert not caplog.records
 
 
