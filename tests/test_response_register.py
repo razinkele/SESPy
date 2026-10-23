@@ -524,9 +524,14 @@ def test_display_vocabularies_have_labels_in_all_languages():
     import json
     from pathlib import Path
 
-    from sespy.response_register import (EBM_MANAGEMENT_MEASURES, EBM_POLICY_INSTRUMENTS,
-                                         GOVERNANCE_LEVELS, KIND_CODES, PESTLE_CODES,
-                                         TENET_LEVELS)
+    from sespy.response_register import (
+        EBM_MANAGEMENT_MEASURES,
+        EBM_POLICY_INSTRUMENTS,
+        GOVERNANCE_LEVELS,
+        KIND_CODES,
+        PESTLE_CODES,
+        TENET_LEVELS,
+    )
 
     folder = Path(__file__).resolve().parents[1] / "sespy" / "translations" / "modules"
     vendored = {}
