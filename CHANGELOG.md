@@ -4,6 +4,44 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.15.0] — 2026-10-23
+
+Roadmap P1b (response register, indicator fields and stakeholder roles;
+R-parity roadmap §2 P1b). Ports R MarineSABRES 1.19.0, 1.23.0 (WS-3a), 1.24.0
+(WS-4), 1.29.0, 1.30.0 (WS-9a) and 1.32.0 (`TenetSource`), against R v1.33.0
+(`4017feb`).
+
+### Added
+- **Response Register page** (after Edit Data): R's register of response
+  measures in four tabs. Register: add, edit and delete measures with R's
+  fields, including the EBM classification and governance section and the
+  eleven EBM tenets. Impact Assessment: link measures to the problems they
+  address. Prioritization: R's weighted score, the ranked table and the
+  effectiveness-versus-feasibility matrix. Implementation Plan: milestones,
+  and an Excel export with R's three sheets.
+- **Edit panels on Edit Data.** An element (except a Response) gets
+  Indicator, Unit, Data source and Policy target, and shows its registry id
+  and version; a connection gets its description.
+- **Stakeholder roles** (D5.4 actor typology) on the Stakeholders page, with
+  a Roles column. The Excel export carries `ne_roles` and `source_id`.
+
+### Changed
+- **Project schema 8.** Projects carry the register, the indicator fields,
+  stakeholder roles and the stakeholder counter. An older SESPy refuses to
+  overwrite a v1.15 file, and says which version it needs, instead of saving
+  it without the new data.
+- The Excel import's Indicator column now fills the Indicator field, not the
+  description.
+- Stakeholder IDs follow R's persisted counter, so a deleted stakeholder's ID
+  is not handed out again.
+- Projects saved from the Caribbean template get their indicators in the new
+  field when loaded.
+
+### Deferred
+- The indicator registry picker and "Load DA actor list" (P4), the Word
+  exports (P6c/P14), the WS-10 workshop (proposed P15) and
+  `r_min_app_version` (P1c).
+
 ## [1.14.2] — 2026-10-20
 
 ### Fixed

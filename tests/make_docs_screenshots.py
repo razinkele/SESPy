@@ -4,7 +4,7 @@
 Standalone Playwright script in the same style as `tests/test_*_e2e.py`: it
 drives http://127.0.0.1:<port> (start the server yourself, e.g.
 `shiny run --port 8000 app.py` with PYTHONPATH set to the repo root), walks
-the 19 nav panels in app.py NAV order, triggers the button-gated analysis
+the 20 nav panels in app.py NAV order, triggers the button-gated analysis
 blocks so their results are visible, and writes `<out>/<nav value>.png` for
 each panel plus a handful of extras (metrics_cascade, simulation_montecarlo,
 about_overview, about_manual, full_app).
@@ -40,6 +40,7 @@ NAV_ORDER = [
     ("templates",    ("text",  "#templates-templates_list")),
     ("wizard",       ("sel",   "#wizard-wizard_start")),
     ("entry",        ("sel",   "#entry-elements_table table tbody tr")),
+    ("responses",    ("sel",   "#responses-measures_table")),
     ("rate",         ("sel",   "#rate-connections_table table tbody tr")),
     ("cld",          ("pyvis", "cld-network")),
     ("loops",        ("sel",   "#loops-detect")),
@@ -388,7 +389,7 @@ class Shooter:
         await page.goto(f"http://127.0.0.1:{port}", wait_until="networkidle")
         # Cold-server warm-up: the nav is server-rendered
         await page.wait_for_function(
-            "() => document.querySelectorAll('.sespy-nav-btn').length >= 19", timeout=60000)
+            "() => document.querySelectorAll('.sespy-nav-btn').length >= 20", timeout=60000)
         await page.wait_for_timeout(1500)
         # Toasts (the autosave "Recovered work" prompt fires a moment after
         # load; others arrive from gated runs) must not land in a doc shot.
