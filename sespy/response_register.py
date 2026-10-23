@@ -141,7 +141,7 @@ def reverse_label_map() -> dict[str, dict[str, str]]:
     code} over every language of the vendored response_measures.json (the R
     keys live only there at v1.33.0). Labels are stripped and non-empty;
     the first occurrence wins. Reads the vendored file directly (never
-    sespy.i18n, which imports Shiny)."""
+    sespy.i18n, which imports Shiny). Cached and shared: callers must not mutate it."""
     tr = json.loads(_VENDORED.read_text(encoding="utf-8"))["translation"]
     out: dict[str, dict[str, str]] = {}
     for vocab, codes in _VOCABS.items():

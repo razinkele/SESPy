@@ -280,7 +280,7 @@ def test_warning_sort_key_literal_order():
 
 # ---- fixture mode (§3.1, §3.3 step 7) -----------------------------------------
 
-def test_fixture_mode_writes_projects_and_catalogue_only(tmp_path):
+def test_fixture_mode_writes_projects_catalogue_and_translations(tmp_path):
     root = _tree(tmp_path)
     before = _snap(root)
     res = C.sync(repo_root=root, from_fixtures=True)

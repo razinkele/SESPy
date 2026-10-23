@@ -516,3 +516,31 @@ def test_ef_figure():
     empty = build_ef_figure([{"ID": "RM004", "Effectiveness": "HIGH"}], tr).axes[0]
     assert empty.get_title() == tr(base + "add_effectiveness_and_feasibility_ratings")
     assert not empty.collections
+
+
+def test_display_vocabularies_have_labels_in_all_languages():
+    # display_value also reads the governance, tenet, kind, PESTLE and EBM
+    # vocabularies (Task 6-10 review): each key needs a label in all 9 languages.
+    import json
+    from pathlib import Path
+
+    from sespy.response_register import (EBM_MANAGEMENT_MEASURES, EBM_POLICY_INSTRUMENTS,
+                                         GOVERNANCE_LEVELS, KIND_CODES, PESTLE_CODES,
+                                         TENET_LEVELS)
+
+    folder = Path(__file__).resolve().parents[1] / "sespy" / "translations" / "modules"
+    vendored = {}
+    for p in folder.glob("*.json"):
+        vendored.update(json.loads(p.read_text(encoding="utf-8"))["translation"])
+    keys = [f"modules.response.governance.level.{c}" for c in GOVERNANCE_LEVELS]
+    keys += [f"modules.response.governance.tenet_level.{c}" for c in TENET_LEVELS]
+    keys += [f"modules.response.governance.kind.{c}" for c in KIND_CODES]
+    keys += [f"modules.wp5_scenarios.pestle.{c}" for c in PESTLE_CODES]
+    keys += [f"modules.wp5_vocabulary.measure.{c.replace('.', '_')}"
+             for c, _, _ in EBM_MANAGEMENT_MEASURES]
+    keys += [f"modules.wp5_vocabulary.instrument.{c.replace('.', '_')}"
+             for c, level in EBM_POLICY_INSTRUMENTS if level == "type"]
+    langs = ("en", "es", "fr", "de", "lt", "pt", "it", "no", "el")
+    missing = [(k, lang) for k in keys for lang in langs
+               if not str((vendored.get(k) or {}).get(lang) or "").strip()]
+    assert not missing, missing[:10]

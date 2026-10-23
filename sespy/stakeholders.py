@@ -17,7 +17,7 @@ from sespy.utils import next_id, safe_counter
 
 _log = logging.getLogger(__name__)
 
-# D5.4 actor typology: R STAKEHOLDER_TYPES (constants.R:563-571, v1.33.0;
+# D5.4 actor typology: R STAKEHOLDER_TYPES (constants.R:564-571, v1.33.0;
 # Newton & Elliott 2016). Stored as these capitalised codes, as R does.
 STAKEHOLDER_ROLES: tuple[str, ...] = (
     "Inputters", "Extractors", "Regulators", "Affectees", "Beneficiaries", "Influencers",

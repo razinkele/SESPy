@@ -434,3 +434,15 @@ def test_package_data_ships_vendored_translations():
     shipped = {p for pattern in patterns for p in (root / "sespy").glob(pattern)}
     vendored = set((root / "sespy" / "translations").rglob("*.json"))
     assert vendored and vendored <= shipped, sorted(str(p) for p in vendored - shipped)
+
+
+def test_nav_responses_is_the_r_register_title():
+    # nav.responses repeats R's own title, in all 9 languages (Task 6-10 review).
+    import json
+    from pathlib import Path
+
+    base = Path(__file__).resolve().parents[1] / "sespy" / "translations"
+    core = json.loads((base / "core.json").read_text(encoding="utf-8"))["translation"]
+    vendored = json.loads((base / "modules" / "response_measures.json")
+                          .read_text(encoding="utf-8"))["translation"]
+    assert core["nav.responses"] == vendored["modules.response.measures.response_register"]

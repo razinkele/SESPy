@@ -162,7 +162,7 @@ def test_remove_drops_by_id():
 # --- P1b: D5.4 actor roles (R stakeholder_schema.R:30-37, v1.33.0) ----------
 
 def test_stakeholder_roles_are_r_stakeholder_types():
-    # R STAKEHOLDER_TYPES, constants.R:563-571 (Newton & Elliott 2016).
+    # R STAKEHOLDER_TYPES, constants.R:564-571 (Newton & Elliott 2016).
     assert STAKEHOLDER_ROLES == ("Inputters", "Extractors", "Regulators",
                                  "Affectees", "Beneficiaries", "Influencers")
 

@@ -13,7 +13,7 @@ it at a tmp_path copy; code and constants (the mapper, regional_seas.json)
 come from the imported package. Shiny-free, no clock, no logging: the caller
 prints `SyncResult.lines`.
 
-R reference: functions/template_loader.R:359-371 (v1.31.0) for the category
+R reference: functions/template_loader.R:359-371 (v1.33.0) for the category
 rule (ported in `determine_category`, guarded by
 tests/parity/test_r_category_parity.py).
 """

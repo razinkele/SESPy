@@ -276,7 +276,7 @@ def test_to_dict_does_not_mutate_metadata():
     assert p.metadata == before
 
 
-def test_p0b_still_flags_a_v8_file():
+def test_p0b_still_flags_a_newer_file():
     p = Project.from_dict(_payload(schema_version=PROJECT_SCHEMA_VERSION + 1))
     assert p.newer_build == {"schema": PROJECT_SCHEMA_VERSION + 1,
                              "schema_max": PROJECT_SCHEMA_VERSION}

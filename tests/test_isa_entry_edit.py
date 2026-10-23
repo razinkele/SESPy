@@ -306,3 +306,22 @@ def test_delete_unreferenced_element_does_not_warn(monkeypatch):
         ui.click("remove_element")
         assert "P001" not in {e.id for e in ui.project().isa_data.elements}
         assert ui.toasts == []
+
+
+def test_connection_save_touches_only_the_opened_connection(monkeypatch):
+    # A loaded file can repeat a (source, target) pair; Save writes only the
+    # connection the editor opened (Task 6-10 review).
+    start = _sample()
+    first = start.isa_data.connections[D001_A001]
+    twin = dataclasses.replace(first, polarity="-" if first.polarity == "+" else "+",
+                               description="twin")
+    start = start.replace(isa_data=IsaData(elements=start.isa_data.elements,
+                                           connections=[*start.isa_data.connections, twin]))
+    with _entry(monkeypatch, start) as ui:
+        ui.select("connections_table", D001_A001, 21)
+        ui.click("edit_connection")
+        ui.scope.set_inputs(conn_description="mine")
+        ui.click("save_connection")
+        connections = ui.project().isa_data.connections
+        assert connections[D001_A001].description == "mine"
+        assert connections[-1] == twin

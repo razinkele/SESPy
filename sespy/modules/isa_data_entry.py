@@ -459,9 +459,10 @@ def isa_data_entry_server(
             return
         new = dataclasses.replace(c, description=input.conn_description() or "")
         isa = project_data.get().isa_data
-        _replace(IsaData(elements=isa.elements,
-                         connections=[new if (x.source, x.target) == pair else x
-                                      for x in isa.connections]))
+        # Only the connection the editor opened: a loaded file can repeat a pair.
+        connections = list(isa.connections)
+        connections[next(i for i, x in enumerate(connections) if x is c)] = new
+        _replace(IsaData(elements=isa.elements, connections=connections))
 
     @reactive.effect
     @reactive.event(input.cancel_connection, ignore_init=True)
