@@ -16,6 +16,7 @@ from ..data_structure import Project
 from ..event_bus import EventBus
 from ..input_utils import safe_int
 from ..i18n import Translator, t
+from ._notify import notify_data_changed
 
 
 def _format_state(state_int: int, n: int) -> str:
@@ -127,11 +128,7 @@ def analysis_boolean_server(
         event_bus.isa_change.get()
         with reactive.isolate():
             if result_store.get() is not None:
-                ui.notification_show(
-                    t("analysis.common.data_changed_rerun"),
-                    duration=5,
-                    type="warning",
-                )
+                notify_data_changed()
 
     @output
     @render.plot
