@@ -314,6 +314,17 @@ def analysis_intervention_server(
             project_data.get().isa_data, impact(), chosen_ids(),
         )
 
+    @reactive.calc
+    def diffusion_isa():
+        """The model the diffusion runs on: the elements picked for removal
+        are taken out, so the chart answers "what spreads from here if those
+        were gone" (it ran on the full model, so removing an element changed
+        nothing; MosaicSES tester report, 23 Oct 2026)."""
+        event_bus.isa_change.get()
+        isa = project_data.get().isa_data
+        ids = chosen_ids()
+        return net_analysis.remove_nodes(isa, ids) if ids else isa
+
     _diffusion_result = reactive.value(None)   # None | _COMPUTING | result dict
     _diffusion_gen = [0]                       # plain cell, NOT reactive (as _bbn_gen)
 
@@ -328,8 +339,7 @@ def analysis_intervention_server(
     @output
     @render.ui
     def diffusion_controls():
-        event_bus.isa_change.get()
-        els = project_data.get().isa_data.elements
+        els = diffusion_isa().elements
         if not els:
             return ui.div()
         choices = {el.id: f"{el.id} · {el.label}" for el in els}
@@ -357,6 +367,7 @@ def analysis_intervention_server(
         # Changing the source or the sliders invalidates a previous run —
         # a table computed for another intervention point must never be
         # read as the current one's.
+        chosen_ids()               # a different removal is a different model
         for read in (input.diffusion_source, input.n_steps, input.n_tokens):
             try:
                 read()
@@ -378,7 +389,11 @@ def analysis_intervention_server(
         _diffusion_result.set(_COMPUTING)
         # Fixed seed (in the task): two intervention points then differ by
         # structure rather than by chance, which is the point of comparing them.
-        _diffusion_task(project_data.get().isa_data, src,
+        with reactive.isolate():
+            isa = diffusion_isa()
+        if src not in {el.id for el in isa.elements}:
+            return                 # the source itself was removed
+        _diffusion_task(isa, src,
                         safe_int(input.n_steps(), 10),
                         safe_int(input.n_tokens(), 1000),
                         _diffusion_gen[0])
@@ -400,8 +415,7 @@ def analysis_intervention_server(
     @output
     @render.ui
     def diffusion_summary():
-        event_bus.isa_change.get()
-        isa = project_data.get().isa_data
+        isa = diffusion_isa()
         if len(isa.elements) < 2:
             return ui.p(t("metrics.gov_gap_none"), class_="text-muted")
         r = _diffusion_result.get()
