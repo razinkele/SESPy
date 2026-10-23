@@ -1,12 +1,14 @@
 # R → SESPy parity roadmap — design
 
 Date: 2026-10-16 (revised after review loops 1–3; amended 2026-10-17 after
-P0 shipped and the P1a spec converged; amended 2026-10-18 by P2)
-Baseline: MarineSABRES_SES_Shiny **v1.31.0** (`4b53b7d`, re-pinned by P2 on
-2026-10-18). The files pinned so far are identical to v1.29.0 (`e33faea`),
-which was verified against the laguna deployment on 2026-10-17. The original
+P0 shipped and the P1a spec converged; amended 2026-10-18 by P2; amended
+2026-10-23 by P1b)
+Baseline: MarineSABRES_SES_Shiny **v1.33.0** (`4017feb`, re-pinned by P1b on
+2026-10-23), the version laguna runs (verified 2026-10-20). The 9 files pinned
+since P2 are identical to v1.31.0 (`4b53b7d`) and v1.29.0 (`e33faea`), which
+was verified against the laguna deployment on 2026-10-17. The original
 baseline was v1.28.0 (`e3c3b77`) against SESPy v1.12.1. SESPy is now at
-**v1.14.0** (P0, P1a and P2 shipped).
+**v1.15.0** (P0, P1a, P2 and P1b shipped).
 **Each sub-project re-pins** to the then-current R tag when its brainstorm
 starts, triages the R changes since the previous pin, and records the pin in
 `docs/parity/R_SYNC.md`.
@@ -97,9 +99,10 @@ Each sub-project gets its own brainstorm → spec → plan → subagent-TDD →
 full e2e gate → release cycle.
 
 ```
-P0 → P1a ─┬→ M ┄→ first schema bump after P1a (K1 or P1b, usually)
+P0 → P1a ─┬→ M (MosaicSES 0.4.0) ┄→ first schema bump after P1a (P1b, v1.15.0)
           ├→ P2   (soft: K1)
-          ├→ K1 ─┬→ P4 (also P1b) → P5 → P6a (also P1c) → P6b → P6c
+          ├→ K1 ─┬→ P4 (also P1b) ─┬→ P5 → P6a (also P1c) → P6b → P6c
+          │      │                 └→ P15 (WS-10 workshop, proposed)
           │      └→ P9
           ├→ P1b → P1c → P8 → P7a (also P3) → P7b
           └→ P3 (Python side)
@@ -170,6 +173,10 @@ R source: 1.17.1, 1.18.0, 1.22.0 (N26/N61/N62), 1.22.3. **Detailed spec:**
   R fields not carried over are listed in the spec.
 
 ### M — MosaicSES newer-build guard (MosaicSES release)
+**Shipped** in MosaicSES v0.4.0 (2026-10-18), live as v0.4.1; P1b (SESPy
+v1.15.0, schema 8) was the first schema bump after P1a. M's tests read
+`SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]` dynamically, so later bumps leave
+them valid.
 Owner: the **first branch after P1a that bumps the schema**, in practice K1 or
 P1b, but P3, P5, P9 or P12 if one of them persists state and merges earlier.
 If the branch that started M merges second, the branch that merges first
@@ -177,11 +184,11 @@ ships M unless it is already deployed. Depends on P1a. It ships as a **MosaicSES
 the SESPy release that makes the first schema bump after P1a.
 
 MosaicSES's save model, which M follows: the Save button only commits
-metadata to in-memory state (`multises_app/modules/project_setup.py:229-259`),
+metadata to in-memory state (`multises_app/modules/project_setup.py:257-288`),
 and persistence is a **browser download** named `mosaicses-<timestamp>.json`
-(`:262-275`). There is no server-side project file and no autosave. The only
+(`:320-351`). There is no server-side project file and no autosave. The only
 server-side store is the recent-projects registry: it is filled on download,
-and with the raw payload on open (`:295`) and on re-open from the Recent list
+and with the raw payload on open (`:371`) and on re-open from the Recent list
 (`multises_app/modules/recent_projects.py:193`), both lossless.
 - On load, MosaicSES shows a warning when any compartment carries
   `Project.newer_build`, naming the compartment and the version it needs. (A
@@ -204,11 +211,14 @@ and with the raw payload on open (`:295`) and on re-open from the Recent list
 
 ### P1b — Response register + indicator fields
 R source: 1.19.0, 1.23.0 (WS-3a), 1.24.0 (WS-4), 1.29.0 (`PestleTag`),
-1.30.0 (WS-9a: `Policy_Target`, stakeholder roles; triaged by P2).
+1.30.0 (WS-9a: `Policy_Target`, stakeholder roles; triaged by P2), 1.32.0
+(`TenetSource`, tenet-level validation); pinned at v1.33.0 (`4017feb`).
+**Detailed spec:**
+`docs/superpowers/specs/2026-10-21-p1b-response-register-indicators-design.md`.
+Shipped in **SESPy v1.15.0** (schema 8).
 Depends on P1a.
-- **Prerequisite (MosaicSES):** node **M** (above) must be deployed before the
-  first schema bump after P1a, if P1b is that bump. Without that, an older MosaicSES re-saves such a compartment
-  in the older format (P1a resets the stamp) and silently loses the newer data.
+- **Prerequisite (MosaicSES):** node **M** — satisfied: shipped in MosaicSES
+  0.4.0 (2026-10-18), live as 0.4.1 before the v1.15.0 deploy.
 - The **Response register is a separate block**, as in R:
   `Project.response_measures = {measures, impacts, milestones, counter}`.
   Measures use R's column names: `ID, Name, Type, Target, Description,
@@ -217,12 +227,15 @@ Depends on P1a.
   CompetentAuthority, LegalBasis, ImplementingStakeholders, PairedWith,
   PestleTag, Tenet_<11 codes>` (`PestleTag` added in R 1.29.0: column list
   `constants.R:835`, normalisation `response_measures_schema.R:81`).
-- **Decide in the P1b spec:**
-  - whether Responses elements marked `r_extra["r_kind"] = "measure"` (folded
-    in by P1a's mapper and Excel import) are promoted into
-    `response_measures`;
-  - whether element extras such as `r_extra["indicator"]` and
-    `r_extra["baseline"]` migrate into the new `Indicator…` fields.
+- **Response Register page** (R `response_module.R` tabs 1–5, minus the
+  bandit suggestion, the Word exports, the WP5 mechanism tab and the D5.4
+  governance-context tab), moved from P4.
+- **Decided in the P1b spec (§5):** (a) template measures
+  (`r_extra["r_kind"] = "measure"`) are not promoted into `response_measures`
+  (R never does, `template_loader.R:186-189`); (b) `r_extra["indicator"]`
+  moves into `Element.indicator` (mapper and Excel import), `baseline` stays
+  in `r_extra`, and projects saved with `r_extra["indicator"]` are hoisted on
+  load.
 - **`Connection.description` editing UI** in ISA entry (P1a stores and
   round-trips the field but adds no UI).
 - Code lists ported from R (`RM_TYPE_CODES`, `RM_TARGET_CODES`,
@@ -235,13 +248,10 @@ Depends on P1a.
   `functions/indicator_snapshot.R`), on **all elements except Responses**.
 - **Stakeholder roles (R 1.30.0, WS-9a):** the PIMS stakeholder register gains
   `NERoles` (D5.4 actor roles, Newton & Elliott typology) and `SourceId`
-  (`functions/stakeholder_schema.R`, `modules/pims_stakeholder_module.R`),
-  plus "Load DA actor list". Also check SESPy's stakeholders page against R's
-  duplicate-row fix `33ddd96` (one row per add, safe id counter).
-- Two version stamps, kept separate: SESPy's own `metadata.min_sespy_version`
-  (introduced in P1a, honoured by P0b in v1.12.3), and `metadata.r_min_app_version`
-  (copied from an R import's top-level `min_app_version`, used only for import
-  diagnostics, never compared with SESPy's version).
+  (`functions/stakeholder_schema.R`, `modules/pims_stakeholder_module.R`) as
+  `ne_roles`/`source_id`. "Load DA actor list" moved to P4 (user decision
+  2026-10-21). The `33ddd96` check is closed: one row per add, and stakeholder
+  ids follow R's persisted counter (`Project.stakeholder_counter`).
 - Explicit `to_dict`/`from_dict` code for every new block. P1b **bumps the
   schema version** (it adds serialised fields) and adds its
   `SCHEMA_MIN_READER` entry.
@@ -274,6 +284,13 @@ Depends on P1a/P1b.
 - **Prerequisite fixture:** save an R project at the then-current pin (≥ v1.29.0) that contains register
   measures with the WS-3a fields, R→MPF/R→R links, indicator fields, an
   impact assessment and a Designer-applied scenario with `links_modified`.
+- Maps R's stakeholder `NERoles`/`SourceId` and `pims$stakeholder_counter` to
+  `ne_roles`/`source_id`/`stakeholder_counter`, and imports R registers
+  through `sespy.response_register.normalize_measures` (and
+  `normalize_impacts`/`normalize_milestones`).
+- `metadata.r_min_app_version` (moved from P1b): copied from an R import's
+  top-level `min_app_version`, used only for import diagnostics, never
+  compared with SESPy's version; carried by P1c's schema bump.
 - **Done when:** importing the fixture, editing through each module's
   `.replace` path, autosaving and reloading keeps `r_passthrough`
   byte-equal and keeps the edge set (incl. delay and description). Byte
@@ -367,10 +384,11 @@ Depends on P1a (Python side); the R fixture capture can start after P0.
   gate apply.)
 - **Done when:** MICMAC and archetype output equal the R fixture on all 7 templates.
 
-### P4 — Response Measures page + WP5 data layer
+### P4 — WP5 data layer, mechanism and governance-context tabs
 R source: 1.19.0, 1.22.0 (N48), 1.23.0, 1.24.0, 1.30.0 (WS-9a governance
 profiles), 1.31.0 (WS-9b readiness check). Depends on P1b; loader from K1.
-- Response register page (R `response_module.R`) on the P1b block.
+- WP5 mechanism and D5.4 governance-context tabs on the Response Register
+  page shipped by P1b (v1.15.0).
 - WP5 assets loaded through the §3 reference-data loader:
   `ses_knowledge_db_wp5_mechanisms.json` (`schema: 2`, 31 mechanisms),
   `wp5_indicators.json` (its `registry_version` is the value stamped into
@@ -381,7 +399,7 @@ profiles), 1.31.0 (WS-9b readiness check). Depends on P1b; loader from K1.
 - "Linked WP5 mechanisms" pane, filtered by demonstration area (single resolver
   mirroring `wp5_da_for_project()`).
 - WP5 indicator picker (snapshot + `Registry_Version`). The snapshot is P1b's
-  five indicator fields, so **P4 adds no serialised field** and does not bump
+  six indicator fields incl. `Policy_Target`, so **P4 adds no serialised field** and does not bump
   the schema. On load, warn when the registry entry has changed since the copy.
 - Model-check warnings (`wp5_typing_lint.R`).
 - **D5.4 governance (R 1.30.0/1.31.0, triaged by P2):** the "Governance
@@ -390,7 +408,10 @@ profiles), 1.31.0 (WS-9b readiness check). Depends on P1b; loader from K1.
   PIMS "Governance readiness (D5.4)" page (`modules/wp5_readiness_module.R`,
   `functions/wp5_readiness.R`, data `wp5_readiness_items.json`). Their strings
   (`translations/modules/wp5_governance.json`, `wp5_readiness.json`) live
-  outside `data/` and are always vendored.
+  outside `data/` and are always vendored. Also the stakeholder register's
+  "Load DA actor list" (R `modules/pims_stakeholder_module.R`, data
+  `wp5_governance_profiles.json`; moved from P1b, user decision 2026-10-21),
+  which fills P1b's `ne_roles`/`source_id`.
 - **Done when:** loaded asset counts and ids equal the vendored copy, and, when
   the override is set, the live copy too (integration test, skipped in CI).
   The pane, picker and warnings work in e2e.
@@ -540,6 +561,13 @@ ported pages exist).
   tutorials go into the contextual Help offcanvas. No parallel help system.
 - **Done when:** the guided tour runs across the main pages in all 9 languages.
 
+### P15 — WS-10 workshop elicitation (proposed by P1b, 2026-10-23)
+R source: 1.32.0–1.32.4 (`functions/wp5_workshop.R`,
+`modules/wp5_workshop_module.R`, `data/wp5_tenet_guiding_questions.json` and
+its test, the sidebar entry, the `workshops` block and its 1.32.0 stamp).
+Depends on P4. It writes the register's `TenetSource`, which P1b stores and
+shows read-only, so the §3 schema-bump and MosaicSES rules apply.
+
 ## 3. Rules that apply to every sub-project
 
 ### Reference data (shared KB)
@@ -626,8 +654,9 @@ ported pages exist).
 
 ### Sync tracking
 `docs/parity/R_SYNC.md` records, for each ported feature, the R version and commit it
-matches (baseline v1.31.0 @ `4b53b7d` since P2; the pinned files are
-identical to v1.29.0 @ `e33faea`, verified against laguna on 2026-10-17),
+matches (baseline v1.33.0 @ `4017feb` since P1b, the version laguna runs
+(verified 2026-10-20); the 9 files pinned since P2 are identical to v1.31.0 @
+`4b53b7d` and v1.29.0 @ `e33faea`),
 plus each fixture's and vendored file's hash (mirroring
 `tests/parity/r_sync.json`). R releases after the baseline are triaged into
 it when the next sub-project re-pins.
@@ -665,7 +694,7 @@ the live MosaicSES after deploy.
 - Unit tests reproduce R's published numbers.
 - Every sub-project passes the **full** e2e gate, with no heavy jobs running
   concurrently on the 16 GB machine.
-- P0 = v1.12.2 (hotfix) + v1.12.3 (P0b); P1a = v1.13.0; P2 = v1.14.0. Then one minor release
+- P0 = v1.12.2 (hotfix) + v1.12.3 (P0b); P1a = v1.13.0; P2 = v1.14.0; P1b = v1.15.0. Then one minor release
   per sub-project (P3 or K1 may ship out of sequence; P6 takes three).
 - **Version and schema numbers are fixed when a branch starts**, because the
   first commit bumps `__version__`, `pyproject.toml` and the MANUAL line
