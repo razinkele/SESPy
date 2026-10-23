@@ -352,6 +352,7 @@ P1B_R_KEYS = [
         "response_register", "impact_assessment", "prioritization", "implementation_plan",
         "delete_selected", "download_response_data_excel",
         "deleted_response_measures", "impact_linkage_added", "milestone_added",
+        "response_measure_added",
         # plot
         "add_effectiveness_and_feasibility_ratings", "response_measure_prioritization_matrix",
         "feasibility", "effectiveness", "low", "medium", "high",
@@ -419,3 +420,17 @@ def test_p1b_placeholders_match_across_languages(translations):
         for lang, text in translations[key].items():
             assert set(re.findall(r"\{(\w+)\}", text)) == names, (key, lang, text)
     assert translations["entry.registry"]["en"] == "WP5 registry: {id} (revision {version})"
+
+
+def test_package_data_ships_vendored_translations():
+    # A pip install ships only what the package-data globs match, and setuptools
+    # globs do not cross "/": the vendored R strings live one level down.
+    import tomllib
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    patterns = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))[
+        "tool"]["setuptools"]["package-data"]["sespy"]
+    shipped = {p for pattern in patterns for p in (root / "sespy").glob(pattern)}
+    vendored = set((root / "sespy" / "translations").rglob("*.json"))
+    assert vendored and vendored <= shipped, sorted(str(p) for p in vendored - shipped)
