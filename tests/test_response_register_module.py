@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from dataclasses import replace
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import shiny
@@ -37,6 +37,12 @@ FORM = {"rm_name": "", "rm_type": "", "rm_target": "", "rm_status": "proposed",
         "rm_barriers": "", "rm_kind": "", "rm_ebm_code": "", "rm_gov_level": "",
         "rm_competent_authority": "", "rm_legal_basis": "", "rm_impl_stakeholders": [],
         "rm_paired_with": "", "rm_pestle": [], **{f"rm_tenet_{c}": "" for c in TENET_CODES}}
+# The Impacts, Prioritisation and Milestones tabs' inputs as a browser first sends them.
+TAB_FORM = {"impact_response": "", "impact_problem": "", "impact_element": "",
+            "impact_strength": "", "impact_timeframe": "", "weight_effectiveness": 0.4,
+            "weight_feasibility": 0.3, "weight_cost": 0.3, "impl_response": "",
+            "impl_milestone": "", "impl_date": (date.today() + timedelta(days=365)).isoformat(),
+            "impl_status": "pending", "impl_notes": ""}
 
 
 def _sample() -> Project:
@@ -90,9 +96,9 @@ class _Ui:
         self.scope.set_inputs(**{**FORM, **form})
         self.click("save_measure")
 
-    def select(self, rows: list[int], n: int) -> None:
-        self.scope.set_inputs(**{"measures_table_cell_selection": {"type": "row", "rows": rows},
-                                 "measures_table_data_view_rows": list(range(n))})
+    def select(self, rows: list[int], n: int, table: str = "measures_table") -> None:
+        self.scope.set_inputs(**{f"{table}_cell_selection": {"type": "row", "rows": rows},
+                                 f"{table}_data_view_rows": list(range(n))})
 
     def write_project(self, project: Project) -> None:
         self._inject.append(project)
@@ -106,8 +112,8 @@ class _Ui:
     def calls(self, fn: str, input_id: str) -> list[dict]:
         return [kw for f, i, kw in self.updates if f == fn and i == input_id]
 
-    def table(self) -> str:
-        return json.dumps(self.scope.get_output("measures_table").value, ensure_ascii=False)
+    def table(self, output: str = "measures_table") -> str:
+        return json.dumps(self.scope.get_output(output).value, ensure_ascii=False)
 
 
 @contextmanager
@@ -118,7 +124,7 @@ def _page(monkeypatch, project: Project | None = None):
     monkeypatch.setattr(shiny.ui, "notification_show",
                         lambda msg, **kw: toasts.append(str(msg)))
     for fn in ("update_text", "update_text_area", "update_select", "update_selectize",
-               "update_numeric"):
+               "update_numeric", "update_date"):
         monkeypatch.setattr(shiny.ui, fn,
                             (lambda name: lambda id, **kw: updates.append((name, id, kw)))(fn))
     holder: list[reactive.Value[Project]] = []
@@ -141,7 +147,7 @@ def _page(monkeypatch, project: Project | None = None):
         ui = _Ui(ts, holder, toasts, updates, inject)
         # A browser sends every input's initial value on page load; the
         # follow-up effects (ignore_init=True) skip exactly that first value.
-        ui.scope.set_inputs(**FORM)
+        ui.scope.set_inputs(**FORM, **TAB_FORM)
         yield ui
 
 
@@ -279,6 +285,25 @@ def test_choice_refresh_keeps_current_pick(monkeypatch):
         assert "SH001" in ui.calls("update_selectize", "rm_impl_stakeholders")[-1]["choices"]
 
 
+def test_closing_an_edit_clears_pickers_that_held_raw_ids(monkeypatch):
+    # Task 11 review: R001 (a Responses element) and SH404 (no such stakeholder) are
+    # offered only while their row is open. Closing the Edit must leave both pickers
+    # empty, not resend the old picks the server still holds.
+    project = _sample().replace(stakeholders=[Stakeholder(id="SH001", name="Port")])
+    start = _with_register({"Name": "Odd", "Type": "regulatory", "TargetElement": "P001;R001",
+                            "ImplementingStakeholders": "SH001;SH404"}, project=project)
+    with _page(monkeypatch, start) as ui:
+        row = ui.project().response_measures.measures[0]
+        ui.select([0], 1)
+        ui.click("edit_measure")
+        ui.scope.set_inputs(**_form_of(row))                       # the browser shows the row
+        ui.click("cancel_measure")
+        target = ui.calls("update_selectize", "rm_target_element")[-1]
+        assert target["selected"] == [] and "R001" not in target["choices"]
+        impl = ui.calls("update_selectize", "rm_impl_stakeholders")[-1]
+        assert impl["selected"] == [] and "SH404" not in impl["choices"]
+
+
 def test_save_after_project_swap_does_not_write(monkeypatch):
     start = _with_register({"Name": "No-take zone", "Type": "regulatory"})
     with _page(monkeypatch, start) as ui:
@@ -329,3 +354,90 @@ def test_language_switch_relabels_not_rewrites(monkeypatch):
             assert ui.project().response_measures.measures[0] == stored
     finally:
         TR.set_language("en")
+
+
+# ---- impacts, prioritisation, milestones (Task 12) ------------------------------------
+
+def test_impact_add_and_delete(monkeypatch):
+    start = _with_register({"Name": "No-take zone", "Type": "regulatory"})
+    with _page(monkeypatch, start) as ui:
+        assert ui.calls("update_select", "impact_response")[-1]["choices"] == {
+            "": "", "RM001": "RM001: No-take zone"}                          # R :663-666
+        assert "P001" in ui.calls("update_select", "impact_element")[-1]["choices"]
+        ui.scope.set_inputs(impact_response="RM001")
+        ui.click("add_impact")                                               # no problem type
+        assert ui.toasts[-1] == TR.t("responses.impact_required")
+        assert ui.project().response_measures.impacts == []
+        ui.scope.set_inputs(impact_problem="specific_pressure", impact_element="P001",
+                            impact_strength="strong", impact_timeframe="short_term_1_3y")
+        ui.click("add_impact")
+        assert ui.project().response_measures.impacts == [{
+            "ResponseID": "RM001", "ProblemType": "specific_pressure",
+            "ProblemElementID": "P001", "ImpactStrength": "strong",
+            "Timeframe": "short_term_1_3y"}]
+        assert ui.toasts[-1] == TR.t("modules.response.measures.impact_linkage_added")
+        assert TR.t("modules.response.measures.short_term_1_3y") in ui.table("impacts_table")
+        ui.select([0], 1, table="impacts_table")
+        ui.click("delete_impact")
+        assert ui.project().response_measures.impacts == []
+
+
+def test_milestone_add_with_default_date(monkeypatch):
+    start = _with_register({"Name": "No-take zone", "Type": "regulatory"})
+    default = date.today() + timedelta(days=365)                            # R :329-330
+    with _page(monkeypatch, start) as ui:
+        assert ui.calls("update_date", "impl_date")[-1] == {"value": default}
+        ui.scope.set_inputs(impl_response="RM001", impl_milestone="   ")
+        ui.click("add_milestone")
+        assert ui.toasts[-1] == TR.t("responses.milestone_required")
+        assert ui.project().response_measures.milestones == []
+        ui.scope.set_inputs(impl_milestone="Consultation", impl_status="in_progress",
+                            impl_notes="first round")
+        ui.click("add_milestone")
+        assert ui.project().response_measures.milestones == [{
+            "ResponseID": "RM001", "Milestone": "Consultation",
+            "TargetDate": default.isoformat(), "Status": "in_progress", "Notes": "first round"}]
+        assert ui.calls("update_text", "impl_milestone")[-1] == {"value": ""}   # R :855-856
+        assert ui.calls("update_text_area", "impl_notes")[-1] == {"value": ""}
+        assert ui.toasts[-1] == TR.t("modules.response.measures.milestone_added")
+        assert TR.t("modules.response.measures.in_progress") in ui.table("milestones_table")
+        ui.select([0], 1, table="milestones_table")
+        ui.click("delete_milestone")
+        assert ui.project().response_measures.milestones == []
+
+
+def test_priority_table_follows_priority_rows(monkeypatch):
+    from sespy.response_register import PRIORITY_COLUMNS, priority_rows
+
+    start = _with_register(
+        {"Name": "a", "Type": "regulatory", "Effectiveness": "LOW", "Feasibility": "LOW",
+         "Cost": 9},
+        {"Name": "b", "Type": "economic", "Effectiveness": "HIGH", "Feasibility": "MEDIUM",
+         "Cost": 3},
+        {"Name": "c", "Type": "technical"})                                  # no Cost: no score
+    measures = start.response_measures.measures
+    with _page(monkeypatch, start) as ui:
+        # 0.4*1/3 + 0.3*1/3 + 0.3*(11-9)/10 = 0.293, and 0.4*3/3 + 0.3*2/3 + 0.3*(11-3)/10 = 0.840
+        want = [r["ID"] for r in priority_rows(measures)]
+        assert want == ["RM002", "RM001", "RM003"]
+        table = ui.table("priority_table")
+        assert sorted(want, key=table.index) == want
+        assert "0.840" in table and "0.293" in table
+        ui.scope.set_inputs(weight_effectiveness=0.1, weight_feasibility=0.1, weight_cost=0.8)
+        assert [r["ID"] for r in priority_rows(measures, 0.1, 0.1, 0.8)] == want
+        table = ui.table("priority_table")
+        assert "0.807" in table and "0.227" in table and "0.840" not in table
+        assert all(f'"{c}"' in table for c in PRIORITY_COLUMNS)
+        assert "BanditSuggestion" not in table
+
+
+def test_required_field_toasts_are_translated():
+    for key in ("responses.impact_required", "responses.milestone_required"):
+        english = TR.t(key)
+        assert english != key
+        try:
+            for lang in ("es", "fr", "de", "lt", "pt", "it", "no", "el"):
+                TR.set_language(lang)
+                assert TR.t(key) not in (key, english), (key, lang)
+        finally:
+            TR.set_language("en")

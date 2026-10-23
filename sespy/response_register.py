@@ -323,6 +323,12 @@ def suggest_target(ebm_measure_code: str) -> str:
 
 # ---- prioritisation (response_module.R:705-722, 775-776, 801-814) ---------------
 
+# The ranked table's columns: R's visible_cols minus BanditSuggestion (:782-784).
+PRIORITY_COLUMNS: tuple[str, ...] = (
+    "Rank", "ID", "Name", "Type", "Target", "Kind", "EbmCode", "GovernanceLevel",
+    "Effectiveness", "Feasibility", "Cost", "PriorityScore", "Status")
+
+
 def priority_rows(measures: list[dict], w_eff: float = 0.4, w_feas: float = 0.3,
                   w_cost: float = 0.3) -> list[dict[str, Any]]:
     """Each measure plus EffScore, FeasScore (HIGH 3 / MEDIUM 2 / LOW 1 /

@@ -432,3 +432,87 @@ def test_references_to():
     (" A001 ;; D002 ,", ["A001", "D002"]), ("", []), ("A001", ["A001"])])
 def test_split_ids(given, want):
     assert split_ids(given) == want
+
+
+# ---- exports (Task 12, sespy/response_reports.py) -------------------------------------
+
+def _en_tr():
+    """English vendored texts; a missing key comes back unchanged, as from the translator."""
+    import json
+    from pathlib import Path
+
+    raw = json.loads((Path(__file__).resolve().parents[1] / "sespy" / "translations" / "modules"
+                      / "response_measures.json").read_text(encoding="utf-8"))["translation"]
+    return lambda key: raw.get(key, {}).get("en", key)
+
+
+def test_response_workbook():
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from sespy.data_structure import ResponseRegister
+    from sespy.response_register import (
+        IMPACT_COLUMNS,
+        MILESTONE_COLUMNS,
+        RM_REGISTER_COLUMNS,
+        add_impact,
+        add_measure,
+        add_milestone,
+    )
+    from sespy.response_reports import build_response_workbook
+
+    tr = _en_tr()
+    reg, _ = add_measure(ResponseRegister(), {"Name": "No-take zone", "Type": "regulatory",
+                                              "Effectiveness": "HIGH", "Cost": 7},
+                         today="2026-10-22")
+    reg = add_impact(reg, {"ResponseID": "RM001", "ProblemType": "specific_pressure",
+                           "ImpactStrength": "strong", "Timeframe": "short_term_1_3y"})
+    reg = add_milestone(reg, {"ResponseID": "RM001", "Milestone": "Consultation",
+                              "TargetDate": "2027-10-22", "Status": "in_progress"})
+    wb = load_workbook(BytesIO(build_response_workbook(reg, tr)))
+    # R build_response_excel (response_module.R:1185-1192)
+    assert wb.sheetnames == ["Response_Measures", "Impact_Matrix", "Implementation"]
+    rows = {name: list(wb[name].iter_rows(values_only=True)) for name in wb.sheetnames}
+    assert list(rows["Response_Measures"][0]) == list(RM_REGISTER_COLUMNS)
+    assert list(rows["Impact_Matrix"][0]) == list(IMPACT_COLUMNS)
+    assert list(rows["Implementation"][0]) == list(MILESTONE_COLUMNS)
+    m = dict(zip(RM_REGISTER_COLUMNS, rows["Response_Measures"][1]))
+    assert (m["ID"], m["Name"], m["DateAdded"]) == ("RM001", "No-take zone", "2026-10-22")
+    assert m["Type"] == tr("modules.response.measures.regulatory") == "Regulatory"
+    assert m["Effectiveness"] == "High"
+    assert m["Cost"] == 7 and isinstance(m["Cost"], (int, float))
+    i = dict(zip(IMPACT_COLUMNS, rows["Impact_Matrix"][1]))
+    assert (i["ProblemType"], i["ImpactStrength"], i["Timeframe"]) == (
+        "Specific Pressure", "Strong", "Short-term (1-3y)")
+    s = dict(zip(MILESTONE_COLUMNS, rows["Implementation"][1]))
+    assert (s["TargetDate"], s["Status"]) == ("2027-10-22", "In Progress")
+    reg, _ = add_measure(ResponseRegister(), {"Name": "x", "Type": "mixed"}, today="d")
+    wb = load_workbook(BytesIO(build_response_workbook(reg, tr)))
+    row = next(wb["Response_Measures"].iter_rows(min_row=2, values_only=True))
+    assert dict(zip(RM_REGISTER_COLUMNS, row))["Cost"] is None              # blank, not 0
+
+
+def test_ef_figure():
+    from sespy.response_reports import build_ef_figure
+
+    tr = _en_tr()
+    base = "modules.response.measures."
+    measures = [{"ID": "RM001", "Effectiveness": "HIGH", "Feasibility": "LOW"},
+                {"ID": "RM002", "Effectiveness": "UNKNOWN", "Feasibility": "HIGH"},
+                {"ID": "RM003", "Effectiveness": "MEDIUM", "Feasibility": "MEDIUM"}]
+    ax = build_ef_figure(measures, tr).axes[0]                       # R :796-837
+    assert ax.get_title() == tr(base + "response_measure_prioritization_matrix")
+    assert ax.get_xlim() == (0.5, 3.5) and ax.get_ylim() == (0.5, 3.5)
+    # x = feasibility, y = effectiveness, and RM002 has no rated effectiveness
+    assert [list(p) for p in ax.collections[0].get_offsets()] == [[1, 3], [2, 2]]
+    texts = {t.get_text() for t in ax.texts}
+    assert {"RM001", "RM003"} <= texts and "RM002" not in texts
+    assert {tr(base + k) for k in ("high_priorityneffective_feasible", "effective_butndifficult",
+                                   "easy_butnlimited_impact", "low_priority")} <= texts
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["Low", "Medium", "High"]
+    assert ax.get_xlabel() == tr(base + "feasibility")
+    assert ax.get_ylabel() == tr(base + "effectiveness")
+    empty = build_ef_figure([{"ID": "RM004", "Effectiveness": "HIGH"}], tr).axes[0]
+    assert empty.get_title() == tr(base + "add_effectiveness_and_feasibility_ratings")
+    assert not empty.collections

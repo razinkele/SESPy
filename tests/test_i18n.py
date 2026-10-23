@@ -341,6 +341,8 @@ P1B_CORE_KEYS = [
     # plan review round 2: stale-edit refusal and the ISA editors' own toasts
     "responses.record_changed", "entry.record_changed", "entry.label_required",
     "entry.select_first",
+    # Task 12: what an impact or a milestone needs (R's req() is silent)
+    "responses.impact_required", "responses.milestone_required",
 ]
 _RM = "modules.response.measures."
 _GOV = "modules.response.governance."

@@ -6141,6 +6141,28 @@
       "it": "Seleziona prima una riga.",
       "no": "Velg en rad først.",
       "el": "Επιλέξτε πρώτα μια γραμμή."
+    },
+    "responses.impact_required": {
+      "en": "Choose a response measure and the problem it addresses.",
+      "es": "Elija una medida de respuesta y el problema que aborda.",
+      "fr": "Choisissez une mesure de réponse et le problème qu'elle traite.",
+      "de": "Wählen Sie eine Reaktionsmaßnahme und das Problem, das sie angeht.",
+      "lt": "Pasirinkite atsako priemonę ir problemą, kurią ji sprendžia.",
+      "pt": "Escolha uma medida de resposta e o problema que ela aborda.",
+      "it": "Scegli una misura di risposta e il problema che affronta.",
+      "no": "Velg et responstiltak og problemet det tar for seg.",
+      "el": "Επιλέξτε ένα μέτρο απόκρισης και το πρόβλημα που αντιμετωπίζει."
+    },
+    "responses.milestone_required": {
+      "en": "Choose a response measure and enter a milestone.",
+      "es": "Elija una medida de respuesta e introduzca un hito.",
+      "fr": "Choisissez une mesure de réponse et saisissez une étape.",
+      "de": "Wählen Sie eine Reaktionsmaßnahme und geben Sie einen Meilenstein ein.",
+      "lt": "Pasirinkite atsako priemonę ir įveskite etapą.",
+      "pt": "Escolha uma medida de resposta e indique um marco.",
+      "it": "Scegli una misura di risposta e inserisci un traguardo.",
+      "no": "Velg et responstiltak og skriv inn en milepæl.",
+      "el": "Επιλέξτε ένα μέτρο απόκρισης και εισαγάγετε ένα ορόσημο."
     }
   }
 }

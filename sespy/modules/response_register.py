@@ -3,14 +3,17 @@
 The Register tab holds an add/edit form with R's fields (response_module.R:28-190)
 and a table of R's 15 display columns. Edit repopulates the form, Save adds or
 updates, and Delete drops measures without cascading into impacts or milestones.
-Codes are stored and labels come from R's vendored translation keys. Every write
-goes through Project.replace() and emits isa_change, so autosave fires. The
-Impacts, Prioritisation and Milestones tabs are filled by Task 12.
+Impacts links a measure to a problem (R :195-243), Prioritisation ranks the
+measures by R's weighted score and plots effectiveness against feasibility
+(R :257-309, 699-837), and Milestones plans the implementation and exports R's
+three-sheet workbook (R :311-383, 839-894). Codes are stored and labels come from
+R's vendored translation keys. Every write goes through Project.replace() and
+emits isa_change, so autosave fires.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -24,23 +27,36 @@ from sespy.response_register import (
     EFFECTIVENESS_LEVELS,
     FEASIBILITY_LEVELS,
     GOVERNANCE_LEVELS,
+    IMPACT_COLUMNS,
+    IMPACT_PROBLEM_TYPES,
+    IMPACT_STRENGTHS,
     KIND_CODES,
+    MILESTONE_COLUMNS,
+    MILESTONE_STATUSES,
     PESTLE_CODES,
+    PRIORITY_COLUMNS,
     RM_DISPLAY_COLUMNS,
     RM_STATUS_CODES,
     RM_TARGET_CODES,
     RM_TYPE_CODES,
     TENET_CODES,
     TENET_LEVELS,
+    TIMEFRAMES,
+    add_impact,
     add_measure,
+    add_milestone,
+    delete_impact,
     delete_measures,
+    delete_milestone,
     display_value,
     ebm_code_choices,
     ebm_picker_label,
+    priority_rows,
     split_ids,
     suggest_target,
     update_measure,
 )
+from sespy.response_reports import build_ef_figure, build_response_workbook
 
 _RM = "modules.response.measures."
 _GOV = "modules.response.governance."
@@ -121,6 +137,24 @@ def _with_raw(choices: dict[str, str], *values: str) -> dict[str, str]:
         if v and v not in out:
             out[v] = v
     return out
+
+
+def _coded_choices(codes: tuple[str, ...], tr) -> dict[str, str]:
+    # R's c("", <labels>) (response_module.R:207-224): a blank first choice.
+    return {"": "", **{c: tr(_RM + c) for c in codes}}
+
+
+def _milestone_status_choices(tr) -> dict[str, str]:
+    # No blank choice: R's select starts on "pending" (response_module.R:339-340).
+    return {c: tr(_RM + c) for c in MILESTONE_STATUSES}
+
+
+def _target_date_default() -> date:
+    return date.today() + timedelta(days=365)      # R dateInput(Sys.Date() + 365) (:329-330)
+
+
+def _stamp() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
 # ---- UI ---------------------------------------------------------------------------
@@ -216,15 +250,116 @@ def _register_panel() -> ui.TagList:
     )
 
 
+def _impacts_panel() -> ui.TagList:
+    """R's tab 2 (response_module.R:195-243) plus a delete button (spec §6.1)."""
+    return ui.TagList(
+        ui.p(_t("modules.response.assess_which_measures_address_which_problems_in_yo")),
+        ui.card(
+            ui.card_header(_t(_RM + "create_impact_linkage")),
+            ui.layout_columns(
+                ui.input_select("impact_response", _t(_RM + "select_response"), {"": ""}),
+                ui.input_select("impact_problem", _t(_RM + "addresses_problem"),
+                                _coded_choices(IMPACT_PROBLEM_TYPES, _t)),
+                ui.input_select("impact_element", _t(_RM + "problem_element_id"), {"": ""}),
+                col_widths=[4, 4, 4],
+            ),
+            ui.layout_columns(
+                ui.input_select("impact_strength", _t(_RM + "impact_strength"),
+                                _coded_choices(IMPACT_STRENGTHS, _t)),
+                ui.input_select("impact_timeframe", _t(_RM + "timeframe"),
+                                _coded_choices(TIMEFRAMES, _t)),
+                ui.div(ui.input_action_button("add_impact", _t(_RM + "add_impact_link"),
+                                              class_="btn btn-primary"),
+                       class_="mt-4"),
+                col_widths=[4, 4, 4],
+            ),
+        ),
+        ui.card(
+            ui.card_header(_t(_RM + "impact_matrix")),
+            ui.output_data_frame("impacts_table"),
+            ui.div(ui.input_action_button("delete_impact", _t(_RM + "delete_selected"),
+                                          class_="btn btn-danger")),
+        ),
+    )
+
+
+def _priority_panel() -> ui.TagList:
+    """R's tab 3 (response_module.R:257-309) without the summary and the cost
+    plot, which have no renderer in R (spec §6.1)."""
+    return ui.TagList(
+        ui.p(_t("modules.response.evaluate_and_rank_measures_based_on_effectiveness_")),
+        ui.layout_columns(
+            ui.card(
+                ui.card_header(_t(_RM + "prioritization_criteria_weighting")),
+                ui.input_slider("weight_effectiveness", _t(_RM + "effectiveness_weight"),
+                                min=0, max=1, value=0.4, step=0.1),
+                ui.input_slider("weight_feasibility", _t(_RM + "feasibility_weight"),
+                                min=0, max=1, value=0.3, step=0.1),
+                ui.input_slider("weight_cost", _t(_RM + "cost_weight_inverse"),
+                                min=0, max=1, value=0.3, step=0.1),
+            ),
+            ui.card(
+                ui.card_header(_t(_RM + "effectiveness_vs_feasibility")),
+                ui.output_plot("ef_plot"),
+            ),
+            col_widths=[5, 7],
+        ),
+        ui.card(
+            ui.card_header(_t(_RM + "prioritized_response_measures")),
+            ui.output_data_frame("priority_table"),
+        ),
+    )
+
+
+def _milestones_panel() -> ui.TagList:
+    """R's tab 4 (response_module.R:311-357) plus a delete button, and the
+    Excel download of R's export tab (:373-383)."""
+    return ui.TagList(
+        ui.card(
+            ui.card_header(_t(_RM + "add_implementation_milestone")),
+            ui.layout_columns(
+                ui.input_select("impl_response", _t(_RM + "response_measure"), {"": ""}),
+                ui.input_text("impl_milestone", _t(_RM + "milestone"),
+                              placeholder=_t(_RM + "eg_legislation_passed")),
+                ui.input_date("impl_date", _t("responses.target_date"),
+                              value=_target_date_default()),
+                col_widths=[4, 4, 4],
+            ),
+            ui.layout_columns(
+                ui.input_text_area("impl_notes", _t(_RM + "notesactions_required"), rows=2),
+                ui.div(
+                    ui.input_select("impl_status", _t("responses.milestone_status"),
+                                    _milestone_status_choices(_t)),
+                    ui.input_action_button("add_milestone", _t(_RM + "add_milestone"),
+                                           class_="btn btn-success"),
+                ),
+                col_widths=[8, 4],
+            ),
+        ),
+        ui.card(
+            ui.card_header(_t(_RM + "implementation_timeline")),
+            ui.output_data_frame("milestones_table"),
+            ui.div(ui.input_action_button("delete_milestone", _t(_RM + "delete_selected"),
+                                          class_="btn btn-danger")),
+        ),
+        ui.card(
+            ui.card_header(_t(_RM + "export_response_analysis")),
+            ui.download_button("download_response_xlsx",
+                               _t(_RM + "download_response_data_excel")),
+        ),
+    )
+
+
 @module.ui
 def response_register_ui() -> ui.Tag:
     return ui.div(
         ui.h3(_t(_RM + "response_register")),
         ui.navset_tab(
             ui.nav_panel(_t(_RM + "response_register"), _register_panel(), value="register"),
-            ui.nav_panel(_t(_RM + "impact_assessment"), ui.div(), value="impacts"),
-            ui.nav_panel(_t(_RM + "prioritization"), ui.div(), value="priority"),
-            ui.nav_panel(_t(_RM + "implementation_plan"), ui.div(), value="milestones"),
+            ui.nav_panel(_t(_RM + "impact_assessment"), _impacts_panel(), value="impacts"),
+            ui.nav_panel(_t(_RM + "prioritization"), _priority_panel(), value="priority"),
+            ui.nav_panel(_t(_RM + "implementation_plan"), _milestones_panel(),
+                         value="milestones"),
             id="response_tabs",
         ),
         class_="sespy-card",
@@ -446,8 +581,15 @@ def response_register_server(
             ui.update_text(i, value="")
         for i in _AREA_INPUTS:
             ui.update_text_area(i, value="")
-        for i in ("rm_target_element", "rm_impl_stakeholders", "rm_pestle"):
-            ui.update_selectize(i, selected=[])
+        # The project-fed pickers also drop the raw IDs an Edit offered. Recording
+        # those choices lets the refresh effects skip; otherwise they would resend the
+        # old picks the server still holds after this clear (Task 11 review).
+        project = project_data.get()
+        for i, base in (("rm_target_element", _element_choices(project)),
+                        ("rm_impl_stakeholders", _stakeholder_choices(project))):
+            ui.update_selectize(i, choices=base, selected=[])
+            last_choices[i] = base
+        ui.update_selectize("rm_pestle", selected=[])
         for c in TENET_CODES:
             ui.update_select(f"rm_tenet_{c}", selected="")
 
@@ -524,3 +666,119 @@ def response_register_server(
         if editing_measure.get() in ids:
             _close_edit()
             _clear_form()
+
+    # ---- impacts (R tab 2) ---------------------------------------------------------
+    def _measure_choices(project: Project) -> dict[str, str]:
+        # "<ID>: <Name>" after a blank choice (response_module.R:663-666)
+        return {"": "", **{m["ID"]: f"{m['ID']}: {m.get('Name', '')}"
+                           for m in project.response_measures.measures if m.get("ID")}}
+
+    @reactive.effect
+    def _refresh_measure_pickers():
+        choices = _measure_choices(project_data.get())
+        _refresh("impact_response", choices, multiple=False)
+        _refresh("impl_response", choices, multiple=False)
+
+    @reactive.effect
+    def _refresh_impact_element():
+        _refresh("impact_element", {"": "", **_element_choices(project_data.get())},
+                 multiple=False)
+
+    def _rows_grid(rows: list[dict[str, Any]], columns: tuple[str, ...], *,
+                   selection: str = "rows") -> render.DataGrid:
+        data = [{c: display_value(c, r.get(c), tr) for c in columns} for r in rows]
+        stub = [{c: "" for c in columns}]
+        return render.DataGrid(pd.DataFrame(data or stub, columns=list(columns)),
+                               selection_mode=selection, height="300px")
+
+    def _selected_rows(table, n: int) -> list[int]:
+        picked = (table.cell_selection() or {}).get("rows") or ()
+        return sorted({i for i in picked if 0 <= i < n})
+
+    @output
+    @render.data_frame
+    def impacts_table():
+        return _rows_grid(_register().impacts, IMPACT_COLUMNS)
+
+    @reactive.effect
+    @reactive.event(input.add_impact, ignore_init=True)
+    def _add_impact():
+        response, problem = input.impact_response() or "", input.impact_problem() or ""
+        if not response or not problem:                 # R req() (response_module.R:675)
+            _toast(tr("responses.impact_required"))
+            return
+        _write(add_impact(_register(), {
+            "ResponseID": response, "ProblemType": problem,
+            "ProblemElementID": input.impact_element() or "",
+            "ImpactStrength": input.impact_strength() or "",
+            "Timeframe": input.impact_timeframe() or ""}))
+        _toast(tr(_RM + "impact_linkage_added"), kind="message", duration=3)
+
+    @reactive.effect
+    @reactive.event(input.delete_impact, ignore_init=True)
+    def _delete_impact():
+        reg = _register()
+        picked = _selected_rows(impacts_table, len(reg.impacts))
+        if not picked:
+            _toast(tr("responses.select_first"))
+            return
+        for i in reversed(picked):
+            reg = delete_impact(reg, i)
+        _write(reg)
+
+    # ---- prioritisation (R tab 3) ----------------------------------------------------
+    @output
+    @render.data_frame
+    def priority_table():
+        ranked = priority_rows(_register().measures, input.weight_effectiveness(),
+                               input.weight_feasibility(), input.weight_cost())
+        return _rows_grid(ranked, PRIORITY_COLUMNS, selection="none")
+
+    @output
+    @render.plot
+    def ef_plot():
+        return build_ef_figure(_register().measures, tr)
+
+    # ---- milestones and export (R tab 4) ---------------------------------------------
+    @reactive.effect
+    def _default_target_date():
+        # Today + 365 when the session starts, not when the page UI was built.
+        ui.update_date("impl_date", value=_target_date_default())
+
+    @output
+    @render.data_frame
+    def milestones_table():
+        return _rows_grid(_register().milestones, MILESTONE_COLUMNS)
+
+    @reactive.effect
+    @reactive.event(input.add_milestone, ignore_init=True)
+    def _add_milestone():
+        response = input.impl_response() or ""
+        milestone = (input.impl_milestone() or "").strip()
+        if not response or not milestone:               # R req() (response_module.R:841)
+            _toast(tr("responses.milestone_required"))
+            return
+        target = input.impl_date()
+        _write(add_milestone(_register(), {
+            "ResponseID": response, "Milestone": milestone,
+            "TargetDate": str(target) if target else "",          # R as.character() (:846)
+            "Status": input.impl_status() or "", "Notes": input.impl_notes() or ""}))
+        ui.update_text("impl_milestone", value="")        # R :855-856
+        ui.update_text_area("impl_notes", value="")
+        _toast(tr(_RM + "milestone_added"), kind="message", duration=3)
+
+    @reactive.effect
+    @reactive.event(input.delete_milestone, ignore_init=True)
+    def _delete_milestone():
+        reg = _register()
+        picked = _selected_rows(milestones_table, len(reg.milestones))
+        if not picked:
+            _toast(tr("responses.select_first"))
+            return
+        for i in reversed(picked):
+            reg = delete_milestone(reg, i)
+        _write(reg)
+
+    @render.download_button(filename=lambda: f"Response_Measures_{_stamp()}.xlsx")
+    def download_response_xlsx():
+        yield build_response_workbook(_register(), tr)
