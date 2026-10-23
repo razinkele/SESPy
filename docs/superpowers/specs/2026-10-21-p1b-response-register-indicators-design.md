@@ -319,7 +319,8 @@ R's tabs 1–5:
    **Stale edits are refused (*my call*):** Edit remembers the record it
    opened; if the project was replaced or the record changed before Save (a
    project load, a MosaicSES compartment switch), Save writes nothing and says
-   why. After a successful add the page shows R's "Response measure added!".
+   why. Records compare by value, so an equal record in a replaced project
+   takes the save. After a successful add the page shows R's "Response measure added!".
    `TargetElement` is a **select of the project's non-Response element IDs**
    rather than R's free text (*my call*). R's field is free text, usually
    comma-separated (its placeholder reads "e.g., A001, D002"); SESPy reads both
@@ -328,7 +329,8 @@ R's tabs 1–5:
 2. **Impacts.** R's tab 2: measure, problem type, element (select, as above),
    strength, timeframe; table with delete (*my call*: R has no delete). R's
    heatmap, its "Priority ranking" summary and its "Cost vs expected impact"
-   plot have no renderer in R and are not ported.
+   plot have no renderer in R and are not ported. `ProblemElementID` is free
+   text in R like `TargetElement`, and SESPy reads it with both separators.
 3. **Prioritisation.** Weights (effectiveness 0.4, feasibility 0.3, cost 0.3),
    R's score `w_e*Eff/3 + w_f*Feas/3 + w_c*(11-Cost)/10` with HIGH 3 / MEDIUM 2 /
    LOW 1 / else 0, ranked table (R's columns minus BanditSuggestion,
@@ -375,7 +377,8 @@ an edit panel bound to the selected row (stakeholder-page pattern:
 - **Connection:** description.
 Save goes through the existing `_replace(isa)` path, and is refused like the
 register's when the project was replaced or the record changed since Edit
-(MosaicSES compartments repeat element IDs). Deleting an element that
+(MosaicSES compartments repeat element IDs); records compare by value, as in
+§6.1. Deleting an element that
 the register references warns (§6.1). MosaicSES compartments
 reuse `isa_data_entry_server`, so the panel appears there too (§10).
 

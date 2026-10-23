@@ -482,7 +482,7 @@ class ResponseRegister:
   - `delete_measures(reg, ids: Iterable[str]) -> tuple[ResponseRegister, int]` — counter unchanged; the int counts impact + milestone rows whose `ResponseID` is in `ids` (they are kept).
   - `add_impact(reg, fields) -> ResponseRegister`, `delete_impact(reg, index: int) -> ResponseRegister`, `add_milestone(reg, fields) -> ResponseRegister`, `delete_milestone(reg, index: int) -> ResponseRegister`; an out-of-range index returns `reg` unchanged.
   - `split_ids(value: str) -> list[str]` — R's `TargetElement` is free text, usually comma-separated (its placeholder `modules.response.measures.placeholder_element_ids` is "e.g., A001, D002"); split on both `;` and `,`, strip, drop empties. SESPy writes `;`-joined IDs.
-  - `references_to(reg, element_id: str) -> list[str]` — sorted unique IDs of the measures whose `TargetElement` (`split_ids`, exact match) contains `element_id`, plus the `ResponseID` of impact rows whose `ProblemElementID` equals it (used by Task 9's delete warning).
+  - `references_to(reg, element_id: str) -> list[str]` — sorted unique IDs of the measures whose `TargetElement` (`split_ids`, exact match) contains `element_id`, plus the `ResponseID` of impact rows whose `ProblemElementID` (`split_ids`, R's free text) contains it (used by Task 9's delete warning).
 
 - [ ] **Step 1: Failing tests**
 
