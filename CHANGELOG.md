@@ -42,6 +42,16 @@ R-parity roadmap §2 P1b). Ports R MarineSABRES 1.19.0, 1.23.0 (WS-3a), 1.24.0
   exports (P6c/P14), the WS-10 workshop (proposed P15) and
   `r_min_app_version` (P1c).
 
+## [1.14.3] — 2026-10-23
+
+### Fixed
+- **pyvis requirement is the fork: `pyvis-optimized>=4.4`, not `pyvis>=0.3`.**
+  pip does not count the installed fork (dist `pyvis_optimized`) as `pyvis`,
+  so installing sespy into an env that had the fork wrote upstream pyvis 0.3.2
+  over it. That is what broke every network view in laguna's shared env on
+  2026-10-11 (`'Network' object has no attribute 'get_network_json'`). The
+  fork is on PyPI, so a plain pip install now gives the full app.
+
 ## [1.14.2] — 2026-10-20
 
 ### Fixed
