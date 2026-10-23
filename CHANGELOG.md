@@ -42,6 +42,34 @@ R-parity roadmap §2 P1b). Ports R MarineSABRES 1.19.0, 1.23.0 (WS-3a), 1.24.0
   exports (P6c/P14), the WS-10 workshop (proposed P15) and
   `r_min_app_version` (P1c).
 
+## [1.14.4] — 2026-10-23
+
+From the MosaicSES tester report of 23 Oct 2026.
+
+### Changed
+- **The intervention simulation leaves out the elements removed above.**
+  It always ran on the full model, so removing an element (e.g. "Cropland
+  cultivation") left the arrivals chart unchanged and could still list the
+  removed element. The source picker now offers only remaining elements, a
+  different removal clears the previous run, and the summary counts the
+  reduced model. The caption says so in all nine languages (the eight
+  non-English sentences are machine-written; to review by native speakers).
+
+### Fixed
+- **Card headers are white on the dark-blue bar.** Bootstrap's own
+  `.card-header` rule (same specificity, loaded after the skin) set the text
+  to `var(--bs-card-cap-color)`, the dark body colour. The skin now sets the
+  variable.
+- **One "data changed — re-run" notice per change.** The Boolean and Dynamic
+  Simulation tabs each posted one on the same change; they now share one
+  notification id, which Shiny replaces instead of stacking.
+- `ui.update_navset` replaces the deprecated `ui.update_navs`.
+
+### Tests
+- A source test keeps `update_navs` out (it only warns when called); the
+  intervention e2e checks a run with an element removed; the first-run wait
+  in the diffusion unit test allows for a cold scipy import.
+
 ## [1.14.3] — 2026-10-23
 
 ### Fixed

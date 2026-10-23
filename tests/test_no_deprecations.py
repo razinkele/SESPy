@@ -132,3 +132,14 @@ def test_module_source_has_no_deprecated_render_download_call(path):
         f"{path} still calls the deprecated render.download(...) — "
         "use render.download_button(...) instead"
     )
+
+
+def test_no_runtime_update_navs_calls():
+    """`ui.update_navs` is deprecated (Shiny >= 1.0: `ui.update_navset`) but
+    only warns when called, so the import check above cannot see it."""
+    root = Path(sespy.__file__).parent
+    hits = [f"{p.relative_to(root)}:{i}"
+            for p in root.rglob("*.py")
+            for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+            if "update_navs(" in line and not line.lstrip().startswith("#")]
+    assert not hits, hits
