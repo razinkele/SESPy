@@ -478,7 +478,7 @@ writes `docs/screenshots/*.png`, not part of the e2e gate):
 micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000
 ```
 
-1435 unit tests + 36 standalone Playwright scripts (37 runs — the wizard
+1443 unit tests + 36 standalone Playwright scripts (37 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
@@ -549,7 +549,7 @@ hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
 
 ## Testing
 
-**1435 unit tests** across:
+**1443 unit tests** across:
 
 - `tests/test_network.py` — graph metrics (centralities, leverage, loops, polarity, top-N, intervention impact, simplification)
 - `tests/test_persistent_storage.py` — save/load roundtrip, atomic writes, validation
