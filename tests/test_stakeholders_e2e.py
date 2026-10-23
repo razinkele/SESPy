@@ -107,10 +107,20 @@ async def main():
         # ------------------------------------------------------------------ #
         await page.fill("#stakeholders-sh_name", "Port Authority")
         await _set_select(page, "stakeholders-sh_type", "government")
+        # Roles (P1b, D5.4 actor typology) is a selectize: wait for its hidden
+        # <select>, then set the value the way the widget sends it.
+        await page.wait_for_selector("#stakeholders-sh_ne_roles", state="attached",
+                                     timeout=30000)
+        await page.evaluate(
+            "() => Shiny.setInputValue('stakeholders-sh_ne_roles', ['Regulators', 'Inputters'])")
+        await page.wait_for_timeout(400)
         await page.click("#stakeholders-save_stakeholder")
 
         await _poll_table_contains(page, "Port Authority")
-        print("2. add: 'Port Authority' appears in table — PASS")
+        # The Roles column joins the translated labels with ", " in the codes'
+        # order. In English the labels equal the codes, so the separator is the check.
+        await _poll_table_contains(page, "Inputters, Regulators")
+        print("2. add: 'Port Authority' appears in table with its roles — PASS")
 
         # ------------------------------------------------------------------ #
         # 3. VALIDATION — blank name → toast, no extra row
