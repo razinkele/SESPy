@@ -16,6 +16,8 @@ from sespy.stakeholders import level_num
 def build_stakeholder_workbook(stakeholders, engagements, communications) -> bytes:
     from openpyxl import Workbook
 
+    from .utils import append_xlsx_row
+
     wb = Workbook()
     specs = [
         ("Stakeholders", Stakeholder, stakeholders),
@@ -29,7 +31,7 @@ def build_stakeholder_workbook(stakeholders, engagements, communications) -> byt
         ws.append(names)
         for obj in rows:
             d = asdict(obj)
-            ws.append([d.get(n, "") for n in names])
+            append_xlsx_row(ws, [d.get(n, "") for n in names])
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()

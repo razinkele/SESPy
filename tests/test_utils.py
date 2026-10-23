@@ -46,3 +46,13 @@ def test_safe_counter_reads_suffixes_as_numbers_like_r():
     assert safe_counter(float("inf"), ["RM4"], "RM") == 4     # non-finite counter -> 0
     assert safe_counter(float("nan"), [], "RM") == 0
     assert safe_counter(" 6 ", [], "SH") == 6                 # numeric string, padded
+
+
+def test_append_xlsx_row_keeps_formula_like_text_as_text():
+    from openpyxl import Workbook
+
+    from sespy.utils import append_xlsx_row
+
+    ws = Workbook().active
+    append_xlsx_row(ws, ["=1+1", 2, "plain"])
+    assert [(c.value, c.data_type) for c in ws[1]] == [("=1+1", "s"), (2, "n"), ("plain", "s")]

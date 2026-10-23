@@ -549,3 +549,19 @@ def test_display_vocabularies_have_labels_in_all_languages():
     missing = [(k, lang) for k in keys for lang in langs
                if not str((vendored.get(k) or {}).get(lang) or "").strip()]
     assert not missing, missing[:10]
+
+
+def test_response_workbook_keeps_formula_like_text_as_text():
+    # Final review: openpyxl stores a string that starts with "=" as a formula.
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from sespy.data_structure import ResponseRegister
+    from sespy.response_register import RM_REGISTER_COLUMNS, add_measure
+    from sespy.response_reports import build_response_workbook
+
+    reg, _ = add_measure(ResponseRegister(), {"Name": "=1+1", "Type": "regulatory"}, today="d")
+    ws = load_workbook(BytesIO(build_response_workbook(reg, _en_tr())))["Response_Measures"]
+    cell = ws.cell(row=2, column=RM_REGISTER_COLUMNS.index("Name") + 1)
+    assert (cell.value, cell.data_type) == ("=1+1", "s")

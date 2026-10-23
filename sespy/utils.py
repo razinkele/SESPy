@@ -76,3 +76,13 @@ def next_id(existing_ids: list[str], prefix: str) -> str:
     while n in used:
         n += 1
     return f"{prefix}{n:03d}"
+
+
+def append_xlsx_row(ws, values) -> None:
+    """Append `values` to an openpyxl worksheet with every string kept a string.
+    openpyxl stores a value starting with "=" as a formula, so a name a user typed
+    ("=HYPERLINK(...)") would run in the exported workbook."""
+    ws.append(values)
+    for cell in ws[ws.max_row]:
+        if isinstance(cell.value, str) and cell.value.startswith("="):
+            cell.data_type = "s"

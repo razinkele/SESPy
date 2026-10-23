@@ -14,6 +14,7 @@ from .response_register import (
     display_value,
     ef_points,
 )
+from .utils import append_xlsx_row
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -53,7 +54,7 @@ def build_response_workbook(reg: ResponseRegister, tr: Callable[[str], str]) -> 
         ws.title = name
         ws.append(list(columns))
         for cells in _cells(rows, columns, tr):
-            ws.append(cells)
+            append_xlsx_row(ws, cells)
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()
