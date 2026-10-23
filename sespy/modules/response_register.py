@@ -60,7 +60,7 @@ from sespy.response_reports import build_ef_figure, build_response_workbook
 
 _RM = "modules.response.measures."
 _GOV = "modules.response.governance."
-_BLANK = {"": " "}          # R's blank first choice, c(" " = "")
+_BLANK = {"": " "}          # R's blank first choice, c(" " = "") (response_module.R:59)
 
 
 class EchoGuard:
@@ -190,7 +190,7 @@ def _register_panel() -> ui.TagList:
                 ui.input_select("rm_feasibility", _t(_RM + "feasibility"),
                                 _level_choices(FEASIBILITY_LEVELS, _t)),
                 ui.input_numeric("rm_cost", _t(_RM + "estimated_cost_relative"),
-                                 value=5, min=1, max=10),
+                                 value=5, min=1, max=10),                # R :105-106
                 col_widths=[3, 3, 3, 3],
             ),
             ui.layout_columns(
@@ -431,9 +431,11 @@ def response_register_server(
     def _stakeholder_choices(project: Project) -> dict[str, str]:
         return {s.id: f"{s.name} ({s.id})" for s in project.stakeholders}
 
-    def _stored(column: str) -> list[str]:
+    def _stored(column: str, *, split: bool = True) -> list[str]:
         row = edit_state["snapshot"] if editing_measure.get() is not None else None
-        return split_ids(row.get(column, "")) if row else []
+        if not row:
+            return []
+        return split_ids(row.get(column, "")) if split else [row.get(column, "")]
 
     def _refresh(input_id: str, choices: dict[str, str], *, multiple: bool) -> None:
         if last_choices.get(input_id) == choices:   # R stakeholder_picker_update skip
@@ -456,7 +458,9 @@ def response_register_server(
 
     @reactive.effect
     def _refresh_paired_with():
-        choices = _with_raw(_paired_choices(project_data.get()), *_stored("PairedWith"))
+        # One ID, offered raw as _repopulate offers it
+        choices = _with_raw(_paired_choices(project_data.get()),
+                            *_stored("PairedWith", split=False))
         _refresh("rm_paired_with", choices, multiple=False)
 
     @reactive.effect
@@ -497,12 +501,9 @@ def response_register_server(
         code = input.rm_ebm_code()
         if guard.consume("rm_ebm_code", code):
             return
-        with reactive.isolate():
-            kind = input.rm_kind() if input.rm_kind.is_set() else ""
-        if kind == "measure":                                                # R :535-538
-            target = suggest_target(code)
-            if target:
-                ui.update_select("rm_target", selected=target)
+        target = suggest_target(code)            # "" unless a measure code (R :535-538)
+        if target:
+            ui.update_select("rm_target", selected=target)
 
     # ---- edit ------------------------------------------------------------------------
     @reactive.effect
@@ -517,6 +518,9 @@ def response_register_server(
             return
         row = next(m for m in _register().measures if m.get("ID") == ids[0])
         edit_state["snapshot"] = dict(row)
+        # None first, so Edit on the open record refills the form from the new
+        # snapshot: reactive.Value ignores a set() of the identical ID object.
+        editing_measure.set(None)
         editing_measure.set(row["ID"])
 
     # Repopulate ONLY when editing_measure changes (the pims_stakeholders._repopulate
@@ -595,7 +599,7 @@ def response_register_server(
 
     def _form_fields() -> dict[str, Any]:
         fields: dict[str, Any] = {
-            "Name": (input.rm_name() or "").strip(),
+            "Name": input.rm_name() or "",                 # stored as typed, as R (:568)
             "Type": input.rm_type() or "",
             "Target": input.rm_target() or "",
             "Status": input.rm_status() or "",
@@ -625,7 +629,7 @@ def response_register_server(
     @reactive.event(input.save_measure, ignore_init=True)
     def _save():
         fields = _form_fields()
-        if not fields["Name"] or not fields["Type"]:
+        if not fields["Name"].strip() or not fields["Type"]:
             _toast(tr("responses.name_type_required"))
             return
         reg = _register()
@@ -639,7 +643,7 @@ def response_register_server(
             reg, _ = update_measure(reg, mid, fields)
         else:
             reg, _ = add_measure(reg, fields, today=date.today().isoformat())
-            _toast(tr(_RM + "response_measure_added"), kind="message", duration=3)
+            _toast(tr(_RM + "response_measure_added"), kind="message", duration=3)  # R :638
         _write(reg)
         _close_edit()
         _clear_form()
@@ -659,7 +663,7 @@ def response_register_server(
             return
         reg, refs = delete_measures(_register(), ids)
         _write(reg)
-        message = tr(_RM + "deleted_response_measures")
+        message = tr(_RM + "deleted_response_measures")          # R :650-656
         if refs > 0:                       # no cascade (spec §6.1): say what still refers
             message += " " + tr("responses.deleted_with_refs", n=refs)
         _toast(message, duration=6)
@@ -754,8 +758,8 @@ def response_register_server(
     @reactive.event(input.add_milestone, ignore_init=True)
     def _add_milestone():
         response = input.impl_response() or ""
-        milestone = (input.impl_milestone() or "").strip()
-        if not response or not milestone:               # R req() (response_module.R:841)
+        milestone = input.impl_milestone() or ""
+        if not response or not milestone.strip():       # R req() (response_module.R:841)
             _toast(tr("responses.milestone_required"))
             return
         target = input.impl_date()

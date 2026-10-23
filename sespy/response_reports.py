@@ -67,7 +67,7 @@ def build_ef_figure(measures: list[dict[str, Any]], tr: Callable[[str], str]) ->
     titled "Add effectiveness and feasibility ratings" (:811-814)."""
     from matplotlib.figure import Figure
 
-    fig = Figure(figsize=(7, 5.5), layout="constrained")
+    fig = Figure(figsize=(7, 5.5), layout="tight")    # shiny swaps "constrained" for tight
     ax = fig.subplots()
     points = ef_points(measures)
     if not points:

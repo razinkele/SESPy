@@ -228,6 +228,7 @@ def test_edit_keeps_dangling_and_pass_through_values(monkeypatch):
         assert "SH404" in impl["choices"] and impl["selected"] == ["SH404"]
         target = ui.calls("update_selectize", "rm_target_element")[-1]
         assert "R001" in target["choices"] and target["selected"] == ["P001", "R001"]
+        assert ui.calls("update_numeric", "rm_cost")[-1] == {"value": ""}       # None Cost: blank
         ui.scope.set_inputs(**_form_of(before))
         ui.click("save_measure")
         assert ui.project().response_measures.measures[0] == before          # nothing rewritten
@@ -259,13 +260,17 @@ def test_edit_echo_does_not_reset_ebm_code_or_target(monkeypatch):
         assert len(ui.calls("update_select", "rm_target")) == target_calls   # no suggestion
         assert len(ui.calls("update_select", "rm_ebm_code")) == ebm_calls    # no kind reset
         ui.scope.set_inputs(rm_ebm_code="restoration.habitat")             # the user's own pick
+        # restoration.habitat is "C", so state (constants.R:793-801)
         assert ui.calls("update_select", "rm_target")[-1] == {"selected": "state"}
+        ui.scope.set_inputs(rm_kind="instrument")                          # the user's own change
+        assert ui.calls("update_select", "rm_ebm_code")[-1]["selected"] == ""   # R :531-533
 
 
 def test_measure_code_suggests_target(monkeypatch):
     with _page(monkeypatch) as ui:
         ui.scope.set_inputs(rm_kind="measure")
         ui.scope.set_inputs(rm_ebm_code="output")
+        # output is "P", so pressures (constants.R:793-801, response_measures_schema.R:110-115)
         assert ui.calls("update_select", "rm_target")[-1] == {"selected": "pressures"}
         ui.scope.set_inputs(rm_kind="instrument")                          # R: kind resets the code
         assert ui.calls("update_select", "rm_ebm_code")[-1]["selected"] == ""
@@ -302,6 +307,23 @@ def test_closing_an_edit_clears_pickers_that_held_raw_ids(monkeypatch):
         assert target["selected"] == [] and "R001" not in target["choices"]
         impl = ui.calls("update_selectize", "rm_impl_stakeholders")[-1]
         assert impl["selected"] == [] and "SH404" not in impl["choices"]
+
+
+def test_project_writes_neither_refill_the_form_nor_resend_equal_choices(monkeypatch):
+    # _repopulate runs on Edit only, a picker whose choices did not change gets no
+    # update, and Edit on the open record refills the form (Task 11 review).
+    start = _with_register({"Name": "No-take zone", "Type": "regulatory"})
+    with _page(monkeypatch, start) as ui:
+        ui.select([0], 1)
+        ui.click("edit_measure")
+        names = len(ui.calls("update_text", "rm_name"))
+        targets = len(ui.calls("update_selectize", "rm_target_element"))
+        ui.write_project(start.replace(metadata=replace(start.metadata, name="Renamed")))
+        assert ui.project().metadata.name == "Renamed"                     # the write happened
+        assert len(ui.calls("update_text", "rm_name")) == names              # not refilled
+        assert len(ui.calls("update_selectize", "rm_target_element")) == targets
+        ui.click("edit_measure")                                             # the same record
+        assert len(ui.calls("update_text", "rm_name")) == names + 1
 
 
 def test_save_after_project_swap_does_not_write(monkeypatch):
