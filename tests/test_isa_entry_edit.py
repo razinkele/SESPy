@@ -325,3 +325,22 @@ def test_connection_save_touches_only_the_opened_connection(monkeypatch):
         connections = ui.project().isa_data.connections
         assert connections[D001_A001].description == "mine"
         assert connections[-1] == twin
+
+
+def test_connection_editor_opens_the_selected_twin(monkeypatch):
+    # Final review: with a repeated (source, target) pair, Edit on the second row
+    # must show and save that row, not the first match.
+    start = _sample()
+    first = start.isa_data.connections[D001_A001]
+    twin = dataclasses.replace(first, description="twin")
+    start = start.replace(isa_data=IsaData(elements=start.isa_data.elements,
+                                           connections=[*start.isa_data.connections, twin]))
+    with _entry(monkeypatch, start) as ui:
+        ui.select("connections_table", 20, 21)
+        ui.click("edit_connection")
+        assert ">twin</textarea>" in ui.html("connection_editor")
+        ui.scope.set_inputs(conn_description="mine")
+        ui.click("save_connection")
+        connections = ui.project().isa_data.connections
+        assert connections[-1].description == "mine" and connections[D001_A001] == first
+        assert ui.toasts == []

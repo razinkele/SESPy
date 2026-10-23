@@ -137,10 +137,10 @@ def isa_data_entry_server(
     translator: Translator | None = None,
 ) -> None:
     tr = translator.t if translator is not None else t
-    # P1b edit panels: the element (by id) or connection (by source, target)
-    # being edited; None = no editor shown.
+    # P1b edit panels: the element (by id) or connection (by row: a loaded file
+    # can repeat a (source, target) pair) being edited; None = no editor shown.
     editing_element: reactive.Value[str | None] = reactive.value(None)
-    editing_connection: reactive.Value[tuple[str, str] | None] = reactive.value(None)
+    editing_connection: reactive.Value[int | None] = reactive.value(None)
     # The record each editor opened (spec §6.2 stale check): Save writes only
     # if the current project still holds an equal record. A project load or a
     # MosaicSES compartment switch replaces the project under an open editor,
@@ -290,8 +290,9 @@ def isa_data_entry_server(
         ))
         if editing_element.get() == target_id:
             editing_element.set(None)
-        pair = editing_connection.get()
-        if pair is not None and target_id in pair:
+        opened = snapshot["connection"]
+        if (editing_connection.get() is not None and opened is not None
+                and target_id in (opened.source, opened.target)):
             editing_connection.set(None)
         # Spec §6.1: deletes do not cascade into the register; element IDs can
         # be reused (next_id), so say which measures still name this element.
@@ -407,11 +408,9 @@ def isa_data_entry_server(
     def _cancel_element():
         editing_element.set(None)
 
-    def _connection(pair: tuple[str, str] | None) -> Connection | None:
-        if pair is None:
-            return None
-        return next((c for c in project_data.get().isa_data.connections
-                     if (c.source, c.target) == pair), None)
+    def _connection(index: int | None) -> Connection | None:
+        connections = project_data.get().isa_data.connections
+        return connections[index] if index is not None and 0 <= index < len(connections) else None
 
     @reactive.effect
     @reactive.event(input.edit_connection, ignore_init=True)
@@ -421,9 +420,11 @@ def isa_data_entry_server(
         if not sel or not sel.get("rows") or sel["rows"][0] >= len(conns):
             ui.notification_show(tr("entry.select_first"), type="warning", duration=3)
             return
-        c = conns[sel["rows"][0]]
-        snapshot["connection"] = c
-        editing_connection.set((c.source, c.target))
+        index = sel["rows"][0]
+        snapshot["connection"] = conns[index]
+        # None first, as for elements: Edit on the open row must re-render it.
+        editing_connection.set(None)
+        editing_connection.set(index)
 
     @output
     @render.ui
@@ -449,19 +450,18 @@ def isa_data_entry_server(
     @reactive.effect
     @reactive.event(input.save_connection, ignore_init=True)
     def _save_connection():
-        pair = editing_connection.get()
-        if pair is None:
+        index = editing_connection.get()
+        if index is None:
             return
-        c = _connection(pair)
+        c = _connection(index)
         editing_connection.set(None)
         if c is None or c != snapshot["connection"]:    # stale: write nothing
             ui.notification_show(tr("entry.record_changed"), type="warning", duration=6)
             return
         new = dataclasses.replace(c, description=input.conn_description() or "")
         isa = project_data.get().isa_data
-        # Only the connection the editor opened: a loaded file can repeat a pair.
         connections = list(isa.connections)
-        connections[next(i for i, x in enumerate(connections) if x is c)] = new
+        connections[index] = new
         _replace(IsaData(elements=isa.elements, connections=connections))
 
     @reactive.effect
