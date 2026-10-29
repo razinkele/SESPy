@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from playwright.async_api import async_playwright
 
@@ -18,16 +19,27 @@ async def main():
         # intervention script and the worker is still busy when the modal is
         # requested; it failed here three gates in a row and passed alone.
         await pg.wait_for_selector(".modal #fb_message", timeout=30000)
-        await pg.fill("#fb_message", "e2e feedback check")
-        await pg.click("#fb_submit")
-        # Wait for the feedback toast's own text, not any .shiny-notification:
-        # the autosave "Recovered work" banner uses the same class and can
-        # satisfy a generic wait before the submit has even been handled.
-        await pg.wait_for_function(
-            "() => Array.from(document.querySelectorAll('.shiny-notification'))"
-            ".some(n => (n.innerText || '').includes('feedback was recorded'))",
-            timeout=30000)
-        print("topbar feedback: OK")
+        if os.environ.get("SESPY_FEEDBACK_DB"):
+            await pg.fill("#fb_message", "e2e feedback check")
+            await pg.click("#fb_submit")
+            # Wait for the feedback toast's own text, not any .shiny-notification:
+            # the autosave "Recovered work" banner uses the same class and can
+            # satisfy a generic wait before the submit has even been handled.
+            await pg.wait_for_function(
+                "() => Array.from(document.querySelectorAll('.shiny-notification'))"
+                ".some(n => (n.innerText || '').includes('feedback was recorded'))",
+                timeout=30000)
+            print("topbar feedback: OK")
+        else:
+            # Run directly against a hand-started server, a submit lands in the
+            # real store (sespy/logs/feedback.db): row 26 there, 2026-10-16, came
+            # from exactly that after run_e2e.py's own guards were in place.
+            # run_e2e.py sets SESPY_FEEDBACK_DB for server and client alike, so
+            # the gate always submits; a bare run only checks the modal opens.
+            print("topbar feedback: SKIP submit (SESPY_FEEDBACK_DB unset; "
+                  "run via tests/run_e2e.py to exercise it)")
+            await pg.click(".modal button:has-text('Close')")
+            await pg.wait_for_selector(".modal", state="hidden", timeout=30000)
         # Every wait in this script is 30 s, not 10 s. Opening a topbar modal
         # or offcanvas is a websocket round-trip, and this script runs late in
         # the batch, right after the pgmpy-heavy intervention script. The
