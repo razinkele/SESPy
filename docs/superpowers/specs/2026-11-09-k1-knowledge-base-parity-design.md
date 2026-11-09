@@ -1,12 +1,14 @@
 # K1 — General knowledge-base parity — design
 
-**Status:** Draft rev 6, 2026-11-09. Revised after the builder check and
-four review rounds (round 4: fresh read + a 28-scenario browser check of
-the chip mechanism, all passing):
+**Status:** Draft rev 6, 2026-11-09, awaiting user approval. Revised after
+the builder check and four review rounds:
 1. fresh read, cross-spec, dry run;
 2. fresh read, a Playwright chip prototype, an ops/production review;
-3. fresh read, cross-spec, plan readiness. Branch `docs/k1-design`,
-from `main` 999ed6e.
+3. fresh read, cross-spec, plan readiness;
+4. fresh read, plus a 28-scenario browser check of the chip mechanism, all
+   passing.
+
+Branch `docs/k1-design`, from `main` 999ed6e.
 
 **K1 is split** (decision 4). This document specifies K1 (v1.16.0). §8
 records the scope and the decisions already taken for **K1b**
