@@ -39,6 +39,44 @@ the **main checkout**.
 the prototypes from the main checkout path:
 `C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESPy\.superpowers\k1-prototypes\`.
 
+**Dry-run worktree (reference only).** The plan review executed Tasks 0–4
+in the detached worktree `C:\Users\arturas.baziukas\AppData\Local\sespy-k1-dry`
+(`abfb79e`). It is useful for comparing approaches, e.g. its
+`_local_pin_hashes`, the fixture shapes and the greedy country cover set.
+It predates this plan's round-1 fixes, so implement from **this** plan, not
+by cherry-picking.
+
+**Environment notes:**
+- The `shiny` env currently imports **Shiny 1.9.0**; it changed mid-session
+  on 2026-11-09. Confirm the version before starting.
+- R: `C:\Program Files\R\R-4.4.1\bin\Rscript.exe` with `jsonlite` 2.0.0.
+- `R_APP` below means the R app directory
+  `C:\Users\arturas.baziukas\OneDrive - ku.lt\HORIZON_EUROPE\Marine-SABRES\SESToolbox\MarineSABRES_SES_Shiny`
+  (**not** the SESToolbox root: sync uses `git rev-parse --show-prefix`).
+- A stray site-packages `tests` package shadows `tests.*` imports, and
+  `tests/` has no `__init__.py`. Tests import helpers by inserting the
+  helper's directory into `sys.path` (the existing pattern), e.g.
+  `sys.path.insert(0, str(Path(__file__).parent / "parity"))` then
+  `from k1_fixtures import load_k1_fixture`.
+- A stale editable install maps `sespy` to the main checkout. In a
+  worktree, always run with `PYTHONPATH=<worktree root>`. Subprocess tests
+  that import `sespy` set `PYTHONPATH` explicitly and assert on
+  `sespy.__file__`.
+- **Server-side tests** use `from shiny.testserver import test_server` (see
+  `shiny skills path shiny-for-python` → `references/test-server.md`, and
+  e.g. `tests/test_templates_module.py`). The pattern:
+  - wrap the module server in a bare `server(input, output, session)` and
+    keep reactives in a holder list;
+  - use `ts.make_scope("wizard")`;
+  - press a button with `set_inputs(btn=0)` then `set_inputs(btn=1)`;
+  - capture toasts by monkeypatching `shiny.ui.notification_show`;
+  - read internals with `shiny.testmode.export_test_values`.
+
+  **One `set_inputs(a=…, b=…)` call is exactly one flush**: that is how
+  "same tick" scenarios are written. Every rendered
+  `entry_{gen}_{target}_{i}` must be set explicitly, because unset inputs
+  raise SilentException.
+
 ## Global Constraints
 
 - **Python** runs only through `micromamba run -n shiny python …`.
@@ -109,7 +147,8 @@ the prototypes from the main checkout path:
 **Interfaces:**
 - Produces: `sespy.__version__ == "1.16.0"`.
 
-- [ ] **Step 1: Bump the three version lines to `1.16.0`.**
+- [ ] **Step 1: Bump the three version lines to `1.16.0`.** The MANUAL
+  line also carries a month; set it to "November 2026".
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_manual.py -q`.
   Expected: PASS.
 - [ ] **Step 3: Commit** `chore(k1): version 1.16.0`.
@@ -153,6 +192,25 @@ the prototypes from the main checkout path:
     *, r_tag: str, r_commit: str, removed_inputs: frozenset[str] = frozenset()) -> dict`.
     It raises `ValueError` listing the paths in
     `set(pin_old["files"]) - set(files_new) - removed_inputs`.
+  - `REMOVED_INPUTS: frozenset[str] = frozenset()`, a module constant that a
+    re-pin edits **deliberately** when an input is retired. `sync` passes
+    it as `removed_inputs`, never a derived set (a derived set would make
+    the guard vacuous).
+  - `_local_pin_hashes(repo_root: Path, r_tag: str) -> tuple[dict[str, str], list[str]]`
+    gunzips each local pin **once** and returns `(hashes, errors)`. A
+    fixture whose `fixture_r_tag` ≠ `r_tag` is an error. `fixture_r_tag`
+    returns `""` when the tag is absent.
+- **Order inside `sync`:**
+  1. run `_local_pin_hashes` (the tag check) **before** any input is read;
+  2. in git mode, fetch `INPUTS` and `RUNTIME_INPUTS` with `git show`;
+  3. in fixture mode, read the `RUNTIME_INPUTS` from their vendored targets
+     in **their own loop** (the existing `data/` rule at :327 iterates
+     `INPUTS` only);
+  4. build outputs and the manifest;
+  5. call `build_pin`.
+- In fixture mode, `--check` compares local-pin hashes with
+  `pin_old["files"]`, and the rebuilt manifest and vendored outputs with
+  disk. `RUNTIME_INPUTS` are written as raw bytes.
 
 - [ ] **Step 1: Write failing tests** in `tests/test_k1_sync.py`:
 
@@ -202,15 +260,40 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `.gz` paths never go through `_hash` or `_same`.
   - `--check` compares the rebuilt manifest, the vendored outputs and the
     local-pin hashes with disk.
-- [ ] **Step 4: Update the two hard-coded counts.**
-  - `tests/parity/test_r_sync.py:27` and `tests/test_r_template_catalogue.py:406`
-    assert the new total: 18 + 5 R sources + 2 translations + 2 runtime + 1
-    manifest + 5 local = **33**.
-  - The `sorted(pin["files"]) == sorted(INPUTS.values())` assertion becomes
-    the union of all kinds.
-  - **Do not run these yet:** they go green in Task 3.
-- [ ] **Step 5: Run** `micromamba run -n shiny python -m pytest tests/test_k1_sync.py -q`.
-  Expected: PASS.
+- [ ] **Step 4: Update the existing sync tests** so they keep passing on
+  their own fake R repos. This is the bulk of the task.
+  - **`tests/test_r_template_catalogue.py`:**
+    - `_fake_r`: create `modules/`, and write **minimal valid stubs** for
+      every `K1_R_SOURCES` path, both `RUNTIME_INPUTS` (tiny JSONs that
+      pass `ALLOW_LIST`'s required keys; Task 4 lowers no thresholds, so
+      stub validity is checked only by the sync, not by `r_kb`) and the two
+      new translation files with exactly the 8 keys.
+    - `_tree`: copy `sespy/data/r_kb/`, and write **tiny stub `.gz` local
+      pins** whose `r_tag` equals the fake release tag of the test
+      (`v1.31.0` / `v1.32.0`). Never copy the real fixtures. This keeps the
+      tag guard live in every test and the suite fast.
+    - Update the hard-coded literals:
+      - the `changed == …` set at :290;
+      - the "wrote" counts at :297 and :324 (+ the manifest and the 2
+        stems);
+      - `:406` → 33, with `sorted(pin["files"])` == the union of all kinds;
+      - `test_vendored_translation_key_counts` gains `isa_data_entry: 7`
+        and `report_context: 1`;
+      - `test_check_in_git_mode_passes_on_a_crlf_copy` skips `.gz` when
+        converting to CRLF.
+  - **`tests/parity/test_r_sync.py`:**
+    - `:27` → 33;
+    - `test_pin_shape`: r_translations 6 → 8;
+    - `test_fixture_hash_matches_pin` uses `hash_local_pin` for `.json.gz`;
+    - the pinned tag/commit literal becomes `("v1.34.2","edb42fd")`. That
+      goes green in Task 3, because the real pin changes there.
+  - The real-repo assertions (`tests/parity/test_r_sync.py`) stay red until
+    Task 3, and the fake-repo tests (`tests/test_r_template_catalogue.py`)
+    must be **green now**.
+- [ ] **Step 5: Run** `micromamba run -n shiny python -m pytest tests/test_k1_sync.py tests/test_r_template_catalogue.py -q`.
+  Expected: PASS, with runtime comparable to before (about 30–40 s, not
+  minutes). `tests/parity/test_r_sync.py` is still red; that is expected
+  until Task 3.
 - [ ] **Step 6: Commit** `feat(k1): sync script vendors KB data, pins fixtures and manifest`.
 
 ---
@@ -228,26 +311,46 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     `countries`, `report`);
   - `K1_FIXTURE_TAG = "v1.34.2"`.
 - **Fixture shapes** (each file is `{"r_tag", "r_commit", "data"}`):
-  - `lookup`: `[{sea, ecosystem, key, match}]` for all 69 SESPy choices.
-    `match` is one of `exact | prefix | sea_only | fallback`.
-  - `suggestions_grid`: `{"sources": {list_id: [names…]}, "cells":
-    [{sea, ecosystem, category, issues, countries, items: [[name, source]…]}]}`.
+  - `lookup`: `{"choices": [{sea, ecosystem, key, match}] (69 rows),
+    "free_text": [{sea, ecosystem, key, match}]}`.
+    - `match` is one of `exact | prefix | sea_only | fallback`.
+    - R's `fallback` (no context; null key) corresponds to SESPy's
+      `find_context(...) is None`.
+    - `free_text` holds three R-import strings: `("baltic","Coastal lagoon
+      and delta")`, `("mediterranean","Posidonia meadows")` and
+      `("baltic","Schären archipelago")`.
+  - `suggestions_grid`: `{"sources": {list_id: [[name, source]…]}, "cells":
+    [{sea, ecosystem, category, issues, countries, items: list_id}]}`.
+    Each distinct ordered list is stored once (about 1,400 ids) and
+    referenced.
   - `habitat_specific`: `[{sea, ecosystem, category, items}]`.
   - `countries`: `{sea: [{code, name_en, eu_member}]}` for the 11 seas.
-  - `report`: `{case_id: markdown}` for `baltic_lagoon`, `med_seagrass`
-    and `irish_sea`.
+  - `report`: `{case_id: {sea, ecosystem, edges: [[from_label, to_label]…],
+    markdown}}` for `baltic_lagoon`, `med_seagrass` and `irish_sea`. The
+    inputs travel with the expected output, so Python tests never re-type
+    them.
 
-- [ ] **Step 1: Write the failing shape test.** For each of the 5 names,
-  `load_k1_fixture` returns non-empty data; the tag is `v1.34.2`;
-  `len(lookup) == 69`. The grid covers every (sea, ecosystem) of
-  `sespy/regional_seas.json` × the 7 categories × 7 issue sets × the
-  country sets of §7.
+- [ ] **Step 1: Write the failing shape test.**
+  - For each of the 5 names, `load_k1_fixture` returns non-empty data and
+    the tag is `v1.34.2`.
+  - `len(lookup["choices"]) == 69` and `len(lookup["free_text"]) == 3`.
+  - The grid covers every (sea, ecosystem) of `sespy/regional_seas.json` ×
+    7 categories × 7 issue sets × 4 country sets (13,524 cells). The
+    country sets are derived from the fixture's own `countries` data,
+    because governance is not vendored until Task 3.
+  - Import with the `sys.path` pattern from the Environment notes.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/parity/test_k1_fixture_shape.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Write `scripts/capture_k1_fixtures.R`** from
   `.superpowers/k1-prototypes/r_capture.R` and `r_report.R`.
-  - **Guards:** fail unless the R working tree is clean and
-    `git describe --tags` equals `v1.34.2`.
+  - **Arguments:** `Rscript scripts/capture_k1_fixtures.R <R_APP>`. The
+    script resolves SESPy's `sespy/regional_seas.json` and the output
+    directory from its own location.
+  - **Guards:** fail unless `git describe --tags` equals `v1.34.2` **and**
+    `git status --porcelain -- <the 4 sourced .R files>
+    data/ses_knowledge_db.json data/country_governance_db.json` is empty.
+    The R checkout carries unrelated local edits (e.g. `CONTRIBUTING.md`),
+    so a whole-tree clean check would never pass.
   - **Setup:** `setwd(<R app>)`; stub `debug_log <- function(...) invisible(NULL)`;
     define `%||%` if missing; force `Sys.setenv(MARINESABRES_ML_ENABLED="FALSE")`.
   - **Sources:** `modules/ai_isa_knowledge_base.R`,
@@ -258,27 +361,35 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     "Eutrophication", c("Eutrophication","Overfishing"), "Marine litter",
     "Tourism pressure", "Climate change")`.
   - **Country sets per sea:** `character(0)`, the first two codes of
-    `countries_by_sea[[sea]]` in both orders, and one fixed set covering
-    all 6 governance groups, all 3 income levels and all 15 conventions.
-    Choose it with a small greedy pick in the script, then hard-code it in
-    the script for reproducibility.
-  - **Report cases** (built in the script, matching §7):
-    - `baltic_lagoon`: 6 elements, 5 connections, 2 of them matching KB
-      edges, plus 1 edge with an empty label;
-    - `med_seagrass`: elements only;
-    - `irish_sea`.
+    `countries_by_sea[[sea]]` in both orders, and the fixed cover set
+    `c("FR","RU","FM","ZA","BZ","DK","AU")`. That set covers all 6
+    governance groups, all 3 income levels and all 15 conventions (24
+    features; an empty conventions list is not a feature).
+  - **Report cases** (built in the script; only sea, ecosystem and edge
+    labels reach R's formatter):
+    - `baltic_lagoon` ("Coastal lagoon"): **5 edges**, 2 matching KB
+      connections, 2 not matching, 1 with an empty from-label;
+    - `med_seagrass` ("Seagrass meadow"): no edges;
+    - `irish_sea` ("Open coast"): no edges, so governance only.
 
-    Each output is `paste0("# Regional Context\n\n",
-    format_kb_section_for_report(kb, matched, gov))`.
+    Each `markdown` is `paste0("# Regional Context\n\n",
+    format_kb_section_for_report(kb, matched, gov))`, stored with its
+    inputs.
   - **Output:** write gzipped JSON to `tests/parity/r_fixtures/k1/`.
-- [ ] **Step 4: Run it** with
-  `"C:\Program Files\R\R-4.4.1\bin\Rscript.exe" scripts/capture_k1_fixtures.R "<R app path>"`.
-  Expected: 5 files written, in about 90 s. Then run `attrib +P` on
-  `tests/parity/r_fixtures`.
+- [ ] **Step 4: Run it** in the background (it takes **about 20 minutes**:
+  about 88 ms per cell × 13,524 cells, measured in the dry run):
+  `"C:\Program Files\R\R-4.4.1\bin\Rscript.exe" scripts/capture_k1_fixtures.R "<R_APP>"`.
+  - Expected: 5 files written. Sizes are roughly: suggestions_grid about
+    190 KB gz, the others under 10 KB each.
+  - Use an O(n) dedup of the item lists (a hash map from serialised list
+    to id).
+  - Then, **with the PowerShell tool**, run
+    `attrib +P "tests\parity\r_fixtures\*" /S /D`.
 - [ ] **Step 5: Write `tests/parity/k1_fixtures.py`;** run the shape test.
   Expected: PASS.
-- [ ] **Step 6: Add `*.gz binary`** to `.gitattributes` (create the file if
-  absent), then commit `test(k1): R v1.34.2 knowledge-base fixtures`.
+- [ ] **Step 6: Add `*.gz binary`** to a new `.gitattributes` (none exists
+  today), then commit `test(k1): R v1.34.2 knowledge-base fixtures`.
+  `tests/parity/test_r_sync.py` stays red until Task 3, as expected.
 
 ---
 
@@ -292,13 +403,16 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 - Consumes: Task 1's `sync`, Task 2's fixtures.
 - Produces: vendored `sespy/data/r_kb/{ses_knowledge_db,country_governance_db,manifest}.json`.
 
-- [ ] **Step 1: Run** `micromamba run -n shiny python -m scripts.sync_r_templates --r-root "<R app path>" --rev v1.34.2`.
+- [ ] **Step 1: Run** `micromamba run -n shiny python -m scripts.sync_r_templates --r-root "<R_APP>" --rev v1.34.2`.
   Expected: exit 0, with `wrote …` for every vendored file and the pin.
   - If template warnings appear, review them; rerun with
     `--accept-warnings` only if they match the R changes.
 - [ ] **Step 2: Triage.** Add a "v1.33.0 → v1.34.2" table to `R_SYNC.md`
-  with one row per path of `git diff --stat v1.33.0 v1.34.2` (44 rows).
-  - Format: as P1b's table.
+  with one row per path of `git diff --name-status v1.33.0 v1.34.2 -- .`,
+  run in `R_APP` (44 rows).
+  - Format: as P1b's table, with a Status column.
+  - **Every** row gets a real one-line description and an owner. No
+    placeholders.
   - Rows that need notes: `modules/ai_isa_assistant_module.R` (badge
     tooltip fix), `translations/modules/isa_data_entry.json`,
     `modules/ai_isa/ui_renderers.R`, and `constants.R` (owned by P4/PIMS,
@@ -309,7 +423,8 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 - [ ] **Step 4: Run** `micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures --check`.
   Expected: exit 0.
 - [ ] **Step 5: Pin the vendored data locally** against OneDrive
-  dehydration (spec §4.10): `attrib +P "sespy\data\r_kb\*" /S`.
+  dehydration (spec §4.10). Use the PowerShell tool, because Git Bash
+  mangles `/S`: `attrib +P "sespy\data\r_kb\*" /S /D`.
 - [ ] **Step 6: Commit** `chore(k1): re-pin R v1.34.2 (edb42fd), triage 44 paths`.
 
 ---
@@ -356,20 +471,30 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `test_provenance_has_no_data_key`;
   - `test_label_vendored`, which asserts `VENDORED.label("ses_knowledge_db.json") == "R v1.34.2"`;
   - `test_package_data_covers_allow_list`: parse `pyproject.toml` and
-    assert the glob covers every allow-list name and `manifest.json`;
-  - `test_import_fails_without_vendored_file`: run in a subprocess with a
-    temp copy of `sespy/` missing one file, and expect a non-zero exit.
+    assert a package-data glob covers `data/r_kb/<name>` for every
+    allow-list name and `manifest.json`. Match **per path component**
+    (split on `/`, then `fnmatch` each part), because plain `fnmatch`'s `*`
+    crosses `/` and the existing `"*.json"` would pass vacuously;
+  - `test_import_fails_without_vendored_file`: run in a subprocess with
+    `PYTHONPATH` set to a temp copy of the package that is missing one
+    file. Assert that `sespy.__file__` is in the temp copy, and expect a
+    non-zero exit.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_r_kb.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement** the interfaces above in `sespy/r_kb.py`. Read
   the files with `importlib.resources` relative to the package; nothing
   relative to `APP_DIR`.
 - [ ] **Step 4: Run the tests.** Expected: PASS.
-- [ ] **Step 5: Add a slow-marked test** `test_wheel_contains_r_kb`, which
-  builds a wheel into `tmp_path` and lists its contents. Register the
-  marker if it is absent. Run
-  `micromamba run -n shiny python -m pytest tests/test_r_kb.py -m slow -q`.
-  Expected: PASS.
+- [ ] **Step 5: Add a slow-marked test** `test_wheel_contains_r_kb`.
+  - It runs `python -m build --wheel --no-isolation --outdir <tmp_path>`
+    (offline, with `build` in the env) and lists the wheel's contents.
+  - It starts with `pytest.importorskip("build")`, because CI's `[test]`
+    extra lacks it.
+  - In `pyproject.toml` `[tool.pytest.ini_options]`, add
+    `markers = ["slow: builds artefacts; run with -m slow"]` and
+    `addopts = "-m \"not slow\""`, so slow tests are deselected by default.
+  - Run `micromamba run -n shiny python -m pytest tests/test_r_kb.py -m slow -q`.
+    Expected: PASS (about 25 s).
 - [ ] **Step 6: Commit** `feat(k1): reference-data allow-list and vendored snapshot`.
 
 ---
@@ -403,7 +528,8 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - A failure is never recorded as seen.
   - **Live R version:** read `<dir>/../VERSION_INFO.json` optionally.
   - **Logging:** each transition at WARNING: `r_kb.transition file=<f>
-    from=<src> to=<src> reason=<r> hash=<h8>`.
+    from=<src> to=<src|last-good> reason=<r> hash=<h8>`. Keeping the last
+    good copy logs `to=last-good`.
   - **No writes**, ever.
 
 - [ ] **Step 1: Write failing tests,** all with `tmp_path` and monkeypatched
@@ -477,8 +603,9 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - codes are upper-cased.
 
 - [ ] **Step 1: Write failing fixture-driven tests:**
-  - `test_lookup_matches_r` over `load_k1_fixture("lookup")`: key and match
-    for all 69 rows;
+  - `test_lookup_matches_r` over `load_k1_fixture("lookup")["choices"]`:
+    key and match for all 69 rows. R's `fallback` maps to
+    `find_context(...) is None`;
   - `test_suggestions_grid_matches_r` over every grid cell, comparing full
     ordered `[[name, source]]`;
   - `test_habitat_specific_matches_r`;
@@ -490,12 +617,8 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     `north_sea_offshore`;
   - `test_legacy_sea_slug_no_exception`: `"macaronesia"` and `""` give
     generic-fallback items and `find_context(...) is None` (Review Focus 1);
-  - `test_free_text_ecosystems`: "Coastal lagoon and delta" →
-    `<sea>_lagoon`; "Posidonia meadows" → `mediterranean_seagrass`;
-    "Schären archipelago" → `baltic_rocky_coast` (Review Focus 2). Add the
-    exact expected keys to the R capture as a 6th mini-table if the 3
-    cases are not covered, or assert them against the cascade order and
-    note that in a comment.
+  - `test_free_text_ecosystems_match_r` over `lookup["free_text"]`, R's own
+    resolution of the three R-import strings (Review Focus 2).
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_kb_suggestions.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement** the interfaces.
@@ -521,7 +644,8 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     temporal_lag: str, reversibility: str)`.
   - `build_regional_context(kb, gov, sea, ecosystem, edges:
     list[tuple[str, str]]) -> RegionalContext | None`. It returns None when
-    there is no content (R :173-175).
+    there is no content (`functions/report_generation.R:173-175`;
+    `kb_report_helpers.R:364-366`).
   - `to_markdown(rc: RegionalContext) -> str`, R's exact markdown,
     beginning with `# Regional Context`.
   - `CATEGORY_LABELS`, R's literals ("Drivers (D)" …).
@@ -536,7 +660,9 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 
 - [ ] **Step 1: Write failing tests:**
   - `test_report_markdown_matches_r` for the 3 cases of
-    `load_k1_fixture("report")`, after whitespace normalisation;
+    `load_k1_fixture("report")`. Build each from the case's own `sea`,
+    `ecosystem` and `edges`, and compare `to_markdown` with its `markdown`
+    after whitespace normalisation;
   - `test_irish_sea_governance_only` (`site_description is None`,
     frameworks non-empty);
   - `test_empty_label_matches_all`;
@@ -557,7 +683,7 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 **Files:**
 - Modify: `sespy/data_structure.py` (:22, :27, `ProjectMetadata` :283-303, `Project.from_dict` :584-)
 - Regenerate: `sespy/templates/marinesabres/*.json` (7) via sync
-- Test: create `tests/test_schema_v9.py`; update `tests/test_data_structure.py`, `tests/test_schema_v7.py` and `tests/test_r_template_catalogue.py` where they pin 8
+- Test: create `tests/test_schema_v9.py`; update `tests/test_data_structure.py`, `tests/test_schema_v7.py`, `tests/test_schema_v8.py:37` and `tests/test_r_template_catalogue.py` where they pin 8
 
 **Interfaces:**
 - Produces:
@@ -584,8 +710,13 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   `micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures`.
   Expected: the 7 template files change (gaining `reference_data: {}` and
   the 1.16.0 stamp); nothing else changes.
-- [ ] **Step 5: Run** `micromamba run -n shiny python -m pytest tests -q -k "not e2e" -p no:cacheprovider`.
-  Expected: PASS.
+- [ ] **Step 5: Run the CI unit set:**
+  `micromamba run -n shiny python -m pytest tests -q -p no:cacheprovider --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py`.
+  - Expected: PASS, except
+    `test_analysis_boolean_clamp.py::...[50-12]`, which already fails on
+    the baseline (a test_server 5 s timeout under load). It is not a K1
+    regression; note it, don't fix it here.
+  - The full run takes about 10 minutes.
 - [ ] **Step 6: Commit** `feat(k1): project schema 9 with reference_data` (one commit, with the templates).
 
 ---
@@ -600,7 +731,8 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 - Consumes: Task 4's `Snapshot.provenance` and Task 8's field.
 - Produces:
   - `Project.to_dict(*, reference_data: dict | None = None)` and
-    `to_json(*, indent=2, reference_data=None)`. `None` writes
+    `to_json(indent=2, *, reference_data=None)` (`indent` keeps its current
+    position). `None` writes
     `metadata.reference_data` as is; a dict replaces it **in the output
     only**.
   - `save_project_atomic(project, path, *, reference_data=None)`.
@@ -634,7 +766,7 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 ### Task 10: `app.py` wiring — snapshot, `reference_reads`, resets, load check
 
 **Files:**
-- Modify: `app.py` (:173-320), `sespy/modules/project_io.py` (`quick_actions_server` :103; autosave :142-161; save :292-318; New :381-384), `sespy/modules/templates.py` (only to confirm `template_loaded` exists; no change expected), `sespy/translations/core.json`
+- Modify: `app.py` (:173-330), `sespy/modules/project_io.py` (`quick_actions_server` :103; autosave :142-161; save :292-318; New :381-384), `sespy/modules/templates.py` (only to confirm `template_loaded` exists; no change expected), `sespy/translations/core.json`
 - Test: `tests/test_k1_wiring.py` (Shiny test tooling; see `shiny skills path` → `references/testing.md`)
 
 **Interfaces:**
@@ -665,16 +797,25 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     `test_reads_reset_on_new`;
   - `test_add_reads_no_self_invalidation` (inside a render, `add_reads`
     twice with the same name → one invalidation);
-  - `test_toast_differs_and_unavailable` (feed a project with a foreign
-    hash and with the vendored hash under a shared snapshot);
-  - `test_autosave_includes_reads_after_isa_change`.
+  - `test_toast_silent_when_equal_to_snapshot`;
+  - `test_toast_differs_for_vendored_and_for_last_parsed_shared` (two
+    cases);
+  - `test_toast_unavailable_for_foreign_hash`;
+  - `test_autosave_includes_reads_after_isa_change`. Set the browser-token
+    input, satisfy `recovery_checked`, and monkeypatch
+    `sespy.modules.project_io.write_autosave` to capture the call.
+
+  Compose `quick_actions_server` in a bare test server; never import
+  `app.py`.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_k1_wiring.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement** the wiring. Pass `snapshot` to the wizard,
   report export, `quick_actions_server` and `topbar_actions_server`, and
-  `reference_reads` to the first three. Tasks 11, 14 and 15 add the
-  parameters on the receiving side; here add them as accepted-but-unused
-  keyword-optional parameters.
+  `reference_reads` to the first three.
+  - This task adds the keyword-optional parameters to all four servers
+    (`report_export_server(..., snapshot=None, reference_reads=None)` and
+    so on). The other three are accepted but not yet used.
+  - Tasks 11, 14 and 15 **use** them.
 - [ ] **Step 4: Run** the tests plus `tests/test_autosave.py`. Expected: PASS.
 - [ ] **Step 5: Commit** `feat(k1): session snapshot, reference reads and provenance toasts`.
 
@@ -718,12 +859,17 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `test_sea_change_filters_codes`;
   - `test_claude_prompt_uses_names`;
   - `test_country_order_kept` (selection order passed through to
-    `WizardState.countries`).
+    `WizardState.countries`);
+  - `test_countries_record_reads` (rendering step 2 adds both files to
+    `reference_reads`);
+  - `test_other_sea_excluded` (`other` is not offered in step 0, as in
+    SP2).
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_wizard_countries.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Check country order after Back in a browser.**
-  - Start the app (`micromamba run -n shiny python -m shiny run --port 8771 app.py`).
+  - Start the app with `SESPY_R_DATA_DIR=""` set in the environment
+    (`micromamba run -n shiny python -m shiny run --port 8771 app.py`).
   - Pick two countries in reverse option order, go Next, then Back, then
     Next.
   - If the order comes back in option order, restore the saved order by
@@ -751,6 +897,10 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `effective_rows(target) -> list[tuple[bool, str]]` (exists, value).
     Value is pending, else live-if-exists, else saved.
   - `row_count(target) -> int`, defined in §4.3.
+  - **Clearing effect,** one per target (prototype `mk_clear`,
+    `app_gen.py:187-200`): drop a pending entry as soon as the live input
+    of the current generation reports the same value. Without it, pending
+    keeps masking what the user types next.
   - **Lifetime rules** (§4.3, rev 6):
     - clear `pending[target]` **after a successful write** in `_on_next`;
     - drop `pending[target]` on every `gen[target]` bump (step entry and
@@ -769,7 +919,9 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `test_replace_then_reenter_blank`;
   - `test_failed_next_keeps_pending_row`;
   - `test_back_next_idempotent`;
-  - `test_unsaved_text_discarded_by_back` (documents the behaviour change).
+  - `test_unsaved_text_discarded_by_back` (documents the behaviour change);
+  - `test_typing_after_server_fill_wins` (set `pending[0]="X"`, echo `X`,
+    and the entry clears; then type `Y`, and the effective value is `Y`).
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_wizard_overlay.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement.**
@@ -809,17 +961,29 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `test_deselect_blanks_all_matches_in_place`;
   - `test_hand_typed_text_selects_chip_including_trailing_space`;
   - `test_case_variant_is_distinct` (Review Focus 3);
-  - `test_two_different_chips_same_flush`;
-  - `test_chip_then_next_same_flush`;
+  - `test_two_different_chips_same_flush_with_empty_row` and
+    `test_two_different_chips_same_flush_without_empty_row`;
+  - `test_chip_then_next_same_flush_fill_path` and
+    `test_chip_then_next_same_flush_added_row_path`;
+  - `test_chip_then_next_same_flush_then_back_shows_saved`;
+  - `test_chip_and_back_same_flush_then_reenter_no_leak`;
+  - `test_add_remove_interleaved_with_chips`;
+  - `test_type_row1_remove_then_chip_with_no_empty_row`;
+  - `test_added_row_chip_and_failing_next_same_flush_keeps_row`;
   - `test_chip_for_other_target_ignored`;
   - `test_reads_recorded_once`.
+
+  "Same flush" means one `set_inputs(...)` call carrying both inputs.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_wizard_chips.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Replay the prototype driver's scenario list** against the
-  real app. Adapt `chips/drive_gen.py` into a throwaway script in the
-  session scratchpad, run it on port 8772, and kill the server afterwards.
-  Expected: all scenarios pass.
+  real app in a browser, as an extra check beyond the committed tests.
+  - Adapt `chips/drive_gen.py` into a throwaway script in the session
+    scratchpad.
+  - Run the app on port 8772 with `SESPY_R_DATA_DIR=""`, and kill the
+    server afterwards.
+  - Expected: all scenarios pass.
 - [ ] **Step 5: Run** the tests plus `tests/test_wizard.py`. Expected: PASS.
 - [ ] **Step 6: Commit** `feat(k1): knowledge-base suggestion chips in wizard steps 4-10`.
 
@@ -842,8 +1006,12 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - **HTML:** `<h2>Regional Context</h2>`, then h3–h5 for R's levels, with
     h4 and h5 CSS added. **Word:** Heading 2–5 and a 5-column table.
   - **Edges:** `isa_data.connections` in list order, ids mapped to labels.
-  - A checkbox `report_export-include_regional_context` (label key
-    `modules.report_context.include_context`), default `True`.
+  - A checkbox, module-local id `include_regional_context`, with DOM id
+    `report-include_regional_context` (the module is mounted as
+    `"report"`). Label key `modules.report_context.include_context`;
+    default `True`.
+  - `report_export_server(..., snapshot=None, reference_reads=None)`, as
+    added in Task 10.
   - The preview depends on it.
   - Generating the section calls `add_reads`.
   - A failure omits the section with a WARNING log.
@@ -913,9 +1081,13 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   `--warn-only` forces 0 and prints everything.
 - `--live` absent means the override is off: skip checks 1 and 3; check 2
   always runs.
-- `--perms FILE` contains `stat -c '%a %U %G %n'` lines for each file and
-  each parent directory. Exit 2 unless user `shiny` can read the files and
-  traverse the directories (other r/x, or group `shiny` r/x).
+- `--perms FILE` contains one line per path, in one of two forms:
+  - `sudo-test <path> ok|fail`, written when `deploy.sh` can run
+    `sudo -n -u shiny test -r <path>` (preferred);
+  - `stat <%a> <%U> <%G> <path>`, for each file and each parent directory.
+
+  Exit 2 on any `fail`, or unless `shiny` can read the files and traverse
+  the directories (other r/x, or group `shiny` r/x).
 - `--fetch` reads `DEPLOY_SERVER`/`DEPLOY_DIR` from `deploy/config.env`
   (overridable), copies over `ssh`/`scp` into a temp directory, then
   checks.
@@ -954,19 +1126,25 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   3. Read the server's `server_settings.env`. If it is absent, use the
      default `/srv/shiny-server/marinesabres/data`.
   4. When the value is non-empty, `scp` the override files and the R
-     `VERSION_INFO.json` into `$STAGE/.live/`, and write
-     `$STAGE/.live/perms.txt` via `ssh stat` on each file and parent
-     directory.
-  5. Run `${SESPY_PY:-micromamba run -n shiny python} tests/parity/check_live.py
+     `VERSION_INFO.json` into `$STAGE/.live/`. Write
+     `$STAGE/.live/perms.txt` in Task 16's format: try `sudo -n -u shiny
+     test -r` per file first, and fall back to `stat -c 'stat %a %U %G %n'`
+     on each file and parent directory.
+  5. **Only if `SESPY_SKIP_LIVE_CHECK` is unset**, run
+     `${SESPY_PY:-micromamba run -n shiny python} tests/parity/check_live.py
      --pin tests/parity/r_sync.json --stage "$STAGE"
      [--live "$STAGE/.live" --perms "$STAGE/.live/perms.txt"]
      [--warn-only if --rollback]`. Abort on non-zero. If `check_live.py`
      is absent from the checkout, print a message and continue.
   6. Remove `$STAGE/.live` before upload.
-  7. Upload to `$APP_DIR/sespy.incoming/` (with the other runtime items as
-     today). Then on the server: stash `logs` →
-     `mv sespy sespy.old && mv sespy.incoming sespy` → restore `logs` →
-     `rm -rf sespy.old`.
+  7. **Atomic upload and swap:**
+     - on the server, `rm -rf $APP_DIR/sespy.incoming` (so `scp -r` cannot
+       nest a copy inside a leftover);
+     - upload the staged `sespy/` to `$APP_DIR/sespy.incoming/`, with the
+       other runtime items copied as today;
+     - on the server, **move `sespy/logs` into `sespy.incoming/logs`**, so
+       `feedback.db` is never absent and never overwritten; then
+       `mv sespy sespy.old && mv sespy.incoming sespy && rm -rf sespy.old`.
   8. On the server, create the settings file if it is absent:
      `umask 022; [ -e f ] || printf 'SESPY_R_DATA_DIR=%s\n' /srv/shiny-server/marinesabres/data > f; chmod 0644 f`.
   9. Touch `restart.txt`. If `DEPLOY_MOSAIC_DIR` is set, also touch
@@ -979,7 +1157,11 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `test_uses_incoming_swap`;
   - `test_settings_file_created_only_if_absent_with_0644`;
   - `test_rollback_passes_warn_only`;
-  - `test_skip_env_var_echoed`;
+  - `test_skip_env_var_guards_check_live_call` (the `check_live.py`
+    invocation sits inside the `SESPY_SKIP_LIVE_CHECK`-unset branch, and the
+    reason is echoed);
+  - `test_logs_moved_into_incoming_before_swap`;
+  - `test_incoming_removed_before_upload`;
   - `test_mosaic_restart_conditional`;
   - `test_gitignore_has_server_settings`.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_deploy_script.py -q`.
@@ -1006,8 +1188,10 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `snapshot` and `reference_reads`, wherever present, have defaults;
   - `get_regional_seas()[sea]` still has `name`, `ecosystem_types` and
     `common_issues`;
-  - `import sespy.r_kb` in a subprocess with cwd set to a temp directory
-    succeeds.
+  - `import sespy.r_kb` succeeds in a subprocess with cwd set to a temp
+    directory and `PYTHONPATH` set to the repo under test. The test asserts
+    that `sespy.__file__` is under that repo; the stale editable install
+    would otherwise import the main checkout.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_mosaicses_contract.py -q`.
   Expected: PASS (it guards; it is written after the code exists).
 - [ ] **Step 3: Commit** `test(k1): MosaicSES compatibility contract`.
@@ -1062,6 +1246,11 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     `MosaicSES/multises_app/__init__.py`.
 - [ ] **Step 2: MANUAL K1 section and screenshots.** Fix the CHANGELOG
   extension-pair lines at :206-207 and the P1a spec lines.
+- [ ] **Step 2b: In this repo,** add the §9 P14 note to row 18 of
+  `R_SYNC.md`'s v1.31 → v1.33 table (`docs/parity/R_SYNC.md:227`). Also
+  correct spec §4.9's two wrong claims, found in the plan review:
+  - the prefix rule does **not** pull in `eu_member_state`;
+  - the `data/` rule does not cover `RUNTIME_INPUTS` in fixture mode.
 - [ ] **Step 3: Roadmap edits** on `docs/r-parity-roadmap` (checkout via a
   worktree in `C:/Users/arturas.baziukas/AppData/Local/sespy-roadmap`, with
   `-c core.longpaths=true`). Apply every §9 bullet and commit there.
