@@ -1,6 +1,10 @@
 # K1 — General knowledge-base parity — design
 
-**Status:** Draft, 2026-11-09. Branch `docs/k1-design` (from `main` 999ed6e).
+**Status:** Draft rev 2, 2026-11-09, revised after the builder check.
+Branch `docs/k1-design` (from `main` 999ed6e). **K1 is split** (decision 4):
+this document specifies K1 (v1.16.0). §8 records the scope and the decisions
+already taken for **K1b**, the connection-scorer parity, which gets its own
+spec and plan later.
 **Umbrella:** `docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md`
 (branch `docs/r-parity-roadmap`), §2 "K1" and §3 "Rules that apply to every
 sub-project". Every §3 rule binds this sub-project. This document restates the
@@ -21,7 +25,8 @@ knows about their sea, habitat and countries:
 - the same suggested DAPSI(W)R(M) elements, in the same order and with the
   same source badges;
 - the same country lists;
-- the same connection polarity, strength and relevance scoring.
+- later, in K1b, the same connection polarity, strength and relevance
+  scoring as R run with ML off.
 
 A report generated from the result should carry the same "Regional Context"
 section R writes. This is one-way parity, R → SESPy. R stays the source of
@@ -65,11 +70,33 @@ v1.34.2.
 3. **The wizard's countries come from R's `country_governance_db.json`**
    (vendored by K1). `regional_seas.json` keeps sea names, ecosystem types and
    common issues; its `countries`, `country_codes` and `eu_member_codes` go
-   away (§4.3). Visible effects:
-   - Caribbean grows from 13 to 27 countries;
-   - Pacific loses CN, JP, PH, ID and CL;
-   - North Sea loses FR;
-   - the EU set gains MQ, GP and MF where R lists them.
+   away (§4.3). Visible effects, checked against `countries_by_sea`:
+
+   | Sea | Loses | Gains |
+   |---|---|---|
+   | Pacific | CN, JP, PH, ID, CL, US | FM, KI, MH, NR, PW, SB, TO, TV, VU, WS |
+   | Caribbean | FR, NL | AG, CR, DM, GD, GP, GT, HT, KN, LC, MF, MQ, NI, PA, PR, VC, VI |
+   | Atlantic | CA, NO, US | AR, CV, FO, GL, SN, UY |
+   | East Atlantic | IS, NO | GM, GW |
+   | Indian | – | MU, SC, SO, YE |
+   | Arctic | – | FO, GL |
+   | North Sea | FR | – |
+
+   The EU set gains GP, MF and MQ.
+4. **K1 is split.** The connection-scorer parity (formerly G4, with the R → JSON
+   export of `SES_CONNECTION_DB`) becomes **K1b**, a later release (§8). Two
+   reasons: live R almost certainly mixes a torch ML score into connection
+   relevance and confidence (§1.2), which SESPy cannot reproduce; and the
+   scorer brings its own output decisions.
+5. **(K1b) Accepted wizard connections carry R's `strength` and integer
+   `confidence`** (4 exact, 3 synonym or default). `Connection` already has
+   both fields, so there is no schema change. The 0..1 relevance used for the
+   Claude merge stays a separate value, so `_dedup_accepted`'s comparison is
+   unaffected.
+6. **(K1b) SESPy's rule-based scorer drops Responses → Marine Processes &
+   Functioning** (`responses_states`) and scores exactly R's 10 pairs, in
+   R's order: D-A, A-P, P-S, S-I, I-W, R-P, W-D, W-R, R-D, R-A. Users can
+   still add R→MPF links by hand.
 
 ### 1.2 Facts this design rests on (verified 2026-11-09 at v1.34.2)
 
@@ -113,7 +140,21 @@ v1.34.2.
 **SESPy's current state**
 - `sespy/connection_scorer.py` ported only R's *inline fallback* branches,
   which R runs only when those functions are missing. So SESPy's connection
-  suggestions already differ from R's.
+  suggestions already differ from R's. It also scores 11 type pairs, R's 10
+  plus `responses_states` (`data_structure.py:77-89`).
+
+**R's ML model**
+- R's `calculate_relevance` blends `0.3 × keyword + 0.7 × ML` and raises
+  confidence whenever `ml_model_available()` is true
+  (`connection_generator.R:286-318, 502-510`).
+- `ML_ENABLED` defaults to TRUE (`global.R:744`, env
+  `MARINESABRES_ML_ENABLED`).
+- On laguna (checked 2026-11-09) torch is installed (`torch_is_installed()`
+  is TRUE), `models/checkpoint_*.pt` exist, and no shiny-server config sets
+  the variable. So live R almost certainly runs with ML on.
+- This affects only connection scoring (K1b). It does not affect element
+  suggestions, countries or the report. K1b's parity target is **R run with
+  `MARINESABRES_ML_ENABLED=FALSE`**.
 - The wizard (`sespy/wizard.py:36-49`) asks for sea (step 0), ecosystem (1),
   countries as *names* (2) and issues (3).
 - Steps 4–10 are free-text inputs with **no element suggestions**
@@ -146,15 +187,12 @@ v1.34.2.
 - **G3 Country lists** in step 2 from the vendored governance database, with
   an EU badge as in R (`ai_isa_assistant_module.R:1371-1384`). Selections are
   held as ISO codes.
-- **G4 Connection-scorer parity:** port `lookup_knowledge_base`,
-  `calculate_enhanced_relevance` and `analyze_phrase_polarity`, and make
-  `connection_scorer.py` call them first, as R does. `SES_CONNECTION_DB` and
-  `SES_SYNONYM_DB` ship as a vendored JSON export (vendored-only; the override
-  never applies).
+- **G4 (moved to K1b, §8):** connection-scorer parity and the
+  `SES_CONNECTION_DB` export.
 - **G5 Regional Context report section** in HTML, PDF and Word, equal in
   content to R's `format_kb_section_for_report`. It is gated, like R, on the
-  project having both a sea and an ecosystem. It includes R's
-  recommendations additions (`report_generation.R:476-509`).
+  project having both a sea and an ecosystem. R's recommendation additions
+  (`report_generation.R:476-509`) go in a subsection of it (§4.7).
 - **G6 Provenance:** `metadata.reference_data` is written on save. On load,
   SESPy warns when it differs from the session's snapshot. This is a
   **schema bump to 9**.
@@ -166,6 +204,10 @@ v1.34.2.
 
 ### Non-goals
 - **Extension-pair suggestions** (decision 1).
+- **R's torch ML model.** The roadmap (§4) puts torch out of scope, and
+  parity is with R run with ML off.
+- **Connection-scorer changes.** These are K1b. K1 leaves
+  `connection_scorer.py` and the wizard's step-11 output untouched.
 - **Fixing R's habitat lookup** (decision 2).
 - **`cross_ecosystem_links` as a feature.** They are vendored as data because
   they are part of the file, but nothing reads them. R does nothing with them
@@ -199,9 +241,9 @@ v1.34.2.
 ## 3. Constraints carried from the roadmap (as given, not choices)
 - **Allow-list, never a glob.** K1's runtime allow-list:
   - `ses_knowledge_db.json` (version key `version`);
-  - `country_governance_db.json` (version key `version`);
-  - the vendored-only export `ses_connection_db.json`, made from
-    `SES_CONNECTION_DB` and `SES_SYNONYM_DB` (§4.5).
+  - `country_governance_db.json` (version key `version`).
+
+  K1b adds the vendored-only export `ses_connection_db.json` (§8).
 
   Each allow-list entry names its required top-level keys, its per-file
   minimum entry counts, and its version key.
@@ -220,8 +262,10 @@ v1.34.2.
   run against the K1 branch before merge, and the live MosaicSES is checked
   after deploy.
   - The `newer_build` guard (node M) is already live.
-  - MosaicSES also gets its own `APP_DIR/server_settings.env`, preserved by
-    its deploy script.
+  - MosaicSES uses no K1 feature; it reads only sea names. So K1 adds no
+    MosaicSES `server_settings.env` or deploy-script change: MosaicSES gets
+    vendored data (§4.1, my call). The roadmap's MosaicSES settings file
+    moves to the first sub-project whose features MosaicSES uses.
 - **Full e2e gate** with no heavy jobs running concurrently. CI and tests use
   vendored data only.
 - **i18n:** new strings adopt R's `modules.*` keys in a separate
@@ -243,7 +287,7 @@ min_counts: {path: n}, version_key, override: bool}`.
   regional_conventions ≥ 15, countries_by_sea ≥ 11.
 
   These are the v1.34.2 counts. They are *minimums*, so R may grow.
-- The connection-DB export has `override: false`.
+- K1b's connection-DB export will have `override: false`.
 
 **Vendored copies** live in `sespy/data/r_kb/`. They ship in the wheel
 through `[tool.setuptools.package-data]`; a packaging test proves it.
@@ -254,6 +298,11 @@ replaces wholesale, and that is fine because they are code-shipped data.
 - `SESPY_R_DATA_DIR` comes from the environment, else from
   `APP_DIR/server_settings.env` (simple `KEY=value` lines, read once at
   `app.py` import).
+- `APP_DIR` is the directory of the running app's `app.py`, passed in by
+  `app.py`. It is never the location of the `sespy` package (my call). On
+  laguna, MosaicSES's `sespy/` is a symlink to SESPy's deployed copy; a
+  package-relative lookup would make MosaicSES read SESPy's settings file.
+  MosaicSES has no settings file, so it uses vendored data.
 - `deploy.sh` creates `server_settings.env` only if it is absent, containing
   `SESPY_R_DATA_DIR=/srv/shiny-server/marinesabres/data`. Otherwise it
   preserves the file.
@@ -365,38 +414,9 @@ The details that decide parity:
 The SP1 step-4–10 idempotency block (remove the old batch on a changed
 answer) keeps working, because chips just edit the same rows.
 
-### 4.4 Connection-scorer parity — `sespy/connection_scorer.py`
-- **Port the functions.** Port `lookup_knowledge_base`, `.synonym_match`,
-  `.keyword_idf_weight`, `calculate_enhanced_relevance` and
-  `analyze_phrase_polarity` into `sespy/connection_kb.py`. They read
-  `snapshot.connection_db()`.
-- **Change the call order.** In `connection_scorer.py`, `detect_polarity`,
-  `calculate_relevance`, the phrase analysis and the strength/lag lookup
-  call these first, exactly as R's `connection_generator.R` does (:66, :203,
-  :268, :476). The existing ported fallbacks stay as the "not available"
-  branch, which in practice no longer runs.
-- **Keep current outputs.** `suggest_connections`' signature and its output
-  type stay as they are. MosaicSES and the SP4 merge path depend on them.
-  - Golden tests for the *current* scorer output will change.
-  - Each changed golden is re-derived from R (§7), never hand-edited to pass.
-- **Unchanged structure.** The 10 scored type pairs stay as they are
-  (`generate_connections` only scores those). This is decision 1 restated.
-
-### 4.5 R → JSON export of the connection DB
-`scripts/export_r_connection_db.R` (a new R script, committed in SESPy and
-run by hand with R) sources R's file at the pinned tag and writes
-`sespy/data/r_kb/ses_connection_db.json` as
-`{"r_tag", "connection_db": [...], "synonym_db": {...}}`.
-- Regex patterns are exported verbatim.
-- **Builder check:** confirm that every pattern means the same in R's TRE or
-  PCRE engine (whichever `grepl` call R uses) and in Python's `re`. List any
-  pattern that doesn't, and give it a translated equivalent with a test.
-
-`r_sync.json` pins two hashes for this export:
-- the `.R` source, via `sha256_text_norm`;
-- the JSON, via `sha256_norm`.
-
-A drift test re-runs nothing in CI. It only checks the pins agree.
+### 4.4 – 4.5 (moved to K1b)
+Connection-scorer parity and the connection-DB export are specified in §8.
+K1 does not touch `connection_scorer.py`.
 
 ### 4.6 Provenance — schema 9
 `ProjectMetadata.reference_data: dict` (default `{}`) maps each file to
@@ -440,10 +460,14 @@ A drift test re-runs nothing in CI. It only checks the pins agree.
 - **Toggle:** an "Include regional context" checkbox on the Export Report
   page. It defaults to on when the project has a regional sea, as in R
   (`options$include_regional_context %||% !is.null(regional_sea)`).
-- **Recommendations:** the additions (`report_generation.R:476-509`: top 3
-  pressures and responses plus frameworks) go into the matching place in
-  SESPy's report. **Builder check:** read :476-509 and map each addition to a
-  SESPy report section; flag anything that has no home.
+- **Recommendations (my call):** SESPy's report has no recommendations
+  section. R's additions (`report_generation.R:476-509`: top 3 pressures and
+  responses plus frameworks) therefore become the last subsection of
+  Regional Context, headed with R's text, and the same toggle governs them.
+  - **Known difference:** in R these lines depend only on sea and
+    ecosystem, not on the toggle. Record this in the CHANGELOG.
+  - If a later sub-project (P6c/P14) adds a recommendations section, the
+    lines move there.
 
 ### 4.8 `check_live.py` and `deploy.sh`
 `tests/parity/check_live.py` is excluded from pytest collection (the name
@@ -468,7 +492,7 @@ already exists).
    issues.
 3. **Steps 4–10:** `get_context_suggestions(...)` runs against the pinned
    snapshot and shows chips; chip clicks edit the rows.
-4. **Step 11:** `suggest_connections` runs, with the KB-first scorer.
+4. **Step 11:** `suggest_connections` runs, unchanged in K1.
 5. **Save:** `metadata.reference_data` comes from the pinned snapshot.
 6. **Export Report:** the Regional Context section comes from the pinned
    snapshot.
@@ -508,10 +532,6 @@ against them; they never re-run R.
 - **Countries.** `get_countries_for_sea` for all 11 seas, plus governance and
   socioeconomic elements for a code set covering all 6 governance groups,
   all 3 income levels and all 15 conventions.
-- **Connection scorer.** Capture R's `generate_connections` output for the
-  P2 template projects and 3 wizard-built fixtures; SESPy must match
-  `(from, to, polarity, strength, confidence)` exactly. Capture
-  `lookup_knowledge_base` and `analyze_phrase_polarity` for a phrase table.
 - **Report.** `format_kb_section_for_report` markdown for 3 projects
   (Baltic lagoon, Mediterranean seagrass, Irish Sea → empty site context),
   compared after whitespace normalisation with SESPy's section rendered to
@@ -554,18 +574,46 @@ v1.34.2 with the triage, and the deploy pre-flight runs `check_live.py`.
 
 ---
 
-## 8. Size and split
-This is the largest sub-project so far after P1b. Parts G1, G3, G6, G7 and
-G8 are the infrastructure; G2 and G5 are the user-visible KB features; G4 is
-the connection-scorer parity.
+## 8. K1b — connection-scorer parity (decided scope; own spec and plan later)
+**Release:** v1.17.0 (renumbered if another release lands first). No schema
+bump: `Connection.strength` and `confidence` already exist. Depends on K1's
+reference-data layer.
 
-**Proposed split if the plan exceeds about 20 tasks:**
-- **K1a:** G1, G2, G3, G5, G6, G7, G8. One schema bump; v1.16.0.
-- **K1b:** G4 together with the export. v1.17.0; no schema bump, since it
-  adds no serialised field.
-
-K1b depends only on K1a's layer. This is open for the user to accept or
-reject at plan time.
+**Decided:**
+- **Decision 4: parity target.** The target is R run with
+  `MARINESABRES_ML_ENABLED=FALSE`. The fixture script must force it.
+- **Port the functions.** `lookup_knowledge_base`, `.synonym_match`,
+  `.keyword_idf_weight`, `calculate_enhanced_relevance` and
+  `analyze_phrase_polarity` read `snapshot.connection_db()`.
+  `connection_scorer.py` calls them first, exactly as R does
+  (`connection_generator.R:66, 203, 268, 476`).
+- **Decision 5: strength and confidence.**
+  - `ConnectionSuggestion` gains R's `strength` and integer `confidence`.
+    The existing 0..1 relevance stays a separate field, which
+    `_dedup_accepted` keeps comparing against Claude's 0..1 confidences.
+  - The accept path (`ai_isa_wizard.py:926-928`) writes strength and
+    confidence onto `Connection`.
+  - Decide in the K1b spec which suggestion wins a SP4 merge when R's
+    continuous relevance replaces the old 0.3 / 0.6 / 0.9 steps.
+- **Decision 6: R's 10 pairs only.** Drop `responses_states` and use R's
+  order. The SP3 goldens are re-derived from R, never hand-edited.
+- **The export.** `scripts/export_r_connection_db.R` writes
+  `sespy/data/r_kb/ses_connection_db.json`, regex patterns verbatim. It is
+  vendored only (`override: false`) and pinned by two hashes: the `.R`
+  source via `sha256_text_norm`, the JSON via `sha256_norm`.
+  - `lookup_knowledge_base` and `.synonym_match` use
+    `grepl(perl = TRUE)`, so Python's `re` is a near match.
+  - Only `.keyword_idf_weight` uses R's default TRE engine. Check its
+    patterns.
+- **No temporal lag to port.** `SES_CONNECTION_DB` has no `temporal_lag`
+  field, so R's `delay_category` from this path is always NA.
+- **Tests.** Capture R's `generate_connections` output, with ML off, for
+  the P2 template projects and 3 wizard-built fixtures. SESPy must match
+  `(from, to, polarity, strength, confidence)` and the order exactly. Also
+  capture `lookup_knowledge_base` and `analyze_phrase_polarity` over a
+  phrase table.
+- **Consumers.** No MosaicSES code uses `suggest_connections` or
+  `ConnectionSuggestion`; only the SP4 merge path depends on them.
 
 ---
 
@@ -583,6 +631,8 @@ reject at plan time.
 - **Upstream R issue (draft only):** the KB-seeding path in
   `generate_connections` is never called (`step_navigation.R:92` passes no
   context), so it is dead code or a missing argument.
+- **Roadmap:** record the K1 / K1b split and that live R runs torch ML,
+  which SESPy matches with ML off.
 - **Upstream note:** `country_governance_db.json` gained 6 countries without
   a `version` or `last_updated` bump. That defeats version checks; suggest
   bumping.
