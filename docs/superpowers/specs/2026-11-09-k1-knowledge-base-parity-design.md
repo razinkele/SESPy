@@ -1,8 +1,10 @@
 # K1 — General knowledge-base parity — design
 
-**Status:** Draft rev 4, 2026-11-09. Revised after the builder check,
-review round 1 (fresh read, cross-spec, dry run) and round 2 (fresh read, a
-dry run of the chips with real Playwright, and an ops/production review). Branch `docs/k1-design`,
+**Status:** Draft rev 5, 2026-11-09. Revised after the builder check and
+three review rounds:
+1. fresh read, cross-spec, dry run;
+2. fresh read, a Playwright chip prototype, an ops/production review;
+3. fresh read, cross-spec, plan readiness. Branch `docs/k1-design`,
 from `main` 999ed6e.
 
 **K1 is split** (decision 4). This document specifies K1 (v1.16.0). §8
@@ -221,10 +223,10 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
   and checked on load. This is the schema bump to 9 (§4.6).
 - **G7 Live check:** `tests/parity/check_live.py` as a `deploy.sh`
   pre-flight. It blocks on broken files and warns on drift (§4.8).
-- **G9 Safe deploy:** an atomic `sespy/` swap, a MosaicSES restart, and a
-  stated MosaicSES compatibility contract (§4.10).
 - **G8 Re-pin** all pins to v1.34.2. Triage every changed R path between
   v1.33.0 and v1.34.2, one row per path in `R_SYNC.md` as P1b did (§4.9).
+- **G9 Safe deploy:** an atomic `sespy/` swap, a MosaicSES restart, and a
+  stated MosaicSES compatibility contract (§4.10).
 
 ### Non-goals
 - Extension-pair suggestions (decision 1).
@@ -330,6 +332,15 @@ vendored copy's.
 - They are loaded **eagerly when `sespy.r_kb` is imported**. If one is
   missing or invalid, the import fails loudly, because a broken build must
   not start.
+- **Manifest.** `sespy/data/r_kb/manifest.json` = `{r_tag, r_commit,
+  files: {name: sha256_norm}}` is written by `sync` and pinned. It is the
+  app's only runtime source for the R tag: `tests/` does not ship, and the
+  data files say `version` "1.0".
+  - A shared entry whose hash equals the manifest's is labelled "R <r_tag>".
+  - Otherwise it is labelled "shared, differs from R <r_tag>".
+  - `<R_DATA_DIR>/../VERSION_INFO.json` is read **optionally** (read-only,
+    never validated, never blocking). When present, its version is shown
+    as "live R <version>".
 - Importing `sespy.r_kb` reads nothing relative to `APP_DIR`. That happens
   only when `app.py` calls `configure(app_dir)`.
 - They ship with the code. Deploy atomicity: §4.10.
@@ -337,6 +348,9 @@ vendored copy's.
 **Override location:**
 - `SESPY_R_DATA_DIR` is read from the environment, else from
   `APP_DIR/server_settings.env` (`KEY=value` lines).
+- If the variable is **present in `os.environ`, even empty, it wins** and
+  the file is not read. The e2e runner sets it to `""` in `_child_env`
+  (`run_e2e.py:55-65`).
 - `APP_DIR` is the directory of the running `app.py`, passed in by
   `app.py`. It is **never** the location of the `sespy` package. On laguna,
   MosaicSES's `sespy/` is a symlink to SESPy's copy, so a package-relative
@@ -382,8 +396,11 @@ vendored copy's.
 **Per-session pinning:**
 - `app.py`'s `server()` calls `refresh()`, then takes `snapshot =
   registry.current()` once. It passes `snapshot` as a keyword argument to
-  every module server that needs it (wizard, report export, project I/O),
-  the same way `project_data` is passed.
+  every module server that needs it (wizard, report export,
+  `quick_actions_server`, `topbar_actions_server`), the same way
+  `project_data` is passed.
+- Any future module that reads reference data (P4, P6) must likewise
+  receive `snapshot` and `reference_reads` as keyword-optional arguments.
 - No K1 code reads the registry anywhere else.
 - The session's provenance comes from this snapshot.
 
@@ -391,6 +408,8 @@ vendored copy's.
 - **Directory missing or unreadable** (e.g. R moved `data/` to `data.bak`):
   every worker switches to **vendored**. Old workers drop their shared copy
   too, so concurrent users never see different suggestions.
+- **One allow-listed file missing from a present directory:** treated like
+  an invalid file (keep last good, else vendored, retry next session).
 - **A file present but unparsable or invalid** (a torn read during an R
   deploy): keep the last good snapshot, else vendored, and retry on the
   next session.
@@ -399,10 +418,14 @@ vendored copy's.
   first failure.
 - It never writes into R's directory.
 
-**Visibility.** About (or Options) shows, per allow-listed file, the
-source (shared or vendored), the R tag or version, and a short hash, taken
-from the session snapshot. That lets anyone check what laguna serves
-without reading worker logs, which shiny-server deletes.
+**Visibility.** The **About** modal gains a "Reference data" section,
+element id `about-reference-data`. Per allow-listed file it shows the
+source (shared or vendored), the manifest label, the optional live R
+version and a short hash, all from the session snapshot. That lets anyone
+check what laguna serves without reading worker logs, which shiny-server
+deletes. `topbar_actions_server` receives `snapshot` (added to the
+module-server list below), and `_about_modal` (`topbar_actions.py:254`)
+takes it as a parameter.
 
 ### 4.2 Element suggestions — `sespy/kb_suggestions.py`
 This is a pure-function port, exact in order and filtering. Every function
@@ -468,7 +491,14 @@ trap for a naive port):
   passed in that order.
 - R's 12th sea, `other`, stays excluded, as in SP2.
 
-**Steps 2 and 3** accept an empty answer and record `[]` (call in §1.1).
+**Steps 2 and 3** are skippable (call in §1.1):
+- Next with an empty selection is accepted and records `[]`.
+- A "Skip" button (`wizard-skip_{target}`, labelled with R's
+  `modules.isa.ai_assistant.skip_this_question`) does the same, as in R.
+- R lays out countries as buttons under "EU member states" / "Non-EU
+  countries" headings, with a per-country EU badge (module :1362-1432).
+  SESPy adapts this to selectize **optgroups** with those headings
+  (`eu_member_states`, `non_eu_countries`), which are R's keys.
 
 **Codes and names:**
 - `WizardState.countries` holds codes.
@@ -478,8 +508,11 @@ trap for a naive port):
   stays the same as today for the same picks.
 - The code-to-name helper takes the snapshot as an argument.
 - `regional_seas.json` loses `countries`, `country_codes` and
-  `eu_member_codes`. Tests that read those fields move to the governance
-  data.
+  `eu_member_codes`. `get_eu_member_codes()` is deleted with its tests;
+  MosaicSES does not import it. Tests that read the removed fields move to
+  the governance data.
+- Three call sites in `test_wizard_e2e.py` pass `['Lithuania']`
+  (:113, :320, :404); all three become codes.
 
 **Steps 4–10, suggestion chips.** This replaces rev 2's description, which
 did not fit the row model.
@@ -504,21 +537,42 @@ round-2 prototype):
   same "empty" row. A chip click followed by Next in the same tick reads
   stale rows.
 
-*The pending overlay.* A reference prototype that passes every scenario
-below is kept in the gitignored
-`.superpowers/k1-prototypes/chips/app_fix.py`.
+*Row-id generations.* Shiny keeps an input's last value after its element
+leaves the DOM. So rows from an earlier wizard run, or from an earlier visit
+to the same step, would still "exist" with old text. Row ids therefore
+carry a generation: `entry_{gen}_{target}_{i}`.
+- `gen` is a per-target counter, bumped on `_on_modal_replace` and
+  whenever a step is entered (Next into it, or Back into it).
+- Within one visit, rows keep their ids, so typing and chips work as below.
+- On every entry, a new visit renders from `wizard_answers` (saved) with no
+  live values, so stale text can never win.
+- Chip ids need no generation; they are action buttons whose count does not
+  matter.
+
+*The pending overlay.* A reference prototype that passes the scenarios
+below, except the generation scenarios it predates, is kept in the
+gitignored `.superpowers/k1-prototypes/chips/app_fix.py`. The plan's first
+chip task extends it with generations and the Replace / Back scenarios
+before porting.
 - A new `pending: reactive.Value[dict[target, dict[int, str]]]` records
   **every server-issued row write**: a chip fill, a chip-added row, a
   deselect blank, and the "re-added index starts blank" tombstone below.
 - **Effective row value** = `pending[i]` if present (including `""`), else
   the live input if it **exists** (even `""`), else `saved[i]`, else `""`.
-  - "Exists" means the input has been registered. Reading it does not
-    raise `SilentException`.
-  - This replaces the truthiness fallback, and it also fixes a stale value
-    surviving Remove or Replace.
+  - "Exists" means the input has been registered for the **current
+    generation**. Reading it does not raise `SilentException`.
+  - This replaces the truthiness fallback. Generations handle stale values
+    from Replace and from earlier visits; the overlay handles stale values
+    within a visit (Remove, then Add).
 - **Row count** = `max(freeform_counts[target], len(saved), max(pending
-  indices) + 1, 1)`. It is used in the same way by the renderer, the chips,
-  the click handlers and `_on_next`.
+  indices) + 1, 1)`. The renderer, the chips, the click handlers,
+  `_on_next` **and the Add and Remove handlers** all use it.
+  - Add sets `freeform_counts = rowcount + 1`.
+  - Remove sets `freeform_counts = max(rowcount - 1, 1)`. Because the count
+    includes `len(saved)`, Remove cannot go below the saved length after a
+    Back. That is today's behaviour, kept as is: saved entries are removed
+    by blanking them, which chips do and the user can do by clearing the
+    text.
 - **Every reader uses effective values:** the renderer, the chip output,
   the chip handlers' "first empty row" and "already selected" checks, and
   **`_on_next`'s freeform read** (replacing the raw `input[...]` read at
@@ -526,12 +580,13 @@ below is kept in the gitignored
 - **Clearing.** A small effect per target drops a pending entry as soon as
   the live input reports the same value.
 - **Lifetime:**
-  - `_on_next` clears `pending[target]` after its read;
+  - `_on_next` clears `pending[target]` after its read. This is safe: the
+    next visit has a new generation and renders from saved;
   - Remove drops pending indices at or above the new count;
   - `_on_modal_replace` resets `pending` next to `freeform_counts.set({})`
-    (:471-472);
+    (:471-472) and bumps every generation;
   - Add sets `pending[n] = ""` when index n still holds a stale non-empty
-    live value.
+    live value in the current generation.
 - **Renderer dependencies.** `_render_freeform_multiple` reads `pending` and
   live inputs under `isolate()`, so clearing a pending entry does not
   re-render the step. It keeps reading `wizard_answers` and
@@ -582,7 +637,11 @@ below is kept in the gitignored
 - a chip then Next in the same tick, on the fill path and on the added-row
   path;
 - Back/Next idempotency;
-- the Replace flow resetting the overlay.
+- the Replace flow resetting the overlay;
+- **Replace, then re-enter step 4:** no text from the previous run;
+- **chip + Next in the same tick, then Back:** the row shows the saved text;
+- **changing the sea after Back:** the country codes saved for the old sea
+  are filtered to the new sea's list before suggestions are computed.
 
 **Country order after Back (verify in the browser first).**
 `_render_choice_many` re-renders with `selected=` (:122-128). Selectize may
@@ -617,6 +676,16 @@ to the snapshot, and passed to the module servers like `event_bus`.
   - the wizard, when it computes suggestions or countries → both files;
   - report export, when it generates a Regional Context section → both
     files. An HTML preview counts, since it shows KB content.
+- **No self-invalidation.** Shiny's `Value.set` compares by identity
+  (`_reactives.py:510`), so a render that does `rr.set(rr.get() | {...})`
+  would loop. Writers read `reference_reads` under `isolate()` and call
+  `set` **only when a name is actually new**. This matters for the chips
+  output and the report preview, which are renders.
+- **Reading the session's provenance.** One helper,
+  `r_kb.current_provenance(meta, snapshot, reads) -> dict`, computes the
+  merged dict below. Save, autosave and download use it, and so will P5's
+  Excel export and P6c's appendix. They add their own files to `reads`
+  first and never read raw `metadata.reference_data`.
 - **Reset to empty whenever the project is replaced:** on
   `event_bus.project_loaded` (upload, restore, recent, import), on
   `template_loaded`, and on New (`project_io.py:382`, which today emits only
@@ -683,8 +752,11 @@ Toast keys go in `core.json`.
 
 ### 4.7 Regional Context section — `sespy/kb_report.py`, `sespy/report.py`
 **Ports:**
-- `get_kb_context_for_report`: relevance ≥ 0.8, the context description,
-  and no section when there is no real context (e.g. Irish Sea).
+- `get_kb_context_for_report`: relevance ≥ 0.8 and the context
+  description. With no real context (e.g. Irish Sea) there is no Site
+  Ecological Context and no Key Elements subsection. Governance still
+  prints. The whole section is omitted only when the body is empty
+  (`report_generation.R:173-175`).
 - `match_user_connections_to_kb`:
   - the first matching KB connection wins;
   - a KB name of 2 characters or fewer is skipped. The skip applies to KB
@@ -718,7 +790,8 @@ The category labels are R's literals ("Drivers (D)" …).
 **Heading levels.** SESPy's report title is `<h1>` and its sections are
 `<h2>` (`report.py:93,102`). So R's levels shift down by one: "Regional
 Context" is `<h2>`, "Site Ecological Context" is `<h3>`, and so on down to
-`<h5>`. The text is unchanged.
+`<h5>`. The text is unchanged. The report CSS (`report.py:44-48`) styles
+only h1–h3, so h4 and h5 styles are added. Word uses Heading 2–5.
 
 **Placement:** after SESPy's title/meta block, before Summary
 (`report.py:~100`), mirroring R's `header + intro + regional + content`.
@@ -730,9 +803,11 @@ Context" is `<h2>`, "Site Ecological Context" is `<h3>`, and so on down to
 - The section is rendered when `regional_sea` and `ecosystem_type` are
   **non-empty** (SESPy defaults them to `""`; R tests `!is.null`) and the
   toggle is on.
-- The toggle is a checkbox on Export Report, labelled with R's
-  `modules.report_context.include_context`. It defaults to on when a sea is
-  set, as in R.
+- The toggle is a checkbox on Export Report (`report_export-include_regional_context`),
+  labelled with R's `modules.report_context.include_context`. It defaults
+  to **on** unconditionally, as R's checkbox does
+  (`prepare_report_module.R:65-67`). The non-empty gate above decides
+  whether anything renders.
 - If generation fails, the section is omitted and a warning is logged
   (R :176-179).
 
@@ -764,15 +839,28 @@ redeploy.
 `$SERVER` it is deploying to, so it honours the env override at :27-30 and
 uses the same ssh agent.
 1. Read the server's `$APP_DIR/server_settings.env` to get
-   `SESPY_R_DATA_DIR` (empty means off; then only steps 4–5 below apply).
+   `SESPY_R_DATA_DIR`.
+   - **If the file is absent** (the first K1 deploy), use the default path
+     that the create step is about to write, so live data is never switched
+     on unchecked.
+   - **If the value is empty** (override off), skip only the live checks
+     (fetch, and checks 1 and 3 below). The shipped-copy check 2 always
+     runs.
 2. Copy each **`override: true`** allow-list file, and the R app's
    `VERSION_INFO.json`, into `$STAGE/.live/`.
-3. Record each file's `stat -c '%a %U %G'`.
+3. Check that user `shiny` can read each file and traverse the directory
+   path, with `sudo -n -u shiny test -r <file>` where available, else by
+   checking `stat -c '%a %U %G'` on the file and on each parent directory
+   (read + execute for other or for group `shiny`).
 
 **Checking is pure local hashing:**
 `${SESPY_PY:-micromamba run -n shiny python} tests/parity/check_live.py
---live "$STAGE/.live" --stage "$STAGE"`. The script has no `test_` prefix
-and stays outside pytest collection.
+--live "$STAGE/.live" --stage "$STAGE" --pin tests/parity/r_sync.json`.
+- It runs from the **working tree**: `check_live.py` and `r_sync.json` are
+  read from the repo, because `$STAGE` ships no `tests/`.
+- The script has no `test_` prefix and stays outside pytest collection.
+- **Run by hand after an R deploy:** `check_live.py --fetch` performs the
+  same ssh fetch itself into a temp directory, then checks.
 1. **Structural (blocks):** a live file is unreadable; or it fails its
    allow-list row (required keys, minimum counts, major version); or it
    is not readable by user `shiny` (neither world-readable nor group
@@ -784,9 +872,11 @@ and stays outside pytest collection.
    re-vendoring. Exit 0, or exit 2 with `--strict`.
 4. **Escape:** `SESPY_SKIP_LIVE_CHECK="<reason>"` skips the whole check.
    `deploy.sh` echoes the reason.
-5. **Rollbacks are never gated.** `deploy.sh --rollback` (or deploying any
-   tag older than the server's current version) runs the check with
-   warnings only.
+5. **Rollbacks are never gated.** A new `deploy.sh --rollback` flag runs
+   every check as a warning. When deploying a tag older than K1,
+   `check_live.py` is absent from the checkout, and `deploy.sh` (from the
+   current working tree) skips the check with a message. No server-version
+   detection is attempted.
 
 `accepted_live` is not needed and is not added. `r_sync.json` keeps only
 `accepted_warnings`.
@@ -804,26 +894,44 @@ pins everything. Three kinds of input:
      `functions/kb_report_helpers.R` and
      `functions/report_generation.R`. A re-pin diff then shows logic
      changes, not only data changes;
-   - `translations/modules/isa_data_entry.json` and
-     `translations/modules/report_context.json`, to
-     `tests/parity/r_translations/`. The builder confirms the exact R file
-     that holds `modules.report_context.include_context`. These are
-     pinned, and the keys K1 uses are vendored through
-     `TRANSLATION_SUBSETS`. Its prefix matching (:48-56) means an exact key
-     must not also select unintended `key_*` siblings; use exact-key
-     entries where needed.
+   - The translation stems `isa_data_entry` and `report_context`, added
+     **through `TRANSLATION_SUBSETS`** rather than as separate `INPUTS`
+     rows: `INPUTS` already includes every subset stem, and the vendored
+     file is named after the R stem (`r_template_catalogue.py:51-71`).
+     - The keys, all present at v1.34.2:
+       - in `translations/modules/isa_data_entry.json`,
+         `modules.isa.ai_assistant.` + `from_knowledge_database`,
+         `governance_suggestion_tooltip`,
+         `socioeconomic_suggestion_tooltip`, `tailored_for`,
+         `eu_member_states`, `non_eu_countries`, `eu_member_state` and
+         `skip_this_question`;
+       - in `translations/modules/report_context.json`,
+         `modules.report_context.include_context`.
+     - Prefix matching (:48-56) also selects `key_*` siblings; that is
+       harmless here, and exact keys are listed.
+   - Paths use the same `MarineSABRES_SES_Shiny/…` prefix form as the
+     existing entries, because the R git root is `SESToolbox`.
 2. **`RUNTIME_INPUTS`** (new): `data/ses_knowledge_db.json` and
    `data/country_governance_db.json`, copied to `sespy/data/r_kb/`. This
    set is also `check_live.py`'s map from R path to vendored path, and K1b
    adds its export to it.
+   - `sync` also writes `sespy/data/r_kb/manifest.json` (§4.1), which is
+     pinned like the rest.
+   - These are pins of a **new class**: vendored runtime outputs. P1b
+     pinned only fixtures. It is consistent with umbrella §3's "vendored
+     files".
+   - In `--from-fixtures` mode the `data/` prefix rule (:327) reads them
+     from the already-vendored copies. `--check` compares rebuilt outputs
+     with disk, as for templates.
 3. **`LOCAL_PINS`** (new): paths hashed from disk, never fetched or
-   written. These are the K1 fixtures under `tests/parity/r_fixtures/k1/`,
-   produced by the R capture script (§7).
-   - `.gz` files are hashed as raw bytes (`hashlib.sha256` over the file),
-     since `sha256_norm` and `sha256_text_norm` are for JSON and text.
-   - Each fixture records the R tag it was captured at. `sync` fails when
-     that tag differs from the target `r_tag`, so fixtures go stale loudly
+   written. These are the five K1 fixtures under
+   `tests/parity/r_fixtures/k1/` (§7).
+   - `.gz` files are hashed as raw bytes (`hashlib.sha256` over the file)
+     and bypass `_hash`/`_same` (which decode UTF-8, :273-275).
+   - Each fixture's top-level `r_tag` is read after gunzip. `sync` fails
+     when it differs from the target `r_tag`, so fixtures go stale loudly
      on a re-pin.
+   - `--check` re-hashes them from disk.
 
 **Rebuild rule.**
 - Factor out a pure `build_pin(pin_old, files_new, warnings_new) -> pin_new`.
@@ -861,10 +969,17 @@ too. K1 adopts MosaicSES's swap:
 
 The `logs/` stash-and-restore moves into the same sequence.
 
-**MosaicSES restart.** SESPy's deploy then touches MosaicSES's
-`restart.txt`, so its workers stop mixing old in-memory sespy modules with
-new files on disk. The plan runs MosaicSES's `deploy/verify_live.py` right
-after.
+**MosaicSES restart.**
+- `deploy/config.env` (and `config.env.example`) gains an optional
+  `DEPLOY_MOSAIC_DIR` (on laguna `/srv/shiny-server/MosaicSES`).
+- When it is set, SESPy's deploy touches `$DEPLOY_MOSAIC_DIR/restart.txt`,
+  so MosaicSES's workers stop mixing old in-memory sespy modules with new
+  files on disk.
+- The release step then runs MosaicSES's
+  `micromamba run -n shiny python deploy/verify_live.py --expect-version <live MosaicSES version>`
+  from the MosaicSES checkout.
+- This is a change to **SESPy's** deploy script only. MosaicSES's own
+  deploy script is unchanged (§3).
 
 **MosaicSES compatibility contract.** The round-2 grep found that MosaicSES
 uses `get_regional_seas()` (names and ecosystem types),
@@ -891,7 +1006,11 @@ read as `newer_build`, and autosave refuses to overwrite them
 (`autosave.py:93-98`). The release notes say so, and the policy is
 **forward-fix** rather than roll back after users have saved. The
 MosaicSES gate includes opening a schema-9 file in 1.15.x to confirm the
-read-only behaviour.
+read-only behaviour. Mechanics: a scripted manual step outside the unit suite.
+1. Make a worktree at the latest v1.15.x tag.
+2. Point PYTHONPATH at it.
+3. Open one schema-9 SESPy save and one MosaicSES compartment save.
+4. Assert `newer_build`, and that autosave refuses to overwrite.
 
 **OneDrive.** `attrib +P` pins `sespy/data/r_kb/` and
 `tests/parity/r_fixtures/` locally (the screenshots precedent).
@@ -900,8 +1019,8 @@ read-only behaviour.
 ---
 
 ## 5. Data flow (one session)
-1. **Server start:** `refresh()` runs, the snapshot is pinned and passed to
-   the modules.
+1. **Session start** (`server()`): `refresh()` runs, the snapshot is pinned,
+   and the snapshot and `reference_reads` are passed to the modules.
 2. **Steps 0–3:** the user picks sea, ecosystem, optional countries (codes,
    click order) and optional issues.
 3. **Steps 4–10:** chips come from `get_context_suggestions` against the
@@ -917,8 +1036,8 @@ read-only behaviour.
 ---
 
 ## 6. Error handling
-- **Override problems:** one log warning, then fallback. The UI shows no
-  error.
+- **Override problems:** the transition is logged (§4.1), then fallback.
+  The UI shows no error; About shows the source.
 - **Unknown sea or ecosystem:** R's behaviour (generic fallback or empty
   lists), never an exception.
 - **Report section errors:** the section is omitted with a warning; the
@@ -938,16 +1057,29 @@ Rscript at the pinned tag.
   `functions/country_governance_loader.R` and
   `functions/kb_report_helpers.R`. Shiny and i18n are not needed; this was
   confirmed headless in about 82 s.
-- Output is gzipped JSON under `tests/parity/r_fixtures/k1/`. The
-  per-source lists are stored once and referenced; the dry run's raw output
-  was 5.6 MB before this.
+- Output is gzipped JSON under `tests/parity/r_fixtures/k1/`, in five
+  files:
+  - `lookup.json.gz`
+  - `suggestions_grid.json.gz`
+  - `habitat_specific.json.gz`
+  - `countries.json.gz`
+  - `report.json.gz`
+
+  Each has top-level `r_tag`, `r_commit` and `data` keys. The per-source
+  lists are stored once and referenced; the dry run's raw output was 5.6 MB
+  before this.
+- It first checks that the R working tree is clean and that
+  `git describe --tags` equals the target tag. The R app is the
+  `MarineSABRES_SES_Shiny/` subdirectory of the `SESToolbox` repository;
+  the tag is an annotated tag object (`v1.34.2^{commit}` = `edb42fd`).
 
 **Suggestion grid:** every SESPy sea × that sea's ecosystem types × 7
 categories, crossed with:
-- issue sets: `[]`, `["Overfishing"]`, `["Eutrophication"]`,
-  `["Eutrophication","Overfishing"]`, `["Marine litter"]`, `["Tourism"]`,
-  `["Climate change"]`, using the exact strings from the sea's
-  `common_issues`;
+- issue sets, as **literal strings, the same for every sea** (R matches
+  with `grepl`, so the sea's `common_issues` list is irrelevant): `[]`,
+  `["Overfishing"]`, `["Eutrophication"]`,
+  `["Eutrophication","Overfishing"]`, `["Marine litter"]`,
+  `["Tourism pressure"]` and `["Climate change"]`;
 - country sets: `[]`, the sea's first two codes in both orders, and one
   code set covering all 6 governance groups, all 3 income levels and all
   15 conventions.
@@ -991,7 +1123,10 @@ SESPy must match the full ordered list and the source map, beyond the first
 - **Schema and provenance:** §4.6, including:
   - the reset on project load, template load and New;
   - a callers-pass-nothing test for `to_dict()`.
-- **Packaging:** the wheel contains the allow-listed `sespy/data/r_kb/*`.
+- **Packaging:** a fast test asserts that
+  `[tool.setuptools.package-data]` covers every allow-listed file and
+  `manifest.json`. A slow-marked test builds a wheel and lists its
+  contents.
 - **Sync:** `build_pin` unit tests for dropped paths, regenerated warnings
   and the fixture R-tag mismatch.
 - **check_live:**
@@ -1010,7 +1145,8 @@ selectors.
 5. Skip step 3 once.
 6. Go Back to step 2 and Next again: the country order is unchanged.
 7. Finish, then export a report and check that Regional Context is present.
-8. About shows source "vendored". The runner sets `SESPY_R_DATA_DIR=`.
+8. About's `#about-reference-data` shows source "vendored" and "R v1.34.2".
+   The runner sets `SESPY_R_DATA_DIR=`.
 
 `test_wizard_e2e.py` is updated for country codes and optional steps 2–3.
 
@@ -1029,7 +1165,8 @@ selectors.
 - screenshots are regenerated with `tests/make_docs_screenshots.py`;
 - after deploy:
   - the worker's `python -s` reports 1.16.0;
-  - a fresh live session's About shows `source=shared` at R v1.34.2;
+  - a fresh live session's About shows `source=shared` labelled
+    "R v1.34.2", with live R 1.34.2;
   - MosaicSES has been restarted and its `verify_live.py` passes;
 - the release notes state the one-way schema-9 rollback policy (§4.10).
 
@@ -1079,10 +1216,26 @@ No MosaicSES code uses `suggest_connections` or `ConnectionSuggestion`.
 
 ## 9. Follow-ups this sub-project owns
 **Umbrella edits** (branch `docs/r-parity-roadmap`, committed with K1):
+- **Header and §3 Sync tracking:** the baseline becomes v1.34.2 @ `edb42fd`.
+- **§3 release line:** add "K1 = v1.16.0 (schema 9); K1b = v1.17.0".
 - **K1 section:**
-  - remove the extension-pair bullet and fix "Done when" (decision 1);
+  - the R-source line drops `data/ses_connection_knowledge_base.R` (→ K1b)
+    and `report_generation.R:481-499` (→ P14);
+  - remove the extension-pair bullet (decision 1);
+  - restate "Done when" as the §7 criteria: the full suggestion grid, the
+    lookup, countries and report fixtures, and a pre-flight that blocks
+    broken files and warns on drift;
   - pin v1.34.2, with counts 105 countries, 15 conventions and 11 seas;
-  - note that `cross_ecosystem_links` are unused.
+  - note that `cross_ecosystem_links` are unused;
+  - drop the stale "if K1 is the first schema bump, M is its prerequisite"
+    sentence, since P1b made the first bump.
+- **Graph and P8:** add K1 → P8 (P8 reads `wp5_scenarios_ssp` and
+  `wp5_worldview_matrix` through the layer), and add K1 to P8's "Depends
+  on".
+- **P9:** its "Depends on" line and its "K1's KB and synonyms" bullet
+  become K1 (KB) plus K1b (synonyms).
+- **P5 and P6c:** they read provenance through
+  `r_kb.current_provenance(...)`, not raw `metadata.reference_data`.
 - **New K1b node and section** (v1.17.0, depends on K1):
   - move the `ses_connection_knowledge_base.R` / `SES_CONNECTION_DB` /
     `SES_SYNONYM_DB` export bullet into it;
@@ -1091,19 +1244,32 @@ No MosaicSES code uses `suggest_connections` or `ConnectionSuggestion`.
   - add K1b to the §3 release sequence.
 - **Record that live R runs torch ML,** and that SESPy matches R run with ML
   off.
-- **§3 MosaicSES:** its settings file is deferred to the first sub-project
-  whose features MosaicSES uses.
+- **§3 MosaicSES:**
+  - its settings file is deferred to the first sub-project whose features
+    MosaicSES uses;
+  - new rules for every later sub-project: the keyword-optional
+    `snapshot`/`reference_reads` contract, and SESPy's deploy touching
+    MosaicSES's `restart.txt` through `DEPLOY_MOSAIC_DIR` (§4.10).
 - **§3 Provenance:** written per file, when read, with the merge rule
   (§4.6).
 - **§3 Drift check (user decision):** the deploy pre-flight blocks only on
   broken or unreadable live files and on a shipped copy that differs from
   the pin. Content drift warns, `--strict` blocks, and
   `SESPY_SKIP_LIVE_CHECK` skips. Rollbacks are never gated (§4.8).
-- **§3 Override:** "reloads on change" becomes the set-wise swap; a missing
-  directory means vendored data on every worker (§4.1).
+- **§3 Override:**
+  - the settings file is re-read at every `refresh()`, not once at startup;
+  - the change key is `(ino, size, mtime_ns, ctime_ns)`, not size and
+    mtime;
+  - "reloads on change" becomes the set-wise swap;
+  - a missing directory means vendored data on every worker;
+  - every transition is logged, not one warning;
+  - an env var that is present, even empty, wins (§4.1).
+- **§3 Drift check, mechanics:** `deploy.sh` fetches over ssh and
+  `check_live.py` only hashes locally. `check_live.py --fetch` is the
+  run-by-hand mode after an R deploy (§4.8).
 - **P14:** add "K1's KB regional recommendation lines
   (`report_generation.R:476-509`), behind the Recommendations option". Add a
-  note to R_SYNC row 18.
+  note to row 18 of R_SYNC.md's v1.31 → v1.33 triage table (`R_SYNC.md:227`).
 
 **Other corrections:**
 - **P1a spec and CHANGELOG:** correct the extension-pair description
@@ -1125,4 +1291,4 @@ No MosaicSES code uses `suggest_connections` or `ConnectionSuggestion`.
 - The markdown-vs-structure comparison for the report test.
 - Chip styling, matching SESPy's wizard look.
 - One R script or two for capture and export.
-- Whether `staged_rows` is one dict or one value per target.
+- Whether `pending` is one dict or one value per target.
