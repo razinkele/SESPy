@@ -1,7 +1,8 @@
 # K1 — General knowledge-base parity — design
 
-**Status:** Draft rev 3, 2026-11-09. Revised after the builder check and
-review round 1 (fresh read, cross-spec, dry run). Branch `docs/k1-design`,
+**Status:** Draft rev 4, 2026-11-09. Revised after the builder check,
+review round 1 (fresh read, cross-spec, dry run) and round 2 (fresh read, a
+dry run of the chips with real Playwright, and an ops/production review). Branch `docs/k1-design`,
 from `main` 999ed6e.
 
 **K1 is split** (decision 4). This document specifies K1 (v1.16.0). §8
@@ -112,6 +113,9 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
    `confidence`.
 6. **(K1b)** The scorer keeps only R's 10 type pairs, in R's order, and
    drops `responses_states`.
+7. **The deploy pre-flight blocks only on broken files.** Content drift
+   between laguna's live R files and the pin warns but does not block
+   (§4.8). This deviates from umbrella §3 (§9).
 
 **Calls made while revising (mine; flagged for the user's check):**
 - **Wizard steps 2 (countries) and 3 (main issue) become skippable,** as in
@@ -142,8 +146,9 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
 - There are 20 `cross_ecosystem_links`, and no R code reads them.
 
 **`data/country_governance_db.json`**
-- Top-level keys: `version` "1.0", `last_updated`, `countries_by_sea`
-  (11 seas), `countries` (**105**), `governance_elements` (6 groups),
+- Top-level keys: `version` "1.0", `description`, `last_updated`,
+  `countries_by_sea` (11 seas), `countries` (**105**),
+  `governance_elements` (6 groups),
   `socioeconomic_elements` (3 income levels), `regional_conventions`
   (**15**).
 - A country record has `code`, `name_en`, `eu_member`, `income_level`,
@@ -214,8 +219,10 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
   content to R's `format_kb_section_for_report`, behind R's toggle (§4.7).
 - **G6 Provenance:** `metadata.reference_data`, written at serialisation
   and checked on load. This is the schema bump to 9 (§4.6).
-- **G7 Live drift check:** `tests/parity/check_live.py` as a `deploy.sh`
-  pre-flight (§4.8).
+- **G7 Live check:** `tests/parity/check_live.py` as a `deploy.sh`
+  pre-flight. It blocks on broken files and warns on drift (§4.8).
+- **G9 Safe deploy:** an atomic `sespy/` swap, a MosaicSES restart, and a
+  stated MosaicSES compatibility contract (§4.10).
 - **G8 Re-pin** all pins to v1.34.2. Triage every changed R path between
   v1.33.0 and v1.34.2, one row per path in `R_SYNC.md` as P1b did (§4.9).
 
@@ -241,8 +248,10 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
 - Live R data changing under a running session.
 - Any write into R's data directory.
 - A broken override taking the app down. In the app, a broken override
-  logs a warning and falls back. In the deploy pre-flight, drift fails
-  loudly, by design.
+  logs a warning and falls back. The deploy pre-flight blocks on broken
+  live files and only warns on content drift.
+- Workers serving different data to concurrent users, or a deploy that is
+  blocked for a hotfix or rollback.
 - Re-typed R data.
 - A sync run that silently drops pins.
 
@@ -318,8 +327,12 @@ vendored copy's.
 - They live in `sespy/data/r_kb/<file>`.
 - `[tool.setuptools.package-data]` gains `"data/r_kb/*.json"`, and a
   packaging test checks the wheel.
-- `deploy.sh` replaces `sespy/` wholesale, so the copies ship with the code.
-  No deploy change is needed for them.
+- They are loaded **eagerly when `sespy.r_kb` is imported**. If one is
+  missing or invalid, the import fails loudly, because a broken build must
+  not start.
+- Importing `sespy.r_kb` reads nothing relative to `APP_DIR`. That happens
+  only when `app.py` calls `configure(app_dir)`.
+- They ship with the code. Deploy atomicity: §4.10.
 
 **Override location:**
 - `SESPY_R_DATA_DIR` is read from the environment, else from
@@ -330,21 +343,41 @@ vendored copy's.
   lookup would read SESPy's settings.
 - MosaicSES has no settings file, so it gets vendored data.
 
-**Deploy handling of the settings file:**
-- `deploy.sh` creates `$APP_DIR/server_settings.env` only when it is absent,
-  containing `SESPY_R_DATA_DIR=/srv/shiny-server/marinesabres/data`.
-  Otherwise it never touches it.
-- The file sits beside `app.py`, outside the replaced `sespy/` folder.
+**Settings-file rules:**
+- **Created only if absent.** `deploy.sh` creates
+  `$APP_DIR/server_settings.env` only when it is absent, with
+  `umask 022; [ -e f ] || printf 'SESPY_R_DATA_DIR=%s\n' /srv/shiny-server/marinesabres/data > f; chmod 0644 f`.
+  Otherwise it never touches the file.
+- **Never wiped by deploy.** The file sits beside `app.py`. `deploy.sh`
+  removes only `sespy/`, `__pycache__` and `docs/screenshots` (:80), and
+  scp merges, so the file survives.
+- **Gitignored.** `server_settings.env` is added to `.gitignore`, since the
+  server's `APP_DIR` has a `.git`.
+- **Read at every `refresh()`** (cheap), so editing it needs no restart.
+- **Empty means off.** `SESPY_R_DATA_DIR=` (empty) disables the override.
+  Locally, `app.py`'s directory is the repo root; the e2e runner sets
+  `SESPY_R_DATA_DIR=` explicitly, so a stray local file can never feed live
+  data into tests.
 
 **Snapshots:**
 - A process-level `_Registry` holds the current immutable
   `Snapshot(files: {name: Entry(data, sha256_norm, source, version)},
   taken_at)`.
-- `_Registry.refresh()` re-stats the size and mtime of each override file.
-  If any changed, it parses and validates them and swaps the snapshot by
-  atomic reference assignment.
+- `_Registry.refresh()` stats each override file. The change key is
+  `(st_ino, st_size, st_mtime_ns, st_ctime_ns)`: ctime cannot be preserved
+  by `cp -p` or `rsync -t`, and it changes on a rename swap.
+- If any key changed, it parses and validates **all** override files and
+  swaps the snapshot by atomic reference assignment **only if all pass**.
+  A snapshot never mixes a new KB with old governance data.
+- A failed stat or parse is never recorded as "seen", so the next session
+  retries.
 - Validation means the required keys, the minimum counts and the major
   version.
+- Parsing runs on the event loop inside `server()`. After an R change, the
+  first session on each worker pauses briefly (the KB is 1.1 MB), which is
+  accepted.
+- Any cache in `kb_suggestions` is keyed on the snapshot's hashes, never
+  process-global (the `Translator._lang` precedent).
 
 **Per-session pinning:**
 - `app.py`'s `server()` calls `refresh()`, then takes `snapshot =
@@ -354,11 +387,22 @@ vendored copy's.
 - No K1 code reads the registry anywhere else.
 - The session's provenance comes from this snapshot.
 
-**Failure:**
-- On any failure (missing directory, parse error, failed validation) the
-  registry keeps the last good snapshot, else the vendored one.
-- It logs one warning per (file, failure kind) per process.
+**Failure, deterministic across workers:**
+- **Directory missing or unreadable** (e.g. R moved `data/` to `data.bak`):
+  every worker switches to **vendored**. Old workers drop their shared copy
+  too, so concurrent users never see different suggestions.
+- **A file present but unparsable or invalid** (a torn read during an R
+  deploy): keep the last good snapshot, else vendored, and retry on the
+  next session.
+- **Logging:** each **transition** (shared → vendored, vendored → shared,
+  last-good kept) is logged with file, reason and hashes, not only the
+  first failure.
 - It never writes into R's directory.
+
+**Visibility.** About (or Options) shows, per allow-listed file, the
+source (shared or vendored), the R tag or version, and a short hash, taken
+from the session snapshot. That lets anyone check what laguna serves
+without reading worker logs, which shiny-server deletes.
 
 ### 4.2 Element suggestions — `sespy/kb_suggestions.py`
 This is a pure-function port, exact in order and filtering. Every function
@@ -449,41 +493,106 @@ did not fit the row model.
   isa_data" (:602-626).
 - Remove drops the last row (:496-502).
 
+*Two problems with today's code that chips would expose* (both found by the
+round-2 prototype):
+- The renderer's "priority" is a truthiness fallback,
+  `current_values[i] or saved[i]` (`:168`). A row blanked by the server
+  (`""`) falls back to its saved value on the next re-render, so a
+  deselected chip comes back.
+- `ui.update_text` is not visible in `input.entry_*` until the client
+  echoes it, one round trip later. Two chip clicks in one tick target the
+  same "empty" row. A chip click followed by Next in the same tick reads
+  stale rows.
+
+*The pending overlay.* A reference prototype that passes every scenario
+below is kept in the gitignored
+`.superpowers/k1-prototypes/chips/app_fix.py`.
+- A new `pending: reactive.Value[dict[target, dict[int, str]]]` records
+  **every server-issued row write**: a chip fill, a chip-added row, a
+  deselect blank, and the "re-added index starts blank" tombstone below.
+- **Effective row value** = `pending[i]` if present (including `""`), else
+  the live input if it **exists** (even `""`), else `saved[i]`, else `""`.
+  - "Exists" means the input has been registered. Reading it does not
+    raise `SilentException`.
+  - This replaces the truthiness fallback, and it also fixes a stale value
+    surviving Remove or Replace.
+- **Row count** = `max(freeform_counts[target], len(saved), max(pending
+  indices) + 1, 1)`. It is used in the same way by the renderer, the chips,
+  the click handlers and `_on_next`.
+- **Every reader uses effective values:** the renderer, the chip output,
+  the chip handlers' "first empty row" and "already selected" checks, and
+  **`_on_next`'s freeform read** (replacing the raw `input[...]` read at
+  :549-552).
+- **Clearing.** A small effect per target drops a pending entry as soon as
+  the live input reports the same value.
+- **Lifetime:**
+  - `_on_next` clears `pending[target]` after its read;
+  - Remove drops pending indices at or above the new count;
+  - `_on_modal_replace` resets `pending` next to `freeform_counts.set({})`
+    (:471-472);
+  - Add sets `pending[n] = ""` when index n still holds a stale non-empty
+    live value.
+- **Renderer dependencies.** `_render_freeform_multiple` reads `pending` and
+  live inputs under `isolate()`, so clearing a pending entry does not
+  re-render the step. It keeps reading `wizard_answers` and
+  `freeform_counts` reactively, as `wizard_step_render` (:1007) does today.
+
 *Rules for chips:*
 1. **Chips never write `wizard_answers`.** Only `_on_next` does, so the
    idempotency block stays correct.
 2. **Separate output.** Chips render in their own `@render.ui` output,
-   `chips_{target}`. It reads the row inputs `entry_{target}_{i}`
-   **reactively** (no `isolate`), so a chip shows as selected when any row
-   equals its text, including text the user typed by hand.
-   - "Equals" compares `.strip()`-ed text, exact and case-sensitive. That
-     matches `_on_next`'s strip and R's exact `%in%`.
-   - Re-rendering the chips on every keystroke is accepted, because the
-     output is small.
+   `chips_{target}`. It computes effective values **reactively** (no
+   isolate) over the full row count.
+   - A chip shows as selected when any effective row equals its text. That
+     includes a chip-added row that has not rendered yet, and text typed by
+     hand.
+   - "Equals" compares `.strip()`-ed text, exact and case-sensitive,
+     matching `_on_next` and R's `%in%`.
+   - Re-rendering on keystrokes is accepted. Text inputs debounce about
+     250 ms, so a chip click inside that window sees the previous typed
+     value, exactly as Next does today.
 3. **Click handlers.**
    - There are 7 × 12 handlers (`chip_{target}_{i}`), registered once at
      server start, in the pattern of `_make_add_handler`.
-   - At click time the handler recomputes the suggestion list for the
-     current context and maps index i to its text, so a stale index never
-     adds the wrong text.
-4. **Selecting a chip:**
-   - If an empty row exists, the handler fills the first empty row with
-     `ui.update_text`.
-   - Otherwise it adds a staged row. A new
-     `staged_rows: reactive.Value[dict[target, dict[int, str]]]` gets the
-     text at index n, and `freeform_counts` is bumped.
-     `_render_freeform_multiple` gains the priority
-     **live > staged > saved**.
-   - A staged entry is cleared once the live input reports the same value.
-5. **Deselecting a chip** blanks **every** row whose stripped value equals
-   the text, **in place**, with `ui.update_text(value="")`. Nothing shifts.
-   - `_on_next` already skips empty rows.
-   - This mirrors R's remove, which takes out all matching elements with
-     `Filter` (module :2050).
-6. **Caption.** "Tailored for <translated sea name> - <ecosystem>" uses R's
-   key and R's " - " separator, and shows when a sea is set (:1574-1582).
+   - At click time the handler recomputes the suggestion list and maps
+     index i to its text. If i is past the end of the list, it does
+     nothing.
+4. **Selecting** a chip:
+   - if an effective row is empty, set `pending[k] = text` for the first
+     one, and call `ui.update_text` if that input exists;
+   - otherwise set `pending[n] = text` and bump `freeform_counts`, so the
+     new row renders with the text.
+5. **Deselecting** sets `pending[k] = ""` for **every** effective row equal
+   to the text, and calls `update_text("")` where the input exists. Nothing
+   shifts. This mirrors R's `Filter` removing all matches (module :2050).
+6. **Caption.** " (Tailored for <translated sea name> - <ecosystem>)", with
+   R's parentheses, key and " - " separator, shown when a sea is set
+   (:1574-1582).
 7. **No max-elements limit.** SESPy has no user-level setting. Known
    difference, recorded in the CHANGELOG.
+
+*Scenarios the unit and e2e tests must cover* (the prototype's set):
+- select 3 chips with one empty row;
+- deselect the middle chip;
+- hand-typed text, including a trailing space;
+- Add and Remove interleaved with chip clicks;
+- Back, deselect a saved item, Add: the row stays blank;
+- type in row 1, Remove, then select a chip with no empty row;
+- two chip clicks in the same tick, with and without an empty row;
+- a chip then Next in the same tick, on the fill path and on the added-row
+  path;
+- Back/Next idempotency;
+- the Replace flow resetting the overlay.
+
+**Country order after Back (verify in the browser first).**
+`_render_choice_many` re-renders with `selected=` (:122-128). Selectize may
+rebuild its items in option (DOM) order rather than click order, and that
+order changes governance and suggestion order.
+- The builder checks this in a browser.
+- If it is so, the renderer restores the saved order, e.g. through
+  selectize's `items` option or by emitting the selected options first, in
+  saved order.
+- An e2e goes Back and Next and asserts the order.
 
 ### 4.4 – 4.5 (moved to K1b, §8)
 
@@ -497,35 +606,73 @@ did not fit the row model.
 - An entry is `{file: {source: "vendored"|"shared", sha256_norm, version,
   vendored_r_tag}}`.
 
-**Writing it — at serialisation, never into live state:**
-- Like `min_sespy_version`, it is stamped onto the output dict by save,
-  autosave and download, which receive the session snapshot.
-  `project_data` is never mutated.
-- An entry for a file is written when this session **read that file for
-  this project**:
-  - the wizard computed suggestions or countries → both files;
-  - a Regional Context section was generated for an export → both files.
+**Where loaded entries live.** `from_dict` keeps them on
+`project_data.metadata.reference_data`. `replace()` and
+`with_modified_now()` carry them along (`data_structure.py:656-660`).
 
-  An HTML preview counts as generated. That is accepted: preview means the
-  user looked at KB content.
-- **Merge rule:** entries for files read this session are replaced by the
-  snapshot's values. Entries loaded from the file for files not read this
-  session are **kept** as loaded. So "no read, no change", and an unrelated
-  save never drops provenance.
-- P4, P5 and P6 extend the "read" triggers for their files. This is the
-  per-file form of umbrella §3's "write on save" (deviation recorded in §9).
+**What is read this session.** A session-level `reference_reads:
+reactive.Value[frozenset[str]]` is created in `app.py`'s `server()`, next
+to the snapshot, and passed to the module servers like `event_bus`.
+- **Writers add file names to it:**
+  - the wizard, when it computes suggestions or countries → both files;
+  - report export, when it generates a Regional Context section → both
+    files. An HTML preview counts, since it shows KB content.
+- **Reset to empty whenever the project is replaced:** on
+  `event_bus.project_loaded` (upload, restore, recent, import), on
+  `template_loaded`, and on New (`project_io.py:382`, which today emits only
+  `isa_change`; the builder adds the reset there). Wizard Replace keeps the
+  metadata, so it keeps the set.
 
-**Checking on load.** For each recorded entry, compare its `sha256_norm`
-with three hashes: the session snapshot's, the vendored copy's and the
-current shared copy's (the registry exposes all three read-only for this
-check only).
+**Writing — at serialisation.** `project_data` is never mutated for
+provenance.
+- The stamp is computed as `merged = {**meta.reference_data, **{f:
+  snapshot.entry(f) for f in reference_reads}}`.
+- It is threaded through a new keyword argument, default `None`, meaning
+  "write `meta.reference_data` as is":
+  - `Project.to_dict(reference_data=...)` and `to_json(...)`;
+  - `persistent_storage.save_project_atomic(...)` and
+    `project_to_bytes(...)`;
+  - `autosave.write_autosave(...)`.
+- `quick_actions_server` (`app.py:198`; save, download and autosave in
+  `project_io.py:142-161, 292-318`) receives `snapshot` and
+  `reference_reads`, and passes `merged`.
+- Autosave reads `reference_reads` under `isolate()`, so a KB read alone
+  never triggers an autosave. The read reaches disk with the next
+  `isa_change`, which is accepted.
+- Callers outside a session (MosaicSES's `c.project.to_dict()`, the
+  template catalogue's `to_json()` at `r_template_catalogue.py:189`) pass
+  nothing and keep working.
+- Effect: "no read, no change", so an unrelated save never drops loaded
+  provenance.
+- P4, P5 and P6 add their own writers. This is the per-file form of
+  umbrella §3's "write on save" (deviation recorded in §9).
+- **Known side effect:** `asdict(metadata)` now always writes
+  `"reference_data": {}`. The 7 shipped `sespy/templates/marinesabres/*.json`
+  files are regenerated in the same commit as the schema bump, and
+  MosaicSES compartment dicts gain the key too.
+
+**Checking on load.** One effect, keyed on the same load events as the
+reset (placed like `_newer_build_warning`, `project_io.py:242-269`), reads
+`project_data.get().metadata.reference_data`. For each entry it compares
+`sha256_norm` with three hashes:
+- the session snapshot's;
+- the vendored copy's;
+- the registry's **last parsed** shared copy's. This is held in memory and
+  never re-read at load.
+
+Outcomes:
 - **Equal to the snapshot's:** silent.
 - **Equal to vendored or shared, but not to the snapshot's:** toast "This
-  project was saved with different reference data (<file> <version>);
-  suggestions and report context may differ."
+  project was saved with different reference data (<file>, R
+  <vendored_r_tag>); suggestions and report context may differ."
 - **Equal to none:** the same toast, plus "the original reference data is
   not available on this server."
-- Toast keys go in `core.json`.
+- **An entry without `sha256_norm`:** ignored.
+
+The version key is not shown, because both R files say "1.0" and never
+bump. `vendored_r_tag` is the R tag of SESPy's vendored copy, even when
+`source` is "shared"; it tells the reader which SESPy pin was current.
+Toast keys go in `core.json`.
 
 **Tests:**
 - The schema-9 round trip.
@@ -568,6 +715,11 @@ formatter without i18n (`report_generation.R:172`), so R always prints:
 
 The category labels are R's literals ("Drivers (D)" …).
 
+**Heading levels.** SESPy's report title is `<h1>` and its sections are
+`<h2>` (`report.py:93,102`). So R's levels shift down by one: "Regional
+Context" is `<h2>`, "Site Ecological Context" is `<h3>`, and so on down to
+`<h5>`. The text is unchanged.
+
 **Placement:** after SESPy's title/meta block, before Summary
 (`report.py:~100`), mirroring R's `header + intro + regional + content`.
 - HTML and PDF render through the existing template.
@@ -584,9 +736,14 @@ The category labels are R's literals ("Drivers (D)" …).
 - If generation fails, the section is omitted and a warning is logged
   (R :176-179).
 
-**API change:** `render_html`, `render_pdf` and `render_docx` gain
-`snapshot` and `include_regional_context` keyword parameters, and
-`report_export.py` passes the session snapshot. No module global is used.
+**API change:**
+- `render_html`, `render_pdf` and `render_docx` gain the keyword parameters
+  `snapshot=None` and `include_regional_context=False`. These defaults keep
+  existing callers and tests unchanged.
+- `report_export.py` passes the session snapshot and the toggle, and adds
+  to `reference_reads` when the section is generated.
+- The HTML preview (`report_export.py:97-110`) depends on the toggle.
+- No module global is used.
 
 **Deferred to P14:** R's KB regional recommendation lines
 (`report_generation.R:476-509`). R emits them only in the full report,
@@ -597,53 +754,89 @@ SESPy has no Prepare Report options yet; P14 ports that module, so the
 lines go there (§9).
 
 ### 4.8 `check_live.py` and the deploy pre-flight
-`tests/parity/check_live.py`:
-- It is outside pytest collection: no `test_` prefix, and `testpaths`
-  stays as configured.
-- It is run as `${SESPY_PY:-micromamba run -n shiny python}
-  tests/parity/check_live.py`.
+**Decision (user, 2026-11-09): block only on broken files.** This deviates
+from umbrella §3, which blocks on any drift (§9). A content drift does not
+endanger production: the app reads the live files and validates them
+itself. Blocking on drift would gate hotfixes and rollbacks after every R
+redeploy.
 
-**Steps:**
-1. Read `DEPLOY_SERVER` from `deploy/config.env`.
-2. Over one SSH session, read the server's `$APP_DIR/server_settings.env`
-   to get `SESPY_R_DATA_DIR` (default `/srv/shiny-server/marinesabres/data`).
-3. Fetch each allow-listed file, plus `VERSION_INFO.json` from its parent.
-4. Compute `sha256_norm` locally and compare it with the vendored pin in
-   `r_sync.json`.
+**Fetching is done by `deploy.sh`**, with its own `ssh`/`scp` and the
+`$SERVER` it is deploying to, so it honours the env override at :27-30 and
+uses the same ssh agent.
+1. Read the server's `$APP_DIR/server_settings.env` to get
+   `SESPY_R_DATA_DIR` (empty means off; then only steps 4–5 below apply).
+2. Copy each **`override: true`** allow-list file, and the R app's
+   `VERSION_INFO.json`, into `$STAGE/.live/`.
+3. Record each file's `stat -c '%a %U %G'`.
 
-**Outcome:**
-- It exits non-zero on any mismatch, naming each file, the live R version
-  and the hashes.
-- A mismatch is accepted only by an exact entry in a new `accepted_live`
-  list in `r_sync.json`: `[{file, live_sha256_norm, r_version, reason,
-  date}]`. The JSON is authoritative, and `R_SYNC.md` mirrors it.
-- `deploy.sh` runs it first and aborts on a non-zero exit.
+**Checking is pure local hashing:**
+`${SESPY_PY:-micromamba run -n shiny python} tests/parity/check_live.py
+--live "$STAGE/.live" --stage "$STAGE"`. The script has no `test_` prefix
+and stays outside pytest collection.
+1. **Structural (blocks):** a live file is unreadable; or it fails its
+   allow-list row (required keys, minimum counts, major version); or it
+   is not readable by user `shiny` (neither world-readable nor group
+   `shiny`). Exit 2.
+2. **Shipped copy (blocks):** the staged `sespy/data/r_kb/*` hashes differ
+   from the pins in `r_sync.json`, i.e. a stale or dehydrated build. Exit 2.
+3. **Drift (warns):** the live hash differs from the pin. A loud banner
+   names each file, the live R version and both hashes, and suggests
+   re-vendoring. Exit 0, or exit 2 with `--strict`.
+4. **Escape:** `SESPY_SKIP_LIVE_CHECK="<reason>"` skips the whole check.
+   `deploy.sh` echoes the reason.
+5. **Rollbacks are never gated.** `deploy.sh --rollback` (or deploying any
+   tag older than the server's current version) runs the check with
+   warnings only.
+
+`accepted_live` is not needed and is not added. `r_sync.json` keeps only
+`accepted_warnings`.
 
 ### 4.9 Pins, sync script and triage
-**Sync script.** K1 **extends** `sespy/r_template_catalogue.py::sync` (or
-the module behind `python -m scripts.sync_r_templates`), so one run vendors
-and pins everything. `INPUTS` gains:
-- `data/ses_knowledge_db.json` and `data/country_governance_db.json`, both
-  to `sespy/data/r_kb/` (runtime);
-- the R sources K1 ports, to `tests/parity/r_source/`:
-  `functions/ses_knowledge_db_loader.R`,
-  `modules/ai_isa_knowledge_base.R`,
-  `functions/country_governance_loader.R`,
-  `functions/kb_report_helpers.R` and `functions/report_generation.R`.
-  They are pinned so that a re-pin diff shows logic changes, not only data
-  changes;
-- R's `translations/modules/isa_data_entry.json` (and the report-context
-  file), to `tests/parity/r_translations/`;
-- the K1 fixtures under `tests/parity/r_fixtures/k1/`. They are produced by
-  the R capture script (§7), so they are pinned by hash, not copied.
+**Sync script.** K1 **extends** `sespy/r_template_catalogue.py::sync` (the
+module behind `python -m scripts.sync_r_templates`), so one run vendors and
+pins everything. Three kinds of input:
+1. **`INPUTS`** (existing, `dict[R path → repo path]`, fetched with
+   `git show tag:path`). It gains:
+   - the R sources K1 ports, to `tests/parity/r_source/`:
+     `functions/ses_knowledge_db_loader.R`,
+     `modules/ai_isa_knowledge_base.R`,
+     `functions/country_governance_loader.R`,
+     `functions/kb_report_helpers.R` and
+     `functions/report_generation.R`. A re-pin diff then shows logic
+     changes, not only data changes;
+   - `translations/modules/isa_data_entry.json` and
+     `translations/modules/report_context.json`, to
+     `tests/parity/r_translations/`. The builder confirms the exact R file
+     that holds `modules.report_context.include_context`. These are
+     pinned, and the keys K1 uses are vendored through
+     `TRANSLATION_SUBSETS`. Its prefix matching (:48-56) means an exact key
+     must not also select unintended `key_*` siblings; use exact-key
+     entries where needed.
+2. **`RUNTIME_INPUTS`** (new): `data/ses_knowledge_db.json` and
+   `data/country_governance_db.json`, copied to `sespy/data/r_kb/`. This
+   set is also `check_live.py`'s map from R path to vendored path, and K1b
+   adds its export to it.
+3. **`LOCAL_PINS`** (new): paths hashed from disk, never fetched or
+   written. These are the K1 fixtures under `tests/parity/r_fixtures/k1/`,
+   produced by the R capture script (§7).
+   - `.gz` files are hashed as raw bytes (`hashlib.sha256` over the file),
+     since `sha256_norm` and `sha256_text_norm` are for JSON and text.
+   - Each fixture records the R tag it was captured at. `sync` fails when
+     that tag differs from the target `r_tag`, so fixtures go stale loudly
+     on a re-pin.
 
-**Rebuild rule.** The rebuild carries over `accepted_warnings` *and*
-`accepted_live`. A test runs `sync --check` and fails if any pinned path or
-acceptance would be dropped. The hard-coded `len(paths) == 18` assertion
-becomes the new count.
-
-**`check_live.py` path map.** It uses the `INPUTS` entries marked
-`runtime` (R path → vendored path).
+**Rebuild rule.**
+- Factor out a pure `build_pin(pin_old, files_new, warnings_new) -> pin_new`.
+- `files` is rebuilt from all three kinds.
+- `accepted_warnings` is regenerated from current warnings, as today, so
+  stale acceptances drop by design.
+- Fail when `set(pin_old.files) - set(pin_new.files)` is non-empty, unless
+  the path was removed from the input lists in the same change.
+- Unit tests call `build_pin` directly, so CI needs no R checkout.
+- The two hard-coded counts (`tests/parity/test_r_sync.py:27`,
+  `tests/test_r_template_catalogue.py:406`) become the new totals, and
+  `sorted(pin["files"]) == sorted(INPUTS.values())` becomes "all three
+  kinds".
 
 **Triage.** `git diff --stat v1.33.0 v1.34.2` lists 44 paths, and each gets
 a row in `R_SYNC.md` (P1b format). Rows that matter to K1:
@@ -656,6 +849,53 @@ a row in `R_SYNC.md` (P1b format). Rows that matter to K1:
   tests must stay green.
 
 All 18 existing pins move to v1.34.2.
+
+### 4.10 Deploy atomicity, MosaicSES contract, rollback
+**Atomic SESPy deploy.** `deploy.sh:80-84` does `rm -rf sespy` and then a
+long scp. A worker spawned in that window, in SESPy or in MosaicSES
+through the symlink, sees missing code, and now missing vendored data
+too. K1 adopts MosaicSES's swap:
+1. upload to `sespy.incoming/`;
+2. `mv sespy sespy.old && mv sespy.incoming sespy`;
+3. remove `sespy.old`.
+
+The `logs/` stash-and-restore moves into the same sequence.
+
+**MosaicSES restart.** SESPy's deploy then touches MosaicSES's
+`restart.txt`, so its workers stop mixing old in-memory sespy modules with
+new files on disk. The plan runs MosaicSES's `deploy/verify_live.py` right
+after.
+
+**MosaicSES compatibility contract.** The round-2 grep found that MosaicSES
+uses `get_regional_seas()` (names and ecosystem types),
+`isa_data_entry_server`, the analysis servers, and
+`Project`/`ProjectMetadata` with `to_dict`/`from_dict`. It does not use the
+wizard, report export, `render_*`, `WizardState` or the removed country
+fields. So:
+- `snapshot` and `reference_reads` are **keyword-optional** wherever they
+  are added;
+- they never appear on `Project.to_dict`/`from_dict` as required
+  arguments, on the `ProjectMetadata` constructor, or on
+  `isa_data_entry_server`;
+- `get_regional_seas()` keeps `name`, `ecosystem_types` and
+  `common_issues`;
+- importing `sespy.r_kb` reads nothing relative to `APP_DIR`.
+
+A unit test imports MosaicSES's call sites' signatures (or a copied
+fixture of them) to guard this.
+
+**Rollback is one-way.** After 1.16.0, every save and autosave is stamped
+schema 9 and `min_sespy_version` 1.16.0. That includes MosaicSES
+compartments saved through `to_dict`. On a rollback to 1.15.x these files
+read as `newer_build`, and autosave refuses to overwrite them
+(`autosave.py:93-98`). The release notes say so, and the policy is
+**forward-fix** rather than roll back after users have saved. The
+MosaicSES gate includes opening a schema-9 file in 1.15.x to confirm the
+read-only behaviour.
+
+**OneDrive.** `attrib +P` pins `sespy/data/r_kb/` and
+`tests/parity/r_fixtures/` locally (the screenshots precedent).
+`.gitattributes` gains `*.gz binary`.
 
 ---
 
@@ -732,18 +972,33 @@ SESPy must match the full ordered list and the source map, beyond the first
   (builder's choice).
 
 **Unit tests (beyond the fixtures):**
-- **Layer:** valid, missing, corrupt, too small and wrong-major overrides;
-  two sessions keep their own snapshots across a file swap; no writes; one
-  warning per kind; integer and string version majors.
-- **Chips:**
-  - select fills the first empty row;
-  - select with no empty row stages a row;
-  - deselect blanks all matching rows in place;
-  - a hand-typed text shows its chip as selected;
-  - Back/Next idempotency with chips.
-- **Schema and provenance:** §4.6.
+- **Layer:**
+  - valid, corrupt, too small and wrong-major overrides;
+  - a missing directory gives vendored data, including for a worker that
+    previously had the shared copy;
+  - a torn read keeps the last good copy, and the next session retries;
+  - a same-size, same-mtime rewrite is detected through ctime and inode;
+  - set-wise validation: one bad file means no swap;
+  - two sessions keep their own snapshots across a file swap;
+  - no writes;
+  - transitions are logged;
+  - integer and string version majors;
+  - an empty `SESPY_R_DATA_DIR=` turns the override off;
+  - importing `sespy.r_kb` with a vendored file missing fails.
+- **Chips:** every scenario listed in §4.3, run against the real module
+  with Shiny's test tooling, or as e2e where the browser round-trip is the
+  point.
+- **Schema and provenance:** §4.6, including:
+  - the reset on project load, template load and New;
+  - a callers-pass-nothing test for `to_dict()`.
 - **Packaging:** the wheel contains the allow-listed `sespy/data/r_kb/*`.
-- **Sync:** `--check` detects a dropped pin or acceptance.
+- **Sync:** `build_pin` unit tests for dropped paths, regenerated warnings
+  and the fixture R-tag mismatch.
+- **check_live:**
+  - each exit path: structural, shipped-copy mismatch, drift warning,
+    `--strict`, skip variable, rollback;
+  - all of them run on local fixture directories.
+- **MosaicSES contract:** the §4.10 guard test.
 
 **e2e:** a new script `tests/test_kb_wizard_e2e.py` with namespaced
 selectors.
@@ -753,7 +1008,9 @@ selectors.
    two rows keep their text and order.
 4. Type a chip's text by hand and see it selected.
 5. Skip step 3 once.
-6. Finish, then export a report and check that Regional Context is present.
+6. Go Back to step 2 and Next again: the country order is unchanged.
+7. Finish, then export a report and check that Regional Context is present.
+8. About shows source "vendored". The runner sets `SESPY_R_DATA_DIR=`.
 
 `test_wizard_e2e.py` is updated for country codes and optional steps 2–3.
 
@@ -761,7 +1018,7 @@ selectors.
 - the full unit suite;
 - the full e2e run (`tests/run_e2e.py`);
 - MosaicSES unit and full e2e against the branch (§3);
-- `check_live.py` passing against laguna.
+- the pre-flight running clean against laguna.
 
 **Done when:**
 - all gates are green;
@@ -770,8 +1027,11 @@ selectors.
 - the CHANGELOG names K1, R v1.34.2 and the known differences;
 - the MANUAL has a K1 section and the version line;
 - screenshots are regenerated with `tests/make_docs_screenshots.py`;
-- after deploy, the worker's `python -s` reports 1.16.0 and
-  `verify_live.py` passes.
+- after deploy:
+  - the worker's `python -s` reports 1.16.0;
+  - a fresh live session's About shows `source=shared` at R v1.34.2;
+  - MosaicSES has been restarted and its `verify_live.py` passes;
+- the release notes state the one-way schema-9 rollback policy (§4.10).
 
 ---
 
@@ -835,6 +1095,12 @@ No MosaicSES code uses `suggest_connections` or `ConnectionSuggestion`.
   whose features MosaicSES uses.
 - **§3 Provenance:** written per file, when read, with the merge rule
   (§4.6).
+- **§3 Drift check (user decision):** the deploy pre-flight blocks only on
+  broken or unreadable live files and on a shipped copy that differs from
+  the pin. Content drift warns, `--strict` blocks, and
+  `SESPY_SKIP_LIVE_CHECK` skips. Rollbacks are never gated (§4.8).
+- **§3 Override:** "reloads on change" becomes the set-wise swap; a missing
+  directory means vendored data on every worker (§4.1).
 - **P14:** add "K1's KB regional recommendation lines
   (`report_generation.R:476-509`), behind the Recommendations option". Add a
   note to R_SYNC row 18.
