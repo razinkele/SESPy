@@ -26,10 +26,9 @@ R's lookup and suggestion code and compared it with R run headless.
   over **4,830 cells**: 69 choices × 7 categories × 5 issue sets × 2 country
   sets. Items, order and sources all matched, with 0 mismatches, across 284
   relevance ties.
-- **Prototypes:** `kbport.py`, `r_capture.R` and `compare.py` are in the
-  session scratchpad
-  `C:\Users\ARTURA~1.BAZ\AppData\Local\Temp\claude\a8ee690fa33a5c37\82ccb74e-aee2-471a-b75c-440b015c676f\scratchpad\k1r1-dry\`.
-  Copy them before the scratchpad expires; the plan may build on them.
+- **Prototypes:** `kbport.py`, `r_capture.R`, `compare.py`, `r_report.R`
+  and related scripts are kept in the main checkout under the gitignored
+  `.superpowers/k1-prototypes/`. The plan may build on them.
 
 ---
 
