@@ -1,6 +1,6 @@
 # K1 — General knowledge-base parity — design
 
-**Status:** Draft rev 6, 2026-11-09, awaiting user approval. Revised after
+**Status:** Rev 6, **approved by the user 2026-11-09**. Revised after
 the builder check and four review rounds:
 1. fresh read, cross-spec, dry run;
 2. fresh read, a Playwright chip prototype, an ops/production review;
