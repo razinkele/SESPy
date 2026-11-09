@@ -63,7 +63,7 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
    - `step_navigation.R:92` calls `generate_connections(rv$elements)` with
      no sea or habitat. It is the only call site.
    - So the KB-seeding block (`connection_generator.R:812-919`) never runs.
-   - The lines the roadmap cites (`:620-639`) are the `matrix_map` of
+   - The lines the roadmap cites (`:625-640`, inside `:620-639`) are the `matrix_map` of
      `convert_matrices_to_connections`. They parse saved matrices.
 
    Corrections owed: §9.
@@ -115,9 +115,10 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
    `confidence`.
 6. **(K1b)** The scorer keeps only R's 10 type pairs, in R's order, and
    drops `responses_states`.
-7. **The deploy pre-flight blocks only on broken files.** Content drift
-   between laguna's live R files and the pin warns but does not block
-   (§4.8). This deviates from umbrella §3 (§9).
+7. **The deploy pre-flight blocks only on broken files.** It blocks on
+   unreadable or invalid live files and on a shipped copy that differs from
+   its pin. Content drift between laguna's live R files and the pin warns
+   but does not block (§4.8). This deviates from umbrella §3 (§9).
 
 **Calls made while revising (mine; flagged for the user's check):**
 - **Wizard steps 2 (countries) and 3 (main issue) become skippable,** as in
@@ -336,6 +337,7 @@ vendored copy's.
   files: {name: sha256_norm}}` is written by `sync` and pinned. It is the
   app's only runtime source for the R tag: `tests/` does not ship, and the
   data files say `version` "1.0".
+  - A vendored entry is labelled "R <r_tag>".
   - A shared entry whose hash equals the manifest's is labelled "R <r_tag>".
   - Otherwise it is labelled "shared, differs from R <r_tag>".
   - `<R_DATA_DIR>/../VERSION_INFO.json` is read **optionally** (read-only,
@@ -398,7 +400,8 @@ vendored copy's.
   registry.current()` once. It passes `snapshot` as a keyword argument to
   every module server that needs it (wizard, report export,
   `quick_actions_server`, `topbar_actions_server`), the same way
-  `project_data` is passed.
+  `project_data` is passed. The wizard, report export and
+  `quick_actions_server` also receive `reference_reads` (§4.6).
 - Any future module that reads reference data (P4, P6) must likewise
   receive `snapshot` and `reference_reads` as keyword-optional arguments.
 - No K1 code reads the registry anywhere else.
@@ -423,8 +426,8 @@ element id `about-reference-data`. Per allow-listed file it shows the
 source (shared or vendored), the manifest label, the optional live R
 version and a short hash, all from the session snapshot. That lets anyone
 check what laguna serves without reading worker logs, which shiny-server
-deletes. `topbar_actions_server` receives `snapshot` (added to the
-module-server list below), and `_about_modal` (`topbar_actions.py:254`)
+deletes. `topbar_actions_server` receives `snapshot` (it is in the
+module-server list above), and `_about_modal` (`topbar_actions.py:254`)
 takes it as a parameter.
 
 ### 4.2 Element suggestions — `sespy/kb_suggestions.py`
@@ -489,6 +492,10 @@ trap for a naive port):
 - Each option shows `name_en` and has the code as its value.
 - Selection order is kept: selectize keeps click order, and the codes are
   passed in that order.
+- **Changing the sea after Back.** When step 0's answer changes, `_on_next`
+  for step 0 filters `wizard_answers["countries"]` to codes present in the
+  new sea's `countries_by_sea` list. Step 2 then shows only those as
+  selected.
 - R's 12th sea, `other`, stays excluded, as in SP2.
 
 **Steps 2 and 3** are skippable (call in §1.1):
@@ -511,8 +518,8 @@ trap for a naive port):
   `eu_member_codes`. `get_eu_member_codes()` is deleted with its tests;
   MosaicSES does not import it. Tests that read the removed fields move to
   the governance data.
-- Three call sites in `test_wizard_e2e.py` pass `['Lithuania']`
-  (:113, :320, :404); all three become codes.
+- Four call sites in `test_wizard_e2e.py` pass `['Lithuania']`
+  (:79, :113, :320, :404); all four become codes.
 
 **Steps 4–10, suggestion chips.** This replaces rev 2's description, which
 did not fit the row model.
@@ -544,6 +551,13 @@ carry a generation: `entry_{gen}_{target}_{i}`.
 - `gen` is a per-target counter, bumped on `_on_modal_replace` and
   whenever a step is entered (Next into it, or Back into it).
 - Within one visit, rows keep their ids, so typing and chips work as below.
+- **Stable test hook.** Each current-generation row input carries
+  `data-row="{target}_{i}"` (it is unique, since only the current
+  generation is in the DOM). e2e selectors use
+  `#wizard-freeform_{target}_container [data-row="{target}_{i}"]`, never
+  `[id$=…]`. The existing `#wizard-entry_{target}_{i}` selectors in
+  `test_wizard_e2e.py` (:86, :120, :360-361, :378, :381, :413) are
+  rewritten to it.
 - On every entry, a new visit renders from `wizard_answers` (saved) with no
   live values, so stale text can never win.
 - Chip ids need no generation; they are action buttons whose count does not
@@ -688,14 +702,19 @@ to the snapshot, and passed to the module servers like `event_bus`.
   first and never read raw `metadata.reference_data`.
 - **Reset to empty whenever the project is replaced:** on
   `event_bus.project_loaded` (upload, restore, recent, import), on
-  `template_loaded`, and on New (`project_io.py:382`, which today emits only
-  `isa_change`; the builder adds the reset there). Wizard Replace keeps the
+  `template_loaded`, and on New (`project_io.py:382-384`, which today emits
+  `isa_change` and `cld_update` but no load event; the builder adds the
+  reset there). Wizard Replace keeps the
   metadata, so it keeps the set.
 
 **Writing — at serialisation.** `project_data` is never mutated for
 provenance.
 - The stamp is computed as `merged = {**meta.reference_data, **{f:
-  snapshot.entry(f) for f in reference_reads}}`.
+  snapshot.files[f].provenance() for f in reference_reads}}`.
+  - `Entry.provenance()` returns exactly `{source, sha256_norm, version,
+    vendored_r_tag}`; the tag comes from the manifest.
+  - It never includes `data`. A test asserts that a saved file carries no
+    `data` key and stays small.
 - It is threaded through a new keyword argument, default `None`, meaning
   "write `meta.reference_data` as is":
   - `Project.to_dict(reference_data=...)` and `to_json(...)`;
@@ -860,20 +879,24 @@ uses the same ssh agent.
   read from the repo, because `$STAGE` ships no `tests/`.
 - The script has no `test_` prefix and stays outside pytest collection.
 - **Run by hand after an R deploy:** `check_live.py --fetch` performs the
-  same ssh fetch itself into a temp directory, then checks.
+  same ssh fetch itself into a temp directory, then checks. `SERVER` and
+  `APP_DIR` come from `deploy/config.env` (`DEPLOY_SERVER`, `DEPLOY_DIR`),
+  overridable by `--server` and `--app-dir`.
 1. **Structural (blocks):** a live file is unreadable; or it fails its
    allow-list row (required keys, minimum counts, major version); or it
    is not readable by user `shiny` (neither world-readable nor group
    `shiny`). Exit 2.
-2. **Shipped copy (blocks):** the staged `sespy/data/r_kb/*` hashes differ
-   from the pins in `r_sync.json`, i.e. a stale or dehydrated build. Exit 2.
+2. **Shipped copy (blocks):** the staged `RUNTIME_INPUTS` targets and
+   `manifest.json` (named one by one, no glob) differ from their pins in
+   `r_sync.json`, i.e. a stale or dehydrated build. Exit 2.
 3. **Drift (warns):** the live hash differs from the pin. A loud banner
    names each file, the live R version and both hashes, and suggests
    re-vendoring. Exit 0, or exit 2 with `--strict`.
-4. **Escape:** `SESPY_SKIP_LIVE_CHECK="<reason>"` skips the whole check.
-   `deploy.sh` echoes the reason.
-5. **Rollbacks are never gated.** A new `deploy.sh --rollback` flag runs
-   every check as a warning. When deploying a tag older than K1,
+4. **Escape:** `deploy.sh` reads `SESPY_SKIP_LIVE_CHECK="<reason>"`; if it
+   is set, `deploy.sh` does not call `check_live.py` and echoes the reason.
+5. **Rollbacks are never gated.** A new `deploy.sh --rollback` flag passes
+   `--warn-only` to `check_live.py`, which then reports every finding and
+   exits 0. When deploying a tag older than K1,
    `check_live.py` is absent from the checkout, and `deploy.sh` (from the
    current working tree) skips the check with a message. No server-version
    detection is attempted.
@@ -903,20 +926,26 @@ pins everything. Three kinds of input:
          `modules.isa.ai_assistant.` + `from_knowledge_database`,
          `governance_suggestion_tooltip`,
          `socioeconomic_suggestion_tooltip`, `tailored_for`,
-         `eu_member_states`, `non_eu_countries`, `eu_member_state` and
-         `skip_this_question`;
+         `eu_member_states`, `non_eu_countries` and `skip_this_question`.
+         `eu_member_state` (R's per-country badge tooltip) is not used,
+         because optgroups replace the badge; the prefix rule pulls it in
+         harmlessly;
        - in `translations/modules/report_context.json`,
          `modules.report_context.include_context`.
-     - Prefix matching (:48-56) also selects `key_*` siblings; that is
-       harmless here, and exact keys are listed.
+     - Prefix matching (`r_template_catalogue.py:226-235`) also selects
+       `key_*` siblings; that is harmless here, and exact keys are listed.
    - Paths use the same `MarineSABRES_SES_Shiny/…` prefix form as the
      existing entries, because the R git root is `SESToolbox`.
 2. **`RUNTIME_INPUTS`** (new): `data/ses_knowledge_db.json` and
    `data/country_governance_db.json`, copied to `sespy/data/r_kb/`. This
    set is also `check_live.py`'s map from R path to vendored path, and K1b
    adds its export to it.
-   - `sync` also writes `sespy/data/r_kb/manifest.json` (§4.1), which is
-     pinned like the rest.
+   - `sync` also writes `sespy/data/r_kb/manifest.json` (§4.1). It is a
+     **generated output**, like the converted templates: `sync` writes it
+     from `r_tag`, `r_commit` and the `RUNTIME_INPUTS` hashes, pins its
+     `sha256_norm` under `files`, and `--check` compares a rebuild with
+     disk. "All three kinds" in the count test means `INPUTS`,
+     `RUNTIME_INPUTS` (plus the manifest) and `LOCAL_PINS`.
    - These are pins of a **new class**: vendored runtime outputs. P1b
      pinned only fixtures. It is consistent with umbrella §3's "vendored
      files".
@@ -926,8 +955,9 @@ pins everything. Three kinds of input:
 3. **`LOCAL_PINS`** (new): paths hashed from disk, never fetched or
    written. These are the five K1 fixtures under
    `tests/parity/r_fixtures/k1/` (§7).
-   - `.gz` files are hashed as raw bytes (`hashlib.sha256` over the file)
-     and bypass `_hash`/`_same` (which decode UTF-8, :273-275).
+   - `.gz` files are hashed as `sha256_norm(json.loads(gunzip(file)))`,
+     keeping §3's two-helper rule and staying immune to the gzip header
+     mtime. They bypass `_hash`/`_same`, which decode UTF-8 (:273-275).
    - Each fixture's top-level `r_tag` is read after gunzip. `sync` fails
      when it differs from the target `r_tag`, so fixtures go stale loudly
      on a re-pin.
@@ -975,9 +1005,13 @@ The `logs/` stash-and-restore moves into the same sequence.
 - When it is set, SESPy's deploy touches `$DEPLOY_MOSAIC_DIR/restart.txt`,
   so MosaicSES's workers stop mixing old in-memory sespy modules with new
   files on disk.
-- The release step then runs MosaicSES's
-  `micromamba run -n shiny python deploy/verify_live.py --expect-version <live MosaicSES version>`
-  from the MosaicSES checkout.
+- SESPy has no release script. So, after a K1 deploy, a **manual checklist
+  step** (listed in the CHANGELOG release notes and the plan's release
+  task) runs MosaicSES's
+  `micromamba run -n shiny python deploy/verify_live.py --expect-version <v>`
+  from the MosaicSES checkout. `<v>` is the version in the deployed
+  MosaicSES's `multises_app/__init__.py`, read over ssh.
+- `deploy.sh` itself only touches `restart.txt`.
 - This is a change to **SESPy's** deploy script only. MosaicSES's own
   deploy script is unchanged (§3).
 
@@ -1099,9 +1133,11 @@ SESPy must match the full ordered list and the source map, beyond the first
   - Mediterranean seagrass: elements only;
   - Irish Sea: governance only.
 
-  Add one edge with an empty label. Compare after whitespace normalisation
-  with SESPy's section rendered to markdown, or to an equivalent structure
-  (builder's choice).
+  Add one edge with an empty label. The fixture includes R's
+  `# Regional Context` wrapper (added at `report_generation.R:174`, not by
+  the formatter), so SESPy's section is compared with it. The comparison
+  is after whitespace normalisation, against SESPy's section rendered to
+  markdown or to an equivalent structure (builder's choice).
 
 **Unit tests (beyond the fixtures):**
 - **Layer:**
@@ -1137,15 +1173,15 @@ SESPy must match the full ordered list and the source map, beyond the first
 
 **e2e:** a new script `tests/test_kb_wizard_e2e.py` with namespaced
 selectors.
-1. Choose Baltic → Coastal lagoon → 2 countries.
+1. Choose Baltic → Coastal lagoon → 2 countries, then **skip** step 3
+   with the Skip button.
 2. Step 4 shows KB- and GOV-badged chips.
 3. Select three chips, deselect the **middle** one, and assert the other
    two rows keep their text and order.
 4. Type a chip's text by hand and see it selected.
-5. Skip step 3 once.
-6. Go Back to step 2 and Next again: the country order is unchanged.
-7. Finish, then export a report and check that Regional Context is present.
-8. About's `#about-reference-data` shows source "vendored" and "R v1.34.2".
+5. Go Back to step 2 and Next again: the country order is unchanged.
+6. Finish, then export a report and check that Regional Context is present.
+7. About's `#about-reference-data` shows source "vendored" and "R v1.34.2".
    The runner sets `SESPY_R_DATA_DIR=`.
 
 `test_wizard_e2e.py` is updated for country codes and optional steps 2–3.
