@@ -1,7 +1,8 @@
 # K1 — General knowledge-base parity — design
 
-**Status:** Draft rev 5, 2026-11-09. Revised after the builder check and
-three review rounds:
+**Status:** Draft rev 6, 2026-11-09. Revised after the builder check and
+four review rounds (round 4: fresh read + a 28-scenario browser check of
+the chip mechanism, all passing):
 1. fresh read, cross-spec, dry run;
 2. fresh read, a Playwright chip prototype, an ops/production review;
 3. fresh read, cross-spec, plan readiness. Branch `docs/k1-design`,
@@ -560,14 +561,22 @@ carry a generation: `entry_{gen}_{target}_{i}`.
   rewritten to it.
 - On every entry, a new visit renders from `wizard_answers` (saved) with no
   live values, so stale text can never win.
+- **Behaviour change (my call):** unsaved text typed on a step is discarded
+  by Back; only Next persists it. Today it survives Back only by accident,
+  through sticky input ids. R's wizard has no unsaved state at all, because
+  each pick is applied immediately. Recorded in the CHANGELOG.
+- Shiny never drops keys from `input`, so each visit leaves a few dead
+  entries (measured: 5 → 87 keys over 20 Back/Next cycles with 3 rows).
+  That is linear in user actions, freed at session end, and accepted.
 - Chip ids need no generation; they are action buttons whose count does not
   matter.
 
-*The pending overlay.* A reference prototype that passes the scenarios
-below, except the generation scenarios it predates, is kept in the
-gitignored `.superpowers/k1-prototypes/chips/app_fix.py`. The plan's first
-chip task extends it with generations and the Replace / Back scenarios
-before porting.
+*The pending overlay.* A reference prototype with generations, run with
+the `CLEAR_ON_ENTRY=1 CLEAR_AFTER_WRITE=1` switches that this text now
+specifies, passes **all 28** browser scenarios (round-4 verification). It
+is kept in the gitignored `.superpowers/k1-prototypes/chips/`:
+`app_gen.py`, with its Playwright driver `drive_gen.py`. The plan ports
+from it.
 - A new `pending: reactive.Value[dict[target, dict[int, str]]]` records
   **every server-issued row write**: a chip fill, a chip-added row, a
   deselect blank, and the "re-added index starts blank" tombstone below.
@@ -594,8 +603,12 @@ before porting.
 - **Clearing.** A small effect per target drops a pending entry as soon as
   the live input reports the same value.
 - **Lifetime:**
-  - `_on_next` clears `pending[target]` after its read. This is safe: the
-    next visit has a new generation and renders from saved;
+  - `_on_next` clears `pending[target]` **after a successful write**
+    (validation passed), not after the read. On a validation failure
+    pending is kept, so a chip-added row survives the failed Next;
+  - `pending[target]` is dropped **whenever `gen[target]` is bumped** (step
+    entry and Replace), so a chip clicked in the same tick as Back never
+    leaks into the next visit;
   - Remove drops pending indices at or above the new count;
   - `_on_modal_replace` resets `pending` next to `freeform_counts.set({})`
     (:471-472) and bumps every generation;
@@ -626,6 +639,8 @@ before porting.
    - At click time the handler recomputes the suggestion list and maps
      index i to its text. If i is past the end of the list, it does
      nothing.
+   - A chip handler whose target is not the current step's target does
+     nothing. This covers Next followed by a chip in the same tick.
 4. **Selecting** a chip:
    - if an effective row is empty, set `pending[k] = text` for the first
      one, and call `ui.update_text` if that input exists;
@@ -647,7 +662,12 @@ before porting.
 - Add and Remove interleaved with chip clicks;
 - Back, deselect a saved item, Add: the row stays blank;
 - type in row 1, Remove, then select a chip with no empty row;
-- two chip clicks in the same tick, with and without an empty row;
+- two clicks on **different** chips in the same tick, with and without an
+  empty row. Two same-tick clicks on one chip merge on the client into one
+  event; a real double-click is two separate clicks;
+- chip + Back in the same tick, then re-enter the step: no leaked text;
+- a chip that adds a row + Next in the same tick, with Next failing
+  validation: the row survives;
 - a chip then Next in the same tick, on the fill path and on the added-row
   path;
 - Back/Next idempotency;
