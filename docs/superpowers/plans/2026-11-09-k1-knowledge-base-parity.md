@@ -574,6 +574,13 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
       off.
     - `off` exists because Windows can drop variables set to `""`, so the
       e2e runner and every manual run use `off`.
+    - **Settings-file format (the one parse rule, shared with Task 17's
+      deploy fetch):** never `source` it. Take the **last** line matching
+      `^SESPY_R_DATA_DIR=`, strip the prefix and surrounding whitespace;
+      empty or `off` (case-insensitive) means off. A file with no such
+      line, and an absent file, mean the default
+      `/srv/shiny-server/marinesabres/data`. Test:
+      `test_settings_file_last_line_wins_and_off`.
   - **Change key:** `(st_ino, st_size, st_mtime_ns, st_ctime_ns)` per
     override file.
   - **Swap:** parse and validate **all** override files; swap only if all
@@ -583,7 +590,8 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - **A missing or invalid file in a present directory:** keep last good,
     else vendored.
   - A failure is never recorded as seen.
-  - **Live R version:** read `<dir>/../VERSION_INFO.json` optionally.
+  - **Live R version:** read `<dir>/../VERSION_INFO.json` optionally; the
+    value is its `version` key.
   - **Logging:** each transition at WARNING: `r_kb.transition file=<f>
     from=<src> to=<src|last-good> reason=<r> hash=<h8>`. Keeping the last
     good copy logs `to=last-good`.
@@ -860,7 +868,9 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     import.
   - `add_reads(reads: reactive.Value[frozenset[str]], names: Iterable[str])
     -> None` in `sespy/r_kb.py`. It reads under `isolate()` and calls
-    `set` only if a name is new. `r_kb` stays stdlib-only at import, so
+    `set` only if a name is new. `add_reads(None, ...)` is a no-op (callers
+    mounted without `reference_reads`, e.g. MosaicSES); test
+    `test_add_reads_none_is_noop`. `r_kb` stays stdlib-only at import, so
     `from shiny import reactive` is a lazy import inside this function.
   - When `snapshot` or `reference_reads` is None, save and autosave pass
     `reference_data=None`, and the load check is skipped.
@@ -1122,32 +1132,52 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 ### Task 14: Regional Context in HTML, PDF and Word; the toggle
 
 **Files:**
-- Modify: `sespy/report.py` (CSS :44-50; template after :100; `_build_context` :182; `render_html/pdf/docx` :236/243/263), `sespy/modules/report_export.py` (:20-110)
-- Test: `tests/test_report.py`, plus a new `tests/test_report_regional.py`
+- Modify: `sespy/report.py` (CSS :44-50; template after :100; `_build_context` :182; `render_html/pdf/docx` :236/243/263), `sespy/modules/report_export.py` (:20-110), `app.py` (:158, the `report_export_ui` mount)
+- Test: `tests/test_report.py`, plus a new `tests/test_report_regional.py`; golden `tests/fixtures/report_default_golden.html`
 
 **Interfaces:**
-- Consumes: `build_regional_context` (Task 7), `add_reads`, `snapshot`.
+- Consumes: `build_regional_context` (Task 7), `HEADINGS` (Task 7), `add_reads`, `snapshot`.
 - Produces:
+  - **One pure gate,** in `sespy/report.py`:
+    `regional_context_for(project, snapshot) -> RegionalContext | None`.
+    It returns None unless `snapshot` is not None, `regional_sea` and
+    `ecosystem_type` are non-empty, and `build_regional_context(...)` is
+    not None; an exception inside it logs WARNING and returns None. Both
+    the renderers and `report_export` call it; nothing else re-implements
+    the gate.
   - `render_html(project, *, snapshot=None, include_regional_context=False)`;
-    the same signature for `render_pdf` and `render_docx`.
-  - The section renders only if `include_regional_context`, `snapshot`,
-    and non-empty `regional_sea` and `ecosystem_type` are all present, and
-    `build_regional_context(...)` is not None.
+    the same signature for `render_pdf` and `render_docx`. The section
+    renders iff `include_regional_context` and
+    `regional_context_for(...)` is not None.
+  - **No snapshot → no section** (unlike the wizard, which falls back to
+    `r_kb.VENDORED`): a report must say which data it used, and only a
+    snapshot carries provenance.
   - **HTML:** `<h2>Regional Context</h2>`, then h3–h5 for R's levels, with
     h4 and h5 CSS added. **Word:** Heading 2–5 and a 5-column table.
-  - **Edges:** `isa_data.connections` in list order, ids mapped to labels.
+    Heading text comes from `kb_report.HEADINGS`, never retyped.
+  - **Edges:** `isa_data.connections` in list order, ids mapped to labels;
+    an id with no element maps to the id itself (as `_build_context`
+    does).
   - A checkbox, module-local id `include_regional_context`, with DOM id
     `report-include_regional_context` (the module is mounted as
     `"report"`). Label key `modules.report_context.include_context`;
-    default `True`.
+    default `True`. `report_export_ui` gains a `translator` parameter (the
+    `topbar_actions_ui(T)` precedent); `app.py:158` passes `T`.
   - `report_export_server(..., snapshot=None, reference_reads=None)`, as
     added in Task 10.
-  - The preview depends on it.
-  - Generating the section calls `add_reads`.
-  - A failure omits the section with a WARNING log.
+  - The preview output reads the checkbox, so toggling re-renders it.
+  - When the toggle is on and `regional_context_for(...)` is not None,
+    `report_export` calls `add_reads(reference_reads, {"ses_knowledge_db.json",
+    "country_governance_db.json"})` (a no-op when `reference_reads` is None).
 
+- [ ] **Step 0: Save the golden first.** Before any code change, generate
+  `tests/fixtures/report_default_golden.html` from the current
+  `render_html(project)` with `sespy.report.datetime` monkeypatched to a
+  fixed instant (a scratchpad script); commit it with Step 1's tests.
 - [ ] **Step 1: Write failing tests:**
-  - `test_html_section_present_baltic`;
+  - `test_html_section_present_baltic`: built from
+    `load_k1_fixture("report")["baltic_lagoon"]`; assert every `HEADINGS`
+    entry and every evidence row of the fixture appear, **in order**;
   - `test_section_absent_when_sea_empty` and
     `test_section_absent_for_unknown_slug` (`"atlantis"`; Review Focus 1);
   - `test_irish_sea_governance_only_html`;
@@ -1156,7 +1186,13 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     saved **before Step 3**. Monkeypatch `sespy.report.datetime`, because
     `_build_context` stamps the time to the minute;
   - `test_generation_error_omits_section` (monkeypatch
-    `build_regional_context` to raise).
+    `build_regional_context` to raise);
+  - `test_no_snapshot_no_section`;
+  - in `test_server` (see Environment notes): `test_checkbox_default_true`,
+    `test_preview_depends_on_toggle` (preview text changes when the box is
+    set False), and `test_report_export_records_reads_only_when_generated`
+    (reads stay empty with the toggle off or sea empty; both names appear
+    once with it on).
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_report_regional.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement.**
@@ -1209,12 +1245,26 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 **Interfaces:**
 - Consumes: `ALLOW_LIST` (Task 4), `RUNTIME_INPUTS`, `MANIFEST_PATH` (Task 1), `r_sync.json`.
 - Produces a CLI:
-  `check_live.py --pin tests/parity/r_sync.json --stage DIR [--live DIR]
-  [--strict] [--warn-only] [--fetch [--server S --app-dir D]] [--perms FILE]`.
+  `check_live.py [--pin P] [--stage DIR] [--live DIR] [--strict]
+  [--warn-only] [--fetch [--server S --app-dir D]] [--perms FILE]
+  [--print-override-names]`.
+  - Defaults: `--pin tests/parity/r_sync.json`, `--stage` = the repo root
+    (the `RUNTIME_INPUTS` targets are repo-relative). The script inserts
+    its own repo root (`Path(__file__).resolve().parents[2]`) at
+    `sys.path[0]` before `import sespy`, so the stale editable install and
+    a rollback worktree never import the wrong `sespy`.
+  - `--print-override-names` prints `[r.name for r in ALLOW_LIST if
+    r.override]`, one per line, exit 0. `deploy.sh` uses it (bash cannot
+    read `ALLOW_LIST`).
+  - **Validation baseline:** live files are validated against the major
+    of the **staged** vendored copy (`<stage>/sespy/data/r_kb/`), not the
+    imported `r_kb.VENDORED`.
 - **Exit codes:**
   - 0: ok, or drift only (unless `--strict`);
   - 2: a structural problem, a shipped-copy mismatch, or drift with
-    `--strict`.
+    `--strict`;
+  - 3: `--fetch` only, the ssh/scp connection itself failed (not
+    overridden by `--warn-only`).
 
   `--warn-only` forces 0 and prints everything.
 - `--live` absent means the override is off: skip checks 1 and 3; check 2
@@ -1226,11 +1276,22 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 
   Exit 2 on any `fail`, or unless `shiny` can read the files and traverse
   the directories: owner `shiny` with u r/x, or group `shiny` with g r/x,
-  or other r/x. Expect the `stat` form on laguna, because a passwordless
+  or other r/x. Parse the **last 3 digits** of `%a` (setgid/sticky give 4
+  digits). A file with no `stat` lines for its parent directories is a
+  `fail`. Expect the `stat` form on laguna, because a passwordless
   `sudo -u shiny` for razinka is unverified.
+- `--live DIR` may contain `missing.txt` (one allow-listed name per line,
+  written by `deploy.sh` when a fetch failed): each listed name is a
+  structural problem.
 - `--fetch` reads `DEPLOY_SERVER`/`DEPLOY_DIR` from `deploy/config.env`
-  (overridable), copies over `ssh`/`scp` into a temp directory, then
-  checks.
+  (`--server`/`--app-dir` override), then does exactly what Task 17 steps
+  3–4 do: read `server_settings.env` with the Task 5 parse rule (absent →
+  the default path), fetch the override files and `VERSION_INFO.json`
+  into a temp directory, write the perms file in the `stat` form, then
+  check. An ssh/scp failure of the connection itself (not a missing file)
+  exits 3 with the command and stderr. It runs `ssh`/`scp` from `PATH` via
+  `subprocess`; on Windows that is OpenSSH's `ssh.exe` (its own agent,
+  not Git Bash's).
 
 - [ ] **Step 1: Write failing tests,** driving `main(argv) -> int` on
   `tmp_path` trees:
@@ -1242,7 +1303,16 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `test_drift_strict_exits_2`;
   - `test_warn_only_forces_0`;
   - `test_override_off_still_checks_shipped_copy`;
-  - `test_not_collected_by_pytest` (the file name has no `test_` prefix).
+  - `test_missing_txt_is_structural` and `test_missing_txt_warn_only_exits_0`;
+  - `test_perms_four_digit_mode`, `test_perms_missing_parent_line_fails`,
+    `test_perms_sudo_test_fail`;
+  - `test_print_override_names`;
+  - `test_fetch_reads_config_env` (monkeypatch `subprocess.run`; assert
+    the host/path from a temp `config.env` and the settings-file read
+    come first);
+  - `test_not_collected_by_pytest`: run `pytest --collect-only -q
+    tests/parity` in a subprocess; assert `check_live.py` is not in the
+    output.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/parity/test_check_live.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement.**
@@ -1255,69 +1325,133 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 
 **Files:**
 - Modify: `deploy/deploy.sh`, `deploy/config.env.example`, `.gitignore`
-- Test: `tests/test_deploy_script.py` (static checks with `bash -n` and grep-level assertions; no ssh)
+- Test: `tests/test_deploy_script.py` (a behavioural harness with executing ssh/scp stubs against a temp fake server; no network)
 
 **Interfaces:**
 - Consumes: Task 16's CLI.
+- **Repo root:** `REPO_ROOT="${DEPLOY_REPO_ROOT:-$SCRIPT_DIR/..}"`. This
+  is how rollback works (spec §4.8.5): the **current** `deploy.sh` deploys
+  a worktree of the old tag (`git worktree add <dir> v1.15.0`, then
+  `DEPLOY_REPO_ROOT=<dir> deploy/deploy.sh --rollback`); checking out the
+  old tag would run the old script, which has no `--rollback` and no
+  atomic swap. Document the procedure in the CHANGELOG (Task 20 Step 1).
+- **Python:** check_live runs as `PYTHONPATH="$REPO_ROOT"
+  ${SESPY_PY:-micromamba run -n shiny python} "$REPO_ROOT/tests/parity/check_live.py" ...`;
+  path arguments go through `"$(cygpath -w "$p")"` when `cygpath` exists
+  (native `micromamba.exe` does not understand MSYS `/tmp/...` paths).
 - Produces, in order:
   1. Parse `--rollback`. If `SESPY_SKIP_LIVE_CHECK` is set, echo
      `skipping live check: <reason>`.
   2. Stage as today.
-  3. Read the server's `server_settings.env`. If it is absent, use the
-     default `/srv/shiny-server/marinesabres/data`.
-  4. When the value is non-empty, `scp` the override files and the R
-     `VERSION_INFO.json` into `$STAGE/.live/`. Write
-     `$STAGE/.live/perms.txt` in Task 16's format: try `sudo -n -u shiny
-     test -r` per file first, and fall back to `stat -c 'stat %a %U %G %n'`
-     on each file and parent directory.
-  5. **Only if `SESPY_SKIP_LIVE_CHECK` is unset**, run
-     `${SESPY_PY:-micromamba run -n shiny python} tests/parity/check_live.py
-     --pin tests/parity/r_sync.json --stage "$STAGE"
-     [--live "$STAGE/.live" --perms "$STAGE/.live/perms.txt"]
+  3. Read the server's settings file without sourcing it:
+     `ssh "$SERVER" "if [ -e '$APP_DIR/server_settings.env' ]; then cat '$APP_DIR/server_settings.env'; else echo __ABSENT__; fi"`,
+     then apply **Task 5's parse rule** locally (`__ABSENT__` or no
+     matching line → the default `/srv/shiny-server/marinesabres/data`;
+     empty or `off`, case-insensitive → override off).
+  4. When the override is on, fetch each name from `check_live.py
+     --print-override-names` plus the optional `$DIR/../VERSION_INFO.json`
+     into `$STAGE/.live/`, each as `scp -q "$SERVER:$DIR/<name>"
+     "$STAGE/.live/" || echo "<name>" >> "$STAGE/.live/missing.txt"`
+     (never aborts under `set -e`; a missing `VERSION_INFO.json` is not
+     recorded). Write `$STAGE/.live/perms.txt` with `stat -c 'stat %a %U
+     %G %n'` on each file and each parent directory up to `/`. The
+     `sudo-test` form is used **only** when `DEPLOY_SUDO_TEST=1` (a denied
+     `sudo` can raise auth alerts on the server); then run `sudo -n -u
+     shiny true` once and, if it fails, fall back to `stat` for every
+     path.
+  5. **Only if `SESPY_SKIP_LIVE_CHECK` is unset**, run check_live
+     `--stage "$STAGE" [--live "$STAGE/.live" --perms "$STAGE/.live/perms.txt"]
      [--warn-only if --rollback]`. Abort on non-zero. If `check_live.py`
      is absent from the checkout, print a message and continue.
+     `--rollback` is therefore never gated: fetch failures land in
+     `missing.txt`, and `--warn-only` exits 0.
   6. Remove `$STAGE/.live` before upload.
-  7. **Atomic upload and swap:**
-     - on the server, `rm -rf $APP_DIR/sespy.incoming` (so `scp -r` cannot
-       nest a copy inside a leftover);
-     - upload the staged `sespy/` to `$APP_DIR/sespy.incoming/`, with the
-       other runtime items copied as today;
-     - on the server, **move `sespy/logs` into `sespy.incoming/logs`**, so
-       `feedback.db` is never absent and never overwritten; then
-       `mv sespy sespy.old && mv sespy.incoming sespy && rm -rf sespy.old`.
-     - Both moves are **conditional**: a first deploy has no `sespy/` or
-       no `sespy/logs`.
-     - Drop the old `.deploy-keep` logic, and exclude `sespy` from the
-       `scp "$STAGE"/*` glob (it goes to `sespy.incoming/`).
-     - MosaicSES's `ln -sfn '$SESPY_APP_DIR/sespy'` is path-based, so it
-       survives the swap.
-  8. On the server, create the settings file if it is absent:
-     `umask 022; [ -e f ] || printf 'SESPY_R_DATA_DIR=%s\n' /srv/shiny-server/marinesabres/data > f; chmod 0644 f`.
-  9. Touch `restart.txt`. If `DEPLOY_MOSAIC_DIR` is set, also touch
-     `$DEPLOY_MOSAIC_DIR/restart.txt`.
-- `config.env.example` documents `DEPLOY_MOSAIC_DIR` as optional.
+  7. **Server-side recovery prologue** (one ssh): if `sespy/` is absent
+     and `sespy.old/` exists, `mv sespy.old sespy`; then `rm -rf
+     sespy.old`; if `sespy/logs` is absent and `.deploy-keep/logs` exists
+     (left by the old script), move it to `sespy/logs`.
+  8. **Upload and swap, in this order** (a new `app.py` against the old
+     `sespy` crashes on `import sespy.r_kb`; the reverse is safe because
+     the new kwargs are keyword-optional):
+     1. `rm -rf "$APP_DIR/sespy.incoming"`;
+     2. `scp -rq "$STAGE/sespy" "$SERVER:$APP_DIR/sespy.incoming"` (no
+        trailing slash: newer OpenSSH's SFTP mode fails on a slash target
+        that does not exist);
+     3. if `sespy/logs` exists, `mv sespy/logs sespy.incoming/logs`, so
+        `feedback.db` is never overwritten;
+     4. if `sespy/` exists, `mv sespy sespy.old`; then `mv sespy.incoming
+        sespy && rm -rf sespy.old`;
+     5. today's pre-clean (`rm -rf __pycache__ docs/screenshots` on the
+        server), then scp the other runtime items (`sespy` excluded from
+        the `"$STAGE"/*` glob);
+     6. create the settings file if absent: `umask 022; [ -e f ] ||
+        printf 'SESPY_R_DATA_DIR=%s\n' /srv/shiny-server/marinesabres/data
+        > f; chmod 0644 f`;
+     7. touch `restart.txt`; if `DEPLOY_MOSAIC_DIR` is set, also touch
+        `$DEPLOY_MOSAIC_DIR/restart.txt`.
+     - Drop the old `.deploy-keep` logic (the prologue recovers a
+       leftover). MosaicSES's `ln -sfn '$SESPY_APP_DIR/sespy'` is
+       path-based, so it survives the swap.
+- `config.env.example` documents `DEPLOY_MOSAIC_DIR`, `DEPLOY_REPO_ROOT`
+  and `DEPLOY_SUDO_TEST` as optional.
 - `.gitignore` gains `server_settings.env`.
+- **Spec correction** (Task 20 Step 2b): §4.8 says `deploy.sh` honours the
+  env override at :27-30; it does not when `deploy/config.env` exists,
+  because that file is sourced after the env.
 
 - [ ] **Step 1: Write failing tests.** Two kinds:
-  - **A behavioural harness** (preferred over greps). Run `deploy.sh` with
-    stub `ssh`, `scp` and `git` scripts first on `PATH`, and `SESPY_PY`
-    pointing to a stub `check_live`. Each stub logs its argv to a file;
-    assert on the logged calls and their order.
-  - Skip the module if `shutil.which("bash")` is None (in the env it
-    resolves to the bundled MSYS bash).
+  - **A behavioural harness** (preferred over greps). The stubs must
+    **execute**, against a fake server tree, so state assertions are real:
+    - Build a temp fake repo: `deploy/deploy.sh` copied in, **no
+      `config.env`** (the real one is sourced after the env and would
+      point the run at laguna's host and path), a minimal `app.py`,
+      `sespy/__init__.py` + `sespy/data/r_kb/` copies,
+      `docs/MANUAL.md`, an empty `docs/screenshots/`,
+      `tests/parity/r_sync.json`, and `tests/parity/check_live.py`
+      (present or absent per test). Run with `DEPLOY_REPO_ROOT` unset
+      (the copied script resolves its own root).
+    - Env: `DEPLOY_SERVER=fake@host`, `DEPLOY_DIR=<tmp>/server/app`,
+      `SESPY_PY=<stub>`, `PATH=<stubs>:$PATH`.
+    - Stub `ssh` logs argv then runs `bash -c "${@: -1}"` locally. Stub
+      `scp` logs argv, strips the `host:` prefix and runs `cp -r`. Stub
+      `sudo` exits 1 (Windows ships `C:\WINDOWS\system32\sudo`). Stub
+      `git` as today. Stub check_live (`SESPY_PY`) logs argv; on
+      `--print-override-names` it prints the two allow-listed names and
+      exits 0, otherwise it exits with `$STUB_EXIT`.
+    - If `check_live.py` is absent from the repo, steps 4–5 are both
+      skipped with one message (no names to fetch); test
+      `test_absent_check_live_skips_fetch_and_check`.
+    - Invoke the bash from `shutil.which("bash")` (in the env, the bundled
+      MSYS `Library\usr\bin\bash.EXE`, not Git Bash); skip the module if
+      it is None.
 
   Tests:
   - `test_bash_syntax` (`bash -n deploy/deploy.sh`);
-  - `test_first_deploy_without_existing_sespy` (both `mv` steps skipped
-    cleanly);
-  - `test_uses_incoming_swap`;
-  - `test_settings_file_created_only_if_absent_with_0644`;
+  - `test_first_deploy_without_existing_sespy` (fake server has no app
+    dir; afterwards `sespy/` exists, no `sespy.old`, no
+    `sespy.incoming`);
+  - `test_uses_incoming_swap` and `test_app_py_uploaded_after_swap` (scp
+    log order);
+  - `test_logs_moved_into_incoming_before_swap` (a `sespy/logs/feedback.db`
+    with known bytes survives byte-identical);
+  - `test_recovers_interrupted_swap` (fake server has only `sespy.old/`
+    with `logs/feedback.db`: it survives) and
+    `test_recovers_deploy_keep_logs`;
+  - `test_incoming_removed_before_upload` (a leftover `sespy.incoming/x`
+    is gone and not nested);
+  - `test_settings_file_created_only_if_absent_with_0644` (an existing
+    file is untouched; a new one has the default line);
+  - `test_settings_off_skips_fetch` (file says `SESPY_R_DATA_DIR=OFF`: no
+    scp of override files, no `--live`);
+  - `test_fetch_failure_recorded_not_fatal` (an absent live file appears
+    in the `missing.txt` passed to check_live; the run continues to
+    check_live);
+  - `test_check_live_nonzero_aborts_before_upload`;
   - `test_rollback_passes_warn_only`;
-  - `test_skip_env_var_guards_check_live_call` (the `check_live.py`
-    invocation sits inside the `SESPY_SKIP_LIVE_CHECK`-unset branch, and the
-    reason is echoed);
-  - `test_logs_moved_into_incoming_before_swap`;
-  - `test_incoming_removed_before_upload`;
+  - `test_skip_env_var_guards_check_live_call` (no check_live call, and
+    the reason is echoed);
+  - `test_override_names_from_check_live` (the fetch list equals
+    `--print-override-names` output);
   - `test_mosaic_restart_conditional`;
   - `test_gitignore_has_server_settings`.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_deploy_script.py -q`.
@@ -1336,18 +1470,46 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 **Interfaces:**
 - Consumes: the §4.10 contract.
 
-- [ ] **Step 1: Write the test.** Using `inspect.signature`, assert that
-  `isa_data_entry_server`, `Project.to_dict`, `Project.from_dict`, the
-  `ProjectMetadata` constructor (required fields unchanged) and
-  `get_regional_seas()` still accept MosaicSES's calls:
-  - no new required parameters;
-  - `snapshot` and `reference_reads`, wherever present, have defaults;
-  - `get_regional_seas()[sea]` still has `name`, `ecosystem_types` and
-    `common_issues`;
-  - `import sespy.r_kb` succeeds in a subprocess with cwd set to a temp
-    directory and `PYTHONPATH` set to the repo under test. The test asserts
-    that `sespy.__file__` is under that repo; the stale editable install
-    would otherwise import the main checkout.
+- [ ] **Step 1: Write the test.** Encode MosaicSES's **real calls** and run
+  them; do not assert on `inspect.signature` of a module server
+  (`@module.server` returns `(id, *args, **kwargs)` with no `__wrapped__`
+  in Shiny 1.9.0, so such an assertion can never fail).
+  - `test_isa_data_entry_mosaic_call`: inside `test_server` (see
+    Environment notes), call exactly MosaicSES's
+    `compartments.py:362-367` form,
+    `isa_data_entry_server("entry", project_data=rv,
+    event_bus=create_event_bus(), translator=None)`, with `rv` a
+    `reactive.value(Project(...))`; flush; assert no exception and that
+    the module's outputs render. Same for `cld_viz_server("cld",
+    project_data=rv, event_bus=bus)`.
+  - `test_plain_function_calls_bind`: for plain functions use
+    `inspect.signature(f).bind(...)` with MosaicSES's exact arguments:
+    `Project.to_dict(p)`, `Project.from_dict(d)`, `ProjectMetadata(...)`
+    with the fields `bowtie_bridge.py`/`state.py` pass, and
+    `get_regional_seas()`.
+  - `test_regional_seas_shape`: `get_regional_seas()[sea]` still has
+    `name`, `ecosystem_types` and `common_issues` for every sea
+    (MosaicSES `project_setup.py:145` reads `name`).
+  - `test_mosaic_import_surface`: every name MosaicSES imports from
+    `sespy` still imports. Hard-code the list (from
+    `grep "from sespy" MosaicSES/{multises,multises_app}` at the time of
+    writing): `sespy.autosave.token_key`, `valid_token`;
+    `sespy.regional_seas.get_regional_seas`; `sespy.constants`
+    `DA_SITES`, `SPATIAL_SCALES`, `TEMPORAL_SCALES`,
+    `ELEMENT_ID_PREFIX`; `sespy.dashboard` `NavItem`, `StepperItem`;
+    `sespy.data_structure` `Connection`, `Element`, `IsaData`, `Project`,
+    `ProjectMetadata`; `sespy.event_bus` `EventBus`, `create_event_bus`;
+    `sespy.i18n.Translator`; `sespy.utils.next_id`;
+    `sespy.network.remove_nodes`; and the `sespy.modules.*` server/ui
+    pairs imported by `compartments.py:21-41`. If the MosaicSES checkout
+    exists at `../MosaicSES`, additionally re-derive the list by regex
+    and fail on any name missing from the hard-coded one (so the list
+    cannot silently go stale).
+  - `test_r_kb_imports_from_repo_under_test`: `import sespy.r_kb` succeeds
+    in a subprocess with cwd set to a temp directory and `PYTHONPATH` set
+    to the repo under test. The test asserts that `sespy.__file__` is under
+    that repo; the stale editable install would otherwise import the main
+    checkout.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_mosaicses_contract.py -q`.
   Expected: PASS (it guards; it is written after the code exists).
 - [ ] **Step 3: Commit** `test(k1): MosaicSES compatibility contract`.
@@ -1381,10 +1543,15 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   6. Finish, export the report, Regional Context present.
   7. About `#about-reference-data` shows "vendored" and "R v1.34.2".
 - [ ] **Step 2: Update `test_wizard_e2e.py` and the runner.**
+  Step 6 of the KB e2e asserts in the report preview iframe
+  (`page.frame_locator('#report-report_preview iframe')`), not a download.
 - [ ] **Step 3: Kill anything on port 8000** first (it reuses stale
   servers; see memory), then run the full suite detached with
   `Start-Process` + a log, as in the project's long-run practice:
-  `micromamba run -n shiny python tests/run_e2e.py`.
+  `micromamba run -n shiny python tests/run_e2e.py`. Wait by polling the
+  log in bounded `Start-Sleep` PowerShell calls (a background monitor
+  never wakes a subagent); afterwards verify port 8000 is free and
+  `git status` is clean.
   Expected: every script passes; the count is the previous 37 + 1.
 - [ ] **Step 4: Commit** `test(k1): knowledge-base wizard e2e; wizard e2e on codes and data-row hooks`.
 
@@ -1393,7 +1560,9 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 ### Task 20: Release docs, roadmap edits, upstream drafts, gates
 
 **Files:**
-- Modify: `CHANGELOG.md`, `docs/MANUAL.md`, `docs/screenshots/*` (via `tests/make_docs_screenshots.py`), `docs/superpowers/specs/2026-10-17-p1a-link-rules-template-mapper-design.md:85-88`
+- Modify: `CHANGELOG.md`, `docs/MANUAL.md`, `docs/screenshots/*` (via `tests/make_docs_screenshots.py`), `docs/superpowers/specs/2026-10-17-p1a-link-rules-template-mapper-design.md:85-88`, `docs/parity/R_SYNC.md`, `docs/superpowers/specs/2026-11-09-k1-knowledge-base-parity-design.md`
+- Line numbers below are pre-Step-1; Step 1 inserts text above them, so
+  locate each edit by its quoted content.
 - Modify on branch `docs/r-parity-roadmap`: the umbrella roadmap, with every bullet of spec §9 "Umbrella edits"
 - Create: `docs/parity/upstream-drafts/k1-r-issues.md` (4 issue drafts, spec §9)
 
@@ -1402,16 +1571,31 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - the known differences: no max-elements limit; unsaved step text
     discarded by Back; R's recommendation lines deferred to P14;
     countries changed per the §1.1(3) table;
-  - the schema-9 forward-fix rollback policy;
+  - the schema-9 forward-fix rollback policy, and the rollback procedure
+    (Task 17: `git worktree add <dir> v1.15.0`, then
+    `DEPLOY_REPO_ROOT=<dir> deploy/deploy.sh --rollback` from the
+    current checkout);
+  - the pre-deploy checklist (no commit): the gitignored
+    `deploy/config.env` gains `DEPLOY_MOSAIC_DIR=/srv/shiny-server/MosaicSES`,
+    or MosaicSES is never restarted;
   - the post-deploy checklist: worker `python -s` shows 1.16.0; About
     shows shared "R v1.34.2"; MosaicSES `verify_live.py --expect-version
-    <v>`, where `<v>` comes from the deployed
-    `MosaicSES/multises_app/__init__.py`.
+    <v>`, where `<v>` is `__version__` in the deployed
+    `MosaicSES/multises/__init__.py` (the file `verify_live.py` reads;
+    `multises_app/__init__.py` has no version).
 - [ ] **Step 2: MANUAL K1 section and screenshots.** Fix the CHANGELOG
-  extension-pair lines at :206-207 and the P1a spec lines.
-- [ ] **Step 2b: In this repo,** add the §9 P14 note to row 18 of
-  `R_SYNC.md`'s v1.31 → v1.33 table (`docs/parity/R_SYNC.md:227`). Also
+  bullet "R's AI generator also suggests the extension pairs…" and the
+  P1a spec lines.
+- [ ] **Step 2b: In this repo,** add the §9 P14 note to the
+  `R_SYNC.md` row for `functions/report_generation.R` in the v1.31 → v1.33
+  table (find it by content; Task 3 inserted a table above it). Also
   correct the spec claims found wrong in the plan review:
+  - §4.8: `deploy.sh` does not honour the env override when
+    `deploy/config.env` exists (it is sourced after the env);
+  - §4.8.5: rollback runs the current `deploy.sh` with
+    `DEPLOY_REPO_ROOT` pointing at a worktree of the old tag;
+  - §4.10: the MosaicSES version lives in `multises/__init__.py`;
+  - §9: the R_SYNC row reference (by content, not line);
   - §4.9: the prefix rule does **not** pull in `eu_member_state`;
   - §4.9: the `data/` rule does not cover `RUNTIME_INPUTS` in fixture mode;
   - §4.7: the checkbox DOM id is `report-include_regional_context`;
@@ -1427,11 +1611,21 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 - [ ] **Step 5: Gates.**
   - The CI unit set (Task 8 Step 5's command, with its ignores).
   - The full e2e (Task 19).
-  - MosaicSES: its unit tests and full e2e with
+  - MosaicSES: first compare the local `multises/__init__.py`
+    `__version__` with laguna's (`ssh … cat
+    /srv/shiny-server/MosaicSES/multises/__init__.py`); if the local one
+    is behind, `git pull` it (the local checkout has lagged live before).
+    Then its unit tests and full e2e with
     `PYTHONPATH=<K1 worktree or checkout>`. Re-grep its pattern selectors
-    against the new ids. Then open a schema-9 file in a v1.15.x worktree
-    and assert `newer_build` and that autosave refuses to overwrite.
-  - `check_live.py --fetch` against laguna. Expected: exit 0, with drift
-    warnings allowed.
+    against the new ids.
+  - **v1.15.x read-only check,** as a scratchpad script:
+    `git worktree add <scratch>/v115 v1.15.0`; with
+    `PYTHONPATH=<scratch>/v115`, load one SESPy and one MosaicSES schema-9
+    file; assert the load reports `newer_build` and that autosave refuses
+    to overwrite; then `git worktree remove <scratch>/v115`.
+  - `micromamba run -n shiny python tests/parity/check_live.py --fetch`
+    against laguna (defaults: `--pin tests/parity/r_sync.json`, `--stage`
+    = repo root). Expected: exit 0, with drift warnings allowed; exit 3
+    means the ssh connection itself failed.
 - [ ] **Step 6: Commit** `docs(k1): 1.16.0 release notes, manual, screenshots, roadmap and upstream drafts`.
   Stop here: the merge, tag and deploy need the user's go-ahead.
