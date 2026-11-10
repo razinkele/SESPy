@@ -353,8 +353,11 @@ vendored copy's.
 **Override location:**
 - `SESPY_R_DATA_DIR` is read from the environment, else from
   `APP_DIR/server_settings.env` (`KEY=value` lines).
-- If the variable is **present in `os.environ`, even empty, it wins** and
-  the file is not read. The e2e runner sets it to `""` in `_child_env`
+- If the variable is **present in `os.environ`, it wins** and the file is
+  not read. An empty value **or `off`** (case-insensitive) turns the
+  override off. `off` exists because Windows can drop variables set to an
+  empty string, and PowerShell's `$env:X=''` deletes the variable; tooling
+  uses `off`. The e2e runner sets it to `off` in `_child_env`
   (`run_e2e.py:55-65`).
 - `APP_DIR` is the directory of the running `app.py`, passed in by
   `app.py`. It is **never** the location of the `sespy` package. On laguna,
@@ -373,9 +376,9 @@ vendored copy's.
 - **Gitignored.** `server_settings.env` is added to `.gitignore`, since the
   server's `APP_DIR` has a `.git`.
 - **Read at every `refresh()`** (cheap), so editing it needs no restart.
-- **Empty means off.** `SESPY_R_DATA_DIR=` (empty) disables the override.
+- **Empty means off.** `SESPY_R_DATA_DIR=` (empty) or `=off` disables the override.
   Locally, `app.py`'s directory is the repo root; the e2e runner sets
-  `SESPY_R_DATA_DIR=` explicitly, so a stray local file can never feed live
+  `SESPY_R_DATA_DIR=off` explicitly, so a stray local file can never feed live
   data into tests.
 
 **Snapshots:**
@@ -1173,7 +1176,7 @@ SESPy must match the full ordered list and the source map, beyond the first
   - no writes;
   - transitions are logged;
   - integer and string version majors;
-  - an empty `SESPY_R_DATA_DIR=` turns the override off;
+  - an empty or `off` `SESPY_R_DATA_DIR` turns the override off;
   - importing `sespy.r_kb` with a vendored file missing fails.
 - **Chips:** every scenario listed in §4.3, run against the real module
   with Shiny's test tooling, or as e2e where the browser round-trip is the
@@ -1204,7 +1207,7 @@ selectors.
 5. Go Back to step 2 and Next again: the country order is unchanged.
 6. Finish, then export a report and check that Regional Context is present.
 7. About's `#about-reference-data` shows source "vendored" and "R v1.34.2".
-   The runner sets `SESPY_R_DATA_DIR=`.
+   The runner sets `SESPY_R_DATA_DIR=off`.
 
 `test_wizard_e2e.py` is updated for country codes and optional steps 2–3.
 
