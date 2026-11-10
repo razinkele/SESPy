@@ -103,9 +103,24 @@ with test_server(server) as ts:          # server wraps ai_isa_wizard_server("wi
     assert w.get_export("pending").value == {"drivers": {}}
     assert "chip-on" in w.get_output("chips_drivers").value["html"]
 ```
+  - **The translator is process-wide.** Any test that imports `app.py`
+    calls `_i18n.set_default(T)` (`app.py:82`), and from then on `t()`
+    returns English instead of keys, so a text assertion that passes alone
+    fails in the full CI run. Every wizard/report/About test file pins it
+    with an autouse fixture,
+    `monkeypatch.setattr(sespy.i18n, "get_default", lambda: <fixed Translator or None>)`,
+    and asserts outcomes (e.g. a failed Next) through exports and state,
+    not toast wording.
 - **PowerShell:** `$env:X=''` *deletes* the variable. To turn the override
   off in a shell, use `SESPY_R_DATA_DIR=off` (spec §4.1 accepts `off` as
   well as empty).
+- **Starting and stopping a server for browser checks:**
+  `Start-Process <env>\python.exe -m shiny run` dies silently with no
+  log; start through `micromamba.bat run -n shiny python -m shiny run
+  --port N app.py` with `-RedirectStandardOutput`/`-RedirectStandardError`.
+  `Get-NetTCPConnection -LocalPort N -State Listen` can report
+  `OwningProcess 0` for a live server, so kill by command line instead:
+  `Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object CommandLine -match "--port N" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`.
 
 ## Global Constraints
 
@@ -668,8 +683,19 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     returning `(name, source)` pairs. `source` is one of `knowledge_db,
     governance, socioeconomic, regional, issue, ecosystem, habitat,
     generic`.
-- **Algorithm:** port from `.superpowers/k1-prototypes/kbport.py`, which
-  already matches R. Every trap in spec §4.2 applies:
+- **Algorithm:** port lookup, grid suggestions and dedup from
+  `.superpowers/k1-prototypes/kbport.py`, which matches R for those.
+  **Port from R directly, not kbport** (kbport lacks or breaks these):
+  - `get_habitat_specific_suggestions`: about 300 lines,
+    `ai_isa_knowledge_base.R:642-942`, a nested `switch` by sea group with
+    defaults (kbport raises `NotImplementedError` here);
+  - `get_context_connections`: `ses_knowledge_db_loader.R:262-307`;
+  - `sea=None`/`""`: R's `paste0(character(0), "_")` is `"_"`, so no
+    context matches and the result is None (kbport crashes); `("baltic",
+    None)` resolves `sea_only` like R;
+  - a JSON `"relevance": null` counts as 0.5 (R's `%||%`; kbport crashes).
+
+  Every trap in spec §4.2 applies:
   - `re.split(r"\s+", …)`;
   - the single-pass suffix strip;
   - `intersect` uniqueness against a duplicate-counting denominator;
@@ -695,15 +721,22 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `test_unknown_sea_slug_no_exception`: `"atlantis"` (no `atlantis_*`
     context, no `countries_by_sea` entry) and `""` give generic-fallback
     items and `find_context(...) is None` (Review Focus 1);
-  - `test_legacy_macaronesia_resolves_like_r`: SP1's `"macaronesia"`
-    resolves `sea_only` to `macaronesia_island`, exactly as R's fallback
-    does (not a bug to fix);
+  - `test_legacy_macaronesia_resolves_like_r`: SP1's `"macaronesia"` with
+    `"Open coast"` resolves **exact** to `macaronesia_open_coast`, and with
+    `"Coral reef"` (no macaronesia context) resolves `sea_only` to
+    `macaronesia_island`, both as R does (verified with Rscript; not a bug
+    to fix);
+  - `test_none_sea_or_ecosystem_like_r`: `(None, "Open coast")` and
+    `("", None)` → None, no exception; `("baltic", None)` → `sea_only`;
+  - `test_null_relevance_is_half`: a synthetic KB with `"relevance": null`
+    ranks the element as 0.5;
   - `test_free_text_ecosystems_match_r` over `lookup["free_text"]`, R's own
     resolution of the three R-import strings (Review Focus 2).
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_kb_suggestions.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement** the interfaces.
-- [ ] **Step 4: Run the tests.** Expected: PASS (all grid cells).
+- [ ] **Step 4: Run the tests.** Expected: PASS (all grid cells; the
+  13,524-cell grid test alone takes about 3.5 min).
 - [ ] **Step 5: Commit** `feat(k1): R-exact knowledge-base lookup and suggestions`.
 
 ---
@@ -806,7 +839,9 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     `test_analysis_boolean_clamp.py::...[50-12]`, which already fails on
     the baseline (a test_server 5 s timeout under load). It is not a K1
     regression; note it, don't fix it here.
-  - The full run takes about 10 minutes.
+  - The full run takes about 10 minutes now, and about 18 minutes once
+    Tasks 6 and 11–13 land (the grid test plus the wizard server tests).
+    Run it detached and poll in bounded `Start-Sleep` calls.
 - [ ] **Step 6: Commit** `feat(k1): project schema 9 with reference_data` (one commit, with the templates).
 
 ---
@@ -952,7 +987,14 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - A Skip button `skip_{target}` on steps 2 and 3, labelled
     `modules.isa.ai_assistant.skip_this_question`, records `[]` and
     advances.
-  - Empty Next is accepted on steps 2 and 3.
+  - The Skip handler acts only when its target is the current step and
+    the wizard is active (the same guard as the chip handlers).
+  - Empty Next is accepted on steps 2 and 3. `_on_next` reads
+    `answer_countries` with `SilentException` caught, because the input is
+    unset when nothing was ever selected.
+  - Tests in this task assert through answers/`WizardState`, never by
+    grepping `entry_<target>_<i>` ids: Task 12 changes those ids to
+    `entry_{gen}_{target}_{i}`.
   - **Sea change:** `_on_next` for step 0 filters
     `wizard_answers["countries"]` to the new sea's codes.
   - `claude_backend.py:313` joins `state.country_names`.
@@ -961,8 +1003,14 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     tests.
 
 - [ ] **Step 1: Write failing tests:**
-  - `test_country_choices_from_governance` (Pacific has FM and no CN;
-    Caribbean has 27);
+  - `test_country_choices_from_governance` (Pacific has FM and none of
+    CN, JP, ID, PH, CL; Caribbean has 27 and neither FR nor NL; Atlantic
+    has no US; DK/FR/NL names carry no "(Greenland)"/"(overseas)"
+    suffix);
+  - in `tests/test_regional_seas.py`, **delete** the per-sea country spot
+    checks (atlantic US, pacific JP, caribbean FR/NL): the JSON no longer
+    has countries. Country coverage lives in Task 6's
+    `test_countries_for_sea_matches_r` and the test above;
   - `test_values_are_codes_and_names_resolved`;
   - `test_empty_next_allowed_on_steps_2_3`;
   - `test_skip_button_records_empty`;
@@ -1026,7 +1074,6 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     `freeform_drivers_container`.
   - **Exports for tests,** with string keys (orjson rejects int keys):
     `export_test_values(pending=lambda: {t: {str(i): v for i, v in d.items()} for t, d in pending.get().items()}, gen=lambda: dict(gen.get()))`.
-    These replace the `_test_hooks` seam below wherever reading is enough.
   - `effective_rows(target) -> list[tuple[bool, str]]` (exists, value).
     Value is pending, else live-if-exists, else saved.
   - `row_count(target) -> int`, defined in §4.3.
@@ -1049,7 +1096,10 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   and buttons):
   - `test_remove_then_add_no_stale_text`;
   - `test_replace_then_reenter_blank`;
-  - `test_failed_next_keeps_pending_row`;
+  - `test_failed_next_keeps_pending_row`: without chips the only pending
+    source is the Add tombstone (type in row 1, Remove, Add over the stale
+    live value), then a Next that fails validation; a failed Next does not
+    re-render, so assert the `pending` export, not rendered rows;
   - `test_back_next_idempotent`;
   - `test_unsaved_text_discarded_by_back` (documents the behaviour change).
   - **Reading internals:** tests read `pending` and `gen` through the
@@ -1081,8 +1131,18 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     `kb-badge kb-badge-{KB|GOV|SE}` for sources `knowledge_db`,
     `governance` and `socioeconomic`. The tooltip uses R's keys. A
     selected chip has class `chip-on`, others `chip-off`.
-  - A caption ` (Tailored for <translated sea name> - <ecosystem>)`
-    (R key `tailored_for`), shown when a sea is set.
+  - A caption, shown when a sea is set, built as R does
+    (`ai_isa_assistant_module.R:1574-1582`): ` (` + `t("tailored_for")`
+    in the key's own casing (en "tailored for") + ` ` + sea name, then
+    ` - <ecosystem>` **only if** an ecosystem is set, then `)`. The sea
+    name is the English `REGIONAL_SEAS[slug]["name"]`: SESPy has no
+    per-sea i18n keys (R's `name_i18n`), a known difference for the
+    CHANGELOG. Tests: `test_caption_without_ecosystem`,
+    `test_caption_with_ecosystem`.
+  - Each `chips_{target}` render returns empty unless its target is the
+    current step, so the suggestion pipeline runs once per change, not
+    seven times. Test: `test_chips_render_only_current_step` (spy on
+    `get_context_suggestions`: one call per step change).
   - 7 × 12 handlers registered once. They recompute the list at click
     time, do nothing past its end, and do nothing if the target is not the
     current step.
@@ -1120,10 +1180,18 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 - [ ] **Step 4: Replay the prototype driver's scenario list** against the
   real app in a browser, as an extra check beyond the committed tests.
   - Adapt `chips/drive_gen.py` into a throwaway script in the session
-    scratchpad.
-  - Run the app on port 8772 with `SESPY_R_DATA_DIR=off`, and kill the
-    server afterwards.
-  - Expected: all scenarios pass.
+    scratchpad. The prototype's `debug` and `meta` outputs do not exist in
+    the real app: run with `SHINY_TESTMODE=1` and read `pending`/`gen`
+    through the test-mode exports where a scenario asserts server state;
+    scenarios that assert render or input-key **counts** (X3b, X4) have
+    no equivalent and are dropped, and the report says which.
+  - Run the app on port 8772 with `SESPY_R_DATA_DIR=off` (see Environment
+    notes for start/kill), and kill the server afterwards.
+  - Expected: every kept scenario passes. Known, accepted: after Back,
+    rows keep the stale `freeform_counts` (2 saved items can render as
+    3–4 rows with trailing blanks); saved answers are correct. This is
+    today's Back behaviour and the spec's row-count rule, not a
+    regression.
 - [ ] **Step 5: Run** the tests plus `tests/test_wizard.py`. Expected: PASS.
 - [ ] **Step 6: Commit** `feat(k1): knowledge-base suggestion chips in wizard steps 4-10`.
 
@@ -1546,7 +1614,7 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   Step 6 of the KB e2e asserts in the report preview iframe
   (`page.frame_locator('#report-report_preview iframe')`), not a download.
 - [ ] **Step 3: Kill anything on port 8000** first (it reuses stale
-  servers; see memory), then run the full suite detached with
+  servers; see memory; kill by command line as in Environment notes), then run the full suite detached with
   `Start-Process` + a log, as in the project's long-run practice:
   `micromamba run -n shiny python tests/run_e2e.py`. Wait by polling the
   log in bounded `Start-Sleep` PowerShell calls (a background monitor
@@ -1570,7 +1638,14 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - the features;
   - the known differences: no max-elements limit; unsaved step text
     discarded by Back; R's recommendation lines deferred to P14;
-    countries changed per the §1.1(3) table;
+    countries changed per the §1.1(3) table (governance-driven lists drop
+    countries SP2 offered, e.g. Atlantic US, Pacific CN/JP/ID/PH/CL,
+    Caribbean FR/NL; DK/FR/NL lose their "(Greenland)"/"(overseas)"
+    suffix, which also changes the AI prompt text for those picks); the
+    chip caption names the sea in English (no per-sea translations);
+    no Select All / Clear All on the country step (selectize optgroups
+    instead of R's EU/non-EU buttons); chip matching compares
+    whitespace-stripped text;
   - the schema-9 forward-fix rollback policy, and the rollback procedure
     (Task 17: `git worktree add <dir> v1.15.0`, then
     `DEPLOY_REPO_ROOT=<dir> deploy/deploy.sh --rollback` from the
@@ -1595,6 +1670,13 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - §4.8.5: rollback runs the current `deploy.sh` with
     `DEPLOY_REPO_ROOT` pointing at a worktree of the old tag;
   - §4.10: the MosaicSES version lives in `multises/__init__.py`;
+  - §4.3: "SP4 prompt content stays the same for the same picks" is false
+    for DK, FR and NL (their names lose the SP2 suffix);
+  - §4.3 chip rule 6: the caption is R's `tailored_for` text in the key's own
+    casing, the ecosystem part is conditional, and the sea name is
+    English;
+  - §4.2 / plan Task 6: macaronesia + "Open coast" resolves **exact**;
+    only habitats with no macaronesia context fall to `sea_only`;
   - §9: the R_SYNC row reference (by content, not line);
   - §4.9: the prefix rule does **not** pull in `eu_member_state`;
   - §4.9: the `data/` rule does not cover `RUNTIME_INPUTS` in fixture mode;
