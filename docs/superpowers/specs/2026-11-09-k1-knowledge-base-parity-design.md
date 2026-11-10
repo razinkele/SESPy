@@ -735,9 +735,10 @@ to the snapshot, and passed to the module servers like `event_bus`.
 **Writing — at serialisation.** `project_data` is never mutated for
 provenance.
 - The stamp is computed as `merged = {**meta.reference_data, **{f:
-  snapshot.files[f].provenance() for f in reference_reads}}`.
-  - `Entry.provenance()` returns exactly `{source, sha256_norm, version,
-    vendored_r_tag}`; the tag comes from the manifest.
+  snapshot.provenance(f) for f in reference_reads}}`.
+  - `Snapshot.provenance(name)` returns exactly `{source, sha256_norm,
+    version, vendored_r_tag}`, via `Entry.provenance(vendored_r_tag)`; the
+    tag comes from the manifest.
   - It never includes `data`. A test asserts that a saved file carries no
     `data` key and stays small.
 - It is threaded through a new keyword argument, default `None`, meaning

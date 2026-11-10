@@ -137,6 +137,12 @@ with test_server(server) as ts:          # server wraps ai_isa_wizard_server("wi
   - from `report_context.json`: `modules.report_context.include_context`.
 - **SESPy-only keys** (provenance toasts, About section labels) go in
   `sespy/translations/core.json`, inside the `"translation"` wrapper.
+  - Each key needs **all 9 languages** (en es fr de lt pt it no el);
+    `test_i18n.py::test_loader_handles_all_supported_languages` enforces
+    this.
+  - Insert keys **textually**, matching the file's formatting. Never
+    re-serialise `core.json` wholesale: `json.dumps` churns about 1,900
+    lines.
 - **e2e selectors** are namespaced ids or the `data-row` hook. Never
   `[id$=…]`, and never a bare `text=`.
 - **Gates:**
@@ -556,7 +562,11 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `refresh() -> None`;
   - `current() -> Snapshot`;
   - `hashes_for_load_check(name) -> tuple[str, str | None]`, returning
-    `(vendored_hash, last_parsed_shared_hash)`.
+    `(vendored_hash, last_parsed_shared_hash)`. `last_parsed_shared` is
+    the hash of the last shared copy that **validated**: it survives a
+    fallback to vendored, and is None before any shared parse.
+  - Module internals: `ENV_VAR`, `SETTINGS_FILE`, `_Registry`, and the
+    instance `_REGISTRY`. The logger is `sespy.r_kb`.
 - **Behaviour:** spec §4.1.
   - **Env precedence:** if `"SESPY_R_DATA_DIR" in os.environ`, it wins;
     else read `app_dir/server_settings.env` at every `refresh()`.
@@ -594,14 +604,25 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
   - `test_unreadable_dir_goes_vendored` (Review Focus 5; skip on Windows
     if chmod is ineffective, and also simulate with a monkeypatched
     `os.stat` raising `PermissionError`);
-  - `test_same_size_same_mtime_rewrite_detected` (set the mtime back with
-    `os.utime`, and assert the swap through ctime/inode);
+  - `test_same_size_same_mtime_rewrite_detected`: rewrite via a temp file +
+    `os.replace` (a rename swap, as R's deploy does) with identical size
+    and the mtime restored by `os.utime`; assert the swap through the inode
+    and ctime change. An in-place rewrite is **not** detectable on Windows,
+    where `st_ctime_ns` is the creation time;
+  - `test_hashes_for_load_check` (None before a shared parse; survives a
+    fallback);
+  - also `test_label_shared_differs`, `test_missing_file_in_present_dir`,
+    `test_unchanged_files_not_reparsed`, `test_live_r_version_read` and
+    `test_unconfigured_registry_is_vendored`;
   - `test_two_sessions_keep_their_snapshots` (`a = current()`, swap the
     file, `refresh()`, `b = current()`, then `a.kb() != b.kb()` and `a` is
     unchanged);
   - `test_never_writes` (snapshot the directory's mtimes and file list
     before and after);
   - `test_transition_logged` (caplog contains `r_kb.transition`).
+  Each test monkeypatches `r_kb._REGISTRY` with a fresh `r_kb._Registry()`.
+  A file that is still broken re-logs `to=last-good` once per `refresh()`,
+  which is accepted. With no last-good copy, the log says `to=vendored`.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_r_kb_registry.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement** in `sespy/r_kb.py`: a module-level `_Registry`
@@ -735,7 +756,14 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
 **Files:**
 - Modify: `sespy/data_structure.py` (:22, :27, `ProjectMetadata` :283-303, `Project.from_dict` :584-)
 - Regenerate: `sespy/templates/marinesabres/*.json` (7) via sync
-- Test: create `tests/test_schema_v9.py`; update `tests/test_data_structure.py`, `tests/test_schema_v7.py`, `tests/test_schema_v8.py:37` and `tests/test_r_template_catalogue.py` where they pin 8
+- Test: create `tests/test_schema_v9.py`. Update the schema pins:
+  - `tests/test_schema_v8.py:37-38, 43-44, 50` (use
+    `SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]`);
+  - `tests/test_data_structure.py:17-18`;
+  - `tests/test_schema_v7.py`;
+  - `tests/test_r_template_catalogue.py:225, 693`
+    (`test_shipped_templates_are_schema_9`, which also asserts
+    `reference_data == {}`).
 
 **Interfaces:**
 - Produces:
@@ -760,8 +788,10 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     update every schema pin.
 - [ ] **Step 4: Regenerate templates** with
   `micromamba run -n shiny python -m scripts.sync_r_templates --from-fixtures`.
-  Expected: the 7 template files change (gaining `reference_data: {}` and
-  the 1.16.0 stamp); nothing else changes.
+  Expected: the 7 template files change content (gaining
+  `reference_data: {}` and the 1.16.0 stamp). `git status` may also show
+  `catalogue.json`, `manifest.json` and the two translation files as
+  touched, with line endings only and an empty diff.
 - [ ] **Step 5: Run the CI unit set:**
   `micromamba run -n shiny python -m pytest tests -q -p no:cacheprovider --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py`.
   - Expected: PASS, except
@@ -830,15 +860,24 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     import.
   - `add_reads(reads: reactive.Value[frozenset[str]], names: Iterable[str])
     -> None` in `sespy/r_kb.py`. It reads under `isolate()` and calls
-    `set` only if a name is new.
+    `set` only if a name is new. `r_kb` stays stdlib-only at import, so
+    `from shiny import reactive` is a lazy import inside this function.
+  - When `snapshot` or `reference_reads` is None, save and autosave pass
+    `reference_data=None`, and the load check is skipped.
   - `quick_actions_server(..., snapshot: Snapshot | None = None,
     reference_reads: reactive.Value[frozenset[str]] | None = None)`. Save
     and autosave pass `reference_data=current_provenance(...)`. Autosave
     reads `reference_reads` under `isolate()`.
-  - **Reset:** `reference_reads.set(frozenset())` on
-    `event_bus.project_loaded`, `event_bus.template_loaded` and in `_on_new`.
-  - **Load check:** triggered by `event_bus.project_loaded` and
-    `event_bus.template_loaded`, in the same effect family as `_newer_build_warning`
+  - **Reset and load check are one effect:**
+    `@reactive.event(event_bus.project_loaded, event_bus.template_loaded, ignore_init=True)`.
+    It resets `reference_reads` to `frozenset()`, then runs the check,
+    reading `project_data` under `isolate()`. It never reacts to
+    `project_data` itself, which would re-check on every edit. `_on_new`
+    resets `reference_reads` directly.
+  - **Toasts:** one per file, id `kb-provenance-<file>`, `type="warning"`,
+    `duration=None` (sticky). Stale toasts are not removed on the next
+    load. Entries for files the snapshot doesn't have are skipped.
+  - **Load check details,** placed beside `_newer_build_warning`
     (`project_io.py:242-269`). For each entry it compares with
     `snapshot.files[f].sha256_norm` and `r_kb.hashes_for_load_check(f)`,
     and toasts `core.json` keys `kb.provenance_differs` and
@@ -858,8 +897,16 @@ def test_fixture_tag_mismatch_is_reported(tmp_path): ...   # sync returns code 1
     input, satisfy `recovery_checked`, and monkeypatch
     `sespy.modules.project_io.write_autosave` to capture the call.
 
-  Compose `quick_actions_server` in a bare test server; never import
-  `app.py`.
+  - `test_save_download_carries_provenance`. `test_server` cannot press a
+    `render.download_button`, so call
+    `session._downloads["save_project"].handler()` under `isolate()`. This
+    is a private API, accepted for this one test.
+
+  Compose `quick_actions_server` in a bare root-level test server (it is
+  not a module, so there is no `make_scope`). Never import `app.py`:
+  `server()` and `dashboard._restore_view_from_url` read
+  `clientdata.url_search()` before `test_server` sends client data, and
+  that raises ValueError.
 - [ ] **Step 2: Run** `micromamba run -n shiny python -m pytest tests/test_k1_wiring.py -q`.
   Expected: FAIL.
 - [ ] **Step 3: Implement** the wiring. Pass `snapshot` to the wizard,
