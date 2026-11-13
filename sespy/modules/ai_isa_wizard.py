@@ -20,6 +20,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, assert_never
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
+from shiny.module import resolve_id
 from shiny.testmode import export_test_values
 from shiny.types import SilentException
 
@@ -161,55 +162,83 @@ def _render_choice_many(step: dict, answers: dict, *, gov: dict | None = None) -
     )
 
 
+def _row_id(gen: int, target: str, i: int) -> str:
+    """Freeform row input id (K1). `gen` is the target's visit generation:
+    Shiny keeps an input's last value after its element leaves the DOM, so
+    a row id from an earlier visit or wizard run must never be reused."""
+    return f"entry_{gen}_{target}_{i}"
+
+
+def _live_row(input, gen: int, target: str, i: int) -> tuple[bool, str]:
+    """(exists, value) of a row input of generation `gen`. It exists once
+    the client has registered it; an unregistered input raises
+    SilentException on read."""
+    try:
+        v = input[_row_id(gen, target, i)]()
+    except SilentException:
+        return False, ""
+    return True, (v if v is not None else "")
+
+
+def _row_count(target: str, answers: dict, counts: dict, pending: dict) -> int:
+    """max(freeform_counts, len(saved), max(pending index) + 1, 1) (§4.3)."""
+    pd = pending.get(target, {})
+    return max(counts.get(target, 1), len(answers.get(target, [])),
+               (max(pd) + 1) if pd else 0, 1)
+
+
+def _effective_rows(
+    input, gen: int, target: str, answers: dict, counts: dict, pending: dict,
+) -> list[tuple[bool, str]]:
+    """Per row (exists, value): the pending server write if there is one
+    (including ""), else the live input if it exists in this generation
+    (even ""), else the saved answer, else ""."""
+    saved = answers.get(target, [])
+    pd = pending.get(target, {})
+    rows: list[tuple[bool, str]] = []
+    for i in range(_row_count(target, answers, counts, pending)):
+        exists, live = _live_row(input, gen, target, i)
+        if i in pd:
+            rows.append((exists, pd[i]))
+        elif exists:
+            rows.append((exists, live))
+        else:
+            rows.append((exists, saved[i] if i < len(saved) else ""))
+    return rows
+
+
 def _render_freeform_multiple(
-    step: dict, answers: dict, counts: dict, input,
+    step: dict, answers: dict, counts: dict, input, *,
+    gen: int, pending: reactive.Value[dict[str, dict[int, str]]],
 ) -> ui.Tag:
     """Render a list of input_text rows + Add/Remove buttons.
 
-    `counts[target]` is the number of rows currently visible. Pre-populates
-    from `answers[target]` (a list[str]) when re-entering a step via Back —
-    in that case we ALSO bump counts[target] up to match the saved length.
-
-    `input` is passed in (rather than closure-captured) because this is a
-    module-top-scope helper. We use it to snapshot live typing-in-progress
-    so that clicking Add/Remove doesn't wipe what the user just typed.
-    Without this snapshot, the renderer would re-emit `value=""` for any
-    row that hasn't been saved yet, and Shiny would push that empty value
-    back to the client, overwriting the typed text — exactly the spec §9
-    risk. Reads are wrapped in `reactive.isolate()` so we don't subscribe
-    to every entry input (which would cause the renderer to fire on every
-    keystroke).
+    Rows are `entry_{gen}_{target}_{i}`; each row's value is its effective
+    value (`_effective_rows`). The caller reads `answers`, `counts` and
+    `gen` reactively; `pending` and the live inputs are read here under
+    `reactive.isolate()`, so typing (or a pending entry being cleared) does
+    not re-render the step, while an Add/Remove re-render keeps what the
+    user typed. A new visit (new `gen`) has no live inputs and renders from
+    the saved answers.
     """
     target = step["target"]
-    saved = answers.get(target, [])
-    n_rows = max(counts.get(target, 1), len(saved), 1)
-    placeholder = t(f"wizard.placeholder_{target}")
-    # Snapshot live input values so typing survives Add/Remove re-renders.
-    current_values: list[str] = []
     with reactive.isolate():
-        for i in range(n_rows):
-            try:
-                v = input[f"entry_{target}_{i}"]()
-                current_values.append(v if v is not None else "")
-            except Exception:
-                # Input doesn't exist yet (first render) — empty default.
-                current_values.append("")
+        values = [v for _e, v in _effective_rows(
+            input, gen, target, answers, counts, pending.get())]
+    placeholder = t(f"wizard.placeholder_{target}")
     rows = []
-    for i in range(n_rows):
-        row_id = f"entry_{target}_{i}"
-        # Priority: live typing > saved value > empty.
-        value = current_values[i] or (saved[i] if i < len(saved) else "")
-        rows.append(
-            ui.div(
-                ui.input_text(
-                    row_id, "",
-                    value=value,
-                    placeholder=placeholder,
-                    width="100%",
-                ),
-                style="margin-bottom: 4px;",
-            )
+    for i, value in enumerate(values):
+        text = ui.input_text(
+            _row_id(gen, target, i), "",
+            value=value,
+            placeholder=placeholder,
+            width="100%",
         )
+        # Stable test hook on the <input> itself (ui.input_text takes no
+        # attrs; on the wrapper div Playwright's fill() would fail).
+        [c for c in text.children
+         if getattr(c, "name", None) == "input"][0].attrs["data-row"] = f"{target}_{i}"
+        rows.append(ui.div(text, style="margin-bottom: 4px;"))
     rows.append(
         ui.div(
             ui.input_action_button(
@@ -224,7 +253,8 @@ def _render_freeform_multiple(
             style="margin-top: 8px;",
         )
     )
-    return ui.div(*rows, id=f"freeform_{target}_container")
+    # Ids inside a module's @render.ui are not namespaced automatically.
+    return ui.div(*rows, id=resolve_id(f"freeform_{target}_container"))
 
 
 ROW_JS = r"""
@@ -556,6 +586,59 @@ def ai_isa_wizard_server(
     wizard_claude_generation: reactive.Value[int] = reactive.Value(0)
     # Per-target counts for the freeform_multiple archetype's dynamic UI.
     freeform_counts: reactive.Value[dict[str, int]] = reactive.value({})
+    _freeform_targets = ["drivers", "activities", "pressures", "states",
+                         "impacts", "welfare", "responses"]
+    # K1 pending overlay (spec §4.3): every server-issued row write (the Add
+    # tombstone now; chip fills and deselects in Task 13), per target and
+    # row index, until the client echoes it. It wins over the live input.
+    pending: reactive.Value[dict[str, dict[int, str]]] = reactive.value({})
+    # Per-target visit generation in the row ids, bumped on every entry to
+    # the step and on Replace, so stale inputs from an earlier visit or run
+    # never resurface.
+    gen: reactive.Value[dict[str, int]] = reactive.value(
+        {t_: 0 for t_ in _freeform_targets})
+
+    def _gen_of(target: str) -> int:
+        return gen.get().get(target, 0)
+
+    def effective_rows(target: str) -> list[tuple[bool, str]]:
+        """(exists, value) per row: pending, else live-if-exists, else saved."""
+        return _effective_rows(input, _gen_of(target), target, wizard_answers.get(),
+                               freeform_counts.get(), pending.get())
+
+    def row_count(target: str) -> int:
+        return _row_count(target, wizard_answers.get(), freeform_counts.get(),
+                          pending.get())
+
+    def _set_pending(target: str, i: int, value: str) -> None:
+        p = dict(pending.get())
+        p[target] = dict(p.get(target, {}))
+        p[target][i] = value
+        pending.set(p)
+
+    def _drop_pending(target: str) -> None:
+        p = dict(pending.get())
+        if p.pop(target, None) is not None:
+            pending.set(p)
+
+    def _bump_gen(targets: list[str]) -> None:
+        """New visit for `targets`: fresh row ids, and their pending dropped
+        (so a server write from the previous visit never leaks into it)."""
+        g = dict(gen.get())
+        p = dict(pending.get())
+        for t_ in targets:
+            g[t_] = g.get(t_, 0) + 1
+            p.pop(t_, None)
+        gen.set(g)
+        pending.set(p)
+
+    def _enter_step(idx: int) -> None:
+        """Move to step `idx` (Next, Back, Skip); entering a freeform step
+        starts a new visit."""
+        new_step = WIZARD_STEPS[idx]
+        if new_step["archetype"] == "freeform_multiple":
+            _bump_gen([new_step["target"]])
+        wizard_step.set(idx)
 
     # ---- Placeholders — Tasks 8-14 fill these in ----------------------------
 
@@ -612,6 +695,8 @@ def ai_isa_wizard_server(
         event_bus.emit_cld_update()
         wizard_answers.set({})
         freeform_counts.set({})
+        pending.set({})
+        _bump_gen(_freeform_targets)   # rows of the previous run never resurface
         wizard_completed.set(False)
         wizard_active.set(True)
         wizard_step.set(0)
@@ -623,16 +708,20 @@ def ai_isa_wizard_server(
         # wizard_active is False by construction (modal only opens when False).
         ui.modal_remove()
 
-    # Add/Remove handlers — one pair per freeform_multiple target.
-    _freeform_targets = ["drivers", "activities", "pressures", "states",
-                         "impacts", "welfare", "responses"]
-
+    # Add/Remove handlers — one pair per freeform_multiple target. Both work
+    # on the effective row count (§4.3).
     def _make_add_handler(target: str):
         @reactive.effect
         @reactive.event(input[f"add_{target}"], ignore_init=True)
         def _():
+            n = row_count(target)
             counts = dict(freeform_counts.get())
-            counts[target] = counts.get(target, 1) + 1
+            counts[target] = n + 1
+            # Tombstone: index n may still hold text from before a Remove in
+            # this generation; the re-added row starts blank.
+            exists, live = _live_row(input, _gen_of(target), target, n)
+            if exists and live:
+                _set_pending(target, n, "")
             freeform_counts.set(counts)
         return _
 
@@ -640,13 +729,36 @@ def ai_isa_wizard_server(
         @reactive.effect
         @reactive.event(input[f"remove_{target}"], ignore_init=True)
         def _():
+            new = max(row_count(target) - 1, 1)
             counts = dict(freeform_counts.get())
-            counts[target] = max(counts.get(target, 1) - 1, 1)
+            counts[target] = new
+            p = dict(pending.get())
+            if target in p:
+                p[target] = {k: v for k, v in p[target].items() if k < new}
+                pending.set(p)
             freeform_counts.set(counts)
         return _
 
+    # Clearing: drop a pending entry as soon as the live input of the current
+    # generation reports the same value (the client echoed the server write),
+    # so pending does not mask what the user types next.
+    def _make_clear_effect(target: str):
+        @reactive.effect
+        def _():
+            pd = pending.get().get(target, {})
+            if not pd:
+                return
+            g = _gen_of(target)
+            done = [k for k, v in pd.items() if _live_row(input, g, target, k) == (True, v)]
+            if done:
+                with reactive.isolate():
+                    p = dict(pending.get())
+                p[target] = {k: v for k, v in p.get(target, {}).items() if k not in done}
+                pending.set(p)
+        return _
+
     _freeform_handlers = [
-        (_make_add_handler(t_), _make_remove_handler(t_))
+        (_make_add_handler(t_), _make_remove_handler(t_), _make_clear_effect(t_))
         for t_ in _freeform_targets
     ]
 
@@ -668,7 +780,7 @@ def ai_isa_wizard_server(
             ans = dict(wizard_answers.get())
             ans[target] = []
             wizard_answers.set(ans)
-            wizard_step.set(wizard_step.get() + 1)
+            _enter_step(wizard_step.get() + 1)
         return _
 
     _skip_handlers = [_make_skip_handler(t_) for t_ in ("countries", "main_issue")]
@@ -704,18 +816,10 @@ def ai_isa_wizard_server(
                 raw = None
             answer = list(raw) if raw else []
         elif archetype == "freeform_multiple":
-            # Read row count from BOTH freeform_counts (display state)
-            # AND len(saved answers) — the renderer expands rows for
-            # saved answers without writing back to freeform_counts, so
-            # using freeform_counts alone misses Back-navigation rows.
-            counts = freeform_counts.get()
-            saved = wizard_answers.get().get(target, [])
-            n = max(counts.get(target, 1), len(saved))
-            raw_entries: list[str] = []
-            for i in range(n):
-                v = (input[f"entry_{target}_{i}"]() or "").strip()
-                if v:
-                    raw_entries.append(v)
+            # Effective values over the effective row count (K1 §4.3):
+            # pending server writes win, then this visit's live inputs, then
+            # the saved answers (rows the client has not echoed yet).
+            raw_entries = [v.strip() for _e, v in effective_rows(target) if v.strip()]
             if not raw_entries:
                 ui.notification_show(
                     t("wizard.validation_error"), type="warning", duration=3,
@@ -832,11 +936,14 @@ def ai_isa_wizard_server(
             valid = {c["code"] for c in countries_for_sea(_gov(), answer)}
             ans["countries"] = [c for c in ans["countries"] if c in valid]
         wizard_answers.set(ans)
+        if archetype == "freeform_multiple":
+            # Only after a successful write: a failed Next keeps pending.
+            _drop_pending(target)
 
         if step_idx + 1 == 11:
             wizard_suggestions_sp3.set(suggest_connections(_assemble_wizard_state()))
 
-        wizard_step.set(step_idx + 1)
+        _enter_step(step_idx + 1)
 
     def _assemble_wizard_state() -> WizardState:
         """Build a WizardState snapshot from current reactive state."""
@@ -857,6 +964,10 @@ def ai_isa_wizard_server(
         step=wizard_step.get,
         answers=wizard_answers.get,
         wizard_state=lambda: dataclasses.asdict(_assemble_wizard_state()),
+        # String keys: orjson rejects int keys.
+        pending=lambda: {t_: {str(i): v for i, v in d.items()}
+                         for t_, d in pending.get().items()},
+        gen=lambda: dict(gen.get()),
     )
 
     @reactive.extended_task
@@ -1028,7 +1139,9 @@ def ai_isa_wizard_server(
             counts = dict(freeform_counts.get())
             counts[target] = max(counts.get(target, 1), len(saved), 1)
             freeform_counts.set(counts)
-        wizard_step.set(new_step_idx)
+        # A new visit renders from the saved answers: text typed on the step
+        # and never saved by Next is discarded (K1 behaviour change).
+        _enter_step(new_step_idx)
 
     def _apply_row_edits(s: ConnectionSuggestion, tag: str, i: int) -> ConnectionSuggestion:
         """A row's polarity switch and reverse control (feedback #17). An
@@ -1208,6 +1321,7 @@ def ai_isa_wizard_server(
         elif archetype == "freeform_multiple":
             widget = _render_freeform_multiple(
                 step, wizard_answers.get(), freeform_counts.get(), input,
+                gen=_gen_of(step["target"]), pending=pending,
             )
         elif archetype == "connection_review":
             claude_available = bool(
