@@ -4,6 +4,20 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+### Fixed
+- **SES Wizard: finished work could be deleted by mistake** (live feedback
+  #18, 2026-11-11: "After answering all the questions of the Wizard and
+  pressing continue, the progress was deleted"). Finish kept the elements
+  but returned the wizard to its fresh-start screen, whose only button led
+  to a "Replace existing SES?" dialog with a "Continue, replace it" button
+  that clears the project. After Finish the wizard now shows "Your SES is
+  ready" with the element and connection counts, buttons that open CLD
+  Visualization and Edit Data, and "Start over". The dialog, ported from
+  the R app's "Start over", is now "Start over?" with a warning that all
+  elements and connections will be lost and a red "Yes, start over" button.
+  Its texts are translated into all 9 languages; before, they were English
+  in every language.
+
 ## [1.15.0] — 2026-10-23
 
 Roadmap P1b (response register, indicator fields and stakeholder roles;

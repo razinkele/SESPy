@@ -133,13 +133,22 @@ async def case_full_run(page):
         "() => document.getElementById('wizard-wizard_start') !== null"
     )
     assert present, "Start button should be present in DOM after Finish"
+    # Feedback #18: after Finish the wizard shows the completion panel (not
+    # the fresh-start screen) and its buttons open the pages that show the
+    # SES. Edit Data is reached below through the panel's own button.
+    panel = await page.evaluate(
+        "() => (document.querySelector('#wizard-wizard_step_render .wizard-complete')"
+        " || {}).innerText || ''"
+    )
+    assert "Your SES is ready" in panel and "7 elements" in panel, panel
+    assert "Click Start Wizard" not in panel, panel
 
     # Also assert the 7 freeform-step elements were actually persisted to
     # project_data.isa_data.elements. Without this check, a Finish that
     # silently dropped all writes would still pass the deactivated-state
     # check above. Navigate to Edit Data and look for the labels we
     # entered ("E2E drivers sample", "E2E activities sample", etc.).
-    await page.click("#sespy_nav_entry")
+    await page.click("#wizard-wizard_step_render .wizard-complete button:has-text('Edit Data')")
     expected_labels = [
         "E2E drivers sample", "E2E activities sample", "E2E pressures sample",
         "E2E states sample", "E2E impacts sample", "E2E welfare sample",
@@ -240,7 +249,7 @@ async def case_modal_replace(page):
     await _open_wizard(page)
     await page.click("#wizard-wizard_start")
     await page.wait_for_timeout(800)
-    # Modal Continue, replace it.
+    # Modal "Yes, start over" (wizard_replace).
     await page.click("#wizard-wizard_replace")
     await page.wait_for_timeout(1500)
     # Assert: wizard now active. Query the active pill (bg-primary class)
