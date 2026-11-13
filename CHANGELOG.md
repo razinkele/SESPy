@@ -4,6 +4,15 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+### Added
+- **SES Wizard: the confidence score is explained** (live feedback #16,
+  2026-11-11: "How is confidence score set in the AI-assisted SES
+  Creation?"). A note under each suggestions table says what its
+  Confidence column is based on. Rule-based: keyword matches in the two
+  element names (none 0.3, one 0.6, two or more 0.9; 0.5 for link types
+  with no keyword list). Claude: the model's own estimate. Both say to
+  check each suggestion. 9 languages.
+
 ### Fixed
 - **SES Wizard: finished work could be deleted by mistake** (live feedback
   #18, 2026-11-11: "After answering all the questions of the Wizard and

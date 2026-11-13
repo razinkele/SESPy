@@ -199,8 +199,13 @@ def _render_suggestions_table(
     *,
     prefix: str,
     title: str,
+    note: str | None = None,
 ) -> ui.Tag:
     """Render a suggestions table with accept-checkboxes.
+
+    `note` (feedback #16) is shown under the title: what the Confidence
+    column is based on, which differs between the rule-based and Claude
+    tables.
 
     `prefix` is the input-id prefix ('accept_sp3_' or 'accept_sp4_').
     Extracted from the existing inline rendering in
@@ -230,6 +235,7 @@ def _render_suggestions_table(
         ))
     return ui.tags.div(
         ui.tags.h6(title),
+        ui.tags.p(note, class_="text-muted", style="font-size: 0.85rem;") if note else None,
         ui.tags.table(*rows, class_="table table-sm"),
     )
 
@@ -265,6 +271,7 @@ def _render_connection_review(
     parts.append(_render_suggestions_table(
         sp3, prefix="accept_sp3_",
         title=t("wizard.suggestions_rule_based_n").format(n=len(sp3)),
+        note=t("wizard.confidence_help_rules") if sp3 else None,
     ))
 
     # Generate-with-Claude button — only when env key set + not disabled.
@@ -312,6 +319,7 @@ def _render_connection_review(
                     title=t("wizard.suggestions_claude_n").format(
                         n=len(outcome.suggestions)
                     ),
+                    note=t("wizard.confidence_help_claude"),
                 ))
             else:
                 parts.append(ui.tags.div(
