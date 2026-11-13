@@ -10,8 +10,8 @@ below six summary panels, so nothing visible changed near it.
 from __future__ import annotations
 
 import json
-from html import escape
 from contextlib import contextmanager
+from html import escape
 from pathlib import Path
 
 import pytest
