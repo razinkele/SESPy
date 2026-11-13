@@ -4,6 +4,23 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+### Fixed
+- **Network Metrics: "Show top N" seemed to do nothing** (live feedback #22,
+  2026-11-12). The slider sets the length of the "Top-ranked elements"
+  table, which sat below six summary panels, so nothing visible changed
+  near it. The table, distribution and sized network (the outputs the
+  sidebar drives) now come first, and the slider is labelled "Rows in the
+  ranking table" with a line saying what it changes. Leverage Points uses
+  the same label.
+
+### Added
+- **Network Metrics explains its terms** (live feedback #21, 2026-11-12:
+  "terms would not be clear for a beginner"). A line under the metric
+  choice says what the selected metric measures (Degree, Indegree,
+  Outdegree, Betweenness, Closeness, Eigenvector, PageRank), and
+  Social-ecological fit and Governance gap each open with a sentence saying
+  what their number measures. All in 9 languages.
+
 ## [1.15.0] — 2026-10-23
 
 Roadmap P1b (response register, indicator fields and stakeholder roles;
