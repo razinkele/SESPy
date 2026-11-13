@@ -777,12 +777,17 @@ class WizardState:
     """Snapshot of the wizard's accumulated context at the moment
     suggest_connections() is invoked. Holds the current SES element list
     plus the wizard-only ephemeral fields (countries, main_issue) that
-    don't persist to the project file."""
+    don't persist to the project file.
+
+    `countries` holds ISO codes (K1: R's governance data); `country_names`
+    holds their display names, resolved from the session snapshot when the
+    wizard assembles the state, for the SP4 prompt."""
     regional_sea: str = ""
     ecosystem_type: str = ""
     countries: list[str] = field(default_factory=list)
     main_issue: list[str] = field(default_factory=list)
     elements: list[Element] = field(default_factory=list)
+    country_names: list[str] = field(default_factory=list)
 
 
 @dataclass

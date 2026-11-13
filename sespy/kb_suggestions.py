@@ -33,6 +33,7 @@ __all__ = [
     "get_governance_elements",
     "get_socioeconomic_elements",
     "countries_for_sea",
+    "country_names_for",
     "get_context_suggestions",
 ]
 
@@ -684,6 +685,20 @@ def countries_for_sea(gov: dict | None, sea: str | None) -> list[dict]:
             records[code] = rec
     return [{"code": r.get("code"), "name_en": r.get("name_en"), "eu_member": r.get("eu_member") is True}
             for r in records.values()]
+
+
+def country_names_for(gov: dict | None, codes: list[str] | None) -> list[str]:
+    """The display name of each code, in the order given: ``name_en`` from
+    ``countries[code]``, else the code itself (R labels its country buttons
+    ``name_en %||% code``). SESPy-only helper for the wizard's
+    ``WizardState.country_names`` (K1 Task 11)."""
+    table = (gov or {}).get("countries") or {}
+    names: list[str] = []
+    for code in codes or []:
+        rec = table.get(code)
+        name = rec.get("name_en") if isinstance(rec, dict) else None
+        names.append(name or code)
+    return names
 
 
 # Hardcoded fallbacks, used by R only when the governance DB is unavailable

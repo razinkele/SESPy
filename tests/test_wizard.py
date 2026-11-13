@@ -55,8 +55,9 @@ def test_regional_seas_placeholder_has_at_least_baltic():
     baltic = REGIONAL_SEAS["baltic"]
     assert "name" in baltic
     assert "ecosystem_types" in baltic
-    assert "countries" in baltic
     assert "common_issues" in baltic
+    # K1: the wizard's countries come from R's governance data
+    assert "countries" not in baltic
 
 
 def test_suggest_connections_empty_state_returns_empty():

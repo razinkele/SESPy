@@ -1,8 +1,10 @@
 """Regional seas knowledge base — replaces SP1's placeholder dict.
 
 Loaded eagerly at module import via _load_kb(). The seas dict is
-exposed via get_regional_seas() (matches SP1's contract shape) and
-EU membership is exposed via get_eu_member_codes() for SP3.
+exposed via get_regional_seas() (matches SP1's contract shape). Since K1
+the wizard's countries and EU membership come from R's governance data
+(`sespy/data/r_kb/country_governance_db.json`, see
+`kb_suggestions.countries_for_sea`), so this file no longer lists them.
 """
 from __future__ import annotations
 
@@ -23,13 +25,5 @@ _KB = _load_kb()
 
 def get_regional_seas() -> dict[str, dict[str, Any]]:
     """Return the seas dict in SP1's contract shape: {slug: {name,
-    ecosystem_types, common_issues, countries, country_codes}}."""
+    ecosystem_types, common_issues}}."""
     return _KB["regional_seas"]
-
-
-def get_eu_member_codes() -> set[str]:
-    """Return ISO-2 codes of EU member states as a fresh `set` for fast
-    membership tests. Used by SP3's governance suggestions. (A `set` is
-    constructed each call rather than cached; it's microseconds for 22
-    elements and avoids any caller mutating a shared object.)"""
-    return set(_KB["eu_member_codes"])

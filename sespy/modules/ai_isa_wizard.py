@@ -20,8 +20,10 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, assert_never
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
+from shiny.testmode import export_test_values
 from shiny.types import SilentException
 
+from .. import r_kb
 from ..claude_backend import (  # NOTE: lazy import for runtime use lives in
     _REASON_TO_I18N,  #       claude_backend imports nothing from Shiny,
     ClaudeBackendError,  #       the @reactive.extended_task body (Task 13).
@@ -38,6 +40,7 @@ from ..data_structure import (
 )
 from ..event_bus import EventBus
 from ..i18n import Translator, t
+from ..kb_suggestions import countries_for_sea, country_names_for
 from ..utils import next_id
 from ..wizard import (
     ELEMENT_TYPE_MAP,
@@ -108,27 +111,53 @@ def _render_choice_one(step: dict, answers: dict) -> ui.Tag:
     return ui.tags.div(f"choice_one renderer doesn't know target {target!r}")
 
 
-def _render_choice_many(step: dict, answers: dict) -> ui.Tag:
-    """Render a multi-select step (steps 2, 3)."""
+def _country_choices(gov: dict | None, sea: str | None) -> dict[str, dict[str, str]]:
+    """Step-2 choices from R's governance data (K1): R `get_countries_for_sea`
+    split as R's country step does (module :1360-1432) into EU member states
+    and non-EU countries, each in `countries_by_sea` order. Values are ISO
+    codes, labels `name_en %||% code`. An empty group is left out, as R
+    leaves out its heading. Selectize optgroups replace R's headings."""
+    eu: dict[str, str] = {}
+    non_eu: dict[str, str] = {}
+    for c in countries_for_sea(gov, sea):
+        (eu if c["eu_member"] else non_eu)[c["code"]] = c["name_en"] or c["code"]
+    choices: dict[str, dict[str, str]] = {}
+    if eu:
+        choices[t("modules.isa.ai_assistant.eu_member_states")] = eu
+    if non_eu:
+        choices[t("modules.isa.ai_assistant.non_eu_countries")] = non_eu
+    return choices
+
+
+def _render_choice_many(step: dict, answers: dict, *, gov: dict | None = None) -> ui.Tag:
+    """Render a multi-select step (steps 2, 3). `gov` is the session's
+    governance data; None means the vendored copy."""
     target = step["target"]
-    selected = answers.get(target, [])
+    selected = list(answers.get(target, []))
     regional_sea = answers.get("regional_sea", "")
-    sea_data = REGIONAL_SEAS.get(regional_sea, {})
+    options: dict[str, Any] = {"plugins": ["remove_button"]}
     if target == "countries":
-        choices = sea_data.get("countries", [])
+        if gov is None:
+            gov = r_kb.VENDORED.governance()
+        choices: Any = _country_choices(gov, regional_sea)
         label = t("wizard.countries_label")
+        # selectize rebuilds its items from <option selected> in DOM order,
+        # and optgroups pin that order; `items` restores the click order
+        # after Back (user settings override the element's).
+        options["items"] = selected
     elif target == "main_issue":
-        choices = sea_data.get("common_issues", [])
+        issues = REGIONAL_SEAS.get(regional_sea, {}).get("common_issues", [])
+        choices = {c: c for c in issues}
         label = t("wizard.main_issue_label")
     else:
-        choices = []
+        choices = {}
         label = ""
     return ui.input_selectize(
         f"answer_{target}", label,
-        choices={c: c for c in choices},
+        choices=choices,
         selected=selected,
         multiple=True,
-        options={"plugins": ["remove_button"]},
+        options=options,
     )
 
 
@@ -500,6 +529,11 @@ def ai_isa_wizard_server(
     # K1: `snapshot` / `reference_reads` are the session's reference data and
     # the files it read (suggestions and countries, Tasks 11-13). Both
     # optional: MosaicSES and the unit tests mount the wizard without them.
+    snap = snapshot if snapshot is not None else r_kb.VENDORED
+
+    def _gov() -> dict:
+        return snap.governance()
+
     # Wizard state — three module-local reactives.
     wizard_step: reactive.Value[int] = reactive.value(0)
     wizard_answers: reactive.Value[dict[str, Any]] = reactive.value({})
@@ -616,6 +650,29 @@ def ai_isa_wizard_server(
         for t_ in _freeform_targets
     ]
 
+    def _is_current_step(target: str) -> bool:
+        """True when the wizard is active and on the step whose target is
+        `target`. Per-step buttons (Skip; Task 13's chips) act only then, so a
+        stale click from an earlier render, or one after Finish, is ignored."""
+        return (wizard_active.get()
+                and WIZARD_STEPS[wizard_step.get()]["target"] == target)
+
+    # Skip buttons on steps 2-3 (R's "Skip this question"): record [] and
+    # advance, like an empty Next.
+    def _make_skip_handler(target: str):
+        @reactive.effect
+        @reactive.event(input[f"skip_{target}"], ignore_init=True)
+        def _():
+            if not _is_current_step(target):
+                return
+            ans = dict(wizard_answers.get())
+            ans[target] = []
+            wizard_answers.set(ans)
+            wizard_step.set(wizard_step.get() + 1)
+        return _
+
+    _skip_handlers = [_make_skip_handler(t_) for t_ in ("countries", "main_issue")]
+
     @reactive.effect
     @reactive.event(input.wizard_next, ignore_init=True)
     def _on_next() -> None:
@@ -638,14 +695,14 @@ def ai_isa_wizard_server(
                 return
             answer: Any = value
         elif archetype == "choice_many":
-            raw = input[f"answer_{target}"]()
-            value_list = list(raw) if raw else []
-            if not value_list:
-                ui.notification_show(
-                    t("wizard.validation_error"), type="warning", duration=3,
-                )
-                return
-            answer = value_list
+            # Steps 2-3 are skippable (K1, as in R): an empty selection is
+            # accepted and records []. The input is unset when nothing was
+            # ever selected, and reading it then raises SilentException.
+            try:
+                raw = input[f"answer_{target}"]()
+            except SilentException:
+                raw = None
+            answer = list(raw) if raw else []
         elif archetype == "freeform_multiple":
             # Read row count from BOTH freeform_counts (display state)
             # AND len(saved answers) — the renderer expands rows for
@@ -769,6 +826,11 @@ def ai_isa_wizard_server(
         # the real suggestions arrive.
         ans = dict(wizard_answers.get())
         ans[target] = answer
+        if step_idx == 0 and ans.get("countries"):
+            # Sea change after Back: keep only codes the new sea offers,
+            # in their selected order.
+            valid = {c["code"] for c in countries_for_sea(_gov(), answer)}
+            ans["countries"] = [c for c in ans["countries"] if c in valid]
         wizard_answers.set(ans)
 
         if step_idx + 1 == 11:
@@ -780,13 +842,22 @@ def ai_isa_wizard_server(
         """Build a WizardState snapshot from current reactive state."""
         ans = wizard_answers.get()
         isa = project_data.get().isa_data
+        countries = list(ans.get("countries", []))
         return WizardState(
             regional_sea=ans.get("regional_sea", ""),
             ecosystem_type=ans.get("ecosystem_type", ""),
-            countries=ans.get("countries", []),
+            countries=countries,
             main_issue=ans.get("main_issue", []),
             elements=list(isa.elements),
+            country_names=country_names_for(_gov(), countries),
         )
+
+    # Test-mode only (no-op otherwise): tests assert through these, not ids.
+    export_test_values(
+        step=wizard_step.get,
+        answers=wizard_answers.get,
+        wizard_state=lambda: dataclasses.asdict(_assemble_wizard_state()),
+    )
 
     @reactive.extended_task
     async def _claude_task(
@@ -1130,7 +1201,10 @@ def ai_isa_wizard_server(
         if archetype == "choice_one":
             widget = _render_choice_one(step, wizard_answers.get())
         elif archetype == "choice_many":
-            widget = _render_choice_many(step, wizard_answers.get())
+            if step["target"] == "countries":
+                # The country list comes from the session's reference data.
+                r_kb.add_reads(reference_reads, (r_kb.KB_NAME, r_kb.GOVERNANCE_NAME))
+            widget = _render_choice_many(step, wizard_answers.get(), gov=_gov())
         elif archetype == "freeform_multiple":
             widget = _render_freeform_multiple(
                 step, wizard_answers.get(), freeform_counts.get(), input,
@@ -1156,6 +1230,12 @@ def ai_isa_wizard_server(
         if step_idx > 0:
             nav_buttons.append(ui.input_action_button(
                 "wizard_back", t("wizard.back"), class_="btn btn-secondary",
+            ))
+        if archetype == "choice_many":
+            nav_buttons.append(ui.input_action_button(
+                f"skip_{step['target']}",
+                t("modules.isa.ai_assistant.skip_this_question"),
+                class_="btn btn-outline-secondary",
             ))
         if step_idx < 11:
             nav_buttons.append(ui.input_action_button(
