@@ -139,7 +139,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Controls.** "Start Wizard". If the project already holds data, a "Start over?" dialog warns that its elements and connections will be deleted: "Yes, start over" clears them and "Cancel" keeps them. A breadcrumb shows the twelve steps: Regional Sea, Ecosystem Type, Countries, Main Issue, then one free-text step each for Drivers, Activities, Pressures, States, Impacts, Welfare and Responses, then Review Connections. Free-text steps take one entry per row with "Add another" and "Remove". "Back", "Next" and, on the last step, "Finish".
 
-**Outputs.** On the last step a table of "Rule-based suggestions" with source, target, polarity, confidence, rationale and an Accept checkbox per row. If an Anthropic API key is configured, a "Generate with Claude API" button adds a second table of model-generated suggestions after a consent dialog that lists exactly which fields are sent. A note under each table says what its confidence is based on: for the rule-based table, keyword matches in the two element names (none 0.3, one 0.6, two or more 0.9; 0.5 for Response → Marine Processes links, which have no keyword list); for the Claude table, the model's own estimate.
+**Outputs.** On the last step a table of "Rule-based suggestions" with source, target, polarity, confidence, rationale and an Accept checkbox per row. As in the R app's connection review, each row has a polarity switch (+ or −) and a "Reverse" control that swaps source and target; a changed row reads with neutral wording ("drives/increases" or "affects/reduces") instead of the suggested verb, and Finish saves accepted rows as edited. If an Anthropic API key is configured, a "Generate with Claude API" button adds a second table of model-generated suggestions after a consent dialog that lists exactly which fields are sent. A note under each table says what its confidence is based on: for the rule-based table, keyword matches in the two element names (none 0.3, one 0.6, two or more 0.9; 0.5 for Response → Marine Processes links, which have no keyword list); for the Claude table, the model's own estimate.
 
 **Reading it.** Each Next writes the entries as typed elements: Impacts become Ecosystem Services and Welfare becomes Goods & Benefits. Finish appends every accepted suggestion as a connection, de-duplicated by source, target and polarity with the higher confidence winning. The wizard then shows "Your SES is ready" with the element and connection counts, buttons that open CLD Visualization and Edit Data, and "Start over".
 
@@ -377,7 +377,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 ## 25. Topbar: Feedback, About, Options, Help
 
-**Feedback** opens a form with a message, a rating and a category, and lists the ten most recent entries. Entries are stored on the server.
+**Feedback** opens a form with a message, a rating (how useful the tool is, 1–5, which helps the developers prioritise; a line under the slider says so) and a category, and lists the ten most recent entries. Entries are stored on the server.
 
 **About** has three tabs: an overview of the app, this manual, and the changelog.
 

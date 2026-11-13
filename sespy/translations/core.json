@@ -2772,6 +2772,39 @@
       "no": "Sikkerhet (Claude): modellens eget anslag, fra 0 til 1, på hvor sannsynlig hver kobling er ut fra svarene dine. Den er ikke beregnet fra data, så kontroller hvert forslag før du godtar det.",
       "el": "Βεβαιότητα (Claude): η εκτίμηση του ίδιου του μοντέλου, από 0 έως 1, για το πόσο πιθανή είναι κάθε σύνδεση με βάση τις απαντήσεις σας. Δεν υπολογίζεται από δεδομένα, οπότε ελέγξτε κάθε πρόταση πριν την αποδεχτείτε."
     },
+    "wizard.verb_positive": {
+      "en": "drives/increases",
+      "es": "impulsa/aumenta",
+      "fr": "entraîne/augmente",
+      "de": "treibt/erhöht",
+      "lt": "skatina/didina",
+      "pt": "impulsiona/aumenta",
+      "it": "spinge/aumenta",
+      "no": "driver/øker",
+      "el": "ωθεί/αυξάνει"
+    },
+    "wizard.verb_negative": {
+      "en": "affects/reduces",
+      "es": "afecta/reduce",
+      "fr": "affecte/réduit",
+      "de": "beeinträchtigt/verringert",
+      "lt": "veikia/mažina",
+      "pt": "afeta/reduz",
+      "it": "influisce/riduce",
+      "no": "påvirker/reduserer",
+      "el": "επηρεάζει/μειώνει"
+    },
+    "wizard.reverse": {
+      "en": "Reverse",
+      "es": "Invertir",
+      "fr": "Inverser",
+      "de": "Umkehren",
+      "lt": "Apversti",
+      "pt": "Inverter",
+      "it": "Inverti",
+      "no": "Snu",
+      "el": "Αντιστροφή"
+    },
     "wizard.modal_title": {
       "en": "Start over?",
       "es": "¿Empezar de nuevo?",
@@ -5832,6 +5865,7 @@
     "feedback.title": {"en":"Send feedback","es":"Enviar comentarios","fr":"Envoyer un retour","de":"Feedback senden","lt":"Siųsti atsiliepimą","pt":"Enviar comentários","it":"Invia feedback","no":"Send tilbakemelding","el":"Αποστολή σχολίων"},
     "feedback.message": {"en":"Your feedback","es":"Tus comentarios","fr":"Votre retour","de":"Ihr Feedback","lt":"Jūsų atsiliepimas","pt":"O seu comentário","it":"Il tuo feedback","no":"Din tilbakemelding","el":"Τα σχόλιά σας"},
     "feedback.rating": {"en":"Rating","es":"Valoración","fr":"Évaluation","de":"Bewertung","lt":"Įvertinimas","pt":"Avaliação","it":"Valutazione","no":"Vurdering","el":"Βαθμολογία"},
+    "feedback.rating_help": {"en":"How useful is the tool for you, from 1 (not useful) to 5 (very useful)? It helps the developers decide what to improve first.","es":"¿Qué tan útil le resulta la herramienta, de 1 (nada útil) a 5 (muy útil)? Ayuda a los desarrolladores a decidir qué mejorar primero.","fr":"Dans quelle mesure l'outil vous est-il utile, de 1 (pas utile) à 5 (très utile) ? Cela aide les développeurs à décider quoi améliorer en premier.","de":"Wie nützlich ist das Werkzeug für Sie, von 1 (nicht nützlich) bis 5 (sehr nützlich)? Das hilft den Entwicklern zu entscheiden, was sie zuerst verbessern.","lt":"Kiek įrankis jums naudingas, nuo 1 (nenaudingas) iki 5 (labai naudingas)? Tai padeda kūrėjams nuspręsti, ką tobulinti pirmiausia.","pt":"Quão útil é a ferramenta para si, de 1 (nada útil) a 5 (muito útil)? Ajuda os programadores a decidir o que melhorar primeiro.","it":"Quanto ti è utile lo strumento, da 1 (per niente) a 5 (molto utile)? Aiuta gli sviluppatori a decidere cosa migliorare per primo.","no":"Hvor nyttig er verktøyet for deg, fra 1 (ikke nyttig) til 5 (svært nyttig)? Det hjelper utviklerne å velge hva de skal forbedre først.","el":"Πόσο χρήσιμο είναι το εργαλείο για εσάς, από 1 (καθόλου) έως 5 (πολύ χρήσιμο); Βοηθά τους προγραμματιστές να αποφασίσουν τι θα βελτιώσουν πρώτα."},
     "feedback.category": {"en":"Category","es":"Categoría","fr":"Catégorie","de":"Kategorie","lt":"Kategorija","pt":"Categoria","it":"Categoria","no":"Kategori","el":"Κατηγορία"},
     "feedback.submit": {"en":"Submit","es":"Enviar","fr":"Envoyer","de":"Absenden","lt":"Pateikti","pt":"Enviar","it":"Invia","no":"Send inn","el":"Υποβολή"},
     "feedback.sent": {"en":"Thanks — your feedback was recorded.","es":"Gracias — tu comentario fue registrado.","fr":"Merci — votre retour a été enregistré.","de":"Danke — Ihr Feedback wurde gespeichert.","lt":"Ačiū — jūsų atsiliepimas įrašytas.","pt":"Obrigado — o seu comentário foi registado.","it":"Grazie — il tuo feedback è stato registrato.","no":"Takk — tilbakemeldingen din er lagret.","el":"Ευχαριστούμε — τα σχόλιά σας καταγράφηκαν."},

@@ -13,6 +13,7 @@ can swap in their own backends without touching this module.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import os
 from dataclasses import dataclass, replace
@@ -194,12 +195,34 @@ def _render_freeform_multiple(
     return ui.div(*rows, id=f"freeform_{target}_container")
 
 
+ROW_JS = r"""
+// Feedback #17: keep a suggestion row's text in step with its polarity
+// switch and reverse control. Delegated, so it survives re-renders of the
+// step (a <script> inside the rendered step would not run).
+document.addEventListener('change', function (e) {
+  var row = e.target && e.target.closest ? e.target.closest('tr.wiz-sugg') : null;
+  if (!row) return;
+  var pos = row.querySelector('.wiz-pol input').checked;
+  var sw = row.querySelector('.wiz-swap input').checked;
+  var d = row.dataset;
+  row.querySelector('.wiz-pol-label').textContent = pos ? '+' : '−';
+  row.querySelector('.wiz-src').textContent = sw ? d.toId : d.fromId;
+  row.querySelector('.wiz-tgt').textContent = sw ? d.fromId : d.toId;
+  var changed = sw || (pos !== (d.pol === '+'));
+  var from = sw ? d.toLabel : d.fromLabel, to = sw ? d.fromLabel : d.toLabel;
+  row.querySelector('.wiz-rat').textContent =
+    changed ? from + ' ' + (pos ? d.vpos : d.vneg) + ' ' + to : d.rat;
+});
+"""
+
+
 def _render_suggestions_table(
     items: list[ConnectionSuggestion],
     *,
     prefix: str,
     title: str,
     note: str | None = None,
+    labels: dict[str, str] | None = None,
 ) -> ui.Tag:
     """Render a suggestions table with accept-checkboxes.
 
@@ -219,19 +242,40 @@ def _render_suggestions_table(
         ui.tags.th(t("wizard.source")),
         ui.tags.th(t("wizard.target")),
         ui.tags.th(t("wizard.polarity")),
+        ui.tags.th(t("wizard.reverse")),
         ui.tags.th(t("wizard.confidence")),
         ui.tags.th(t("wizard.rationale")),
         ui.tags.th(t("wizard.accept")),
     ))
+    # Per-row polarity switch and reverse control (feedback #17, ported from
+    # R's connection review). Ids: pol_sp3_0, swap_sp3_0 next to accept_sp3_0.
+    tag = prefix.removeprefix("accept_")
+    labels = labels or {}
     for i, s in enumerate(items):
         rows.append(ui.tags.tr(
             ui.tags.td(str(i + 1)),
-            ui.tags.td(s.source),
-            ui.tags.td(s.target),
-            ui.tags.td(s.polarity),
+            ui.tags.td(s.source, class_="wiz-src"),
+            ui.tags.td(s.target, class_="wiz-tgt"),
+            ui.tags.td(
+                ui.tags.span(s.polarity if s.polarity == "+" else "\u2212",
+                             class_="wiz-pol-label"),
+                ui.input_switch(f"pol_{tag}{i}", None, value=s.polarity == "+"),
+                class_="wiz-pol",
+            ),
+            ui.tags.td(ui.input_checkbox(f"swap_{tag}{i}", "\u21c4", value=False),
+                       class_="wiz-swap"),
             ui.tags.td(f"{s.confidence:.2f}"),
-            ui.tags.td(s.rationale),
+            ui.tags.td(s.rationale, class_="wiz-rat"),
             ui.tags.td(ui.input_checkbox(f"{prefix}{i}", "", value=False)),
+            class_="wiz-sugg",
+            **{
+                "data-from-id": s.source, "data-to-id": s.target,
+                "data-from-label": labels.get(s.source, s.source),
+                "data-to-label": labels.get(s.target, s.target),
+                "data-pol": s.polarity, "data-rat": s.rationale,
+                "data-vpos": t("wizard.verb_positive"),
+                "data-vneg": t("wizard.verb_negative"),
+            },
         ))
     return ui.tags.div(
         ui.tags.h6(title),
@@ -244,6 +288,7 @@ def _render_connection_review(
     sp3: list[ConnectionSuggestion],
     sp4_status: ClaudeBackendStatus,
     claude_available: bool,
+    labels: dict[str, str] | None = None,
 ) -> ui.Tag:
     """Render the connection-review step (step 11).
 
@@ -272,6 +317,7 @@ def _render_connection_review(
         sp3, prefix="accept_sp3_",
         title=t("wizard.suggestions_rule_based_n").format(n=len(sp3)),
         note=t("wizard.confidence_help_rules") if sp3 else None,
+        labels=labels,
     ))
 
     # Generate-with-Claude button — only when env key set + not disabled.
@@ -320,6 +366,7 @@ def _render_connection_review(
                         n=len(outcome.suggestions)
                     ),
                     note=t("wizard.confidence_help_claude"),
+                    labels=labels,
                 ))
             else:
                 parts.append(ui.tags.div(
@@ -418,6 +465,17 @@ def ai_isa_wizard_ui() -> ui.Tag:
             ui.output_ui("wizard_breadcrumb"),    # step pills
             ui.output_ui("wizard_step_render"),   # Start OR step widget + nav buttons
             style="padding: 16px;",
+        ),
+        ui.tags.script(ROW_JS),
+        # Shiny input wrappers default to a 300px width; inside the review
+        # table they must shrink to the control.
+        ui.tags.style(
+            "tr.wiz-sugg .shiny-input-container, tr.wiz-sugg .form-group"
+            " { width: auto !important; margin: 0; }"
+            " tr.wiz-sugg td.wiz-pol { white-space: nowrap; }"
+            " tr.wiz-sugg td.wiz-pol .shiny-input-container"
+            " { display: inline-block; vertical-align: middle; margin-left: 6px; }"
+            " tr.wiz-sugg .form-check { margin: 0; min-height: 0; }"
         ),
         class_="sespy-card sespy-card-canvas",
         full_screen=True,
@@ -893,6 +951,20 @@ def ai_isa_wizard_server(
             freeform_counts.set(counts)
         wizard_step.set(new_step_idx)
 
+    def _apply_row_edits(s: ConnectionSuggestion, tag: str, i: int) -> ConnectionSuggestion:
+        """A row's polarity switch and reverse control (feedback #17). An
+        input the browser never sent keeps the suggestion as it was."""
+        pol_in, swap_in = input[f"pol_{tag}_{i}"], input[f"swap_{tag}_{i}"]
+        polarity = s.polarity
+        if pol_in.is_set():
+            polarity = "+" if pol_in() else "-"
+        source, target = s.source, s.target
+        if swap_in.is_set() and swap_in():
+            source, target = target, source
+        if (source, target, polarity) == (s.source, s.target, s.polarity):
+            return s
+        return dataclasses.replace(s, source=source, target=target, polarity=polarity)
+
     @reactive.effect
     @reactive.event(input.wizard_finish, ignore_init=True)
     def _on_finish() -> None:
@@ -908,7 +980,7 @@ def ai_isa_wizard_server(
         for i, s in enumerate(wizard_suggestions_sp3.get()):
             try:
                 if input[f"accept_sp3_{i}"]():
-                    accepted.append(s)
+                    accepted.append(_apply_row_edits(s, "sp3", i))
             except SilentException:
                 raise   # Shiny session disconnect — propagate, don't swallow.
             except KeyError as e:
@@ -925,7 +997,7 @@ def ai_isa_wizard_server(
             for i, s in enumerate(sp4_outcome.suggestions):
                 try:
                     if input[f"accept_sp4_{i}"]():
-                        accepted.append(s)
+                        accepted.append(_apply_row_edits(s, "sp4", i))
                 except SilentException:
                     raise
                 except KeyError as e:
@@ -1060,10 +1132,13 @@ def ai_isa_wizard_server(
                 os.environ.get("ANTHROPIC_API_KEY")
                 and not os.environ.get("SESPY_DISABLE_CLAUDE")
             )
+            with reactive.isolate():
+                labels = {el.id: el.label for el in project_data.get().isa_data.elements}
             widget = _render_connection_review(
                 wizard_suggestions_sp3.get(),
                 wizard_claude_status.get(),
                 claude_available,
+                labels,
             )
         else:
             widget = ui.tags.div(f"Unknown archetype: {archetype}")

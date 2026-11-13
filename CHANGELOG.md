@@ -5,6 +5,16 @@ All notable changes to SESPy.
 ## [Unreleased]
 
 ### Added
+- **SES Wizard: change a suggested connection's polarity or direction**
+  (live feedback #17, 2026-11-11: "it would be possible to change the
+  polarity ... the word 'enables' is not always suitable"). Ported from the
+  R app's connection review. Each suggestion in the review step has a +/−
+  switch and a "Reverse" control. A changed row reads with R's neutral
+  wording ("drives/increases" or "affects/reduces") instead of the type
+  verb, and Finish saves accepted rows as edited.
+- **Feedback: the rating is explained** (also #17: "What does Rating in
+  the feedback give?"). A line under the slider says it rates how useful
+  the tool is (1–5) and helps the developers prioritise. 9 languages.
 - **SES Wizard: the confidence score is explained** (live feedback #16,
   2026-11-11: "How is confidence score set in the AI-assisted SES
   Creation?"). A note under each suggestions table says what its
