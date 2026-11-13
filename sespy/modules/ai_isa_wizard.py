@@ -12,9 +12,8 @@ can swap in their own backends without touching this module.
 """
 from __future__ import annotations
 
-import dataclasses
-
 import asyncio
+import dataclasses
 import logging
 import os
 from dataclasses import dataclass, replace
@@ -196,7 +195,25 @@ def _render_freeform_multiple(
     return ui.div(*rows, id=f"freeform_{target}_container")
 
 
-ROW_JS = "\n// Feedback #17: keep a suggestion row's text in step with its polarity\n// switch and reverse control. Delegated, so it survives re-renders of the\n// step (a <script> inside the rendered step would not run).\ndocument.addEventListener('change', function (e) {\n  var row = e.target && e.target.closest ? e.target.closest('tr.wiz-sugg') : null;\n  if (!row) return;\n  var pos = row.querySelector('.wiz-pol input').checked;\n  var sw = row.querySelector('.wiz-swap input').checked;\n  var d = row.dataset;\n  row.querySelector('.wiz-pol-label').textContent = pos ? '+' : '−';\n  row.querySelector('.wiz-src').textContent = sw ? d.toId : d.fromId;\n  row.querySelector('.wiz-tgt').textContent = sw ? d.fromId : d.toId;\n  var changed = sw || (pos !== (d.pol === '+'));\n  var from = sw ? d.toLabel : d.fromLabel, to = sw ? d.fromLabel : d.toLabel;\n  row.querySelector('.wiz-rat').textContent =\n    changed ? from + ' ' + (pos ? d.vpos : d.vneg) + ' ' + to : d.rat;\n});\n"
+ROW_JS = r"""
+// Feedback #17: keep a suggestion row's text in step with its polarity
+// switch and reverse control. Delegated, so it survives re-renders of the
+// step (a <script> inside the rendered step would not run).
+document.addEventListener('change', function (e) {
+  var row = e.target && e.target.closest ? e.target.closest('tr.wiz-sugg') : null;
+  if (!row) return;
+  var pos = row.querySelector('.wiz-pol input').checked;
+  var sw = row.querySelector('.wiz-swap input').checked;
+  var d = row.dataset;
+  row.querySelector('.wiz-pol-label').textContent = pos ? '+' : '−';
+  row.querySelector('.wiz-src').textContent = sw ? d.toId : d.fromId;
+  row.querySelector('.wiz-tgt').textContent = sw ? d.fromId : d.toId;
+  var changed = sw || (pos !== (d.pol === '+'));
+  var from = sw ? d.toLabel : d.fromLabel, to = sw ? d.fromLabel : d.toLabel;
+  row.querySelector('.wiz-rat').textContent =
+    changed ? from + ' ' + (pos ? d.vpos : d.vneg) + ' ' + to : d.rat;
+});
+"""
 
 
 def _render_suggestions_table(

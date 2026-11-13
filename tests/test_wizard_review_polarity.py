@@ -26,7 +26,10 @@ from sespy.data_structure import ConnectionSuggestion, IsaData, Project
 from sespy.event_bus import create_event_bus
 from sespy.i18n import Translator, load_translations
 from sespy.modules.ai_isa_wizard import (
-    _ClaudeIdle, _render_connection_review, ai_isa_wizard_server, ai_isa_wizard_ui,
+    _ClaudeIdle,
+    _render_connection_review,
+    ai_isa_wizard_server,
+    ai_isa_wizard_ui,
 )
 from sespy.modules.topbar_actions import _feedback_modal
 
