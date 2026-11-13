@@ -4,6 +4,12 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.15.1] — 2026-11-13
+
+Live feedback from the first tester (11–12 November 2026, #16–#22): wizard
+safety and explanations, Network Metrics and CLD explanations, and the CLD
+now draws the R app's element colours.
+
 ### Added
 - **SES Wizard: change a suggested connection's polarity or direction**
   (live feedback #17, 2026-11-11: "it would be possible to change the
