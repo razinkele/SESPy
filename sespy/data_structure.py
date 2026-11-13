@@ -19,12 +19,12 @@ from typing import Any, Iterable, Literal
 
 _log = logging.getLogger(__name__)
 
-PROJECT_SCHEMA_VERSION = 8
+PROJECT_SCHEMA_VERSION = 9
 
 # Oldest SESPy release that reads each schema without dropping data.
 # Project.to_dict() stamps metadata.min_sespy_version from this table, so a
 # schema bump must add an entry (guarded by tests/test_schema_v7.py).
-SCHEMA_MIN_READER: dict[int, str] = {7: "1.13.0", 8: "1.15.0"}
+SCHEMA_MIN_READER: dict[int, str] = {7: "1.13.0", 8: "1.15.0", 9: "1.16.0"}
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +301,9 @@ class ProjectMetadata:
     origin: str = field(default="", kw_only=True)
     r_template_version: str = field(default="", kw_only=True)
     min_sespy_version: str = field(default="", kw_only=True)
+    # Schema v9, always serialised. Reference-data provenance (K1):
+    # {file key: {version, sha256, ...}}; every value must be a dict.
+    reference_data: dict = field(default_factory=dict, kw_only=True)
 
     @staticmethod
     def new(name: str = "Untitled Project") -> "ProjectMetadata":
@@ -590,6 +593,11 @@ class Project:
             _log.warning(
                 "Project metadata had unknown keys (dropped): %s", dropped
             )
+        if "reference_data" in meta_filtered:
+            rd = meta_filtered["reference_data"]
+            if not (isinstance(rd, dict) and all(isinstance(v, dict) for v in rd.values())):
+                _log.warning("Project metadata reference_data is malformed (dropped)")
+                del meta_filtered["reference_data"]
         meta = ProjectMetadata(**meta_filtered)
         isa = _isa_from_dict(raw.get("isa_data", raw))  # tolerate flat shapes
         # Lazy: sespy.stakeholders imports this module.

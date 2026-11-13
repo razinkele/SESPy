@@ -263,7 +263,8 @@ def test_shipped_project_metadata(fname):
     raw = RAW[fname]
     assert md["name"] == raw["template_name"] + " (MarineSABRES)"
     assert md["modified_at"] == md["created_at"] == raw["metadata"]["created_date"]
-    assert md["min_sespy_version"] == "1.15.0"        # schema floor, not the running version
+    assert md["min_sespy_version"] == "1.16.0"        # schema floor, not the running version
+    assert md["reference_data"] == {}
     assert md["origin"] == "r_template"
     assert md["ecosystem_type"] == ""
     assert md["regional_sea"] == ((raw.get("regional_context") or {}).get("regional_sea") or "")
@@ -733,11 +734,12 @@ def test_committed_tree_has_no_drift_as_crlf(tmp_path):
     assert res.code == 0, res.lines
 
 
-def test_shipped_templates_are_schema_8():
-    # P1b: every shipped template is re-stamped by the v1.33.0 sync.
+def test_shipped_templates_are_schema_9():
+    # K1: every shipped template is re-stamped by the sync.
     for fname in C.TEMPLATE_FILES:
         md = json.loads((SHIPPED / fname).read_bytes().decode("utf-8-sig"))["metadata"]
-        assert (md["schema_version"], md["min_sespy_version"]) == (8, "1.15.0"), fname
+        assert (md["schema_version"], md["min_sespy_version"]) == (9, "1.16.0"), fname
+        assert md["reference_data"] == {}, fname
 
 
 # ---- vendored R translation subsets (P1b spec §7) ---------------------------------
