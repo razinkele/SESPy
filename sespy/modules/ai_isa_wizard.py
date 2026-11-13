@@ -362,6 +362,34 @@ def _replace_metadata(meta, **overrides):
     return replace(meta, **overrides)
 
 
+def _nav_button(nav_id: str, label: str, cls: str) -> ui.Tag:
+    """A button that opens another page by clicking its sidebar nav button,
+    so the sidebar highlight and the page switch stay in one place."""
+    return ui.tags.button(
+        label, type="button", class_=f"btn {cls}",
+        onclick=f"document.getElementById('sespy_nav_{nav_id}').click()",
+    )
+
+
+def _render_completion(n_elements: int, n_connections: int) -> ui.Tag:
+    """Shown after Finish instead of the fresh-start screen (feedback #18)."""
+    return ui.tags.div(
+        ui.tags.h4(t("wizard.complete_title")),
+        ui.tags.p(t("wizard.complete_body", elements=n_elements,
+                    connections=n_connections)),
+        ui.div(
+            _nav_button("cld", t("nav.cld"), "btn-primary"),
+            _nav_button("entry", t("nav.entry"), "btn-outline-primary"),
+            ui.input_action_button(
+                "wizard_start", t("wizard.start_over"),
+                class_="btn btn-outline-danger",
+            ),
+            style="margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap;",
+        ),
+        class_="wizard-complete",
+    )
+
+
 @module.ui
 def ai_isa_wizard_ui() -> ui.Tag:
     """Static UI: card with breadcrumb output + step-render output. The
@@ -402,6 +430,11 @@ def ai_isa_wizard_server(
     wizard_step: reactive.Value[int] = reactive.value(0)
     wizard_answers: reactive.Value[dict[str, Any]] = reactive.value({})
     wizard_active: reactive.Value[bool] = reactive.value(False)
+    # True after Finish until the wizard is started again: the idle screen
+    # then shows the completion panel, not the fresh-start screen (live
+    # feedback #18 — a finished SES looked like a blank start, and its only
+    # button led to the destructive replace modal).
+    wizard_completed: reactive.Value[bool] = reactive.value(False)
     wizard_suggestions_sp3: reactive.Value[list[ConnectionSuggestion]] = reactive.value([])
     # SP4 sum-typed status reactive (alongside wizard_suggestions_sp3 above).
     wizard_claude_status: reactive.Value[ClaudeBackendStatus] = (
@@ -424,6 +457,7 @@ def ai_isa_wizard_server(
         if len(project_data.get().isa_data.elements) == 0:
             # Empty project — start directly without modal.
             wizard_answers.set({})
+            wizard_completed.set(False)
             wizard_step.set(0)
             wizard_active.set(True)
             return
@@ -434,7 +468,7 @@ def ai_isa_wizard_server(
                 ui.div(
                     ui.input_action_button(
                         "wizard_replace", t("wizard.replace"),
-                        class_="btn btn-warning",
+                        class_="btn btn-danger",
                     ),
                     ui.input_action_button(
                         "wizard_cancel_modal", t("wizard.cancel"),
@@ -470,6 +504,7 @@ def ai_isa_wizard_server(
         event_bus.emit_cld_update()
         wizard_answers.set({})
         freeform_counts.set({})
+        wizard_completed.set(False)
         wizard_active.set(True)
         wizard_step.set(0)
         ui.modal_remove()
@@ -934,10 +969,11 @@ def ai_isa_wizard_server(
             project_data.set(new_proj)
             event_bus.emit_isa_change()
             event_bus.emit_cld_update()
-        # Deactivate.
+        # Deactivate; the idle screen now shows the completion panel.
+        wizard_completed.set(True)
         wizard_active.set(False)
         ui.notification_show(
-            "Wizard complete — your SES is ready.",
+            t("wizard.complete_title"),
             type="message", duration=4,
         )
 
@@ -980,6 +1016,11 @@ def ai_isa_wizard_server(
         Buttons are rendered (not hidden via CSS) so we don't depend on
         innerHTML-inserted <script> execution."""
         active = wizard_active.get()
+        if not active and wizard_completed.get():
+            # Read project_data only in this branch, so edits elsewhere do
+            # not re-render (and reset) an active wizard step.
+            isa = project_data.get().isa_data
+            return _render_completion(len(isa.elements), len(isa.connections))
         if not active:
             return ui.tags.div(
                 ui.tags.p(

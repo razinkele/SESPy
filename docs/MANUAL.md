@@ -137,11 +137,11 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Purpose.** Build a diagram from scratch by answering twelve questions in DAPSI(W)R(M) order, then accept suggested connections.
 
-**Controls.** "Start Wizard". If the project already holds data, a dialog asks whether to replace it. A breadcrumb shows the twelve steps: Regional Sea, Ecosystem Type, Countries, Main Issue, then one free-text step each for Drivers, Activities, Pressures, States, Impacts, Welfare and Responses, then Review Connections. Free-text steps take one entry per row with "Add another" and "Remove". "Back", "Next" and, on the last step, "Finish".
+**Controls.** "Start Wizard". If the project already holds data, a "Start over?" dialog warns that its elements and connections will be deleted: "Yes, start over" clears them and "Cancel" keeps them. A breadcrumb shows the twelve steps: Regional Sea, Ecosystem Type, Countries, Main Issue, then one free-text step each for Drivers, Activities, Pressures, States, Impacts, Welfare and Responses, then Review Connections. Free-text steps take one entry per row with "Add another" and "Remove". "Back", "Next" and, on the last step, "Finish".
 
 **Outputs.** On the last step a table of "Rule-based suggestions" with source, target, polarity, confidence, rationale and an Accept checkbox per row. If an Anthropic API key is configured, a "Generate with Claude API" button adds a second table of model-generated suggestions after a consent dialog that lists exactly which fields are sent.
 
-**Reading it.** Each Next writes the entries as typed elements: Impacts become Ecosystem Services and Welfare becomes Goods & Benefits. Finish appends every accepted suggestion as a connection, de-duplicated by source, target and polarity with the higher confidence winning.
+**Reading it.** Each Next writes the entries as typed elements: Impacts become Ecosystem Services and Welfare becomes Goods & Benefits. Finish appends every accepted suggestion as a connection, de-duplicated by source, target and polarity with the higher confidence winning. The wizard then shows "Your SES is ready" with the element and connection counts, buttons that open CLD Visualization and Edit Data, and "Start over".
 
 **Caveats.** Entries must be non-empty and unique within a step. The Claude path is optional and every failure falls back to rule-based suggestions with a message saying so. Without any scoring backend the wizard still creates the elements; connections are then added in Edit Data.
 
