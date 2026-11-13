@@ -169,26 +169,20 @@ def analysis_metrics_ui() -> ui.Tag:
                     {k: k.title() for k in net_analysis.CENTRALITY_METRICS},
                     selected="degree",
                 ),
+                # What the chosen metric measures (feedback #21).
+                ui.output_ui("metric_help"),
                 ui.tags.hr(),
                 ui.input_slider(
                     "top_n", t("metrics.show_top_n"),
                     min=3, max=20, value=10, step=1,
                 ),
+                ui.p(t("metrics.show_top_n_help"), class_="text-muted",
+                     style="font-size: 0.85rem;"),
                 width=240,
             ),
             ui.div(
-                ui.output_ui("fit_summary"),
-                ui.tags.hr(),
-                ui.output_ui("governance_gap_summary"),
-                ui.tags.hr(),
-                ui.output_ui("actor_influence_summary"),
-                ui.tags.hr(),
-                ui.output_ui("cascade_summary"),
-                ui.tags.hr(),
-                ui.output_ui("paths_summary"),
-                ui.tags.hr(),
-                ui.output_ui("hypermodules_summary"),
-                ui.tags.hr(),
+                # The outputs the sidebar drives come first, so changing the
+                # metric or the row count visibly changes the page (#22).
                 ui.h4(t("metrics.top_ranked")),
                 ui.output_data_frame("metrics_table"),
                 ui.tags.hr(),
@@ -203,6 +197,18 @@ def analysis_metrics_ui() -> ui.Tag:
                     show_layout_switcher=False, show_export=False,
                     show_status=False,
                 ),
+                ui.tags.hr(),
+                ui.output_ui("fit_summary"),
+                ui.tags.hr(),
+                ui.output_ui("governance_gap_summary"),
+                ui.tags.hr(),
+                ui.output_ui("actor_influence_summary"),
+                ui.tags.hr(),
+                ui.output_ui("cascade_summary"),
+                ui.tags.hr(),
+                ui.output_ui("paths_summary"),
+                ui.tags.hr(),
+                ui.output_ui("hypermodules_summary"),
             ),
         ),
         class_="sespy-card sespy-card-canvas",
@@ -241,6 +247,12 @@ def analysis_metrics_server(
         )
 
     @output
+    @render.ui
+    def metric_help():
+        return ui.p(t(f"metrics.desc_{chosen_metric()}"), class_="text-muted",
+                    style="font-size: 0.85rem; margin-top: 4px;")
+
+    @output
     @render.data_frame
     def metrics_table():
         import pandas as pd
@@ -275,6 +287,7 @@ def analysis_metrics_server(
             return ui.p(t("metrics.fit_none"), class_="text-muted")
         return ui.div(
             ui.h5(t("metrics.fit")),
+            ui.p(t("metrics.fit_explain"), style="font-size: 0.85rem;"),
             ui.tags.strong(f"{r['fit']:.2f}"),
             ui.p(t("metrics.fit_caption", cross=r["cross_edges"], total=r["total_edges"]),
                  class_="text-muted", style="font-size: 0.85rem;"),
@@ -305,12 +318,14 @@ def analysis_metrics_server(
             key = "metrics.gov_gap_no_eco" if state == "no_eco" else "metrics.gov_gap_no_press"
             return ui.div(
                 ui.h5(t("metrics.gov_gap")),
+                ui.p(t("metrics.gov_gap_explain"), style="font-size: 0.85rem;"),
                 ui.p(t(key), class_="text-muted"),
                 orphan_line,
             )
         press = r["gaps_by_type"].get("Pressures", {"n": 0, "uncovered": []})
         return ui.div(
             ui.h5(t("metrics.gov_gap")),
+            ui.p(t("metrics.gov_gap_explain"), style="font-size: 0.85rem;"),
             ui.tags.strong(f"{r['pressure_gap_fraction']:.2f}"),
             ui.p(t("metrics.gov_gap_caption",
                    uncovered=len(press["uncovered"]), n=press["n"]),

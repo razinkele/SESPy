@@ -137,11 +137,11 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Purpose.** Build a diagram from scratch by answering twelve questions in DAPSI(W)R(M) order, then accept suggested connections.
 
-**Controls.** "Start Wizard". If the project already holds data, a dialog asks whether to replace it. A breadcrumb shows the twelve steps: Regional Sea, Ecosystem Type, Countries, Main Issue, then one free-text step each for Drivers, Activities, Pressures, States, Impacts, Welfare and Responses, then Review Connections. Free-text steps take one entry per row with "Add another" and "Remove". "Back", "Next" and, on the last step, "Finish".
+**Controls.** "Start Wizard". If the project already holds data, a "Start over?" dialog warns that its elements and connections will be deleted: "Yes, start over" clears them and "Cancel" keeps them. A breadcrumb shows the twelve steps: Regional Sea, Ecosystem Type, Countries, Main Issue, then one free-text step each for Drivers, Activities, Pressures, States, Impacts, Welfare and Responses, then Review Connections. Free-text steps take one entry per row with "Add another" and "Remove". "Back", "Next" and, on the last step, "Finish".
 
-**Outputs.** On the last step a table of "Rule-based suggestions" with source, target, polarity, confidence, rationale and an Accept checkbox per row. If an Anthropic API key is configured, a "Generate with Claude API" button adds a second table of model-generated suggestions after a consent dialog that lists exactly which fields are sent.
+**Outputs.** On the last step a table of "Rule-based suggestions" with source, target, polarity, confidence, rationale and an Accept checkbox per row. As in the R app's connection review, each row has a polarity switch (+ or −) and a "Reverse" control that swaps source and target; a changed row reads with neutral wording ("drives/increases" or "affects/reduces") instead of the suggested verb, and Finish saves accepted rows as edited. If an Anthropic API key is configured, a "Generate with Claude API" button adds a second table of model-generated suggestions after a consent dialog that lists exactly which fields are sent. A note under each table says what its confidence is based on: for the rule-based table, keyword matches in the two element names (none 0.3, one 0.6, two or more 0.9; 0.5 for Response → Marine Processes links, which have no keyword list); for the Claude table, the model's own estimate.
 
-**Reading it.** Each Next writes the entries as typed elements: Impacts become Ecosystem Services and Welfare becomes Goods & Benefits. Finish appends every accepted suggestion as a connection, de-duplicated by source, target and polarity with the higher confidence winning.
+**Reading it.** Each Next writes the entries as typed elements: Impacts become Ecosystem Services and Welfare becomes Goods & Benefits. Finish appends every accepted suggestion as a connection, de-duplicated by source, target and polarity with the higher confidence winning. The wizard then shows "Your SES is ready" with the element and connection counts, buttons that open CLD Visualization and Edit Data, and "Start over".
 
 **Caveats.** Entries must be non-empty and unique within a step. The Claude path is optional and every failure falls back to rule-based suggestions with a message saying so. Without any scoring backend the wizard still creates the elements; connections are then added in Edit Data.
 
@@ -221,19 +221,19 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Purpose.** Centrality rankings plus six SES-specific structural diagnostics, stacked in one page.
 
-**Controls.** "Metric" chooses among Degree, Indegree, Outdegree, Betweenness, Closeness, Eigenvector and Pagerank (the labels are spelled as shown). "Show top N" sets the length of the ranking table.
+**Controls.** "Metric" chooses among Degree, Indegree, Outdegree, Betweenness, Closeness, Eigenvector and Pagerank (the labels are spelled as shown); a line under the choice explains what the selected metric measures. "Rows in the ranking table" sets the length of the Top-ranked elements table.
 
 **Outputs, top to bottom.**
 
-1. **Social-ecological fit** (section 32). One number and a caption of the form "x of y edges cross the social–ecological boundary".
-2. **Governance gap** (section 33). The pressure-gap fraction, how many pressure nodes lack a direct governance response, and any governance elements with no path into the ecological subsystem. Five plain-language messages cover the degenerate cases, from "not enough structure" to "model is largely untyped — map themes to DAPSI(W)R(M) first".
-3. **Governance actor influence** (section 34). A one-line verdict, either "Governance influence is distributed across n actors" or "concentrated in <actor>", with the dominant actor's share and the normalised entropy. Below it, a table of governance elements with betweenness, eigenvector, PageRank and the composite influence.
-4. **Cascade vulnerability** (section 35). Button-gated: press "Run cascade analysis". The result names the cascade threshold node, names the early-warning node with both step numbers, and lists every removal step with the surviving connected fraction, the surviving loop count, the single-step drop and the KL divergence.
-5. **Causal pathways** (section 36). Button-gated: choose "From" and "To", press "Trace paths". The result counts positive, negative and ambiguous paths and lists each path with its length and polarity.
-6. **SES subsystem modules** (section 37). Button-gated: press "Detect subsystem modules". The result counts modules, gives the share of typed elements that belong to one, and lists each module with its tier composition and member labels.
-7. **Top-ranked elements**, the table for the chosen metric.
-8. **Distribution**, a histogram of the chosen metric.
-9. **Network sized by metric**, the diagram with node size proportional to the metric.
+1. **Top-ranked elements**, the table for the chosen metric.
+2. **Distribution**, a histogram of the chosen metric.
+3. **Network sized by metric**, the diagram with node size proportional to the metric.
+4. **Social-ecological fit** (section 32). A sentence saying what the number measures, the number, and a caption of the form "x of y edges cross the social–ecological boundary".
+5. **Governance gap** (section 33). A sentence saying what the number measures, the pressure-gap fraction, how many pressure nodes lack a direct governance response, and any governance elements with no path into the ecological subsystem. Five plain-language messages cover the degenerate cases, from "not enough structure" to "model is largely untyped — map themes to DAPSI(W)R(M) first".
+6. **Governance actor influence** (section 34). A one-line verdict, either "Governance influence is distributed across n actors" or "concentrated in <actor>", with the dominant actor's share and the normalised entropy. Below it, a table of governance elements with betweenness, eigenvector, PageRank and the composite influence.
+7. **Cascade vulnerability** (section 35). Button-gated: press "Run cascade analysis". The result names the cascade threshold node, names the early-warning node with both step numbers, and lists every removal step with the surviving connected fraction, the surviving loop count, the single-step drop and the KL divergence.
+8. **Causal pathways** (section 36). Button-gated: choose "From" and "To", press "Trace paths". The result counts positive, negative and ambiguous paths and lists each path with its length and polarity.
+9. **SES subsystem modules** (section 37). Button-gated: press "Detect subsystem modules". The result counts modules, gives the share of typed elements that belong to one, and lists each module with its tier composition and member labels.
 
 ![Cascade vulnerability block after running](docs/screenshots/metrics_cascade.png)
 
@@ -247,7 +247,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Purpose.** Rank elements by a composite centrality score and place each one on the Meadows ladder of intervention depth.
 
-**Controls.** "Show top N"; "Show uncertainty (Monte Carlo)" with "Monte Carlo samples".
+**Controls.** "Rows in the ranking table"; "Show uncertainty (Monte Carlo)" with "Monte Carlo samples".
 
 **Outputs.** "Highest leverage elements": rank, id, label, type, realm (Parameters, Feedbacks, Design, Intent), ALC and the leverage score. With uncertainty on, a 95% confidence interval and an "unstable" flag per element. "Network sized by leverage" draws the diagram with node size proportional to the score.
 
@@ -377,7 +377,7 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 ## 25. Topbar: Feedback, About, Options, Help
 
-**Feedback** opens a form with a message, a rating and a category, and lists the ten most recent entries. Entries are stored on the server.
+**Feedback** opens a form with a message, a rating (how useful the tool is, 1–5, which helps the developers prioritise; a line under the slider says so) and a category, and lists the ten most recent entries. Entries are stored on the server.
 
 **About** has three tabs: an overview of the app, this manual, and the changelog.
 
