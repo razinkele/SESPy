@@ -22,6 +22,12 @@ All notable changes to SESPy.
   element names (none 0.3, one 0.6, two or more 0.9; 0.5 for link types
   with no keyword list). Claude: the model's own estimate. Both say to
   check each suggestion. 9 languages.
+- **Network Metrics explains its terms** (live feedback #21, 2026-11-12:
+  "terms would not be clear for a beginner"). A line under the metric
+  choice says what the selected metric measures (Degree, Indegree,
+  Outdegree, Betweenness, Closeness, Eigenvector, PageRank), and
+  Social-ecological fit and Governance gap each open with a sentence saying
+  what their number measures. All in 9 languages.
 
 ### Fixed
 - **SES Wizard: finished work could be deleted by mistake** (live feedback
@@ -36,6 +42,13 @@ All notable changes to SESPy.
   elements and connections will be lost and a red "Yes, start over" button.
   Its texts are translated into all 9 languages; before, they were English
   in every language.
+- **Network Metrics: "Show top N" seemed to do nothing** (live feedback #22,
+  2026-11-12). The slider sets the length of the "Top-ranked elements"
+  table, which sat below six summary panels, so nothing visible changed
+  near it. The table, distribution and sized network (the outputs the
+  sidebar drives) now come first, and the slider is labelled "Rows in the
+  ranking table" with a line saying what it changes. Leverage Points uses
+  the same label.
 
 ## [1.15.0] — 2026-10-23
 
