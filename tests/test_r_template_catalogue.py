@@ -6,6 +6,7 @@ built in tmp_path. Nothing touches the working tree.
 """
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import shutil
@@ -35,13 +36,61 @@ CARIBBEAN = "Caribbean Island - Comprehensive SES Template (MarineSABRES)"
 
 # ---- helpers ------------------------------------------------------------------
 
-def _tree(tmp_path: Path) -> Path:
-    """A repo_root holding only what sync() reads: tests/parity/ and R_SYNC.md."""
+LANGS = ("en", "es", "fr", "de", "lt", "pt", "it", "no", "el")
+RUNTIME_STUBS = {r: json.dumps({"version": f"stub-{Path(r).stem}"}).encode("utf-8") + b"\n"
+                 for r in C.RUNTIME_INPUTS}
+# The 8 K1 translation keys (7 wizard + 1 report), as stubs.
+K1_KEYS = {"isa_data_entry": [f"modules.isa.ai_assistant.{n}" for n in (
+               "from_knowledge_database", "governance_suggestion_tooltip",
+               "socioeconomic_suggestion_tooltip", "tailored_for", "eu_member_states",
+               "non_eu_countries", "skip_this_question")],
+           "report_context": ["modules.report_context.include_context"]}
+
+
+def _stub_translation(stem: str) -> bytes:
+    doc = {"languages": list(LANGS),
+           "translation": {k: {lg: f"{lg}:{k}" for lg in LANGS} for k in K1_KEYS[stem]}}
+    return (json.dumps(doc, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def _write_gz(path: Path, obj) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as g:
+        g.write(json.dumps(obj).encode("utf-8"))
+
+
+def _retag(root: Path, tag: str) -> None:
+    """Stub local pins carrying `tag`, and their hashes in the tree's pin."""
+    pin = _pin(root)
+    for rel in C.LOCAL_PINS:
+        _write_gz(root / rel, {"r_tag": tag, "stub": Path(rel).name})
+        pin["files"][rel] = C.hash_local_pin(root / rel)
+    (root / C.PIN_PATH).write_bytes(json.dumps(pin, indent=2).encode("utf-8"))
+
+
+def _tree(tmp_path: Path, tag: str | None = None) -> Path:
+    """A repo_root holding only what sync() reads: tests/parity/ (never the real
+    k1 fixtures) and R_SYNC.md, plus K1 stubs: the 2 new translation fixtures,
+    the runtime targets, a matching manifest and tiny gz local pins whose r_tag
+    is `tag` (default: the pin's own tag; git-mode tests pass their rev)."""
     root = tmp_path / "repo"
     shutil.copytree(PARITY, root / "tests" / "parity",
-                    ignore=shutil.ignore_patterns("__pycache__", "*.py"))
+                    ignore=shutil.ignore_patterns("__pycache__", "*.py", "k1"))
     (root / "docs" / "parity").mkdir(parents=True)
     shutil.copy(ROOT / "docs" / "parity" / "R_SYNC.md", root / "docs" / "parity" / "R_SYNC.md")
+    for stem in K1_KEYS:
+        dst = root / "tests" / "parity" / "r_translations" / f"{stem}.json"
+        if not dst.exists():
+            dst.write_bytes(_stub_translation(stem))
+    hashes = {}
+    for r_path, target in C.RUNTIME_INPUTS.items():
+        (root / target).parent.mkdir(parents=True, exist_ok=True)
+        (root / target).write_bytes(RUNTIME_STUBS[r_path])
+        hashes[target] = C.sha256_norm(json.loads(RUNTIME_STUBS[r_path]))
+    pin = _pin(root)
+    (root / C.MANIFEST_PATH).write_bytes(
+        C.build_manifest(pin["r_tag"], pin["r_commit"], hashes))
+    _retag(root, tag or pin["r_tag"])
     return root
 
 
@@ -64,6 +113,7 @@ def _fake_r(tmp_path: Path, tag: str = "v1.31.0") -> Path:
     app = outer / "MarineSABRES_SES_Shiny"
     (app / "data").mkdir(parents=True)
     (app / "functions").mkdir()
+    (app / "modules").mkdir()
     for f in C.TEMPLATE_FILES:
         (app / "data" / f).write_bytes((FIX / f).read_bytes().replace(b"\r\n", b"\n"))
     rules = PARITY / "r_rules" / "dapsiwrm_connection_rules.R"
@@ -72,12 +122,18 @@ def _fake_r(tmp_path: Path, tag: str = "v1.31.0") -> Path:
     (app / "functions" / "template_loader.R").write_bytes(LOADER_STUB)
     # P1b inputs: the R sources are only hashed (stubs do); the translation
     # files are parsed by the subset step, so they are the real fixtures.
-    for r_path in C.R_SOURCES:
+    for r_path in (*C.R_SOURCES, *C.K1_R_SOURCES):
         (app / r_path).write_bytes(f"# stand-in for {r_path}\n".encode("utf-8"))
+    # K1: runtime data (sync does not validate it) and the two new translation
+    # files (exactly the 8 keys; the real fixtures arrive in Task 3).
+    for r_path, data in RUNTIME_STUBS.items():
+        (app / r_path).write_bytes(data)
     (app / "translations" / "modules").mkdir(parents=True)
     for stem in C.TRANSLATION_SUBSETS:
-        (app / "translations" / "modules" / f"{stem}.json").write_bytes(
-            (PARITY / "r_translations" / f"{stem}.json").read_bytes().replace(b"\r\n", b"\n"))
+        real = PARITY / "r_translations" / f"{stem}.json"
+        data = (real.read_bytes().replace(b"\r\n", b"\n") if real.exists()
+                else _stub_translation(stem))
+        (app / "translations" / "modules" / f"{stem}.json").write_bytes(data)
     subprocess.run(["git", "-c", "core.longpaths=true", "init", "-q", "--template=", str(outer)],
                    check=True, capture_output=True)
     _git(outer, "add", "-A")
@@ -288,13 +344,15 @@ def test_fixture_mode_writes_projects_catalogue_and_translations(tmp_path):
     changed = {p.relative_to(root).as_posix() for p, b in _snap(root).items()
                if before.get(p) != b}
     vendored = {f"{C.VENDORED_DIR}/{s}.json" for s in C.TRANSLATION_SUBSETS}
+    # the tree's stub manifest already matches the rebuilt one, so it is unchanged
     assert changed == {f"{C.OUT_DIR}/{f}" for f in C.TEMPLATE_FILES} | {C.CATALOGUE_PATH} | vendored
     pin = _pin(root)
     cat = json.loads((root / C.CATALOGUE_PATH).read_bytes())
     assert (cat["r_tag"], cat["r_commit"]) == (pin["r_tag"], pin["r_commit"])
     for p in [*(root / MS).glob("*.json"), *(root / C.VENDORED_DIR).glob("*.json")]:
         assert b"\r\n" not in p.read_bytes()                  # LF on disk
-    assert sum(line.startswith("wrote ") for line in res.lines) == 8 + len(vendored)
+    assert sum(line.startswith("wrote ") for line in res.lines) == 8 + len(vendored) + 1
+    assert f"wrote {C.MANIFEST_PATH}" in res.lines
 
 
 def test_check_passes_on_a_crlf_copy(tmp_path):
@@ -320,7 +378,8 @@ def test_check_reports_drift_and_writes_nothing(tmp_path):
 
 def test_check_reports_missing_outputs(tmp_path):
     res = C.sync(repo_root=_tree(tmp_path), from_fixtures=True, check=True)
-    # 7 projects + catalogue + the vendored translation subsets
+    # 7 projects + catalogue + the vendored translation subsets (the stub
+    # manifest matches, so it is not listed)
     assert res.code == 1 and len(res.lines) == 8 + len(C.TRANSLATION_SUBSETS)
 
 
@@ -396,14 +455,16 @@ def test_argument_errors_write_nothing(tmp_path, kwargs):
 # ---- git mode against a fake R repo (§3.1, §3.3, §8) --------------------------
 
 def test_real_run_writes_everything_then_checks_clean(tmp_path, r_app):
-    root, app = _tree(tmp_path), r_app
+    root, app = _tree(tmp_path, "v1.31.0"), r_app
     prose_before = _md_prose(root)
     res = C.sync(repo_root=root, r_root=app, rev="v1.31.0")
     assert res.code == 0, res.lines
     pin = _pin(root)
     commit = _git(app, "rev-parse", "--short=7", "v1.31.0^{commit}").strip()
     assert (pin["r_tag"], pin["r_commit"]) == ("v1.31.0", commit)
-    assert sorted(pin["files"]) == sorted(C.INPUTS.values()) and len(pin["files"]) == 18
+    assert sorted(pin["files"]) == sorted(
+        [*C.INPUTS.values(), *C.RUNTIME_INPUTS.values(), C.MANIFEST_PATH, *C.LOCAL_PINS])
+    assert len(pin["files"]) == 33
     assert pin["accepted_warnings"] == []
     assert any(line.startswith("hash tests/parity/r_source/template_loader.R: ")
                for line in res.lines)
@@ -414,7 +475,7 @@ def test_real_run_writes_everything_then_checks_clean(tmp_path, r_app):
     md = (root / C.MD_PATH).read_text(encoding="utf-8")
     assert set(re.findall(r"\b[0-9a-f]{64}\b", md)) == set(pin["files"].values())
     assert "**Accepted sync warnings:** none." in _md_block(root)
-    for rel in [C.PIN_PATH, C.MD_PATH, *C.INPUTS.values()]:
+    for rel in [C.PIN_PATH, C.MD_PATH, *C.INPUTS.values(), C.MANIFEST_PATH]:
         assert b"\r\n" not in (root / rel).read_bytes(), rel
     # Clean afterwards: explicit rev, rev from the new pin, and fixture mode.
     assert C.sync(repo_root=root, r_root=app, rev="v1.31.0", check=True).code == 0
@@ -423,10 +484,10 @@ def test_real_run_writes_everything_then_checks_clean(tmp_path, r_app):
 
 
 def test_check_in_git_mode_passes_on_a_crlf_copy(tmp_path, r_app):
-    root, app = _tree(tmp_path), r_app
+    root, app = _tree(tmp_path, "v1.31.0"), r_app
     assert C.sync(repo_root=root, r_root=app, rev="v1.31.0").code == 0
     for p in root.rglob("*"):
-        if p.is_file():
+        if p.is_file() and p.suffix != ".gz":
             p.write_bytes(p.read_bytes().replace(b"\n", b"\r\n"))
     res = C.sync(repo_root=root, r_root=app, rev="v1.31.0", check=True)
     assert res.code == 0, res.lines
@@ -441,9 +502,12 @@ def test_rev_must_be_a_release_tag(tmp_path, r_app, rev):
 
 
 def test_unknown_tag_and_missing_path_write_nothing(tmp_path):
-    root, app = _tree(tmp_path), _fake_r(tmp_path)
+    root, app = _tree(tmp_path, "v9.9.9"), _fake_r(tmp_path)
     before = _snap(root)
-    assert C.sync(repo_root=root, r_root=app, rev="v9.9.9").code == 1
+    res = C.sync(repo_root=root, r_root=app, rev="v9.9.9")
+    assert res.code == 1 and res.lines[0].startswith("git failed for v9.9.9")
+    _retag(root, "v1.32.0")
+    before = _snap(root)
     _git(app.parent, "rm", "-q", "MarineSABRES_SES_Shiny/data/Tourism_SES_Template.json")
     _git(app.parent, "commit", "-qm", "drop Tourism")
     _git(app.parent, "tag", "v1.32.0")
@@ -460,7 +524,7 @@ def test_unknown_tag_and_missing_path_write_nothing(tmp_path):
     None,                                               # R_SYNC.md missing
 ])
 def test_markers_missing_or_duplicated_write_nothing(tmp_path, r_app, md):
-    root, app = _tree(tmp_path), r_app
+    root, app = _tree(tmp_path, "v1.31.0"), r_app
     if md is None:
         (root / C.MD_PATH).unlink()
     else:
@@ -471,7 +535,7 @@ def test_markers_missing_or_duplicated_write_nothing(tmp_path, r_app, md):
 
 
 def test_off_rule_link_needs_accept_warnings_and_is_persisted(tmp_path):
-    root, app = _tree(tmp_path), _fake_r(tmp_path)
+    root, app = _tree(tmp_path, "v1.32.0"), _fake_r(tmp_path)
     tourism = app / "data" / "Tourism_SES_Template.json"
     _r_release(app, "v1.32.0", lambda a: _edit_json(tourism, _add_off_rule))
     fw = json.loads(tourism.read_bytes())["dapsiwrm_framework"]
@@ -500,7 +564,7 @@ def test_off_rule_link_needs_accept_warnings_and_is_persisted(tmp_path):
 
 
 def test_type_mismatch_entries_and_sort_order(tmp_path):
-    root, app = _tree(tmp_path), _fake_r(tmp_path)
+    root, app = _tree(tmp_path, "v1.32.0"), _fake_r(tmp_path)
     fisheries = app / "data" / "Fisheries_SES_Template.json"
     tourism = app / "data" / "Tourism_SES_Template.json"
 
@@ -522,7 +586,7 @@ def test_persisted_warnings_are_sorted_not_in_production_order(tmp_path):
     # The mapper reports in connection order: GB002 first, then GB001, then
     # the type mismatch on connections[0]. The pin must hold the
     # (template, kind, from, to, text) order instead.
-    root, app = _tree(tmp_path), _fake_r(tmp_path)
+    root, app = _tree(tmp_path, "v1.32.0"), _fake_r(tmp_path)
     tourism = app / "data" / "Tourism_SES_Template.json"
 
     def edit_tourism(d):
@@ -545,7 +609,7 @@ def test_persisted_warnings_are_sorted_not_in_production_order(tmp_path):
 
 @pytest.mark.parametrize("variant", ["other_template", "other_to", "extra_key"])
 def test_accepted_warning_matches_only_on_every_field(tmp_path, variant):
-    root, app = _tree(tmp_path), _fake_r(tmp_path)
+    root, app = _tree(tmp_path, "v1.32.0"), _fake_r(tmp_path)
     tourism = app / "data" / "Tourism_SES_Template.json"
     _r_release(app, "v1.32.0", lambda a: _edit_json(tourism, _add_off_rule))
     fw = json.loads(tourism.read_bytes())["dapsiwrm_framework"]
@@ -566,7 +630,7 @@ def test_accepted_warning_matches_only_on_every_field(tmp_path, variant):
 
 
 def test_accepted_warning_that_no_longer_occurs_is_dropped(tmp_path, r_app):
-    root, app = _tree(tmp_path), r_app
+    root, app = _tree(tmp_path, "v1.31.0"), r_app
     assert C.sync(repo_root=root, r_root=app, rev="v1.31.0").code == 0     # clean baseline
     pin = _pin(root)
     pin["accepted_warnings"] = [{"template": "Tourism_SES_Template", "kind": "off_rule_link",
@@ -649,7 +713,7 @@ def test_shipped_catalogue_equals_a_fresh_build(tmp_path):
     assert C.sync(repo_root=root, from_fixtures=True).code == 0
     fresh = json.loads((root / C.CATALOGUE_PATH).read_bytes())
     assert json.loads((ROOT / C.CATALOGUE_PATH).read_bytes().decode("utf-8-sig")) == fresh
-    assert (fresh["r_tag"], fresh["r_commit"]) == ("v1.33.0", "4017feb")
+    assert (fresh["r_tag"], fresh["r_commit"]) == ("v1.35.6", "d1a655a")
 
 
 def test_committed_tree_has_no_drift():
@@ -705,7 +769,8 @@ def test_vendored_translations_match_fixture_subsets():
 def test_vendored_translation_key_counts():
     assert {s: len(_vendored(s)) for s in C.TRANSLATION_SUBSETS} == {
         "response_measures": 142, "response_governance": 26, "wp5_vocabulary": 47,
-        "wp5_scenarios": 6, "wp5_governance": 8, "indicator_registry": 10}
+        "wp5_scenarios": 6, "wp5_governance": 8, "indicator_registry": 10,
+        "isa_data_entry": 7, "report_context": 1}
 
 
 def test_vendored_files_are_newline_terminated_json():

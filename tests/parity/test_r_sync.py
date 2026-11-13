@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from sespy.r_sync import sha256_norm, sha256_text_norm
+from sespy.r_template_catalogue import hash_local_pin
 
 ROOT = Path(__file__).resolve().parents[2]
 PIN = json.loads((ROOT / "tests" / "parity" / "r_sync.json").read_text(encoding="utf-8"))
@@ -24,14 +25,14 @@ def test_pin_shape():
     assert re.fullmatch(r"v\d+\.\d+\.\d+", PIN["r_tag"]), PIN["r_tag"]
     assert re.fullmatch(r"[0-9a-f]{7}", PIN["r_commit"]), PIN["r_commit"]
     paths = sorted(PIN["files"])
-    assert len(paths) == 18
+    assert len(paths) == 33
     assert "tests/parity/r_rules/dapsiwrm_connection_rules.R" in paths
     assert "tests/parity/r_source/template_loader.R" in paths
     assert sum(p.startswith("tests/parity/r_templates/") for p in paths) == 7
     # P1b (R v1.33.0): register / stakeholder sources and 6 translation files
     for name in ("constants.R", "response_measures_schema.R", "stakeholder_schema.R"):
         assert f"tests/parity/r_source/{name}" in paths
-    assert sum(p.startswith("tests/parity/r_translations/") for p in paths) == 6
+    assert sum(p.startswith("tests/parity/r_translations/") for p in paths) == 8
     assert not any("backup" in p for p in paths)
     assert isinstance(PIN["accepted_warnings"], list)
 
@@ -48,8 +49,11 @@ def test_r_sync_md_pin_line_equals_the_pin():
 
 @pytest.mark.parametrize("rel", sorted(PIN["files"]))
 def test_fixture_hash_matches_pin(rel):
-    data = (ROOT / rel).read_bytes().decode("utf-8-sig")
-    got = sha256_norm(json.loads(data)) if rel.endswith(".json") else sha256_text_norm(data)
+    if rel.endswith(".json.gz"):
+        got = hash_local_pin(ROOT / rel)
+    else:
+        data = (ROOT / rel).read_bytes().decode("utf-8-sig")
+        got = sha256_norm(json.loads(data)) if rel.endswith(".json") else sha256_text_norm(data)
     assert got == PIN["files"][rel], f"{rel} drifted from the R pin"
 
 
