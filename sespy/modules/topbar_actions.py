@@ -206,6 +206,10 @@ def _feedback_modal(translator: Translator | None) -> ui.Tag:
                            rows=4, width="100%"),
         ui.input_slider("fb_rating", _t(translator, "feedback.rating", "Rating"),
                         min=1, max=5, value=3, step=1),
+        # What the rating is for (feedback #17).
+        ui.p(_t(translator, "feedback.rating_help",
+                "How useful is the tool for you (1-5)?"),
+             class_="text-muted", style="font-size: 0.85rem; margin-top: -8px;"),
         ui.input_select("fb_category", _t(translator, "feedback.category", "Category"),
                         choices=cats),
         ui.tags.hr(),

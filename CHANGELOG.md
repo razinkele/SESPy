@@ -4,7 +4,44 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+### Added
+- **SES Wizard: change a suggested connection's polarity or direction**
+  (live feedback #17, 2026-11-11: "it would be possible to change the
+  polarity ... the word 'enables' is not always suitable"). Ported from the
+  R app's connection review. Each suggestion in the review step has a +/−
+  switch and a "Reverse" control. A changed row reads with R's neutral
+  wording ("drives/increases" or "affects/reduces") instead of the type
+  verb, and Finish saves accepted rows as edited.
+- **Feedback: the rating is explained** (also #17: "What does Rating in
+  the feedback give?"). A line under the slider says it rates how useful
+  the tool is (1–5) and helps the developers prioritise. 9 languages.
+- **SES Wizard: the confidence score is explained** (live feedback #16,
+  2026-11-11: "How is confidence score set in the AI-assisted SES
+  Creation?"). A note under each suggestions table says what its
+  Confidence column is based on. Rule-based: keyword matches in the two
+  element names (none 0.3, one 0.6, two or more 0.9; 0.5 for link types
+  with no keyword list). Claude: the model's own estimate. Both say to
+  check each suggestion. 9 languages.
+- **Network Metrics explains its terms** (live feedback #21, 2026-11-12:
+  "terms would not be clear for a beginner"). A line under the metric
+  choice says what the selected metric measures (Degree, Indegree,
+  Outdegree, Betweenness, Closeness, Eigenvector, PageRank), and
+  Social-ecological fit and Governance gap each open with a sentence saying
+  what their number measures. All in 9 languages.
+
 ### Fixed
+- **SES Wizard: finished work could be deleted by mistake** (live feedback
+  #18, 2026-11-11: "After answering all the questions of the Wizard and
+  pressing continue, the progress was deleted"). Finish kept the elements
+  but returned the wizard to its fresh-start screen, whose only button led
+  to a "Replace existing SES?" dialog with a "Continue, replace it" button
+  that clears the project. After Finish the wizard now shows "Your SES is
+  ready" with the element and connection counts, buttons that open CLD
+  Visualization and Edit Data, and "Start over". The dialog, ported from
+  the R app's "Start over", is now "Start over?" with a warning that all
+  elements and connections will be lost and a red "Yes, start over" button.
+  Its texts are translated into all 9 languages; before, they were English
+  in every language.
 - **Network Metrics: "Show top N" seemed to do nothing** (live feedback #22,
   2026-11-12). The slider sets the length of the "Top-ranked elements"
   table, which sat below six summary panels, so nothing visible changed
@@ -12,14 +49,6 @@ All notable changes to SESPy.
   sidebar drives) now come first, and the slider is labelled "Rows in the
   ranking table" with a line saying what it changes. Leverage Points uses
   the same label.
-
-### Added
-- **Network Metrics explains its terms** (live feedback #21, 2026-11-12:
-  "terms would not be clear for a beginner"). A line under the metric
-  choice says what the selected metric measures (Degree, Indegree,
-  Outdegree, Betweenness, Closeness, Eigenvector, PageRank), and
-  Social-ecological fit and Governance gap each open with a sentence saying
-  what their number measures. All in 9 languages.
 
 ## [1.15.0] — 2026-10-23
 

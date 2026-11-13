@@ -133,13 +133,22 @@ async def case_full_run(page):
         "() => document.getElementById('wizard-wizard_start') !== null"
     )
     assert present, "Start button should be present in DOM after Finish"
+    # Feedback #18: after Finish the wizard shows the completion panel (not
+    # the fresh-start screen) and its buttons open the pages that show the
+    # SES. Edit Data is reached below through the panel's own button.
+    panel = await page.evaluate(
+        "() => (document.querySelector('#wizard-wizard_step_render .wizard-complete')"
+        " || {}).innerText || ''"
+    )
+    assert "Your SES is ready" in panel and "7 elements" in panel, panel
+    assert "Click Start Wizard" not in panel, panel
 
     # Also assert the 7 freeform-step elements were actually persisted to
     # project_data.isa_data.elements. Without this check, a Finish that
     # silently dropped all writes would still pass the deactivated-state
     # check above. Navigate to Edit Data and look for the labels we
     # entered ("E2E drivers sample", "E2E activities sample", etc.).
-    await page.click("#sespy_nav_entry")
+    await page.click("#wizard-wizard_step_render .wizard-complete button:has-text('Edit Data')")
     expected_labels = [
         "E2E drivers sample", "E2E activities sample", "E2E pressures sample",
         "E2E states sample", "E2E impacts sample", "E2E welfare sample",
@@ -240,7 +249,7 @@ async def case_modal_replace(page):
     await _open_wizard(page)
     await page.click("#wizard-wizard_start")
     await page.wait_for_timeout(800)
-    # Modal Continue, replace it.
+    # Modal "Yes, start over" (wizard_replace).
     await page.click("#wizard-wizard_replace")
     await page.wait_for_timeout(1500)
     # Assert: wizard now active. Query the active pill (bg-primary class)
@@ -463,6 +472,37 @@ async def case_claude_button_not_rendered_without_env_key(page):
     assert button is None, "expected no button without ANTHROPIC_API_KEY"
 
 
+async def case_review_flip_and_reverse(page):
+    """Feedback #17: a suggestion's polarity switch and reverse control update
+    the row in the browser (delegated JS in ai_isa_wizard_ui) and Finish saves
+    the edited connection."""
+    print("\n=== case 8: review step — flip polarity and reverse a suggestion ===")
+    await _drive_to_step_11(page)
+    await page.wait_for_selector("tr.wiz-sugg", timeout=60000)
+    row = await page.evaluate(
+        "() => { const r = document.querySelector('tr.wiz-sugg'); return {...r.dataset}; }")
+    await page.click("#wizard-pol_sp3_0")
+    await page.click("#wizard-swap_sp3_0")
+    await page.wait_for_timeout(300)
+    shown = await page.evaluate(
+        "() => { const r = document.querySelector('tr.wiz-sugg');"
+        " return {src: r.querySelector('.wiz-src').textContent,"
+        " pol: r.querySelector('.wiz-pol-label').textContent,"
+        " rat: r.querySelector('.wiz-rat').textContent}; }")
+    flipped = "−" if row["pol"] == "+" else "+"
+    verb = row["vneg"] if row["pol"] == "+" else row["vpos"]
+    assert shown["src"] == row["toId"], (shown, row)
+    assert shown["pol"] == flipped, (shown, row)
+    assert shown["rat"] == f"{row['toLabel']} {verb} {row['fromLabel']}", (shown, row)
+    await page.click("#wizard-accept_sp3_0")
+    await page.click("#wizard-wizard_finish")
+    await page.wait_for_selector("#wizard-wizard_step_render .wizard-complete", timeout=30000)
+    panel = await page.evaluate(
+        "() => document.querySelector('#wizard-wizard_step_render .wizard-complete').innerText")
+    assert "1 connections" in panel, panel
+    print("  ok (row updated in the browser; Finish saved 1 connection)")
+
+
 async def case_claude_consent_modal_shows_and_dismisses_via_cancel(page):
     """First click on Generate shows consent modal; Cancel dismisses it.
     Pre-condition: launch app with ANTHROPIC_API_KEY=test-fake-key."""
@@ -564,9 +604,10 @@ async def main_no_key():
         await case_back_preserves(page)
         await case_validation_failure(page)
         await case_claude_button_not_rendered_without_env_key(page)
+        await case_review_flip_and_reverse(page)
 
         await page.screenshot(path="tests/screenshots/wizard_e2e.png")
-        print("\nwizard e2e: 7 cases passed (no-key mode)")
+        print("\nwizard e2e: 8 cases passed (no-key mode)")
         await browser.close()
 
 
