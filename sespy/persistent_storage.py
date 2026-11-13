@@ -141,7 +141,8 @@ def validate_project_payload(raw: dict[str, Any]) -> ValidationResult:
     return ValidationResult(True, [], project)
 
 
-def save_project_atomic(project: Project, path: Path | str) -> None:
+def save_project_atomic(project: Project, path: Path | str, *,
+                        reference_data: dict | None = None) -> None:
     """Write a Project to disk via temp-file-and-rename. The replace is
     atomic on every supported OS (POSIX rename + Windows MoveFileEx),
     so a crashed write never leaves a half-written file behind.
@@ -150,7 +151,7 @@ def save_project_atomic(project: Project, path: Path | str) -> None:
     """
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    text = project.with_modified_now().to_json()
+    text = project.with_modified_now().to_json(reference_data=reference_data)
     fd, tmp_name = tempfile.mkstemp(
         prefix=target.stem + ".",
         suffix=".tmp.json",
@@ -180,6 +181,7 @@ def load_project(path: Path | str) -> Project:
     return result.project
 
 
-def project_to_bytes(project: Project) -> bytes:
+def project_to_bytes(project: Project, *, reference_data: dict | None = None) -> bytes:
     """Serialize a Project for the Shiny download handler (`bytes` payload)."""
-    return project.with_modified_now().to_json().encode("utf-8")
+    return project.with_modified_now().to_json(
+        reference_data=reference_data).encode("utf-8")

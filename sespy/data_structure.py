@@ -555,11 +555,15 @@ class Project:
         """English summary of `newer_build` ("" for a normal project)."""
         return newer_build_note(self.newer_build)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, reference_data: dict | None = None) -> dict[str, Any]:
+        # `reference_data` (when not None) replaces metadata.reference_data in
+        # the OUTPUT only, like the min_sespy_version stamp below.
         # Stamping changes only the output dict, never self.metadata:
         # Project equality includes metadata, and a newer-build object must
         # keep its raw stamp.
         meta = asdict(self.metadata)
+        if reference_data is not None:
+            meta["reference_data"] = copy.deepcopy(reference_data)
         meta["min_sespy_version"] = _min_reader_stamp(
             self.metadata.min_sespy_version, newer_build=bool(self.newer_build))
         out: dict[str, Any] = {
@@ -580,8 +584,9 @@ class Project:
             out["response_measures"] = self.response_measures.to_dict()
         return out
 
-    def to_json(self, *, indent: int = 2) -> str:
-        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+    def to_json(self, *, indent: int = 2, reference_data: dict | None = None) -> str:
+        return json.dumps(self.to_dict(reference_data=reference_data),
+                          indent=indent, ensure_ascii=False)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "Project":

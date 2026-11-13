@@ -84,7 +84,8 @@ def autosave_path(token: str) -> Path:
     return private_subdir("autosaves") / f"{token_key(token)}.json"
 
 
-def write_autosave(project_or_isa: Project | IsaData, *, token: str) -> Path | None:
+def write_autosave(project_or_isa: Project | IsaData, *, token: str,
+                   reference_data: dict | None = None) -> Path | None:
     """Atomically write the current project to this browser's autosave.
     Accepts either a Project or a raw IsaData (wrapped on the fly).
 
@@ -99,7 +100,7 @@ def write_autosave(project_or_isa: Project | IsaData, *, token: str) -> Path | N
         return None
     path = autosave_path(token)
     try:
-        save_project_atomic(project_or_isa, path)
+        save_project_atomic(project_or_isa, path, reference_data=reference_data)
         try:
             os.chmod(path, 0o600)
         except OSError:

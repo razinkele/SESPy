@@ -113,6 +113,11 @@ class Entry:
         }
 
 
+def current_provenance(meta: Any, snapshot: "Snapshot", reads: frozenset[str]) -> dict:
+    """Loaded entries kept, overlaid with this session's reads. Pure."""
+    return {**meta.reference_data, **{f: snapshot.provenance(f) for f in reads}}
+
+
 @dataclass(frozen=True)
 class Snapshot:
     files: Mapping[str, Entry]
