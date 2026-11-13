@@ -12,8 +12,10 @@ Checks:
      from their pins in r_sync.json;
   3. drift (warns, exit 0; exit 2 with ``--strict``): a live hash differs
      from the pin.
-``--warn-only`` forces exit 0. Exit 3 is ``--fetch`` only: the ssh/scp
-connection itself failed.
+``--warn-only`` forces exit 0 (including an unusable pin; a ``--fetch``
+without server/app-dir is a usage error and still exits 2). Exit 3 is
+``--fetch`` only: ssh/scp itself failed (rc 255). An absent or unreadable
+remote file is structural, never exit 3.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ import argparse
 import json
 import posixpath
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -132,15 +135,15 @@ def check_live(live: Path, stage: Path, pin: dict) -> tuple[list[str], list[str]
 # --perms
 # --------------------------------------------------------------------------
 def _class_ok(mode3: str, owner: str, group: str, need: int) -> bool:
+    """Kernel class precedence: owner shiny -> only the u bits; else group
+    shiny -> only the g bits; else the o bits. Only the primary group is
+    visible to `stat %G`: supplementary groups and ACLs are not modelled."""
     try:
         u, g, o = (int(c, 8) for c in mode3)
     except ValueError:
         return False
-    return (
-        (owner == SHINY_USER and u & need == need)
-        or (group == SHINY_USER and g & need == need)
-        or (o & need == need)
-    )
+    bits = u if owner == SHINY_USER else g if group == SHINY_USER else o
+    return bits & need == need
 
 
 def _ancestors(path: str) -> list[str]:
@@ -183,7 +186,7 @@ def check_perms(perms_text: str) -> list[str]:
                 problems.append(f"perms: {f} has no stat line for parent directory {d}")
                 continue
             dmode, downer, dgroup = stats[d]
-            if not _class_ok(dmode, downer, dgroup, 5):
+            if not _class_ok(dmode, downer, dgroup, 1):
                 problems.append(
                     f"perms: user shiny cannot traverse {d} (mode {dmode} {downer}:{dgroup}) for {f}"
                 )
@@ -224,39 +227,61 @@ def _conn_fail(cmd: list[str], cp: subprocess.CompletedProcess) -> ConnectionFai
     return ConnectionFailed(f"{' '.join(cmd)} exited {cp.returncode}: {(cp.stderr or '').strip()}")
 
 
-def fetch(server: str, app_dir: str, tmp: Path) -> Path | None:
-    """Fetch the override files into `tmp`; returns the live dir, or None when
-    the override is off. Writes tmp/perms.txt. Raises ConnectionFailed."""
+SAFE_REMOTE = re.compile(r"^/[A-Za-z0-9._/@+-]+$")
+
+
+def _valid_remote_dir(value: str) -> bool:
+    return value.startswith("/") and not any(c in value for c in "\n\r\0")
+
+
+def fetch(server: str, app_dir: str, tmp: Path) -> tuple[Path | None, list[str]]:
+    """Fetch the override files into `tmp`. Returns (live dir or None when the
+    override is off or unusable, structural problems). Writes tmp/perms.txt.
+    Raises ConnectionFailed only for ssh/scp rc 255 (or ssh not runnable)."""
+    problems: list[str] = []
     settings_path = posixpath.join(app_dir, r_kb.SETTINGS_FILE)
-    cmd = ["ssh", server, f"test -e '{settings_path}' && cat '{settings_path}'"]
+    q = shlex.quote(settings_path)
+    # exit 3 = absent, 4 = present but unreadable, 255 = ssh itself failed
+    cmd = ["ssh", "--", server, f"if [ -e {q} ]; then cat {q} || exit 4; else exit 3; fi"]
     cp = _run(cmd)
     if cp.returncode == 0:
         settings_text: str | None = cp.stdout
-    elif cp.returncode == 1:
+    elif cp.returncode == 3:
         settings_text = None  # absent: the default path the create step will write
+    elif cp.returncode == 4:
+        problems.append(f"live: {settings_path} exists but cannot be read; the override setting is unknown")
+        return None, problems
     else:
         raise _conn_fail(cmd, cp)
     remote_dir = r_kb.override_dir_from({}, settings_text)
     if remote_dir is None:
-        return None
+        return None, problems
+    if not _valid_remote_dir(remote_dir):
+        problems.append(f"live: SESPY_R_DATA_DIR {remote_dir!r} is not an absolute single-line path")
+        return None, problems
 
     live = tmp / ".live"
     live.mkdir(parents=True, exist_ok=True)
+    rows = [r for r in r_kb.ALLOW_LIST if r.override]
+    remote_files = [posixpath.join(remote_dir, r.name) for r in rows]
     missing: list[str] = []
-    remote_files = [posixpath.join(remote_dir, row.name) for row in r_kb.ALLOW_LIST if row.override]
-    for row, remote in zip([r for r in r_kb.ALLOW_LIST if r.override], remote_files):
-        cmd = ["scp", "-q", f"{server}:{remote}", str(live / row.name)]
-        cp = _run(cmd)
-        if cp.returncode != 0:
-            if "no such file" in (cp.stderr or "").lower():
-                missing.append(row.name)
-            else:
+    if not SAFE_REMOTE.match(remote_dir):
+        # scp may hand the remote path to a shell (old protocol): never fetch an odd path
+        problems.append(f"live: SESPY_R_DATA_DIR {remote_dir!r} has characters that are unsafe to fetch")
+        missing = [r.name for r in rows]
+    else:
+        for row, remote in zip(rows, remote_files):
+            cmd = ["scp", "-q", "--", f"{server}:{remote}", str(live / row.name)]
+            cp = _run(cmd)
+            if cp.returncode == 255:
                 raise _conn_fail(cmd, cp)
-    version_remote = posixpath.join(posixpath.dirname(remote_dir.rstrip("/")), r_kb.VERSION_INFO_NAME)
-    cmd = ["scp", "-q", f"{server}:{version_remote}", str(live / r_kb.VERSION_INFO_NAME)]
-    cp = _run(cmd)
-    if cp.returncode != 0 and "no such file" not in (cp.stderr or "").lower():
-        raise _conn_fail(cmd, cp)
+            if cp.returncode != 0:  # absent or unreadable: a structural problem, not a connection one
+                missing.append(row.name)
+        version_remote = posixpath.join(posixpath.dirname(remote_dir.rstrip("/")), r_kb.VERSION_INFO_NAME)
+        cmd = ["scp", "-q", "--", f"{server}:{version_remote}", str(live / r_kb.VERSION_INFO_NAME)]
+        cp = _run(cmd)
+        if cp.returncode == 255:
+            raise _conn_fail(cmd, cp)
     if missing:
         (live / "missing.txt").write_text("\n".join(missing) + "\n", encoding="utf-8")
 
@@ -265,13 +290,13 @@ def fetch(server: str, app_dir: str, tmp: Path) -> Path | None:
         for p in (f, *_ancestors(f)):
             if p not in paths:
                 paths.append(p)
-    quoted = " ".join(f"'{p}'" for p in paths)
-    cmd = ["ssh", server, f"stat -c 'stat %a %U %G %n' {quoted}"]
+    quoted = " ".join(shlex.quote(p) for p in paths)
+    cmd = ["ssh", "--", server, f"stat -c 'stat %a %U %G %n' {quoted}"]
     cp = _run(cmd)
-    if cp.returncode not in (0, 1):  # 1: some file absent; its lines are simply missing
-        raise _conn_fail(cmd, cp)
+    if cp.returncode == 255:
+        raise _conn_fail(cmd, cp)  # other nonzero: some path absent; its lines are simply missing
     (tmp / "perms.txt").write_text(cp.stdout, encoding="utf-8")
-    return live
+    return live, problems
 
 
 # --------------------------------------------------------------------------
@@ -301,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
     tmp_ctx = None
     live: Path | None = args.live
     perms_file: Path | None = args.perms
+    fetch_problems: list[str] = []
     if args.fetch:
         cfg = _read_config_env(REPO_ROOT / "deploy" / "config.env")
         server = args.server or cfg.get("DEPLOY_SERVER")
@@ -311,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         tmp_ctx = tempfile.TemporaryDirectory(prefix="check_live_")
         try:
-            live = fetch(server, app_dir, Path(tmp_ctx.name))
+            live, fetch_problems = fetch(server, app_dir, Path(tmp_ctx.name))
         except ConnectionFailed as exc:
             print(f"check_live: connection failed: {exc}", file=sys.stderr)
             tmp_ctx.cleanup()
@@ -320,8 +346,12 @@ def main(argv: list[str] | None = None) -> int:
             perms_file = Path(tmp_ctx.name) / "perms.txt"
 
     try:
-        pin = _load_json(args.pin)
-        structural = check_shipped(args.stage, pin)
+        try:
+            pin = _load_json(args.pin)
+        except (OSError, ValueError) as exc:
+            print(f"STRUCTURAL: pin {args.pin} is missing or unreadable ({exc})")
+            return 0 if args.warn_only else 2
+        structural = check_shipped(args.stage, pin) + fetch_problems
         drift: list[str] = []
         if live is None:
             print("check_live: live override is off; live checks skipped")
@@ -329,7 +359,10 @@ def main(argv: list[str] | None = None) -> int:
             s, drift = check_live(live, args.stage, pin)
             structural += s
             if perms_file is not None:
-                structural += check_perms(perms_file.read_text(encoding="utf-8-sig"))
+                try:
+                    structural += check_perms(perms_file.read_text(encoding="utf-8-sig"))
+                except OSError as exc:
+                    structural.append(f"perms: {perms_file} is unreadable ({exc})")
     finally:
         if tmp_ctx is not None:
             tmp_ctx.cleanup()

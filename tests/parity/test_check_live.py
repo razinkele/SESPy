@@ -1,11 +1,14 @@
 """Task 16 -- tests/parity/check_live.py, the live reference-data pre-flight."""
 from __future__ import annotations
 
+import ast
+import fnmatch
 import json
-import os
+import shlex
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -160,6 +163,72 @@ def test_print_override_names(capsys):
     assert capsys.readouterr().out.split() == [KB, GOV]
 
 
+def test_perms_kernel_class_precedence(trees, tmp_path):
+    stage, live = trees
+
+    def ok(**kw):
+        return run(stage, live, "--perms", str(_perms(tmp_path, _stat_lines(**kw))))
+
+    assert ok(file_mode="044", owner="shiny", group="shiny") == 2  # owner class wins: u=0
+    assert ok(file_mode="400", owner="shiny", group="razinka") == 0
+    assert ok(file_mode="604", owner="razinka", group="shiny") == 2  # group class wins: g=0
+    assert ok(file_mode="640", owner="razinka", group="shiny") == 0
+    assert ok(file_mode="4644", owner="razinka", group="razinka") == 0  # 4 digits: last 3 only
+
+
+def test_perms_directories_need_only_x(trees, tmp_path):
+    stage, live = trees
+    assert run(stage, live, "--perms", str(_perms(tmp_path, _stat_lines(dir_mode="711")))) == 0
+    assert run(stage, live, "--perms", str(_perms(tmp_path, _stat_lines(dir_mode="700")))) == 2
+    assert run(stage, live, "--perms", str(_perms(tmp_path, _stat_lines(dir_mode="744")))) == 2
+
+
+def test_bad_pin_is_structural_not_a_traceback(trees, tmp_path):
+    stage, live = trees
+    assert check_live.main(["--pin", str(tmp_path / "nope.json"), "--stage", str(stage)]) == 2
+
+
+# ---------------------------------------------------------------------------
+# --fetch (subprocess.run monkeypatched; nothing leaves the machine)
+# ---------------------------------------------------------------------------
+class Remote:
+    """A scripted ssh/scp peer."""
+
+    def __init__(self, live_src, settings="SESPY_R_DATA_DIR=/data/live\n", settings_rc=0,
+                 scp_rc=0, scp_err="", stat_mode="644"):
+        self.live_src, self.settings, self.settings_rc = live_src, settings, settings_rc
+        self.scp_rc, self.scp_err, self.stat_mode = scp_rc, scp_err, stat_mode
+        self.calls: list[list[str]] = []
+
+    def __call__(self, cmd, **kw):
+        self.calls.append(list(cmd))
+        cp = subprocess.CompletedProcess(cmd, 0, "", "")
+        if cmd[0] == "ssh" and "server_settings.env" in cmd[3]:
+            cp.returncode, cp.stdout = self.settings_rc, (self.settings if self.settings_rc == 0 else "")
+        elif cmd[0] == "scp":
+            if self.scp_rc:
+                cp.returncode, cp.stderr = self.scp_rc, self.scp_err
+            else:
+                shutil.copy(self.live_src / cmd[3].rsplit("/", 1)[1], cmd[4])
+        elif cmd[0] == "ssh":  # the stat command
+            paths = shlex.split(cmd[3])[3:]
+            cp.stdout = "".join(
+                f"stat {self.stat_mode if p.endswith('.json') else '755'} root shiny {p}\n" for p in paths)
+        return cp
+
+
+@pytest.fixture
+def fetch_run(monkeypatch, trees):
+    stage, live_src = trees
+
+    def go(remote, *extra):
+        monkeypatch.setattr(subprocess, "run", remote)
+        return check_live.main(["--pin", str(PIN), "--stage", str(stage), "--fetch",
+                                "--server", "deploy@example.test", "--app-dir", "/srv/app", *extra])
+
+    return go, live_src
+
+
 def test_fetch_reads_config_env(monkeypatch, tmp_path, trees):
     stage, live_src = trees
     cfg_dir = tmp_path / "cfgroot"
@@ -167,55 +236,101 @@ def test_fetch_reads_config_env(monkeypatch, tmp_path, trees):
     (cfg_dir / "deploy").mkdir(parents=True)
     (cfg_dir / "deploy" / "config.env").write_text(
         'DEPLOY_SERVER=deploy@example.test\nDEPLOY_DIR="/srv/app"\n', encoding="utf-8")
-    calls: list[list[str]] = []
-
-    def fake_run(cmd, **kw):
-        calls.append(list(cmd))
-        cp = subprocess.CompletedProcess(cmd, 0, "", "")
-        if cmd[0] == "ssh" and "server_settings.env" in cmd[2]:
-            cp.stdout = "SESPY_R_DATA_DIR=/data/live\n"
-        elif cmd[0] == "scp":
-            name = cmd[2].rsplit("/", 1)[1]
-            shutil.copy(live_src / name, cmd[3])
-        elif cmd[0] == "ssh":
-            cp.stdout = "stat 644 razinka shiny /data/live/ses_knowledge_db.json\n"
-        return cp
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    remote = Remote(live_src)
+    monkeypatch.setattr(subprocess, "run", remote)
     rc = check_live.main(["--pin", str(PIN), "--stage", str(stage), "--fetch"])
-    assert rc == 2  # perms deliberately incomplete: no governance line, no parent lines
-    assert calls[0][:2] == ["ssh", "deploy@example.test"]
-    assert "/srv/app/server_settings.env" in calls[0][2]  # settings read comes first
-    scps = [c for c in calls if c[0] == "scp"]
-    assert any(c[2] == "deploy@example.test:/data/live/ses_knowledge_db.json" for c in scps)
-    assert any(c[2] == "deploy@example.test:/data/VERSION_INFO.json" for c in scps)
+    assert rc == 0  # complete stat output: the happy path
+    assert remote.calls[0][:3] == ["ssh", "--", "deploy@example.test"]
+    assert "/srv/app/server_settings.env" in remote.calls[0][3]  # settings read comes first
+    scps = [c for c in remote.calls if c[0] == "scp"]
+    assert any(c[3] == "deploy@example.test:/data/live/ses_knowledge_db.json" for c in scps)
+    assert any(c[3] == "deploy@example.test:/data/VERSION_INFO.json" for c in scps)
 
 
-def test_fetch_connection_failure_exits_3(monkeypatch, tmp_path, trees):
-    stage, _ = trees
-    monkeypatch.setattr(subprocess, "run",
-                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 255, "", "ssh: no route"))
-    rc = check_live.main(["--pin", str(PIN), "--stage", str(stage), "--fetch",
-                          "--server", "x@y", "--app-dir", "/a", "--warn-only"])
-    assert rc == 3
+def test_fetch_connection_failure_exits_3(fetch_run):
+    go, live_src = fetch_run
+    assert go(Remote(live_src, settings_rc=255), "--warn-only") == 3
 
 
-def test_fetch_override_off_skips_live(monkeypatch, trees):
-    stage, _ = trees
-
-    def fake_run(cmd, **kw):
-        assert cmd[0] == "ssh"  # nothing is scp'd when the override is off
-        return subprocess.CompletedProcess(cmd, 0, "SESPY_R_DATA_DIR=off\n", "")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    assert check_live.main(["--pin", str(PIN), "--stage", str(stage), "--fetch",
-                            "--server", "x@y", "--app-dir", "/a"]) == 0
+def test_fetch_scp_255_exits_3(fetch_run):
+    go, live_src = fetch_run
+    assert go(Remote(live_src, scp_rc=255, scp_err="Connection reset")) == 3
 
 
-def test_not_collected_by_pytest():
-    env = {**os.environ, "PYTHONPATH": str(ROOT)}
+def test_fetch_override_off_skips_live(fetch_run):
+    go, live_src = fetch_run
+    remote = Remote(live_src, settings="SESPY_R_DATA_DIR=off\n")
+    assert go(remote) == 0
+    assert all(c[0] == "ssh" for c in remote.calls)  # nothing is scp'd when the override is off
+
+
+def test_fetch_absent_settings_uses_default_path(fetch_run):
+    go, live_src = fetch_run
+    remote = Remote(live_src, settings_rc=3)  # exit 3 = file absent
+    go(remote)
+    default = check_live.r_kb.DEFAULT_OVERRIDE_DIR
+    assert any(c[0] == "scp" and c[3].endswith(f":{default}/ses_knowledge_db.json") for c in remote.calls)
+
+
+def test_fetch_unreadable_settings_is_structural(fetch_run):
+    go, live_src = fetch_run
+    remote = Remote(live_src, settings_rc=4)  # exists, cat failed
+    assert go(remote) == 2
+    assert not any(c[0] == "scp" for c in remote.calls)  # must not fall back to the default path
+    assert go(Remote(live_src, settings_rc=4), "--warn-only") == 0
+
+
+def test_fetch_scp_permission_denied_is_structural_not_exit_3(fetch_run):
+    go, live_src = fetch_run
+    assert go(Remote(live_src, scp_rc=1, scp_err="scp: open remote: Permission denied")) == 2
+
+
+def test_fetch_quotes_remote_paths(fetch_run):
+    go, live_src = fetch_run
+    evil = "/x'; touch /tmp/pwned; '"
+    remote = Remote(live_src, settings=f"SESPY_R_DATA_DIR={evil}\n")
+    assert go(remote) == 2  # unsafe to fetch: structural
+    assert not any(c[0] == "scp" for c in remote.calls)
+    stat = remote.calls[-1]
+    assert stat[0] == "ssh"
+    assert shlex.quote(evil + "/ses_knowledge_db.json") in stat[3]
+    assert evil + "/ses_knowledge_db.json" in shlex.split(stat[3])  # one literal argument
+
+
+@pytest.mark.parametrize("value", ["relative/dir", "/a\x00b"])
+def test_fetch_rejects_non_absolute_or_nul_dir(fetch_run, value):
+    go, live_src = fetch_run
+    remote = Remote(live_src, settings=f"SESPY_R_DATA_DIR={value}\n")
+    assert go(remote) == 2
+    assert [c[0] for c in remote.calls] == ["ssh"]
+
+
+# ---------------------------------------------------------------------------
+# collection guard
+# ---------------------------------------------------------------------------
+def _python_files_patterns() -> list[str]:
+    cfg = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    pats = cfg.get("tool", {}).get("pytest", {}).get("ini_options", {}).get("python_files")
+    if pats is None:
+        return ["test_*.py", "*_test.py"]
+    return pats.split() if isinstance(pats, str) else list(pats)
+
+
+def test_not_collected_by_pytest(tmp_path):
+    name = "check_live.py"
+    pats = _python_files_patterns()
+    assert not any(fnmatch.fnmatch(name, p) for p in pats), (name, pats)
+    tree = ast.parse((ROOT / "tests" / "parity" / name).read_text(encoding="utf-8"))
+    leaked = [n.name for n in ast.walk(tree)
+              if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name.lower().startswith("test")]
+    assert not leaked, f"{name} defines pytest-looking objects: {leaked}"
+    # canary: the same pattern list does collect a matching name, so the checks above can fail
+    body = "def test_canary():\n    pass\n"
+    (tmp_path / "check_live.py").write_text(body, encoding="utf-8")
+    (tmp_path / "test_check_live_cli.py").write_text(body, encoding="utf-8")
     out = subprocess.run(
-        [sys.executable, "-m", "pytest", "--collect-only", "-q", "tests/parity", "-p", "no:cacheprovider"],
-        cwd=ROOT, env=env, capture_output=True, text=True).stdout
-    assert "test_check_live.py" in out
-    assert "check_live.py::" not in out.replace("test_check_live.py::", "")
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
+         "-o", "python_files=" + " ".join(pats), "--rootdir", str(tmp_path), str(tmp_path)],
+        cwd=tmp_path, capture_output=True, text=True).stdout
+    assert "test_check_live_cli.py::test_canary" in out
+    assert "\ncheck_live.py::" not in "\n" + out
