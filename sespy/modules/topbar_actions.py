@@ -15,12 +15,12 @@ if TYPE_CHECKING:
 from shiny import reactive, render, ui
 
 from .. import __version__ as _sespy_version
-from .. import feedback_store
+from .. import feedback_store, r_kb
 from ..autosave import autosave_age_seconds, clear_autosave
 from ..browser_token import read_browser_token
 from ..dashboard import language_switcher
-from ..input_utils import safe_int
 from ..i18n import Translator
+from ..input_utils import safe_int
 
 _THEME_CHOICES = {"light-marine": "Light Marine", "deep-ocean": "Deep Ocean (Dark)"}
 
@@ -259,7 +259,30 @@ that shaped the app. The *Changelog* tab records what changed in each release.
 """
 
 
-def _about_modal(translator) -> ui.Tag:
+def _reference_data_section(translator, snapshot) -> ui.Tag | None:
+    """One row per allow-listed reference file: name, source, label, live R
+    version when known, first 8 hash characters. None without a snapshot."""
+    if snapshot is None:
+        return None
+    rows = []
+    for row in r_kb.ALLOW_LIST:
+        entry = snapshot.files.get(row.name)
+        if entry is None:
+            continue
+        parts = [entry.source, snapshot.label(row.name)]
+        if snapshot.live_r_version:
+            parts.append(_t(translator, "about.reference_data_live",
+                            "live R {version}").replace("{version}",
+                                                        str(snapshot.live_r_version)))
+        parts.append(f"{_t(translator, 'about.reference_data_hash', 'hash')} "
+                     f"{entry.sha256_norm[:8]}")
+        rows.append(ui.tags.li(ui.tags.code(row.name), " — ", ", ".join(parts)))
+    return ui.div(ui.h6(_t(translator, "about.reference_data", "Reference data")),
+                  ui.tags.ul(*rows, class_="mb-0"),
+                  id="about-reference-data", class_="mb-3")
+
+
+def _about_modal(translator, *, snapshot: Snapshot | None = None) -> ui.Tag:
     header = ui.markdown(
         f"### MarineSABRES SES Toolbox — Python\n\n"
         f"**Version {_app_version()}** — developed within the "
@@ -270,7 +293,8 @@ def _about_modal(translator) -> ui.Tag:
         ui.navset_tab(
             ui.nav_panel(_t(translator, "about.overview", "Overview"),
                          ui.div(header, class_="mb-3"),
-                         ui.markdown(_ABOUT_OVERVIEW)),
+                         ui.markdown(_ABOUT_OVERVIEW),
+                         _reference_data_section(translator, snapshot)),
             ui.nav_panel(_t(translator, "about.manual", "Manual"),
                          ui.div(ui.markdown(read_project_doc("docs/MANUAL.md")),
                                 class_="sespy-manual")),
@@ -330,7 +354,7 @@ def topbar_actions_server(input, output, session, *, translator=None,
     contextual "About this panel" section; either missing → the section
     just shows the manual pointer. snapshot (K1, optional) is the session's
     reference-data snapshot for the About modal's Reference data section
-    (Task 15); accepted here, not yet used."""
+    (Task 15)."""
     labels = {item.id: item.label for item in (nav_items or [])}
 
     @reactive.effect
@@ -341,7 +365,7 @@ def topbar_actions_server(input, output, session, *, translator=None,
     @reactive.effect
     @reactive.event(input.tb_about)
     def _open_about():
-        ui.modal_show(_about_modal(translator))
+        ui.modal_show(_about_modal(translator, snapshot=snapshot))
 
     @reactive.effect
     @reactive.event(input.tb_options)
@@ -377,7 +401,7 @@ def topbar_actions_server(input, output, session, *, translator=None,
     @reactive.event(input.tb_help_open_manual)
     def _help_to_manual():
         ui.toggle_offcanvas("tb_help_panel", show=False)
-        ui.modal_show(_about_modal(translator))
+        ui.modal_show(_about_modal(translator, snapshot=snapshot))
 
     @reactive.effect
     @reactive.event(input.theme_select)
