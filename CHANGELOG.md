@@ -4,6 +4,24 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+### Added
+- **CLD Visualization: legend** (live feedback #19, 2026-11-12: "There
+  should be a legend for the network, showing what each of the elements
+  mean"). Above the diagram, every element type present with the colour and
+  shape the canvas draws, and the two link colours (+ more leads to more,
+  − more leads to less). It follows the element-type filter.
+- **CLD Visualization: density explained** (live feedback #20): an ⓘ next
+  to Density explains it on hover or keyboard focus. The Nodes, Edges and
+  Density labels are now translated (they were English in every language).
+
+### Fixed
+- **CLD Visualization drew the wrong element colours.** The pyvis fork
+  drops a node's `color` when it also has a `group`, so vis.js painted each
+  type from its default group palette (pink Ecosystem Services, purple
+  Goods & Benefits, ...) instead of the R app's Kumu colours. The canvas
+  now uses the R colours, which the new legend shows. Found while building
+  the legend.
+
 ## [1.15.0] — 2026-10-23
 
 Roadmap P1b (response register, indicator fields and stakeholder roles;
