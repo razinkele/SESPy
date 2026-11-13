@@ -5797,6 +5797,83 @@
       "no": "omstridt fortegn",
       "el": "αμφισβητούμενο πρόσημο"
     },
+    "cld.legend": {
+      "en": "Legend:",
+      "es": "Leyenda:",
+      "fr": "Légende :",
+      "de": "Legende:",
+      "lt": "Legenda:",
+      "pt": "Legenda:",
+      "it": "Legenda:",
+      "no": "Tegnforklaring:",
+      "el": "Υπόμνημα:"
+    },
+    "cld.legend_reinforcing": {
+      "en": "+ link: more of one leads to more of the other",
+      "es": "enlace +: más de uno lleva a más del otro",
+      "fr": "lien + : plus de l'un entraîne plus de l'autre",
+      "de": "Verbindung +: mehr vom einen führt zu mehr vom anderen",
+      "lt": "ryšys +: daugiau vieno lemia daugiau kito",
+      "pt": "ligação +: mais de um leva a mais do outro",
+      "it": "collegamento +: più dell'uno porta a più dell'altro",
+      "no": "kobling +: mer av det ene gir mer av det andre",
+      "el": "σύνδεση +: περισσότερο από το ένα οδηγεί σε περισσότερο από το άλλο"
+    },
+    "cld.legend_opposing": {
+      "en": "− link: more of one leads to less of the other",
+      "es": "enlace −: más de uno lleva a menos del otro",
+      "fr": "lien − : plus de l'un entraîne moins de l'autre",
+      "de": "Verbindung −: mehr vom einen führt zu weniger vom anderen",
+      "lt": "ryšys −: daugiau vieno lemia mažiau kito",
+      "pt": "ligação −: mais de um leva a menos do outro",
+      "it": "collegamento −: più dell'uno porta a meno dell'altro",
+      "no": "kobling −: mer av det ene gir mindre av det andre",
+      "el": "σύνδεση −: περισσότερο από το ένα οδηγεί σε λιγότερο από το άλλο"
+    },
+    "cld.stat_nodes": {
+      "en": "Nodes",
+      "es": "Nodos",
+      "fr": "Nœuds",
+      "de": "Knoten",
+      "lt": "Mazgai",
+      "pt": "Nós",
+      "it": "Nodi",
+      "no": "Noder",
+      "el": "Κόμβοι"
+    },
+    "cld.stat_edges": {
+      "en": "Edges",
+      "es": "Conexiones",
+      "fr": "Liens",
+      "de": "Kanten",
+      "lt": "Ryšiai",
+      "pt": "Ligações",
+      "it": "Collegamenti",
+      "no": "Koblinger",
+      "el": "Συνδέσεις"
+    },
+    "cld.stat_density": {
+      "en": "Density",
+      "es": "Densidad",
+      "fr": "Densité",
+      "de": "Dichte",
+      "lt": "Tankis",
+      "pt": "Densidade",
+      "it": "Densità",
+      "no": "Tetthet",
+      "el": "Πυκνότητα"
+    },
+    "cld.density_help": {
+      "en": "Density: the share of all possible connections that the diagram actually has, i.e. edges ÷ (nodes × (nodes − 1)). 0 = no connections; 1 = every element linked to every other in both directions. SES diagrams are usually sparse, well below 0.2; a higher value means a tightly interlinked system.",
+      "es": "Densidad: la proporción de todas las conexiones posibles que el diagrama tiene realmente, es decir, conexiones ÷ (nodos × (nodos − 1)). 0 = sin conexiones; 1 = cada elemento enlazado con todos los demás en ambas direcciones. Los diagramas SES suelen ser dispersos, muy por debajo de 0,2; un valor más alto indica un sistema muy interconectado.",
+      "fr": "Densité : la part de toutes les connexions possibles que le diagramme possède réellement, soit liens ÷ (nœuds × (nœuds − 1)). 0 = aucune connexion ; 1 = chaque élément relié à tous les autres dans les deux sens. Les diagrammes SES sont en général clairsemés, bien en dessous de 0,2 ; une valeur plus élevée signale un système très interconnecté.",
+      "de": "Dichte: der Anteil aller möglichen Verbindungen, die das Diagramm tatsächlich enthält, d. h. Kanten ÷ (Knoten × (Knoten − 1)). 0 = keine Verbindungen; 1 = jedes Element in beide Richtungen mit jedem anderen verbunden. SES-Diagramme sind meist dünn besetzt, deutlich unter 0,2; ein höherer Wert bedeutet ein eng verflochtenes System.",
+      "lt": "Tankis: kokią visų galimų ryšių dalį diagrama iš tikrųjų turi, t. y. ryšiai ÷ (mazgai × (mazgai − 1)). 0 = ryšių nėra; 1 = kiekvienas elementas susietas su visais kitais abiem kryptimis. SES diagramos paprastai retos, gerokai žemiau 0,2; didesnė reikšmė rodo glaudžiai susietą sistemą.",
+      "pt": "Densidade: a proporção de todas as ligações possíveis que o diagrama tem realmente, ou seja, ligações ÷ (nós × (nós − 1)). 0 = sem ligações; 1 = cada elemento ligado a todos os outros nos dois sentidos. Os diagramas SES são geralmente esparsos, bem abaixo de 0,2; um valor mais alto indica um sistema muito interligado.",
+      "it": "Densità: la quota di tutti i collegamenti possibili che il diagramma ha davvero, cioè collegamenti ÷ (nodi × (nodi − 1)). 0 = nessun collegamento; 1 = ogni elemento collegato a tutti gli altri in entrambe le direzioni. I diagrammi SES sono di solito radi, ben sotto 0,2; un valore più alto indica un sistema fortemente interconnesso.",
+      "no": "Tetthet: andelen av alle mulige koblinger som diagrammet faktisk har, dvs. koblinger ÷ (noder × (noder − 1)). 0 = ingen koblinger; 1 = hvert element koblet til alle andre i begge retninger. SES-diagrammer er vanligvis glisne, godt under 0,2; en høyere verdi betyr et tett sammenvevd system.",
+      "el": "Πυκνότητα: το ποσοστό όλων των πιθανών συνδέσεων που έχει πράγματι το διάγραμμα, δηλαδή συνδέσεις ÷ (κόμβοι × (κόμβοι − 1)). 0 = καμία σύνδεση· 1 = κάθε στοιχείο συνδεδεμένο με όλα τα άλλα και προς τις δύο κατευθύνσεις. Τα διαγράμματα SES είναι συνήθως αραιά, πολύ κάτω από 0,2· υψηλότερη τιμή σημαίνει στενά διασυνδεδεμένο σύστημα."
+    },
     "quadrant.split": {
       "en": "Cross-hair split",
       "es": "División de ejes",

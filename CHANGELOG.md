@@ -28,6 +28,14 @@ All notable changes to SESPy.
   Outdegree, Betweenness, Closeness, Eigenvector, PageRank), and
   Social-ecological fit and Governance gap each open with a sentence saying
   what their number measures. All in 9 languages.
+- **CLD Visualization: legend** (live feedback #19, 2026-11-12: "There
+  should be a legend for the network, showing what each of the elements
+  mean"). Above the diagram, every element type present with the colour and
+  shape the canvas draws, and the two link colours (+ more leads to more,
+  − more leads to less). It follows the element-type filter.
+- **CLD Visualization: density explained** (live feedback #20): an ⓘ next
+  to Density explains it on hover or keyboard focus. The Nodes, Edges and
+  Density labels are now translated (they were English in every language).
 
 ### Fixed
 - **SES Wizard: finished work could be deleted by mistake** (live feedback
@@ -49,6 +57,12 @@ All notable changes to SESPy.
   sidebar drives) now come first, and the slider is labelled "Rows in the
   ranking table" with a line saying what it changes. Leverage Points uses
   the same label.
+- **CLD Visualization drew the wrong element colours.** The pyvis fork
+  drops a node's `color` when it also has a `group`, so vis.js painted each
+  type from its default group palette (pink Ecosystem Services, purple
+  Goods & Benefits, ...) instead of the R app's Kumu colours. The canvas
+  now uses the R colours, which the new legend shows. Found while building
+  the legend.
 
 ## [1.15.0] — 2026-10-23
 

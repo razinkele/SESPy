@@ -109,3 +109,36 @@
 .pyvis-network-output .pyvis-network-canvas {
   border: none !important;
 }
+
+/* Legend above the canvas (feedback #19). Light fills (Goods & Benefits,
+   Marine Processes) get a dark outline so they show on white. */
+.cld-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #444;
+}
+.cld-legend-title { margin-right: 4px; }
+.cld-legend-item { white-space: nowrap; }
+.cld-legend-glyph {
+  font-size: 15px;
+  -webkit-text-stroke: 0.6px #555;
+  paint-order: stroke fill;
+}
+.cld-legend-line {
+  display: inline-block;
+  width: 22px;
+  height: 3px;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+/* Density info dot (feedback #20). */
+.cld-info-dot {
+  cursor: help;
+  margin-left: 4px;
+  color: #2d5a7b;
+  font-size: 13px;
+}

@@ -120,12 +120,24 @@ def _cld_body() -> ui.Tag:
             ui.div(
                 ui.div(ui.output_text("stat_nodes"), class_="cld-stat"),
                 ui.div(ui.output_text("stat_edges"), class_="cld-stat"),
-                ui.div(ui.output_text("stat_density"), class_="cld-stat"),
+                ui.div(
+                    ui.output_text("stat_density", inline=True),
+                    # Hover/focus explanation (feedback #20).
+                    ui.tooltip(
+                        ui.tags.span("ⓘ", class_="cld-info-dot", tabindex="0",
+                                     **{"aria-label": t("cld.density_help")}),
+                        t("cld.density_help"),
+                        placement="right",
+                    ),
+                    class_="cld-stat",
+                ),
                 class_="cld-stats cld-stats-sidebar",
             ),
             width=320,
         ),
         ui.div(
+            # What the colours and shapes mean (feedback #19).
+            ui.output_ui("legend"),
             output_pyvis_network(
                 "network",
                 height="650px",
@@ -231,6 +243,12 @@ def _build_pyvis_network(
             widthConstraint={"maximum": label_max},
             group=el.type,
         )
+        # The pyvis fork drops `color` when `group` is given, and vis.js then
+        # paints each type from its default group palette instead of
+        # ELEMENT_COLORS (the R app's Kumu colours, which the legend shows).
+        # A node-level colour overrides group styling, so set it back; the
+        # group stays because e2e checks and diagnostics read node types from it.
+        net.get_node(el.id)["color"] = ELEMENT_COLORS.get(el.type, DEFAULT_GROUP_COLOR)
 
     for c in isa.connections:
         kwargs = delay_edge_kwargs(c)          # fresh dict per call: {"title": .., "dashes": ..}
@@ -251,6 +269,42 @@ def _build_pyvis_network(
         )
 
     return net
+
+
+# Glyphs that match the vis.js shapes in ELEMENT_SHAPES, for the legend.
+_SHAPE_GLYPHS: dict[str, str] = {
+    "star": "★", "hexagon": "⬢", "diamond": "◆", "dot": "●", "square": "■",
+    "triangle": "▲", "triangleDown": "▼", "ellipse": "⬬",
+}
+
+
+def _legend_item(swatch: ui.Tag, label: str) -> ui.Tag:
+    return ui.tags.span(swatch, " ", label, class_="cld-legend-item")
+
+
+def cld_legend(isa: IsaData) -> ui.Tag:
+    """Legend for the drawn network (feedback #19): every element type present,
+    with the colour and shape the canvas uses, then the two link colours.
+    Types follow DAPSIWRM order; any other type comes after, in grey."""
+    present = {el.type for el in isa.elements}
+    ordered = [ty for ty in DAPSIWRM_ELEMENTS if ty in present]
+    ordered += sorted(present - set(ordered))
+    items = []
+    for ty in ordered:
+        colour = ELEMENT_COLORS.get(ty, DEFAULT_GROUP_COLOR)
+        glyph = _SHAPE_GLYPHS.get(ELEMENT_SHAPES.get(ty, DEFAULT_GROUP_SHAPE), "●")
+        items.append(_legend_item(
+            ui.tags.span(glyph, class_="cld-legend-glyph", style=f"color: {colour};"), ty))
+    for key, polarity in (("reinforcing", "cld.legend_reinforcing"),
+                          ("opposing", "cld.legend_opposing")):
+        items.append(_legend_item(
+            ui.tags.span(class_="cld-legend-line",
+                         style=f"background: {EDGE_COLORS[key]};"), t(polarity)))
+    return ui.div(
+        ui.tags.strong(t("cld.legend"), class_="cld-legend-title"),
+        *items,
+        class_="cld-legend",
+    )
 
 
 def cld_keep_types(isa: IsaData, selected: Iterable[str]) -> set[str]:
@@ -324,12 +378,12 @@ def cld_viz_server(
     @output
     @render.text
     def stat_nodes():
-        return f"Nodes\n{filtered().element_count()}"
+        return f"{t('cld.stat_nodes')}\n{filtered().element_count()}"
 
     @output
     @render.text
     def stat_edges():
-        return f"Edges\n{filtered().connection_count()}"
+        return f"{t('cld.stat_edges')}\n{filtered().connection_count()}"
 
     @output
     @render.text
@@ -337,7 +391,12 @@ def cld_viz_server(
         n = filtered().element_count()
         m = filtered().connection_count()
         density = m / (n * (n - 1)) if n > 1 else 0.0
-        return f"Density\n{density:.4f}"
+        return f"{t('cld.stat_density')}\n{density:.4f}"
+
+    @output
+    @render.ui
+    def legend():
+        return cld_legend(filtered())
 
     @output
     @render.text
