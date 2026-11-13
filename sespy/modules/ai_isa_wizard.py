@@ -41,7 +41,11 @@ from ..data_structure import (
 )
 from ..event_bus import EventBus
 from ..i18n import Translator, t
-from ..kb_suggestions import countries_for_sea, country_names_for
+from ..kb_suggestions import (
+    countries_for_sea,
+    country_names_for,
+    get_context_suggestions,
+)
 from ..utils import next_id
 from ..wizard import (
     ELEMENT_TYPE_MAP,
@@ -207,6 +211,54 @@ def _effective_rows(
     return rows
 
 
+#: R shows at most 12 suggestions (module :1522).
+N_CHIPS = 12
+
+#: R's source badges (module :1532-1559): label and tooltip key per source.
+_CHIP_BADGES = {
+    "knowledge_db": ("KB", "modules.isa.ai_assistant.from_knowledge_database"),
+    "governance": ("GOV", "modules.isa.ai_assistant.governance_suggestion_tooltip"),
+    "socioeconomic": ("SE", "modules.isa.ai_assistant.socioeconomic_suggestion_tooltip"),
+}
+
+
+def _chips_caption(sea: str | None, ecosystem: str | None) -> str:
+    """R's context caption (module :1574-1582): " (tailored for <sea>",
+    then " - <ecosystem>" only if one is set, then ")". "" without a sea.
+    The sea name is the English REGIONAL_SEAS name: SESPy has no per-sea
+    i18n keys (R's `name_i18n`), a known difference."""
+    if not sea:
+        return ""
+    name = REGIONAL_SEAS.get(sea, {}).get("name", "")
+    eco = f" - {ecosystem}" if ecosystem else ""
+    return f" ({t('modules.isa.ai_assistant.tailored_for')} {name}{eco})"
+
+
+def _render_chips(
+    target: str, suggestions: list[tuple[str, str]], selected: set[str], caption: str,
+) -> ui.Tag:
+    """The chip box of a freeform step: up to N_CHIPS buttons
+    `chip_{target}_{i}`, each the suggestion name plus R's source badge;
+    `chip-on` when an effective row equals the name (stripped, exact)."""
+    chips = []
+    for i, (name, source) in enumerate(suggestions[:N_CHIPS]):
+        badge = None
+        if source in _CHIP_BADGES:
+            label, key = _CHIP_BADGES[source]
+            badge = ui.tags.span(label, class_=f"kb-badge kb-badge-{label}", title=t(key))
+        on = name.strip() in selected
+        chips.append(ui.input_action_button(
+            f"chip_{target}_{i}", ui.TagList(name, badge),
+            class_="btn-sm kb-chip " + ("btn-primary chip-on" if on
+                                        else "btn-outline-secondary chip-off"),
+        ))
+    return ui.div(
+        ui.tags.p(caption, class_="kb-caption text-muted") if caption else None,
+        ui.div(*chips, class_="kb-chips"),
+        class_="kb-chipbox",
+    )
+
+
 def _render_freeform_multiple(
     step: dict, answers: dict, counts: dict, input, *,
     gen: int, pending: reactive.Value[dict[str, dict[int, str]]],
@@ -226,7 +278,9 @@ def _render_freeform_multiple(
         values = [v for _e, v in _effective_rows(
             input, gen, target, answers, counts, pending.get())]
     placeholder = t(f"wizard.placeholder_{target}")
-    rows = []
+    # Suggestion chips (K1): their own output, so a chip re-render never
+    # re-renders the rows (spec §4.3 chip rule 2).
+    rows: list[ui.Tag] = [ui.output_ui(f"chips_{target}")]
     for i, value in enumerate(values):
         text = ui.input_text(
             _row_id(gen, target, i), "",
@@ -538,6 +592,13 @@ def ai_isa_wizard_ui() -> ui.Tag:
             " tr.wiz-sugg td.wiz-pol .shiny-input-container"
             " { display: inline-block; vertical-align: middle; margin-left: 6px; }"
             " tr.wiz-sugg .form-check { margin: 0; min-height: 0; }"
+            " .kb-chipbox { margin-bottom: 10px; }"
+            " .kb-caption { font-size: 0.85rem; margin-bottom: 4px; }"
+            " .kb-chips .kb-chip { margin: 3px; }"
+            " .kb-badge { font-size: 0.65em; vertical-align: super; margin-left: 3px;"
+            " padding: 1px 4px; border-radius: 3px; cursor: help; color: #fff; }"
+            " .kb-badge-KB { background: #0aa2c0; } .kb-badge-GOV { background: #b8860b; }"
+            " .kb-badge-SE { background: #198754; }"
         ),
         class_="sespy-card sespy-card-canvas",
         full_screen=True,
@@ -784,6 +845,82 @@ def ai_isa_wizard_server(
         return _
 
     _skip_handlers = [_make_skip_handler(t_) for t_ in ("countries", "main_issue")]
+
+    # ---- K1 suggestion chips (spec §4.3, chip rules 1-7) --------------------
+
+    @reactive.calc
+    def _step_suggestions() -> list[tuple[str, str]]:
+        """The current freeform step's suggestions, R
+        `get_context_suggestions(..., return_sources = TRUE)` over the
+        session's reference data; [] off steps 4-10. A calc, so the
+        pipeline runs once per step change, not per output or keystroke."""
+        if not wizard_active.get():
+            return []
+        step = WIZARD_STEPS[wizard_step.get()]
+        if step["archetype"] != "freeform_multiple":
+            return []
+        ans = wizard_answers.get()
+        r_kb.add_reads(reference_reads, (r_kb.KB_NAME, r_kb.GOVERNANCE_NAME))
+        return get_context_suggestions(
+            snap.kb(), _gov(), step["target"],
+            ans.get("regional_sea") or None, ans.get("ecosystem_type") or None,
+            list(ans.get("main_issue") or []), list(ans.get("countries") or []),
+        )
+
+    def _make_chips_output(target: str):
+        @output(id=f"chips_{target}")
+        @render.ui
+        def _():
+            # Only the current step's chips render (and compute suggestions).
+            if not _is_current_step(target):
+                return ui.TagList()
+            suggestions = _step_suggestions()
+            if not suggestions:
+                return ui.TagList()          # R shows no block without suggestions
+            selected = {v.strip() for _e, v in effective_rows(target) if v.strip()}
+            ans = wizard_answers.get()
+            caption = _chips_caption(ans.get("regional_sea") or None,
+                                     ans.get("ecosystem_type") or None)
+            return _render_chips(target, suggestions, selected, caption)
+        return _
+
+    def _make_chip_handler(target: str, i: int):
+        @reactive.effect
+        @reactive.event(input[f"chip_{target}_{i}"], ignore_init=True)
+        def _():
+            if not _is_current_step(target):
+                return
+            suggestions = _step_suggestions()[:N_CHIPS]   # the list at click time
+            if i >= len(suggestions):
+                return
+            text = suggestions[i][0].strip()
+            g = _gen_of(target)
+            rows = effective_rows(target)
+            hits = [k for k, (_e, v) in enumerate(rows) if v.strip() == text]
+            if hits:
+                # Rule 5: blank every matching row in place (R's Filter).
+                for k in hits:
+                    _set_pending(target, k, "")
+                    if rows[k][0]:
+                        ui.update_text(_row_id(g, target, k), value="")
+                return
+            # Rule 4: the first empty row, else a new row.
+            empty = next((k for k, (_e, v) in enumerate(rows) if not v.strip()), None)
+            if empty is not None:
+                _set_pending(target, empty, text)
+                if rows[empty][0]:
+                    ui.update_text(_row_id(g, target, empty), value=text)
+            else:
+                n = len(rows)
+                _set_pending(target, n, text)
+                counts = dict(freeform_counts.get())
+                counts[target] = n + 1
+                freeform_counts.set(counts)
+        return _
+
+    _chip_outputs = [_make_chips_output(t_) for t_ in _freeform_targets]
+    _chip_handlers = [_make_chip_handler(t_, i)
+                      for t_ in _freeform_targets for i in range(N_CHIPS)]
 
     @reactive.effect
     @reactive.event(input.wizard_next, ignore_init=True)
@@ -1124,14 +1261,10 @@ def ai_isa_wizard_server(
             return  # can't go before step 0
         new_step_idx = wizard_step.get() - 1
         # If returning to a freeform_multiple step, pre-seed
-        # freeform_counts[target] = max(current, len(saved)) so that
-        # subsequent Add/Remove clicks operate on the correct visible
-        # row count. Without this, _render_freeform_multiple still shows
-        # the right number of rows (via max(counts, len(saved), 1)),
-        # but Add/Remove handlers mutate the stale `counts` value — a
-        # 3-entry re-entry would show 3 rows but Remove would clamp
-        # `counts[target]` from 1 to 1, leaving the visible 3 rows
-        # unchanged from the user's perspective.
+        # freeform_counts[target] = max(current, len(saved)). Since K1 the
+        # renderer and Add/Remove all use the effective row count
+        # (`row_count`, which already includes len(saved)), so this only
+        # keeps freeform_counts in step with what is shown (1.15.1 shape).
         new_step = WIZARD_STEPS[new_step_idx]
         if new_step["archetype"] == "freeform_multiple":
             target = new_step["target"]
