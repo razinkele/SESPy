@@ -14,13 +14,26 @@ generated block below together; never edit the block by hand.
 ## Current pin
 
 <!-- r-sync:begin -->
-- **R release:** MarineSABRES_SES_Shiny **v1.33.0**, commit `4017feb`.
+- **R release:** MarineSABRES_SES_Shiny **v1.35.6**, commit `d1a655a`.
 
 | File | Hash |
 |---|---|
+| `sespy/data/r_kb/country_governance_db.json` | `4b66223f001b092ba2879b4e267b2ee62eef6440bb7ed17621f521326dfabc78` |
+| `sespy/data/r_kb/manifest.json` | `85bcdc323ad1913144b011bd6f29dc1f22d3fa1b1fd7079f8d040be486b308c4` |
+| `sespy/data/r_kb/ses_knowledge_db.json` | `4ca4c3d2023bb571f3015cc6fc95138ac11f43847b58a29b60b7e93f86db3519` |
+| `tests/parity/r_fixtures/k1/countries.json.gz` | `2e9841f65ac5a62fe91e0fbcef0ab405f8e874cd73e70bc8f5d16d15187c1e4a` |
+| `tests/parity/r_fixtures/k1/habitat_specific.json.gz` | `8b6eb9f3da70a1fed20651a20184ee6c04b66608f197c7c756f8d3f499e0e12a` |
+| `tests/parity/r_fixtures/k1/lookup.json.gz` | `abc1aacb645ce7195d2c5bdb250381fb2f9a7ee1bd85426cf1092f5e03c64bbb` |
+| `tests/parity/r_fixtures/k1/report.json.gz` | `24fb0cdf6146eea41336bb37f2fc49ae6a02f98ad2687d43d1b8c31cd77bac16` |
+| `tests/parity/r_fixtures/k1/suggestions_grid.json.gz` | `37ad016538f00109908239e1aeb85f4ceb5d4ddcb268ffd8d543a8b8aa03e5db` |
 | `tests/parity/r_rules/dapsiwrm_connection_rules.R` | `ca4294f10974af34adf7dad9fe029318955c1c498356224b656a3e69525422a5` |
-| `tests/parity/r_source/constants.R` | `27bdf3c7902c5ce602515ae448d6f81912edd5c9836672c1741650d3c0c42bc3` |
+| `tests/parity/r_source/ai_isa_knowledge_base.R` | `32c782fd1cbc3720f7bd3924ad6454aee0247328a811bd231f163693acc04c9d` |
+| `tests/parity/r_source/constants.R` | `c39d20974193a99d60f0f7625987bff491339640eed93904fe1a7d02b3a8a6d6` |
+| `tests/parity/r_source/country_governance_loader.R` | `f30965e866d8193d1a79ef0857f252dfa98433c5a2b43ece1eb05ad475173bea` |
+| `tests/parity/r_source/kb_report_helpers.R` | `45d7b069eb05789bb636cc8d002ae282474e57777e17824d8081aec827aa1848` |
+| `tests/parity/r_source/report_generation.R` | `8fde2c288fd4b62d12997bc14cde4f0903e865213f5e4250ad97e965eff104a5` |
 | `tests/parity/r_source/response_measures_schema.R` | `ac3de5f9dbfb87d9451ae6cc3c8a0e3e12594c10a7253def09565e55ce34c9b7` |
+| `tests/parity/r_source/ses_knowledge_db_loader.R` | `d7a1151f40aa8ec0dc14bf4cd229414cbdb38bedf3899e10cd42e58d613f0aa4` |
 | `tests/parity/r_source/stakeholder_schema.R` | `489311719ba13863a0ae84934fa4116378736b52c41374d1b957da1354ee1bce` |
 | `tests/parity/r_source/template_loader.R` | `3ebe6c83a737ead8e91936f9f11ca5cfa4244d56d52f1644fc7df2af131d02d3` |
 | `tests/parity/r_templates/Aquaculture_SES_Template.json` | `d24154498ce843d0f10e2b724340ca63878002e63486132d933ef777d844c946` |
@@ -31,6 +44,8 @@ generated block below together; never edit the block by hand.
 | `tests/parity/r_templates/Pollution_SES_Template.json` | `d3da39cf77605a35c7d3accbdd4b37830753443230f88d22c59e971c60332e56` |
 | `tests/parity/r_templates/Tourism_SES_Template.json` | `1c0af86d3737cdb306ccc8eb0107fbe1ac75b41c4fede2dd56dc265c9983662e` |
 | `tests/parity/r_translations/indicator_registry.json` | `b8ec68a82ca57afdf160db2c1e7dc479e9b2721d8843555c1ca637efa3bbc4f8` |
+| `tests/parity/r_translations/isa_data_entry.json` | `3bac64f71ec9638b25b54c8f60c4a6e0e07e065d243dc6ddb8cd25dbbe8a3886` |
+| `tests/parity/r_translations/report_context.json` | `d5c68f4bee464fc641791701fab52ffa9aab414bf628372134ad5f54248a3646` |
 | `tests/parity/r_translations/response_governance.json` | `ff962cd5156fcbd14c33c3b17d74fc1073e99270b00f1aef102982fe2d2fc6a6` |
 | `tests/parity/r_translations/response_measures.json` | `94103aabca9cb51076fb0ff10d21c0f38b0d53b95114457ca0b64f905e04728b` |
 | `tests/parity/r_translations/wp5_governance.json` | `ebeb2c7553879c58f733654525f0c3e570c5fc92889df2b6e2355bd1a3e40276` |
@@ -103,6 +118,134 @@ connection rules and the template loader, hashed with `sha256_norm` /
 Live drift against laguna (`tests/parity/check_live.py`) is owned by **K1**
 in the R-parity roadmap; P1a and P2 read R only through these fixtures and
 the sync script.
+
+## R changes v1.33.0 → v1.35.6 (triaged 2026-11-13)
+
+`git -C <R app dir> diff --name-status v1.33.0 v1.35.6 -- .`: 103 paths, all
+under `MarineSABRES_SES_Shiny/` (prefix omitted). The pin moved from v1.33.0
+(`4017feb`) to v1.35.6 (`d1a655a`) for K1 (knowledge-base parity). R 1.34.0 =
+translation fixes (German capitalisation, hardcoded choices, Getting Started
+options); 1.34.1 = connection review and PIMS case studies; 1.34.2 = template
+review fix; 1.35.0 = static UI built per language (`usei18n()` calls removed
+from every module); 1.35.1 = clickable progress strip, deploy routine; 1.35.2 =
+fairer AI suggestions (knowledge-base lists and deduplication), dead next-step
+cards; 1.35.3-1.35.4 = expert DAPSI(W)R(M) category rulings applied to the
+knowledge base (1183 connections), glossary and explanations; 1.35.5 = card
+contrast and loop chart axes; 1.35.6 = PowerPoint report graphs and loop
+counts. The 7 templates and `functions/dapsiwrm_connection_rules.R` /
+`functions/template_loader.R` are unchanged at these tags, so the sync's
+template warnings are as before (none). Of the files pinned since P1b only
+`constants.R` (row 15) and `translations/modules/isa_data_entry.json` (row 94)
+changed; the other pinned files are identical. K1 vendors
+`data/ses_knowledge_db.json` (row 16) and, from the same pin,
+`modules/ai_isa_knowledge_base.R` (row 23). Known K1 difference, not ported in
+K1: R renamed AI-assistant step 3 from "Main Issue" to "Focus Topics" (row 94).
+
+| # | Status | Path | Change | Owner |
+|---|---|---|---|---|
+| 1 | M | `.claude/skills/deploy/SKILL.md` | deploy skill rewritten around the checked deploy routine `deployment/deploy-and-verify.sh` (1.35.1) | not relevant |
+| 2 | M | `.claude/skills/new-module/SKILL.md` | module-creation skill no longer tells authors to call `usei18n()` (1.35.0) | not relevant |
+| 3 | M | `.gitattributes` | `deployment/deploy-and-verify.sh` kept LF on checkout (bash breaks on CRLF) | not relevant |
+| 4 | M | `.github/copilot-instructions.md` | contributor rule: module UI functions must not call `usei18n()` (1.35.0) | not relevant |
+| 5 | M | `CHANGELOG.md` | 1.34.0-1.35.6 entries (source of this triage) | not relevant |
+| 6 | M | `CLAUDE.md` | contributor rule: no `usei18n()` in module UI, `app.R` includes it once (1.35.0) | not relevant |
+| 7 | M | `CONTRIBUTING.md` | same `usei18n()` rule; i18n guidance trimmed | not relevant |
+| 8 | M | `DAPSIWRM_FRAMEWORK_RULES.md` | "Classification Rulings" section records the marine-science expert's category rulings (climate change, hypoxia, erosion are Pressures; policies are Responses; monitoring is not a measure) (1.35.3-1.35.4) | K1 (reference for the vendored knowledge base) |
+| 9 | M | `DESCRIPTION` | version 1.35.6 | not relevant |
+| 10 | M | `Documents/MODULE_SIGNATURE_STANDARD.md` | template example drops the `usei18n()` line | not relevant |
+| 11 | M | `VERSION` | version 1.35.6 | not relevant |
+| 12 | M | `VERSION_INFO.json` | version metadata for 1.35.6 | not relevant |
+| 13 | M | `WORKFLOW.md` | workflow example drops the `usei18n()` line | not relevant |
+| 14 | M | `app.R` | `ui` becomes `build_app_ui()`, built once per language; skip link and main-content label translated; glossary box added to the dashboard (1.35.0, 1.35.3) | not relevant |
+| 15 | M | `constants.R` | adds `DA_CASE_STUDIES`, `DA_SITE_GROUPED_CHOICES` and `DA_SITE_CHOICES` (case studies grouped under each demonstration area; stored values keep the DA name) (1.34.1). Pinned fixture: its hash moves; the P1b constants (tenet, register and indicator columns) are untouched, so the P1b parity tests still hold | P4 (PIMS DA selector) |
+| 16 | M | `data/ses_knowledge_db.json` | 14 contexts edited: category moves and renames (expert rulings), a WFD Driver duplicate and a self-refuting cod to hypoxia link removed, net -2 connections (baltic_offshore, north_sea_estuary); 1183 connections (1.35.3-1.35.4). Vendored by K1 | K1 |
+| 17 | A | `deployment/deploy-and-verify.sh` | checked deploy routine for the R app (1.35.1) | not relevant |
+| 18 | M | `functions/tool_recommendations.R` | "Response Measures" next step opens `response_measures` (was `create_ses_standard`); `next_step_available_tabs()` hides cards for pages the user level has no sidebar entry for (1.35.2) | not relevant |
+| 19 | M | `functions/ui_sidebar.R` | new `sidebar_tab_ids()` returns the tab names present in a user level's sidebar (1.35.2) | not relevant |
+| 20 | M | `modules/_module_template.R` | template drops the `usei18n()` line | not relevant |
+| 21 | M | `modules/ai_isa/ui_renderers.R` | step heading and "Complete! Review your model" now come from i18n (`common.misc.step_d_of_d`, `common.choices.ai_flow_complete`) instead of English literals (1.34.0). SESPy's wizard headings are already translated | K1 (wizard heading wording) |
+| 22 | M | `modules/ai_isa_assistant_module.R` | badge tooltip fix: Bootstrap 4 has no `Tooltip.getInstance`, so the instance is remembered on the element (`el._bsTooltip`) (1.34.1); `usei18n()` line removed (1.35.0). Browser-side only, nothing to port | not relevant |
+| 23 | M | `modules/ai_isa_knowledge_base.R` | v1.35.0-1.35.2: `main_issue` no longer used; issue-triggered and regional driver lists removed; activities universal plus "Environmental monitoring"; responses lose "Monitoring programs"; some regional lists edited; `deduplicate_suggestions` gains `protected=` (knowledge-base labels are always kept, case-sensitive on the original label). K1 Task 6 ports the v1.35.6 behaviour from this file directly (kbport.py predates it) | K1 |
+| 24 | M | `modules/analysis_boolean.R` | `usei18n()` line removed | not relevant |
+| 25 | M | `modules/analysis_bot.R` | `usei18n()` removed; "Select element..." placeholder translated (1.34.0) | not relevant |
+| 26 | M | `modules/analysis_decision_lens.R` | `usei18n()` removed; takes `user_level_reactive` so next-step cards only link to reachable pages (1.35.2) | not relevant |
+| 27 | M | `modules/analysis_intervention.R` | `usei18n()` line removed | not relevant |
+| 28 | M | `modules/analysis_leverage.R` | `usei18n()` removed; "About Leverage Points" explains in-degree and out-degree; takes `user_level_reactive` (1.35.2-1.35.3) | not relevant |
+| 29 | M | `modules/analysis_loops.R` | dominance-score wording (100 / loop length), Loop Strength axis ends above the longest bar, scores to one decimal, "(Word)" label on the loop report button (1.35.3, 1.35.5) | not relevant |
+| 30 | M | `modules/analysis_metrics.R` | `usei18n()` removed; centrality choices translated (1.34.0) | not relevant |
+| 31 | M | `modules/analysis_simplify.R` | `usei18n()` line removed | not relevant |
+| 32 | M | `modules/analysis_simulation.R` | `usei18n()` line removed | not relevant |
+| 33 | M | `modules/cld_visualization_module.R` | `usei18n()` removed; polarity, strength and confidence choices translated (1.34.0) | not relevant |
+| 34 | M | `modules/connection_review_tabbed.R` | approving or rejecting a connection updates the card in place instead of rebuilding every tab; Bootstrap 4 tooltip instances remembered on the element; scroll after "Approve all" (1.34.1, 1.35.3) | not relevant |
+| 35 | M | `modules/create_ses_module.R` | `usei18n()` line removed | not relevant |
+| 36 | M | `modules/entry_point_module.R` | progress-strip steps clickable once reached (`max_step`, `ep_jump`); `usei18n()` removed (1.35.0-1.35.1) | not relevant |
+| 37 | M | `modules/export_reports_module.R` | `usei18n()` removed; export-component and report-type choices translated, label/value swap fixed (1.34.0) | not relevant |
+| 38 | M | `modules/feedback_admin_module.R` | `usei18n()` line removed | not relevant |
+| 39 | M | `modules/graphical_ses_creator_module.R` | `usei18n()` line removed | not relevant |
+| 40 | M | `modules/guidebook_module.R` | `usei18n()` line removed | not relevant |
+| 41 | M | `modules/impact_assessment_module.R` | `usei18n()` line removed | not relevant |
+| 42 | M | `modules/import_data_module.R` | `usei18n()` line removed | not relevant |
+| 43 | M | `modules/intervention_designer_module.R` | `usei18n()` line removed | not relevant |
+| 44 | M | `modules/isa_data_entry_module.R` | tabs get fixed ids (i18n key as `tabPanel` value) so Back/Next work in every language; breadcrumb and Next/Finish translated; `usei18n()` removed (1.34.0) | not relevant |
+| 45 | M | `modules/local_storage_module.R` | `usei18n()` line removed | not relevant |
+| 46 | M | `modules/pilot_study_module.R` | `usei18n()` line removed | not relevant |
+| 47 | M | `modules/pims_module.R` | demonstration-area selector uses `DA_SITE_GROUPED_CHOICES` (case studies grouped under their DA); `usei18n()` removed (1.34.1) | P4 (PIMS DA selector) |
+| 48 | M | `modules/pims_stakeholder_module.R` | `usei18n()` line removed | not relevant |
+| 49 | M | `modules/prepare_report_module.R` | PowerPoint report graphs (CLD network diagram, loop strength, loop types, participation, top-10 leverage) and loop counts from the detected loops (was always 2); `usei18n()` removed (1.35.5-1.35.6) | not relevant |
+| 50 | M | `modules/recent_projects_module.R` | `usei18n()` line removed | not relevant |
+| 51 | M | `modules/response_module.R` | two `usei18n()` lines removed; register logic unchanged | not relevant |
+| 52 | M | `modules/scenario_builder_module.R` | `usei18n()` line removed | not relevant |
+| 53 | M | `modules/ses_models_module.R` | `usei18n()` line removed | not relevant |
+| 54 | M | `modules/template_ses_module.R` | approving a connection no longer re-renders the review (`isolate()` on `rv$template_connections`) (1.34.2); `usei18n()` removed | not relevant |
+| 55 | M | `modules/valuation_calculator_module.R` | `usei18n()` line removed | not relevant |
+| 56 | M | `modules/wp5_governance_context_module.R` | `usei18n()` line removed | not relevant |
+| 57 | M | `modules/wp5_readiness_module.R` | `usei18n()` line removed | not relevant |
+| 58 | M | `modules/wp5_scenario_reference_module.R` | `usei18n()` line removed | not relevant |
+| 59 | M | `modules/wp5_workshop_module.R` | `usei18n()` line removed | not relevant |
+| 60 | M | `scripts/kb_audit/audit_kb_quality.py` | knowledge-base audit scans every monitoring response and follows the new category rulings (1.35.3) | not relevant |
+| 61 | M | `server/bookmarking.R` | bookmark restore whitelists `da_site` against `DA_SITE_CHOICES` (DAs plus case studies) (1.34.1) | P4 (PIMS DA selector) |
+| 62 | M | `server/language_handling.R` | per-language static UI (`make_per_language_ui()`, language from the query string, cached per process) (1.35.0) | not relevant |
+| 63 | M | `server/modals.R` | `shiny.i18n::update_lang()` dropped from the language switch (console error, no effect) (1.35.2) | not relevant |
+| 64 | A | `tests/testthat/test-ai-isa-suggestion-wording.R` | R tests for the 1.35.2 suggestion removals and protected deduplication (reference for K1 Task 6) | K1 |
+| 65 | A | `tests/testthat/test-connection-review-rerender.R` | R test that approving a connection does not re-render the review | not relevant |
+| 66 | M | `tests/testthat/test-entry-point-module.R` | tests for progress-strip jumps | not relevant |
+| 67 | A | `tests/testthat/test-explanations-and-autoscroll.R` | tests for the dominance-score wording, leverage explanations and scroll after "Approve all" | not relevant |
+| 68 | A | `tests/testthat/test-feedback-2026-11-12.R` | tests for the 2026-11-12 feedback fixes (card contrast, loop chart axis, Word label) | not relevant |
+| 69 | M | `tests/testthat/test-i18n-enforcement.R` | enforcement test follows the new module-UI rule (no `usei18n()`) | not relevant |
+| 70 | A | `tests/testthat/test-i18n-german-capitalisation.R` | guards against capitalised German verbs in labels | not relevant |
+| 71 | A | `tests/testthat/test-kb-category-rulings.R` | R tests pinning the expert's category rulings in the knowledge base (reference for the vendored data) | K1 |
+| 72 | A | `tests/testthat/test-next-steps-and-finish-hint.R` | tests for the dead next-step cards and the finish hint | not relevant |
+| 73 | A | `tests/testthat/test-per-language-ui.R` | tests for the per-language static UI | not relevant |
+| 74 | M | `tests/testthat/test-performance.R` | `bind_rows` timing comparison warmed up and made robust | not relevant |
+| 75 | A | `tests/testthat/test-pims-case-studies.R` | tests for the grouped DA/case-study choices and the bookmark whitelist | P4 |
+| 76 | A | `tests/testthat/test-pptx-report-graphs.R` | tests for the PowerPoint report graphs and loop counts | not relevant |
+| 77 | M | `tests/testthat/test-template-ses-module.R` | test that approving a connection leaves the review in place | not relevant |
+| 78 | A | `tests/testthat/test-ui-choice-translations.R` | tests that dropdown and checkbox options are translated | not relevant |
+| 79 | M | `translations/README.md` | i18n guide: static UI built per language from `?language=`, no `usei18n()` in module UIs | not relevant |
+| 80 | M | `translations/common/buttons.json` | German verbs lowercased ("Projekt laden"; "Von Lokal Laden" becomes "Lokal laden") (1.34.0) | not relevant |
+| 81 | A | `translations/common/choices.json` | 345 lines, 9 languages: translated option labels (polarity, confidence, report types, AI flow heading) (1.34.0, 1.35.2) | not relevant |
+| 82 | M | `translations/common/misc.json` | German verbs lowercased; the finish hint reworded to "Use the button below to save your model and continue." in 9 languages (1.35.2) | not relevant |
+| 83 | M | `translations/modules/analysis_boolean.json` | one German verb lowercased | not relevant |
+| 84 | M | `translations/modules/analysis_bot.json` | German verbs lowercased; `select_element_placeholder` added | not relevant |
+| 85 | M | `translations/modules/analysis_leverage.json` | in-degree and out-degree labels and descriptions, 9 languages (1.35.3) | not relevant |
+| 86 | M | `translations/modules/analysis_loops.json` | dominance-score and strength-analysis wording, `download_report_word` in place of `download_pdf` (1.35.3, 1.35.5) | not relevant |
+| 87 | M | `translations/modules/analysis_tools.json` | German verbs lowercased; loop dominance-score description corrected (1.34.0, 1.35.3) | not relevant |
+| 88 | M | `translations/modules/cld_visualization.json` | one German verb lowercased | not relevant |
+| 89 | M | `translations/modules/entry_point.json` | German verbs lowercased; `go_to_step` for the clickable progress strip (1.34.0, 1.35.1) | not relevant |
+| 90 | A | `translations/modules/entry_point_options.json` | 1225 lines, 9 languages: translated Getting Started answer options (roles, needs, sectors, risks, knowledge topics) (1.34.0) | not relevant |
+| 91 | M | `translations/modules/export_reports.json` | German verbs lowercased | not relevant |
+| 92 | M | `translations/modules/feedback_admin.json` | German verbs lowercased | not relevant |
+| 93 | M | `translations/modules/graphical_ses_creator.json` | one German verb lowercased | not relevant |
+| 94 | M | `translations/modules/isa_data_entry.json` | AI-assistant step 3 renamed "Main Issue Identification" to "Focus Topics"; "Common Issues in Your Region" to "Common Topics..."; "Main Issue:" to "Focus topics:"; the prompt now asks which topics or sectors the study is about and the reply says "Noted. Your study focuses on..." instead of promising to focus suggestions (1.35.2, 9 languages). Pinned fixture: its hash moves and the sync re-vendors the SESPy subset. SESPy keeps "Main Issue": recorded as a K1 known difference, not ported in K1 | K1 (known difference) |
+| 95 | M | `translations/modules/pims.json` | one German verb lowercased | not relevant |
+| 96 | M | `translations/modules/prepare_report.json` | German verbs lowercased | not relevant |
+| 97 | M | `translations/modules/tool_recommendations.json` | two German verbs lowercased ("Bericht erstellen") | not relevant |
+| 98 | M | `translations/ui/dashboard.json` | glossary box strings ("Terms used in this tool": CLD, ISA, PIMS, DAPSI(W)R(M), leverage point), 9 languages (1.35.3) | not relevant |
+| 99 | M | `translations/ui/header.json` | German verbs lowercased; `skip_to_main_content` and `main_content_label` added in 9 languages | not relevant |
+| 100 | M | `translations/ui/modals.json` | German verbs lowercased | not relevant |
+| 101 | M | `translations/ui/sidebar.json` | one German verb lowercased ("Bericht vorbereiten") | not relevant |
+| 102 | M | `www/bs4dash-custom.css` | card-header titles take the header's white text (contrast fix) (1.35.5) | not relevant |
+| 103 | M | `www/entry-point.css` | styling for the clickable progress-strip steps (1.35.1) | not relevant |
 
 ## R changes v1.31.0 → v1.33.0 (triaged 2026-10-22)
 

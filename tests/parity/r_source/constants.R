@@ -531,6 +531,31 @@ DA_SITES <- c(
   "Macaronesia"
 )
 
+# Case studies per demonstration area: display name -> stored da_site value.
+# Stored values keep the DA name so wp5_da_for_project() maps them to their DA.
+DA_CASE_STUDIES <- list(
+  "Tuscan Archipelago" = c("Tuscan Archipelago" = "Tuscan Archipelago"),
+  "Arctic Northeast Atlantic" = c(
+    "Iceland"       = "Arctic Northeast Atlantic: Iceland",
+    "Greenland"     = "Arctic Northeast Atlantic: Greenland",
+    "Faroe Islands" = "Arctic Northeast Atlantic: Faroe Islands"
+  ),
+  "Macaronesia" = c(
+    "Azores"         = "Macaronesia: Azores",
+    "Madeira"        = "Macaronesia: Madeira",
+    "Canary Islands" = "Macaronesia: Canary Islands"
+  )
+)
+
+# Grouped choices for the PIMS selector: each DA is an optgroup holding the DA
+# itself (the value older projects saved) followed by its case studies.
+DA_SITE_GROUPED_CHOICES <- lapply(stats::setNames(names(DA_CASE_STUDIES), names(DA_CASE_STUDIES)),
+  function(da) as.list(c(stats::setNames(da, da), DA_CASE_STUDIES[[da]])[
+    !duplicated(c(da, unname(DA_CASE_STUDIES[[da]])))]))
+
+# Every accepted da_site value (bookmark restore whitelists against this)
+DA_SITE_CHOICES <- unique(c(DA_SITES, unname(unlist(DA_CASE_STUDIES))))
+
 # Regional Sea choices (EU MSFD standard naming + global additions)
 REGIONAL_SEA_CHOICES <- c(
   "Baltic Sea",

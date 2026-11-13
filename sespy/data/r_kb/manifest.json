@@ -1,0 +1,8 @@
+{
+  "r_tag": "v1.35.6",
+  "r_commit": "d1a655a",
+  "files": {
+    "country_governance_db.json": "4b66223f001b092ba2879b4e267b2ee62eef6440bb7ed17621f521326dfabc78",
+    "ses_knowledge_db.json": "4ca4c3d2023bb571f3015cc6fc95138ac11f43847b58a29b60b7e93f86db3519"
+  }
+}
