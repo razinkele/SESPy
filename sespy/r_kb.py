@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from importlib import resources
-from typing import Any, Literal, Mapping
+from typing import Any, Iterable, Literal, Mapping
 
 from sespy.r_sync import sha256_norm
 
@@ -116,6 +116,26 @@ class Entry:
 def current_provenance(meta: Any, snapshot: "Snapshot", reads: frozenset[str]) -> dict:
     """Loaded entries kept, overlaid with this session's reads. Pure."""
     return {**meta.reference_data, **{f: snapshot.provenance(f) for f in reads}}
+
+
+def add_reads(reads: Any, names: Iterable[str]) -> None:
+    """Record that this session read `names` from its snapshot.
+
+    `reads` is the session's `reactive.Value[frozenset[str]]`, or None for a
+    caller mounted without one (MosaicSES): then this is a no-op. The value
+    is read under `isolate()` and set only when a name is new, so a render
+    that calls this never invalidates itself (`Value.set` compares by
+    identity, so an unconditional set of a fresh frozenset would loop).
+    """
+    if reads is None:
+        return
+    from shiny import reactive  # lazy: r_kb stays stdlib-only at import
+
+    with reactive.isolate():
+        current_reads = reads.get()
+    new = frozenset(names) - current_reads
+    if new:
+        reads.set(current_reads | new)
 
 
 @dataclass(frozen=True)

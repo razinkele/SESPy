@@ -17,7 +17,7 @@ import dataclasses
 import logging
 import os
 from dataclasses import dataclass, replace
-from typing import Any, assert_never
+from typing import TYPE_CHECKING, Any, assert_never
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from shiny.types import SilentException
@@ -45,6 +45,9 @@ from ..wizard import (
     WIZARD_STEPS,
     suggest_connections,
 )
+
+if TYPE_CHECKING:
+    from ..r_kb import Snapshot
 
 # ---------------------------------------------------------------------------
 # SP4 sum-typed status — distinguishes never-called, in-flight, returned-N,
@@ -491,7 +494,12 @@ def ai_isa_wizard_server(
     project_data: reactive.Value[Project],
     event_bus: EventBus,
     translator: Translator | None = None,
+    snapshot: Snapshot | None = None,
+    reference_reads: reactive.Value[frozenset[str]] | None = None,
 ) -> None:
+    # K1: `snapshot` / `reference_reads` are the session's reference data and
+    # the files it read (suggestions and countries, Tasks 11-13). Both
+    # optional: MosaicSES and the unit tests mount the wizard without them.
     # Wizard state — three module-local reactives.
     wizard_step: reactive.Value[int] = reactive.value(0)
     wizard_answers: reactive.Value[dict[str, Any]] = reactive.value({})

@@ -18,6 +18,7 @@ from shiny import App, Inputs, Outputs, Session, reactive, ui
 
 from sespy import data_structure
 from sespy import i18n as _i18n
+from sespy import r_kb
 from sespy.dashboard import (
     NavItem,
     StepperItem,
@@ -79,6 +80,10 @@ TRANSLATIONS_DIR = ROOT / "sespy" / "translations"
 # UI construction (static labels) AND server-side reactive labels.
 T = Translator(translations=load_translations(TRANSLATIONS_DIR))
 _i18n.set_default(T)  # so modules can `from sespy.i18n import t` and use `t(...)` directly
+
+# K1 reference data: the registry reads server_settings.env beside this file.
+# Only server() below reads the registry; modules get the session snapshot.
+r_kb.configure(Path(__file__).parent)
 
 # Nav items grow as we port more modules. The shape is intentionally
 # tree-friendly so submenus (PIMS, SES Creation in the R app) can be added
@@ -184,6 +189,12 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         data_structure.Project.from_isa(data_structure.load_sample(SAMPLE))
     )
     event_bus = create_event_bus()
+    # K1: one reference-data snapshot per session (a shared-directory change
+    # reaches new sessions only), and the set of files this session read
+    # from it. Save/autosave stamp their provenance; a load resets the set.
+    r_kb.refresh()
+    snapshot = r_kb.current()
+    reference_reads: reactive.Value[frozenset[str]] = reactive.value(frozenset())
     current_theme = reactive.value("light-marine")
     autosave_enabled = reactive.value(True)
 
@@ -202,6 +213,8 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         sample_path=SAMPLE,
         translator=translator,
         autosave_enabled=autosave_enabled,
+        snapshot=snapshot,
+        reference_reads=reference_reads,
     )
     topbar_actions_server(
         input, output, session,
@@ -210,6 +223,7 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         autosave_enabled=autosave_enabled,
         active_panel=active_panel,
         nav_items=NAV,
+        snapshot=snapshot,
     )
 
     pims_project_server(
@@ -236,6 +250,8 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         project_data=project_data,
         event_bus=event_bus,
         translator=translator,
+        snapshot=snapshot,
+        reference_reads=reference_reads,
     )
     isa_data_entry_server(
         "entry",
@@ -324,6 +340,8 @@ def server(input: Inputs, output: Outputs, session: Session) -> None:
         project_data=project_data,
         event_bus=event_bus,
         translator=translator,
+        snapshot=snapshot,
+        reference_reads=reference_reads,
     )
 
 

@@ -7,6 +7,10 @@ two download buttons, an inline preview of what the report contains.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..r_kb import Snapshot
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
@@ -76,7 +80,12 @@ def report_export_server(
     project_data: reactive.Value[Project],
     event_bus: EventBus,
     translator: Translator | None = None,
+    snapshot: Snapshot | None = None,
+    reference_reads: reactive.Value[frozenset[str]] | None = None,
 ) -> None:
+    # K1: `snapshot` / `reference_reads` are the session's reference data and
+    # the files it read; accepted here, used by the Regional Context section
+    # (Task 14). Both optional: MosaicSES mounts this module without them.
 
     def _stamp() -> str:
         return datetime.now().strftime("%Y%m%d-%H%M%S")

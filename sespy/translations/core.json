@@ -6439,6 +6439,28 @@
       "it": "Scegli una misura di risposta e inserisci un traguardo.",
       "no": "Velg et responstiltak og skriv inn en milepæl.",
       "el": "Επιλέξτε ένα μέτρο απόκρισης και εισαγάγετε ένα ορόσημο."
+    },
+    "kb.provenance_differs": {
+      "en": "This project was saved with different reference data ({file}, R {tag}); suggestions and report context may differ.",
+      "es": "Este proyecto se guardó con datos de referencia diferentes ({file}, R {tag}); las sugerencias y el contexto del informe pueden diferir.",
+      "fr": "Ce projet a été enregistré avec des données de référence différentes ({file}, R {tag}) ; les suggestions et le contexte du rapport peuvent différer.",
+      "de": "Dieses Projekt wurde mit anderen Referenzdaten gespeichert ({file}, R {tag}); Vorschläge und Berichtskontext können abweichen.",
+      "lt": "Šis projektas išsaugotas su kitais etaloniniais duomenimis ({file}, R {tag}); pasiūlymai ir ataskaitos kontekstas gali skirtis.",
+      "pt": "Este projeto foi guardado com dados de referência diferentes ({file}, R {tag}); as sugestões e o contexto do relatório podem ser diferentes.",
+      "it": "Questo progetto è stato salvato con dati di riferimento diversi ({file}, R {tag}); i suggerimenti e il contesto del report possono differire.",
+      "no": "Dette prosjektet ble lagret med andre referansedata ({file}, R {tag}); forslag og rapportkontekst kan avvike.",
+      "el": "Αυτό το έργο αποθηκεύτηκε με διαφορετικά δεδομένα αναφοράς ({file}, R {tag}). Οι προτάσεις και το πλαίσιο της αναφοράς ενδέχεται να διαφέρουν."
+    },
+    "kb.provenance_unavailable": {
+      "en": "The original reference data is not available on this server.",
+      "es": "Los datos de referencia originales no están disponibles en este servidor.",
+      "fr": "Les données de référence d'origine ne sont pas disponibles sur ce serveur.",
+      "de": "Die ursprünglichen Referenzdaten sind auf diesem Server nicht verfügbar.",
+      "lt": "Originalūs etaloniniai duomenys šiame serveryje nepasiekiami.",
+      "pt": "Os dados de referência originais não estão disponíveis neste servidor.",
+      "it": "I dati di riferimento originali non sono disponibili su questo server.",
+      "no": "De opprinnelige referansedataene er ikke tilgjengelige på denne serveren.",
+      "el": "Τα αρχικά δεδομένα αναφοράς δεν είναι διαθέσιμα σε αυτόν τον διακομιστή."
     }
   }
 }

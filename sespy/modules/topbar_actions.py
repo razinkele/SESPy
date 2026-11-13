@@ -7,6 +7,10 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..r_kb import Snapshot
 
 from shiny import reactive, render, ui
 
@@ -316,14 +320,17 @@ def _help_modal(translator) -> ui.Tag:
 
 def topbar_actions_server(input, output, session, *, translator=None,
                           current_theme=None, autosave_enabled=None,
-                          active_panel=None, nav_items=None) -> None:
+                          active_panel=None, nav_items=None,
+                          snapshot: Snapshot | None = None) -> None:
     """Wires the four topbar buttons. Feedback / About / Options open modals;
     Help toggles the offcanvas built in topbar_actions_ui. current_theme /
     autosave_enabled are the shared reactive.Values (used by the Options
     modal). active_panel (reactive.Value[str], the nav id from
     dashboard_server) + nav_items (the NAV list, id → label) drive the
     contextual "About this panel" section; either missing → the section
-    just shows the manual pointer."""
+    just shows the manual pointer. snapshot (K1, optional) is the session's
+    reference-data snapshot for the About modal's Reference data section
+    (Task 15); accepted here, not yet used."""
     labels = {item.id: item.label for item in (nav_items or [])}
 
     @reactive.effect
