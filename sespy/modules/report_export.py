@@ -17,11 +17,17 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from ..data_structure import Project
 from ..event_bus import EventBus
 from ..i18n import Translator
-from ..report import render_docx, render_html, render_pdf
+from ..r_kb import add_reads
+from ..report import regional_context_for, render_docx, render_html, render_pdf
+
+#: The reference files the Regional Context section is built from.
+_REGIONAL_READS = frozenset({"ses_knowledge_db.json", "country_governance_db.json"})
 
 
 @module.ui
-def report_export_ui() -> ui.Tag:
+def report_export_ui(translator: Translator | None = None) -> ui.Tag:
+    label = (translator.t("modules.report_context.include_context")
+             if translator else "Include Regional Context")
     return ui.card(
         ui.card_header("Export Report"),
         ui.div(
@@ -32,6 +38,7 @@ def report_export_ui() -> ui.Tag:
                 "HTML opens directly in a browser; PDF is print-ready.",
                 class_="text-muted",
             ),
+            ui.input_checkbox("include_regional_context", label, value=True),
             ui.tags.div(
                 ui.download_button(
                     "download_html",
@@ -84,8 +91,17 @@ def report_export_server(
     reference_reads: reactive.Value[frozenset[str]] | None = None,
 ) -> None:
     # K1: `snapshot` / `reference_reads` are the session's reference data and
-    # the files it read; accepted here, used by the Regional Context section
-    # (Task 14). Both optional: MosaicSES mounts this module without them.
+    # the files it read; both optional (MosaicSES mounts this module without
+    # them). The Regional Context section needs a snapshot; its files are
+    # recorded in `reference_reads` only when a section is actually generated.
+
+    def _regional_kwargs(proj: Project) -> dict:
+        with reactive.isolate():
+            wanted = bool(input.include_regional_context())
+        if not wanted or regional_context_for(proj, snapshot) is None:
+            return {"snapshot": snapshot, "include_regional_context": False}
+        add_reads(reference_reads, _REGIONAL_READS)
+        return {"snapshot": snapshot, "include_regional_context": True}
 
     def _stamp() -> str:
         return datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -93,17 +109,17 @@ def report_export_server(
     @render.download_button(filename=lambda: f"sespy-report-{_stamp()}.html")
     def download_html():
         proj = project_data.get()
-        yield render_html(proj).encode("utf-8")
+        yield render_html(proj, **_regional_kwargs(proj)).encode("utf-8")
 
     @render.download_button(filename=lambda: f"sespy-report-{_stamp()}.pdf")
     def download_pdf():
         proj = project_data.get()
-        yield render_pdf(proj)
+        yield render_pdf(proj, **_regional_kwargs(proj))
 
     @render.download_button(filename=lambda: f"sespy-report-{_stamp()}.docx")
     def download_docx():
         proj = project_data.get()
-        yield render_docx(proj)
+        yield render_docx(proj, **_regional_kwargs(proj))
 
     @output
     @render.ui
@@ -111,12 +127,15 @@ def report_export_server(
         # Subscribe so the preview re-renders when the user edits the data
         event_bus.isa_change.get()
         proj = project_data.get()
+        # Read the toggle reactively (not isolated), so it re-renders.
+        input.include_regional_context()
+        kwargs = _regional_kwargs(proj)
         return ui.div(
             ui.tags.iframe(
                 # Inline-rendered HTML, no server round-trip — gives the
                 # user a clear preview of exactly what they're about to
                 # download.
-                srcdoc=render_html(proj),
+                srcdoc=render_html(proj, **kwargs),
                 style="width: 100%; height: 600px; border: 1px solid #e0e0e0; "
                       "border-radius: 8px; background: white;",
             ),

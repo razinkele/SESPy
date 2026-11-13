@@ -160,7 +160,7 @@ PANELS = (
     ui.nav_panel("Simplify Network",  analysis_simplify_ui("simplify"),            value="simplify"),
     ui.nav_panel("Import Data",       import_data_ui("import"),                    value="import"),
     ui.nav_panel("Recent Projects",   recent_projects_ui("recent"),                value="recent"),
-    ui.nav_panel("Export Report",     report_export_ui("report"),                  value="report"),
+    ui.nav_panel("Export Report",     report_export_ui("report", T),                  value="report"),
 )
 
 app_ui = dashboard_page(

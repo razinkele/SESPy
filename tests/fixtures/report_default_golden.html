@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sample SES — SES Report</title>
+  <style>
+    @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+    :root {
+      --ocean-deep: #0f2744; --ocean-mid: #1a3a5c; --ocean-shallow: #2d5a7b;
+      --ocean-surface: #4a90b8; --bio-cyan: #00d4aa; --kelp-green: #52b788;
+      --foam: #f8fbfd; --mist: #e8f1f8; --slate: #3d5a73;
+      --text: #0a1628; --muted: #506a80;
+    }
+    body {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 11pt; line-height: 1.5; color: var(--text);
+      margin: 0; background: white;
+    }
+    h1, h2, h3 { font-family: 'DM Sans', system-ui, sans-serif;
+                 color: var(--ocean-deep); font-weight: 600;
+                 letter-spacing: -0.01em; }
+    h1 { font-size: 24pt; margin-bottom: 4pt; }
+    h2 { font-size: 16pt; margin-top: 24pt;
+         border-bottom: 1px solid var(--mist); padding-bottom: 4pt; }
+    h3 { font-size: 13pt; margin-top: 16pt; color: var(--ocean-shallow); }
+    .meta { color: var(--muted); font-size: 10pt; margin-bottom: 16pt; }
+    .summary {
+      display: flex; gap: 12pt; margin: 12pt 0 18pt 0;
+    }
+    .stat {
+      background: var(--mist); padding: 8pt 14pt; border-radius: 6pt;
+      flex: 1;
+    }
+    .stat .num {
+      display: block; font-family: 'DM Sans'; font-size: 18pt;
+      font-weight: 600; color: var(--ocean-deep);
+    }
+    .stat .label {
+      font-size: 9pt; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 10pt; margin: 8pt 0;
+    }
+    th {
+      background: linear-gradient(135deg, var(--ocean-mid), var(--ocean-shallow));
+      color: white; text-align: left; padding: 6pt 8pt;
+      font-family: 'DM Sans', system-ui, sans-serif;
+    }
+    td { padding: 4pt 8pt; border-bottom: 1px solid var(--mist); }
+    tr:nth-child(even) td { background: rgba(232, 241, 248, 0.4); }
+    .pill {
+      display: inline-block; padding: 1pt 8pt; border-radius: 12pt;
+      font-size: 9pt; font-weight: 600; color: white;
+    }
+    .pill-reinforcing { background: var(--ocean-surface); }
+    .pill-balancing { background: #dc131e; }
+    footer {
+      margin-top: 32pt; padding-top: 8pt;
+      border-top: 1px solid var(--mist);
+      font-size: 9pt; color: var(--muted); text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Sample SES</h1>
+<p class="meta">
+  SES Toolbox Report &nbsp;·&nbsp;
+  Generated 2026-01-02 03:04
+  
+    &nbsp;·&nbsp; Last modified 2026-11-13T21:25:45+00:00
+  
+</p>
+
+<h2>Summary</h2>
+<div class="summary">
+  <div class="stat"><span class="num">17</span>
+    <span class="label">Elements</span></div>
+  <div class="stat"><span class="num">20</span>
+    <span class="label">Connections</span></div>
+  <div class="stat"><span class="num">5</span>
+    <span class="label">Feedback loops</span></div>
+  <div class="stat"><span class="num">0.0735</span>
+    <span class="label">Density</span></div>
+</div>
+
+<h3>Element types</h3>
+<table>
+  <thead><tr><th>DAPSIWRM type</th><th style="text-align:right">Count</th></tr></thead>
+  <tbody>
+  
+    <tr><td>Activities</td><td style="text-align:right">3</td></tr>
+  
+    <tr><td>Pressures</td><td style="text-align:right">3</td></tr>
+  
+    <tr><td>Ecosystem Services</td><td style="text-align:right">3</td></tr>
+  
+    <tr><td>Drivers</td><td style="text-align:right">2</td></tr>
+  
+    <tr><td>Marine Processes &amp; Functioning</td><td style="text-align:right">2</td></tr>
+  
+    <tr><td>Goods &amp; Benefits</td><td style="text-align:right">2</td></tr>
+  
+    <tr><td>Responses</td><td style="text-align:right">2</td></tr>
+  
+  </tbody>
+</table>
+
+
+<h2>Feedback loops</h2>
+<p class="meta">2 reinforcing, 3 balancing.</p>
+<table>
+  <thead><tr><th>ID</th><th>Type</th><th>Length</th><th>Path</th></tr></thead>
+  <tbody>
+  
+    <tr>
+      <td>L001</td>
+      <td><span class="pill pill-balancing">Balancing</span></td>
+      <td>6</td>
+      <td style="font-size: 9pt;">Fisheries income → Seafood demand → Small-scale fishing → Bycatch → Pelagic fish stocks → Food provisioning → Fisheries income</td>
+    </tr>
+  
+    <tr>
+      <td>L002</td>
+      <td><span class="pill pill-reinforcing">Reinforcing</span></td>
+      <td>5</td>
+      <td style="font-size: 9pt;">Mooring buoy program → Anchor damage → Posidonia meadows → Coastal protection → Tourism revenue → Mooring buoy program</td>
+    </tr>
+  
+    <tr>
+      <td>L003</td>
+      <td><span class="pill pill-reinforcing">Reinforcing</span></td>
+      <td>5</td>
+      <td style="font-size: 9pt;">Mooring buoy program → Anchor damage → Posidonia meadows → Recreational value → Tourism revenue → Mooring buoy program</td>
+    </tr>
+  
+    <tr>
+      <td>L004</td>
+      <td><span class="pill pill-balancing">Balancing</span></td>
+      <td>6</td>
+      <td style="font-size: 9pt;">Tourism revenue → Tourism demand → Recreational boating → Anchor damage → Posidonia meadows → Coastal protection → Tourism revenue</td>
+    </tr>
+  
+    <tr>
+      <td>L005</td>
+      <td><span class="pill pill-balancing">Balancing</span></td>
+      <td>6</td>
+      <td style="font-size: 9pt;">Tourism revenue → Tourism demand → Recreational boating → Anchor damage → Posidonia meadows → Recreational value → Tourism revenue</td>
+    </tr>
+  
+  </tbody>
+</table>
+
+
+
+<h2>Top centrality</h2>
+
+<h3>Degree</h3>
+<table>
+  <thead><tr><th>Rank</th><th>Element</th><th>Type</th>
+    <th style="text-align:right">Score</th></tr></thead>
+  <tbody>
+  
+    <tr><td>1</td><td>Posidonia meadows</td><td>Marine Processes &amp; Functioning</td>
+        <td style="text-align:right">4.0000</td></tr>
+  
+    <tr><td>2</td><td>Tourism revenue</td><td>Goods &amp; Benefits</td>
+        <td style="text-align:right">4.0000</td></tr>
+  
+    <tr><td>3</td><td>Seafood demand</td><td>Drivers</td>
+        <td style="text-align:right">3.0000</td></tr>
+  
+    <tr><td>4</td><td>Anchor damage</td><td>Pressures</td>
+        <td style="text-align:right">3.0000</td></tr>
+  
+    <tr><td>5</td><td>Bycatch</td><td>Pressures</td>
+        <td style="text-align:right">3.0000</td></tr>
+  
+  </tbody>
+</table>
+
+<h3>Indegree</h3>
+<table>
+  <thead><tr><th>Rank</th><th>Element</th><th>Type</th>
+    <th style="text-align:right">Score</th></tr></thead>
+  <tbody>
+  
+    <tr><td>1</td><td>Anchor damage</td><td>Pressures</td>
+        <td style="text-align:right">2.0000</td></tr>
+  
+    <tr><td>2</td><td>Bycatch</td><td>Pressures</td>
+        <td style="text-align:right">2.0000</td></tr>
+  
+    <tr><td>3</td><td>Posidonia meadows</td><td>Marine Processes &amp; Functioning</td>
+        <td style="text-align:right">2.0000</td></tr>
+  
+    <tr><td>4</td><td>Tourism revenue</td><td>Goods &amp; Benefits</td>
+        <td style="text-align:right">2.0000</td></tr>
+  
+    <tr><td>5</td><td>Tourism demand</td><td>Drivers</td>
+        <td style="text-align:right">1.0000</td></tr>
+  
+  </tbody>
+</table>
+
+<h3>Outdegree</h3>
+<table>
+  <thead><tr><th>Rank</th><th>Element</th><th>Type</th>
+    <th style="text-align:right">Score</th></tr></thead>
+  <tbody>
+  
+    <tr><td>1</td><td>Seafood demand</td><td>Drivers</td>
+        <td style="text-align:right">2.0000</td></tr>
+  
+    <tr><td>2</td><td>Posidonia meadows</td><td>Marine Processes &amp; Functioning</td>
+        <td style="text-align:right">2.0000</td></tr>
+  
+    <tr><td>3</td><td>Tourism revenue</td><td>Goods &amp; Benefits</td>
+        <td style="text-align:right">2.0000</td></tr>
+  
+    <tr><td>4</td><td>Tourism demand</td><td>Drivers</td>
+        <td style="text-align:right">1.0000</td></tr>
+  
+    <tr><td>5</td><td>Recreational boating</td><td>Activities</td>
+        <td style="text-align:right">1.0000</td></tr>
+  
+  </tbody>
+</table>
+
+<h3>Betweenness</h3>
+<table>
+  <thead><tr><th>Rank</th><th>Element</th><th>Type</th>
+    <th style="text-align:right">Score</th></tr></thead>
+  <tbody>
+  
+    <tr><td>1</td><td>Posidonia meadows</td><td>Marine Processes &amp; Functioning</td>
+        <td style="text-align:right">0.3625</td></tr>
+  
+    <tr><td>2</td><td>Seafood demand</td><td>Drivers</td>
+        <td style="text-align:right">0.2958</td></tr>
+  
+    <tr><td>3</td><td>Nutrient enrichment</td><td>Pressures</td>
+        <td style="text-align:right">0.2667</td></tr>
+  
+    <tr><td>4</td><td>Aquaculture</td><td>Activities</td>
+        <td style="text-align:right">0.2625</td></tr>
+  
+    <tr><td>5</td><td>Fisheries income</td><td>Goods &amp; Benefits</td>
+        <td style="text-align:right">0.2583</td></tr>
+  
+  </tbody>
+</table>
+
+<h3>Closeness</h3>
+<table>
+  <thead><tr><th>Rank</th><th>Element</th><th>Type</th>
+    <th style="text-align:right">Score</th></tr></thead>
+  <tbody>
+  
+    <tr><td>1</td><td>Posidonia meadows</td><td>Marine Processes &amp; Functioning</td>
+        <td style="text-align:right">0.2540</td></tr>
+  
+    <tr><td>2</td><td>Coastal protection</td><td>Ecosystem Services</td>
+        <td style="text-align:right">0.2133</td></tr>
+  
+    <tr><td>3</td><td>Recreational value</td><td>Ecosystem Services</td>
+        <td style="text-align:right">0.2133</td></tr>
+  
+    <tr><td>4</td><td>Tourism revenue</td><td>Goods &amp; Benefits</td>
+        <td style="text-align:right">0.1951</td></tr>
+  
+    <tr><td>5</td><td>Tourism demand</td><td>Drivers</td>
+        <td style="text-align:right">0.1720</td></tr>
+  
+  </tbody>
+</table>
+
+<h3>Eigenvector</h3>
+<table>
+  <thead><tr><th>Rank</th><th>Element</th><th>Type</th>
+    <th style="text-align:right">Score</th></tr></thead>
+  <tbody>
+  
+    <tr><td>1</td><td>Anchor damage</td><td>Pressures</td>
+        <td style="text-align:right">0.4677</td></tr>
+  
+    <tr><td>2</td><td>Tourism revenue</td><td>Goods &amp; Benefits</td>
+        <td style="text-align:right">0.4372</td></tr>
+  
+    <tr><td>3</td><td>Posidonia meadows</td><td>Marine Processes &amp; Functioning</td>
+        <td style="text-align:right">0.3630</td></tr>
+  
+    <tr><td>4</td><td>Tourism demand</td><td>Drivers</td>
+        <td style="text-align:right">0.3393</td></tr>
+  
+    <tr><td>5</td><td>Mooring buoy program</td><td>Responses</td>
+        <td style="text-align:right">0.3393</td></tr>
+  
+  </tbody>
+</table>
+
+<h3>Pagerank</h3>
+<table>
+  <thead><tr><th>Rank</th><th>Element</th><th>Type</th>
+    <th style="text-align:right">Score</th></tr></thead>
+  <tbody>
+  
+    <tr><td>1</td><td>Posidonia meadows</td><td>Marine Processes &amp; Functioning</td>
+        <td style="text-align:right">0.1310</td></tr>
+  
+    <tr><td>2</td><td>Tourism revenue</td><td>Goods &amp; Benefits</td>
+        <td style="text-align:right">0.1185</td></tr>
+  
+    <tr><td>3</td><td>Anchor damage</td><td>Pressures</td>
+        <td style="text-align:right">0.1094</td></tr>
+  
+    <tr><td>4</td><td>Coastal protection</td><td>Ecosystem Services</td>
+        <td style="text-align:right">0.0645</td></tr>
+  
+    <tr><td>5</td><td>Recreational value</td><td>Ecosystem Services</td>
+        <td style="text-align:right">0.0645</td></tr>
+  
+  </tbody>
+</table>
+
+
+<h2>Leverage points</h2>
+<p class="meta">Composite score = standardised betweenness + eigenvector + PageRank.</p>
+<table>
+  <thead><tr><th>Rank</th><th>Element</th><th>Type</th>
+    <th style="text-align:right">Score</th></tr></thead>
+  <tbody>
+  
+    <tr><td>1</td><td>Posidonia meadows</td><td>Marine Processes &amp; Functioning</td>
+        <td style="text-align:right">5.302</td></tr>
+  
+    <tr><td>2</td><td>Tourism revenue</td><td>Goods &amp; Benefits</td>
+        <td style="text-align:right">4.231</td></tr>
+  
+    <tr><td>3</td><td>Anchor damage</td><td>Pressures</td>
+        <td style="text-align:right">2.662</td></tr>
+  
+    <tr><td>4</td><td>Coastal protection</td><td>Ecosystem Services</td>
+        <td style="text-align:right">0.487</td></tr>
+  
+    <tr><td>5</td><td>Recreational value</td><td>Ecosystem Services</td>
+        <td style="text-align:right">0.487</td></tr>
+  
+    <tr><td>6</td><td>Mooring buoy program</td><td>Responses</td>
+        <td style="text-align:right">0.197</td></tr>
+  
+    <tr><td>7</td><td>Seafood demand</td><td>Drivers</td>
+        <td style="text-align:right">0.070</td></tr>
+  
+    <tr><td>8</td><td>Tourism demand</td><td>Drivers</td>
+        <td style="text-align:right">-0.005</td></tr>
+  
+    <tr><td>9</td><td>Fisheries income</td><td>Goods &amp; Benefits</td>
+        <td style="text-align:right">-0.342</td></tr>
+  
+    <tr><td>10</td><td>Nutrient enrichment</td><td>Pressures</td>
+        <td style="text-align:right">-0.706</td></tr>
+  
+  </tbody>
+</table>
+
+<footer>
+  MarineSABRES SES Toolbox &nbsp;·&nbsp; Horizon Europe Project
+</footer>
+
+</body>
+</html>
