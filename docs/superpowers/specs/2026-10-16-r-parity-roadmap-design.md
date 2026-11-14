@@ -2,13 +2,14 @@
 
 Date: 2026-10-16 (revised after review loops 1–3; amended 2026-10-17 after
 P0 shipped and the P1a spec converged; amended 2026-10-18 by P2; amended
-2026-10-23 by P1b)
-Baseline: MarineSABRES_SES_Shiny **v1.33.0** (`4017feb`, re-pinned by P1b on
-2026-10-23), the version laguna runs (verified 2026-10-20). The 9 files pinned
-since P2 are identical to v1.31.0 (`4b53b7d`) and v1.29.0 (`e33faea`), which
-was verified against the laguna deployment on 2026-10-17. The original
-baseline was v1.28.0 (`e3c3b77`) against SESPy v1.12.1. SESPy is now at
-**v1.15.0** (P0, P1a, P2 and P1b shipped).
+2026-10-23 by P1b; amended 2026-11-14 by K1)
+Baseline: MarineSABRES_SES_Shiny **v1.35.6** (`d1a655a`, re-pinned by K1 on
+2026-11-13), the version laguna runs. The previous baseline was v1.33.0
+(`4017feb`, P1b); the 9 files pinned since P2 are identical at v1.31.0
+(`4b53b7d`) and v1.29.0 (`e33faea`), which was verified against the laguna
+deployment on 2026-10-17. The original baseline was v1.28.0 (`e3c3b77`)
+against SESPy v1.12.1. SESPy is at **v1.15.1** (P0, P1a, P2 and P1b shipped);
+K1 is to ship as v1.16.0.
 **Each sub-project re-pins** to the then-current R tag when its brainstorm
 starts, triages the R changes since the previous pin, and records the pin in
 `docs/parity/R_SYNC.md`.
@@ -103,7 +104,10 @@ P0 → P1a ─┬→ M (MosaicSES 0.4.0) ┄→ first schema bump after P1a (P1b
           ├→ P2   (soft: K1)
           ├→ K1 ─┬→ P4 (also P1b) ─┬→ P5 → P6a (also P1c) → P6b → P6c
           │      │                 └→ P15 (WS-10 workshop, proposed)
-          │      └→ P9
+          │      ├→ P8 (reference-data layer)
+          │      ├→ P9 (KB)
+          │      └→ K1b ─┬→ P9 (synonyms)
+          │              └┄→ P13 (if its spec confirms the need)
           ├→ P1b → P1c → P8 → P7a (also P3) → P7b
           └→ P3 (Python side)
 P3's R-fixture capture can start at P0; its Python side needs P1a's
@@ -300,34 +304,59 @@ Depends on P1a/P1b.
 ### K1 — General knowledge-base parity
 R source: `functions/ses_knowledge_db_loader.R`, `modules/ai_isa_knowledge_base.R`,
 `functions/country_governance_loader.R`, `functions/kb_report_helpers.R`,
-`functions/report_generation.R:140-174,481-499`,
-`data/ses_connection_knowledge_base.R`. Depends on P1a.
+`functions/report_generation.R:140-174` (the Regional Context section; the
+KB recommendation lines go to P14). `data/ses_connection_knowledge_base.R`
+moved to K1b. Pinned at **v1.35.6** (`d1a655a`). Depends on P1a.
+**Detailed spec:**
+`docs/superpowers/specs/2026-11-09-k1-knowledge-base-parity-design.md`
+(branch `docs/k1-design`; errata in `docs/parity/R_SYNC.md`). To ship as
+**SESPy v1.16.0** (schema 9).
 - The KB loader implements the §3 "Reference data" rules (vendored + optional
-  override). The same loader is used by P4.
+  override). The same loader is used by P4, P5, P6, P8 and K1b.
 - **`ses_knowledge_db.json`**: 33 sea × habitat contexts, each with D/A/P/S/I/W/R
   lists, connections, `generic_fallback` and 20 `cross_ecosystem_links`.
   These give offline element suggestions in SESPy's AI ISA wizard, next to
-  `regional_seas.json`.
-- **`country_governance_db.json`**: 97 countries, 11 seas and 8 conventions
-  at v1.29.0, giving governance context. R v1.30.0 added Greenland, the Faroe
-  Islands and seven regional bodies (99 countries, 15 conventions/bodies at
-  v1.31.0, triaged in R_SYNC.md); re-check the counts at K1's pin.
+  `regional_seas.json`. The `cross_ecosystem_links` are vendored with the
+  file but unused, as in R (no R code reads them).
+- **`country_governance_db.json`**: at the v1.35.6 pin, 105 countries, 15
+  conventions/bodies and 11 seas. The wizard's countries come from it;
+  `regional_seas.json` keeps only sea names, ecosystem types and common
+  issues.
 - **Regional Context** section in SESPy reports.
-- **`SES_CONNECTION_DB`/`SES_SYNONYM_DB`** are live R code, so they get a
-  one-off R → JSON export, vendored and hash-checked. Python cannot read
-  `.R` at runtime, so the override does not apply to these.
 - Writing `metadata.reference_data` (§3 provenance) adds a serialised field,
-  so K1 **bumps the schema version**. If K1 is the first schema bump after
-  P1a, the MosaicSES `newer_build` guard (node M, §2) is K1's prerequisite.
+  so K1 **bumps the schema version** (schema 9).
 - **Owns `tests/parity/check_live.py`**, the live drift check against laguna,
   because K1 is the first sub-project that reads R data at runtime.
-- **Owns extension-pair suggestions** in the AI wizard (R→R, P→P, MPF→MPF), as
-  R's `modules/ai_isa/connection_generator.R:625-640` does. P1a suggests only
-  the canonical pairs.
-- **Done when:** for 3 contexts, SESPy's suggestions equal R's
-  `get_context_elements(min_relevance = 0.5)`; extension-pair suggestions
-  match R's `connection_generator.R:625-640` on a fixture; and `check_live.py`
-  runs read-only as a `deploy.sh` pre-flight step.
+- **Extension-pair suggestions are dropped** (K1 spec decision 1): R's live
+  wizard never suggests R→R, P→P or MPF→MPF. Its only call,
+  `generate_connections(rv$elements)` (`modules/ai_isa/step_navigation.R:92`),
+  passes no sea or habitat, so the KB-seeding block never runs. The lines
+  once cited here (`connection_generator.R:625-640`) are the `matrix_map` of
+  `convert_matrices_to_connections`, which parses saved matrices.
+- **Live R runs torch ML.** R's `calculate_relevance` blends `0.3 × keyword +
+  0.7 × ML` when its model is available, and on laguna it almost certainly is.
+  K1's features never touch connection scoring; K1b matches R run with ML
+  off, and torch stays out of scope (§4).
+- **Done when** (K1 spec §7): SESPy's suggestions equal R's
+  `get_context_suggestions(..., return_sources = TRUE)` over the full grid
+  (all 69 sea × ecosystem choices × 7 categories × issue and country sets:
+  3,864 cells at v1.35.6), items, order and sources; the lookup, countries
+  and report fixtures captured from R match; and `check_live.py` runs
+  read-only as a `deploy.sh` pre-flight that blocks broken files and warns
+  on drift.
+
+### K1b — Connection-scorer parity
+Depends on K1. To ship as **SESPy v1.17.0**. Scope and decisions recorded in
+the K1 spec §8; K1b gets its own spec and plan.
+- **`SES_CONNECTION_DB`/`SES_SYNONYM_DB`** (`data/ses_connection_knowledge_base.R`)
+  are live R code, so they get a one-off R → JSON export, vendored and
+  hash-checked. Python cannot read `.R` at runtime, so the override does not
+  apply to these.
+- SESPy's connection scorer matches R's keyword scoring as R runs with ML
+  off; accepted wizard connections carry R's `strength` and integer
+  `confidence`; the scorer keeps only R's 10 type pairs, in R's order, and
+  drops `responses_states`.
+- Feeds P9 (synonyms) and, if P13's spec confirms the need, P13.
 
 ### P2 — Curated templates
 R source: 1.21.1, 1.22.1, 1.22.3, pinned at v1.31.0 (`4b53b7d`), plus
@@ -419,7 +448,8 @@ profiles), 1.31.0 (WS-9b readiness check). Depends on P1b; loader from K1.
 ### P5 — Valuation calculator
 R source: 1.24.0. Depends on P4.
 - As in R: D5.2 Table 19 range, the badged toolbox extensions, Excel export
-  whose provenance is read from `metadata.reference_data` (see §3).
+  whose provenance is read through `r_kb.current_provenance(...)` (see §3),
+  not from raw `metadata.reference_data`.
 - **Persistence is decided in the P5 spec:** if valuation inputs are saved
   with the project, P5 bumps the schema and joins the MosaicSES gate; if not,
   it states that it adds no serialised field.
@@ -451,7 +481,8 @@ R source: 1.25.0, 1.26.0. Depends on P4, P5, P1c.
     (`impact_assessment_model.R:443-495`).
   Once 6a takes the block over, nothing of it stays in `r_passthrough`.
 - **6b wizard**, **6c narrative + Word/Excel report**: Appendix B provenance is
-  read from `metadata.reference_data`.
+  read through `r_kb.current_provenance(...)` (§3), not from raw
+  `metadata.reference_data`.
 - **Analysis-preservation rule** (R 1.25.0): an ISA change clears only loops
   and metrics, never the scenarios or the impact assessment.
 - **Done when:** an R-saved assessment (a block R has already normalised)
@@ -468,7 +499,8 @@ reads `data/wp5_scenarios_ssp.json` and `data/wp5_worldview_matrix.json`
 `translations/modules/wp5_scenarios.json`, which lives outside `data/` and is
 always vendored, like `wp5_vocabulary.json`. The tab filters the register's
 `PestleTag` (`wp5_scenarios.R:70-79`), so it needs P1b's column. Depends on
-P1c (and through it P1b).
+P1c (and through it P1b) and on K1, because it reads `wp5_scenarios_ssp` and
+`wp5_worldview_matrix` through K1's reference-data layer.
 - Native scenarios are a new serialised block, so P8 **bumps the schema
   version**. P8 **replaces the P1c passthrough for `analysis.scenarios`**: on
   load it migrates them into the native block and removes **only the migrated
@@ -542,12 +574,13 @@ R source: 1.28.0. Depends on P7a, P8.
   match R.
 
 ### P9 — Graphical SES creator
-R source: 1.20.0 N6 and the creator/network-builder modules. Depends on P1a, K1.
+R source: 1.20.0 N6 and the creator/network-builder modules. Depends on P1a,
+K1 (KB) and K1b (synonyms).
 - Canvas builder; "Export to ISA" produces canonical SESPy ISA data.
 - **Persistence is decided in the P9 spec:** the export writes ordinary ISA
   data (no new field). If the canvas layout itself is saved with the project,
   P9 bumps the schema and joins the MosaicSES gate.
-- Type suggestions come from K1's KB and synonyms, not torch.
+- Type suggestions come from K1's KB and K1b's synonyms, not torch.
 - **Owns `infer_connection_polarity`**, R's keyword polarity overrides
   (`dapsiwrm_connection_rules.R:438-494`), which R uses only in this builder.
   Port it with R's tests.
@@ -579,12 +612,16 @@ shows read-only, so the §3 schema-bump and MosaicSES rules apply.
   - **How it reaches the server process:** `deploy/config.env` stays on the
     developer machine and never ships (`deploy.sh` excludes `deploy/`). The
     value lives in a server-side settings file, `APP_DIR/server_settings.env`,
-    owned by the server. `app.py` reads it at startup, and an environment
-    variable of the same name takes precedence.
+    owned by the server. The registry re-reads it at every `refresh()` (each
+    session start), not once at startup. An environment variable of the same
+    name that is **present, even empty**, takes precedence; `off` or an empty
+    value turns the override off (amended by K1).
   - `deploy.sh` creates the file only if it is absent and otherwise
     **preserves** it, the same pattern as `feedback.db` (it is never clobbered).
-  - MosaicSES runs as its own process, with its own `APP_DIR/server_settings.env`
-    and the same key. Its deploy script preserves the file the same way.
+  - **MosaicSES's settings file is deferred** (amended by K1) to the first
+    sub-project whose features MosaicSES uses. MosaicSES reads only sea names
+    and gets vendored data, so K1 adds no MosaicSES `server_settings.env` and
+    no change to MosaicSES's deploy script.
 
   The loader:
   1. reads and parses the file;
@@ -599,14 +636,18 @@ shows read-only, so the §3 schema-bump and MosaicSES rules apply.
        `ses_knowledge_db.json`, `country_governance_db.json`,
        `wp5_scenarios_ssp.json`, `wp5_worldview_matrix.json`);
   3. publishes a new immutable snapshot atomically;
-  4. re-stats size and mtime when a session starts and reloads on change.
+  4. re-stats each file when a session starts, with the change key
+     `(ino, size, mtime_ns, ctime_ns)` (not size and mtime), and swaps the
+     set of files as a whole when every changed file validates (the set-wise
+     swap; amended by K1).
      **Each session pins the snapshot current at its start**, so other live
      sessions never see data change underneath them, and that session's
      provenance comes from its pinned snapshot;
-  5. on any failure, including a missing directory (R's deploy moves
-     `data/` to `data.bak` if it ever becomes shiny-owned,
-     `deploy-remote.ps1:360-362`), keeps the last good copy, else the vendored
-     one, and logs one warning.
+  5. on any failure keeps the last good copy, else the vendored one. A
+     missing directory (R's deploy moves `data/` to `data.bak` if it ever
+     becomes shiny-owned, `deploy-remote.ps1:360-362`) means vendored data on
+     every worker. Every transition is logged, not just one warning (amended
+     by K1).
 
   It is strictly **read-only**: it never writes into R's directory (the
   directory is group-writable).
@@ -617,7 +658,7 @@ shows read-only, so the §3 schema-bump and MosaicSES rules apply.
   `wp5_scenarios_ssp.json` and `wp5_worldview_matrix.json` (P8, R 1.29.0),
   `wp5_governance_profiles.json` and `wp5_readiness_items.json` (P4, R
   1.30.0/1.31.0; their version keys are named when P4 adds them),
-  plus the vendored-only `SES_CONNECTION_DB`/`SES_SYNONYM_DB` export (K1) and
+  plus the vendored-only `SES_CONNECTION_DB`/`SES_SYNONYM_DB` export (K1b) and
   `wp5_vocabulary.json` (P4) and `wp5_scenarios.json` strings (P8), both
   always vendored.
 - **Test fixtures are separate from vendored runtime data.** The 7
@@ -626,12 +667,19 @@ shows read-only, so the §3 schema-bump and MosaicSES rules apply.
   They are never read at runtime and never ship (`deploy.sh` excludes
   `tests/`). P2 ships SESPy projects converted from the templates
   (`sespy/templates/marinesabres/`); the R files themselves still never ship. Only files read at runtime go into `sespy/data/r_kb/`.
-- **Provenance in projects:** on save, SESPy writes
+- **Provenance in projects:** SESPy writes
   `metadata.reference_data = {file: {source: vendored|shared, sha256_norm,
-  version, vendored_r_tag}}`. On load, SESPy warns when that differs from
-  the session's pinned snapshot. When the recorded hash matches neither the
-  vendored copy nor the live copy, it says "reference data unavailable;
-  results may differ". P5/P6 provenance appendices read it. R records nothing for the
+  version, vendored_r_tag}}` **per file, for the files the session read**
+  (amended by K1): the session collects the names it read
+  (`reference_reads`), and every save, autosave or download stamps
+  `{**loaded metadata.reference_data, **{f: snapshot.provenance(f) for f in
+  reads}}`. So a save without a read keeps the loaded entries, and the set is
+  reset whenever the project is replaced. On load, SESPy warns when an entry
+  differs from the session's pinned snapshot. When the recorded hash matches
+  neither the vendored copy nor the live copy, it adds that the original
+  reference data is not available on this server. P5/P6 provenance
+  appendices read it through `r_kb.current_provenance(meta, snapshot,
+  reads)`, never raw `metadata.reference_data`. R records nothing for the
   general KB, so SESPy adds this.
 - **Hashing:** one helper, `sespy/r_sync.py::sha256_norm(obj)` =
   `sha256(json.dumps(obj, sort_keys=True, ensure_ascii=False,
@@ -644,19 +692,25 @@ shows read-only, so the §3 schema-bump and MosaicSES rules apply.
 - **Drift check:** `tests/parity/` asserts fixtures and vendored files match
   the machine-readable pin `tests/parity/r_sync.json`. `docs/parity/R_SYNC.md`
   is its human mirror, updated in the same commit, and a test checks the two
-  agree. `tests/parity/check_live.py` (owned by K1)
-  (read-only over SSH) compares the live laguna copies. `deploy/deploy.sh`
-  runs it as a pre-flight step (SESPy has no `release.sh`, unlike MosaicSES),
-  and it can also be run by hand after an R deploy.
-  It is never run in CI or picked up by pytest collection. A mismatch blocks the next SESPy release until the files are
-  re-vendored or the change is explicitly accepted in R_SYNC.md.
+  agree. `tests/parity/check_live.py` (owned by K1) compares the live laguna
+  copies, read-only. `deploy/deploy.sh` runs it as a pre-flight step (SESPy
+  has no `release.sh`, unlike MosaicSES): `deploy.sh` fetches the live files
+  over ssh and `check_live.py` only hashes locally. `check_live.py --fetch`
+  is the run-by-hand mode after an R deploy, doing the same ssh fetch itself.
+  It is never run in CI or picked up by pytest collection.
+  **What blocks (user decision, amended by K1):** the pre-flight blocks only
+  on broken or unreadable live files and on a shipped copy that differs from
+  its pin. Content drift between the live R files and the pin warns; with
+  `--strict` it blocks. `SESPY_SKIP_LIVE_CHECK=<reason>` (environment only)
+  skips the check, and rollbacks (`deploy.sh --rollback`) are never gated. A
+  drift warning is resolved at the next re-pin by re-vendoring.
 - **CI and tests** use vendored data only. The full e2e gate uses vendored data.
 
 ### Sync tracking
 `docs/parity/R_SYNC.md` records, for each ported feature, the R version and commit it
-matches (baseline v1.33.0 @ `4017feb` since P1b, the version laguna runs
-(verified 2026-10-20); the 9 files pinned since P2 are identical to v1.31.0 @
-`4b53b7d` and v1.29.0 @ `e33faea`),
+matches (baseline v1.35.6 @ `d1a655a` since K1, the version laguna runs;
+before it v1.33.0 @ `4017feb` since P1b; the 9 files pinned since P2 are
+identical to v1.31.0 @ `4b53b7d` and v1.29.0 @ `e33faea`),
 plus each fixture's and vendored file's hash (mirroring
 `tests/parity/r_sync.json`). R releases after the baseline are triaged into
 it when the next sub-project re-pins.
@@ -689,12 +743,28 @@ the live MosaicSES after deploy.
   download them only as an `…-older-format.json` copy kept out of the
   recent-projects registry, **before the first schema bump after P1a**: node M
   (§2).
+- **Compatibility contract (added by K1, binds every later sub-project):**
+  the session arguments `snapshot` and `reference_reads` are
+  keyword-optional wherever they are added, and never required on
+  `Project.to_dict`/`from_dict`, the `ProjectMetadata` constructor or
+  `isa_data_entry_server`; `get_regional_seas()` keeps `name`,
+  `ecosystem_types` and `common_issues`; importing `sespy.r_kb` reads nothing
+  relative to `APP_DIR`. A unit test guards MosaicSES's call sites.
+- **Restart (added by K1):** SESPy's `deploy.sh` touches MosaicSES's
+  `restart.txt` when `DEPLOY_MOSAIC_DIR` is set (on laguna
+  `/srv/shiny-server/MosaicSES`), so MosaicSES's workers reload the swapped
+  `sespy/`. After a deploy, MosaicSES's `deploy/verify_live.py
+  --expect-version <v>` runs by hand, with `<v>` from the deployed
+  `multises/__init__.py`.
+- MosaicSES's own `server_settings.env` is deferred to the first
+  sub-project whose features MosaicSES uses (see Reference data).
 
 ### Testing and releases
 - Unit tests reproduce R's published numbers.
 - Every sub-project passes the **full** e2e gate, with no heavy jobs running
   concurrently on the 16 GB machine.
-- P0 = v1.12.2 (hotfix) + v1.12.3 (P0b); P1a = v1.13.0; P2 = v1.14.0; P1b = v1.15.0. Then one minor release
+- P0 = v1.12.2 (hotfix) + v1.12.3 (P0b); P1a = v1.13.0; P2 = v1.14.0; P1b = v1.15.0;
+  K1 = v1.16.0 (schema 9); K1b = v1.17.0. Then one minor release
   per sub-project (P3 or K1 may ship out of sequence; P6 takes three).
 - **Version and schema numbers are fixed when a branch starts**, because the
   first commit bumps `__version__`, `pyproject.toml` and the MANUAL line
@@ -727,8 +797,8 @@ its R source is pinned to the baseline at that time.
 |---|---|---|---|
 | **P11** Guided entry | `entry_point_module` (guided pathway), `workflow_stepper_module` | AI ISA wizard | P1a; after P10 so the tour and stepper are designed together |
 | **P12** Experience levels | `get_level_config` / level config (menus, AI element caps; per-session store, R 1.20.0 N20); R's template complexity filter (`template_ses_module.R:125-141`, deferred from P2) | — | P0. Can be pulled earlier, because it gates menus that later pages register into. **Open decision for the user** (was "decide at P1a review"; P1a closed without deciding it): pull it before P4 or keep it after P10 |
-| **P13** Model library + connection review | `ses_models_module` (SES model library, server-mode path containment R 1.18.2/1.19.1), `connection_review_tabbed` (observer-leak fix R 1.21.0 N30); R's template preview / customise-before-load flow (`template_ses_module.R`, deferred from P2) | templates; review inside the AI wizard | P1c (library files are R models), K1 |
-| **P14** Report prep, feedback admin, pilot study | `prepare_report_module`, `feedback_admin_module` (admin-only actions, escaped user text, R 1.19.1), `pilot_study_module` | `report_export`; topbar feedback form (`feedback.db`) | K1 (Regional Context section), P6c (shared report pipeline) |
+| **P13** Model library + connection review | `ses_models_module` (SES model library, server-mode path containment R 1.18.2/1.19.1), `connection_review_tabbed` (observer-leak fix R 1.21.0 N30); R's template preview / customise-before-load flow (`template_ses_module.R`, deferred from P2) | templates; review inside the AI wizard | P1c (library files are R models), K1; K1b if the P13 spec confirms the need |
+| **P14** Report prep, feedback admin, pilot study | `prepare_report_module`, `feedback_admin_module` (admin-only actions, escaped user text, R 1.19.1), `pilot_study_module`; K1's KB regional recommendation lines (`report_generation.R:476-509`), behind the Recommendations option (deferred from K1; noted in R_SYNC.md's v1.31 → v1.33 `functions/report_generation.R` row) | `report_export`; topbar feedback form (`feedback.db`) | K1 (Regional Context section), P6c (shared report pipeline) |
 
 Already equivalent: `local_storage` ≈ autosave/persistent_storage;
 `export_reports` ≈ `report_export`; event bus ≈ `event_bus.py`.
