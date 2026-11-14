@@ -55,10 +55,15 @@ DEFAULT_R_DATA_DIR="/srv/shiny-server/marinesabres/data"
 # stdin: the settings file text. Prints the raw value of the LAST line that
 # starts with "SESPY_R_DATA_DIR=" (no leading whitespace), with surrounding
 # whitespace stripped; returns 1 when no line matches. Never sources the file.
-# Python's str.splitlines() also breaks lines on CR, VT, FF and FS/GS/RS.
+# Python's str.splitlines() also breaks lines on CR, VT, FF and FS/GS/RS, and
+# the app reads the file as utf-8-sig (a leading BOM is dropped).
 settings_raw_value() {
-  local line value="" found=1
+  local LC_ALL=C line value="" found=1 first=1
   while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$first" = 1 ]; then
+      line="${line#$'\xef\xbb\xbf'}"
+      first=0
+    fi
     case "$line" in
       SESPY_R_DATA_DIR=*) value="${line#SESPY_R_DATA_DIR=}"; found=0 ;;
     esac

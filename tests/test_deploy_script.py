@@ -70,6 +70,10 @@ exec cp -r "${args[@]}"
 
 STUB_SUDO = """#!/usr/bin/bash
 printf 'sudo %s\\n' "$*" >> "$STUB_LOG"
+if [ "${STUB_SUDO_OK:-}" = 1 ] && [ "$1 $2 $3" = "-n -u shiny" ]; then
+  shift 3
+  exec "$@"
+fi
 exit 1
 """
 
@@ -436,6 +440,20 @@ def test_override_names_from_check_live(fake):
     assert OVERRIDE_NAMES == [r.name for r in r_kb.ALLOW_LIST if r.override]
 
 
+def test_outputs_fit_the_real_check_live_contract(fake):
+    """The stub stands in for check_live; check the argv and perms.txt that
+    deploy.sh produced against the REAL parser and perms reader."""
+    import check_live
+    fake.settings_on()
+    _ok(fake.run(), fake)
+    argv = fake.check_calls()[0].split()[2:]  # drop "check_live" and the script path
+    args = check_live.build_parser().parse_args(argv)
+    assert args.stage and args.live and args.perms and not args.warn_only
+    problems = check_live.check_perms((fake.seen_live / "perms.txt").read_text())
+    # mode/owner verdicts are meaningless on MSYS; every path must have its line
+    assert not [p for p in problems if "no permission line" in p or "no stat line" in p], problems
+
+
 def test_mosaic_restart_conditional(make_fake):
     with_mosaic = make_fake()
     mosaic = with_mosaic.server / "mosaic"
@@ -520,6 +538,31 @@ def test_sudo_test_only_when_enabled(make_fake):
     assert perms and all(ln.startswith("stat ") for ln in perms)
 
 
+def test_sudo_test_success_lines_accepted_by_check_live(fake):
+    import check_live
+    fake.settings_on()
+    _ok(fake.run(DEPLOY_SUDO_TEST="1", STUB_SUDO_OK="1"), fake)
+    perms = (fake.seen_live / "perms.txt").read_text().splitlines()
+    assert perms == [f"sudo-test {fake.live_posix}/{n} ok" for n in OVERRIDE_NAMES]
+    assert check_live.check_perms("\n".join(perms)) == []
+
+
+def test_repo_root_override_deploys_other_checkout(fake):
+    """Rollback mechanics: the CURRENT script deploys an old-tag worktree."""
+    old = fake.base / "old_tag"
+    _write_lf(old / "app.py", "print('old tag')\n")
+    _write_lf(old / "sespy" / "__init__.py", "__version__ = '1.15.1'\n")
+    _write_lf(old / "docs" / "MANUAL.md", "# Old manual\n")
+    (old / "docs" / "screenshots").mkdir(parents=True)
+    fake.settings_on()
+    _ok(fake.run("--rollback", DEPLOY_REPO_ROOT=_posix(old)), fake)
+    assert (fake.app / "app.py").read_text() == "print('old tag')\n"
+    assert (fake.app / "sespy" / "__init__.py").read_text() == "__version__ = '1.15.1'\n"
+    assert not (fake.app / "sespy" / "data").exists()
+    assert fake.calls("check_live") == []  # pre-K1 tree: no check_live.py
+    assert "check_live.py is absent" in fake.out
+
+
 def test_default_dir_used_when_settings_absent(fake):
     _ok(fake.run(), fake)
     fetched = [c.split()[2] for c in fake.fetch_scps()]
@@ -562,7 +605,9 @@ PARSE_CASES = {
     "no_trailing_newline": "SESPY_R_DATA_DIR=/srv/data/x",
     "value_with_equals": "SESPY_R_DATA_DIR=/a=b\n",
     "bom_first_line": "\ufeffSESPY_R_DATA_DIR=/srv/data/x\n",
-    "bom_then_value": "\ufeffOTHER=1\nSESPY_R_DATA_DIR=/srv/data/x\n",
+    "bom_off": "﻿SESPY_R_DATA_DIR=off\n",
+    "bom_second_line_not_stripped": "OTHER=1\n﻿SESPY_R_DATA_DIR=off\n",
+    "bom_then_value":"\ufeffOTHER=1\nSESPY_R_DATA_DIR=/srv/data/x\n",
     "form_feed_split": "OTHER=1\fSESPY_R_DATA_DIR=/srv/data/ff\n",
 }
 
@@ -598,7 +643,8 @@ def test_settings_parse_matches_python(deploy_copy, case):
     out = cp.stdout.decode("utf-8")
     assert out.endswith("|rc=0"), (out, cp.stderr)
     bash_value = out[: -len("|rc=0")]
-    py = r_kb.override_dir_from({}, text)
+    # the app reads the file as utf-8-sig (Registry._read_settings): a BOM is dropped
+    py = r_kb.override_dir_from({}, None if text is None else text.encode().decode("utf-8-sig"))
     assert bash_value == ("" if py is None else py), case
 
 
