@@ -122,15 +122,46 @@ def _derive_imports(checkout: Path) -> tuple[set[tuple[str, str]], list[Path]]:
 
 
 # ---------------------------------------------------------------- module calls
-TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))
+@pytest.fixture
+def tr():
+    """Built per test, not at import: collecting this file must not touch
+    process-wide translator state. The default translator is restored on
+    teardown (these tests never set a language, but a module could)."""
+    from sespy import i18n
+
+    saved = i18n._default_translator
+    saved_lang = getattr(saved, "_lang", None)
+    try:
+        yield Translator(translations=load_translations(ROOT / "sespy" / "translations"))
+    finally:
+        i18n._default_translator = saved
+        if saved is not None and saved_lang is not None:
+            saved._lang = saved_lang
 
 
-@pytest.mark.parametrize("translator", [None, TR], ids=["translator-None", "translator-set"])
-def test_isa_data_entry_mosaic_call(translator):
+# One output per module that renders with no client inputs; a render-time error
+# in the module makes its status non-"ok".
+_PROBE_OUTPUT = {
+    "analysis_bot": "element_picker_ui",
+    "analysis_boolean": "stability_summary",
+    "analysis_intervention": "ablate_picker",
+    "analysis_leverage": "leverage_caption",
+    "analysis_loops": "classification_summary",
+    "analysis_metrics": "fit_summary",
+    # analysis_simplify: skipped -- its only inputless-capable outputs (summary,
+    # network) read client inputs and stay silent without them.
+    "analysis_simulation": "mc_summary",
+}
+
+
+@pytest.mark.parametrize("use_translator", [False, True], ids=["translator-None", "translator-set"])
+def test_isa_data_entry_mosaic_call(use_translator, tr):
     """compartments.py: isa_data_entry_server("entry", project_data=...,
     event_bus=..., translator=translator) and cld_viz_server("cld", ...)."""
     from sespy.modules.cld_visualization import cld_viz_server
     from sespy.modules.isa_data_entry import isa_data_entry_server
+
+    translator = tr if use_translator else None
 
     def server(input, output, session):
         rv = reactive.value(Project(ProjectMetadata(name="mosaic"), IsaData()))
@@ -150,7 +181,7 @@ def test_isa_data_entry_mosaic_call(translator):
         assert out.status == "ok", (out.status, out.error)
 
 
-def test_all_embedded_modules_mount_in_mosaic_form():
+def test_all_embedded_modules_mount_in_mosaic_form(tr):
     """Every sespy module compartments.py mounts, with the exact keyword set
     it passes (translator omitted for loops, as in MosaicSES)."""
     import importlib
@@ -163,11 +194,16 @@ def test_all_embedded_modules_mount_in_mosaic_form():
                          f"{prefix}_server")
             kw = {"project_data": rv, "event_bus": bus}
             if modname != "analysis_loops":
-                kw["translator"] = TR
+                kw["translator"] = tr
             fn(prefix.removeprefix("analysis_"), **kw)
 
-    with test_server(server, timeout_secs=90):
-        pass  # mounting + the initial flush must not raise
+    with test_server(server, timeout_secs=90) as ts:
+        for modname, prefix in _SERVER_UI:
+            out_id = _PROBE_OUTPUT.get(modname)
+            if out_id is None:
+                continue
+            out = ts.make_scope(prefix.removeprefix("analysis_")).get_output(out_id)
+            assert out.status == "ok", (modname, out_id, out.status, out.error)
 
 
 def test_module_ui_calls_take_an_id():
