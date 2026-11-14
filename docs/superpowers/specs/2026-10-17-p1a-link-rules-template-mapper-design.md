@@ -82,10 +82,16 @@ roadmap.
   them, which defeats P0b.
 
 **Divergences in the other direction** (R does more, deferred):
-- R's AI connection generator (`modules/ai_isa/connection_generator.R:625-640`)
-  also tries the extension pairs R→R, P→P and MPF→MPF. SESPy's scorer is its
-  port, but P1a derives suggestions from the canonical pairs only, as the
-  roadmap specifies. Extension suggestions are owned by **K1** (roadmap).
+- ~~R's AI connection generator also tries the extension pairs R→R, P→P and
+  MPF→MPF.~~ **Corrected by K1 (2026-11):** the lines cited here
+  (`modules/ai_isa/connection_generator.R:625-640`) are the `matrix_map` of
+  `convert_matrices_to_connections`, which parses saved matrices. The
+  knowledge-base seeding path in `generate_connections` (`:806-919` at
+  v1.35.6) could add those pairs, but R's only call
+  (`modules/ai_isa/step_navigation.R:92`) passes no sea or habitat, so it
+  never runs and R's live wizard never suggests them. P1a derives suggestions
+  from the canonical pairs only; K1 dropped extension-pair suggestions (K1
+  spec decision 1), so this is not a divergence.
 - The Boolean UI stays at 12 nodes, while R's slider goes to 20 (§7).
 
 ## 3. Link rules

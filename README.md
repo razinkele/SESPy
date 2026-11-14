@@ -478,7 +478,7 @@ writes `docs/screenshots/*.png`, not part of the e2e gate):
 micromamba run -n shiny python tests/make_docs_screenshots.py --port 8000
 ```
 
-1505 unit tests + 36 standalone Playwright scripts (37 runs — the wizard
+1861 unit tests + 37 standalone Playwright scripts (38 runs — the wizard
 runs twice, once without an API key and once with a fake one). `tests/run_e2e.py`
 orchestrates the e2e suite (server lifecycle + the wizard no-key/fake-key
 passes); the individual `tests/test_*_e2e.py` scripts can also be run directly
@@ -549,7 +549,7 @@ hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
 
 ## Testing
 
-**1443 unit tests** across:
+**1861 unit tests** across:
 
 - `tests/test_network.py` — graph metrics (centralities, leverage, loops, polarity, top-N, intervention impact, simplification)
 - `tests/test_persistent_storage.py` — save/load roundtrip, atomic writes, validation
@@ -565,11 +565,11 @@ hover lift. Same constraint is documented in the R `bs4dash-custom.css:452`.
 - `tests/test_utils.py` — shared helpers (`next_id` gap-filling)
 - `tests/test_wizard.py` — wizard step flow, element-type map, regional-seas placeholder, stub
 
-**36 end-to-end test scripts** (`tests/test_*_e2e.py` plus the burger/stepper
-sidebar scripts: shell, data-entry, i18n, quick-actions, metrics, intervention,
-leverage, import, templates, r-templates, autosave, report, boolean, boolean-happy,
-simulation, bot, pims-project, wizard, full-app, response-register, isa-edit,
-burger, stepper). Each starts
+**37 end-to-end test scripts** (`tests/test_*_e2e.py` plus the burger/stepper
+sidebar scripts, among them: shell, data-entry, i18n, quick-actions, metrics,
+intervention, leverage, import, templates, r-templates, autosave, report, boolean,
+boolean-happy, simulation, bot, pims-project, wizard, kb-wizard, full-app,
+response-register, isa-edit, burger, stepper). Each starts
 headless Chromium and asserts on the live app's DOM and reactive state. Run the
 whole suite with `python tests/run_e2e.py` (it manages the server and the
 wizard's two ANTHROPIC_API_KEY passes), or run a single script against a server

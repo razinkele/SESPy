@@ -4,6 +4,191 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.16.0] — 2026-11-14
+
+Roadmap K1 (general knowledge-base parity; R-parity roadmap §2 K1). The SES
+Wizard now knows what the R app's AI assistant knows about a sea, a habitat
+and a set of countries, and reports carry R's "Regional Context" section.
+Ports R's `modules/ai_isa_knowledge_base.R`,
+`functions/ses_knowledge_db_loader.R`, `functions/country_governance_loader.R`
+and `functions/kb_report_helpers.R` with the Regional Context part of
+`functions/report_generation.R`, against R **v1.35.6** (`d1a655a`), the release
+laguna runs. Project schema 9.
+
+### Added
+- **SES Wizard: knowledge-base suggestions** in the seven free-text steps
+  (Drivers to Responses). Up to 12 suggestions appear as buttons above the
+  rows, with the items, order and source badges of R's
+  `get_context_suggestions`: **KB** (from the knowledge database), **GOV**
+  (governance, from the selected countries) and **SE** (socioeconomic), each
+  with R's tooltip. A caption names the context, e.g. "(tailored for Baltic
+  Sea - Coastal lagoon)". Clicking a suggestion fills the first empty row (or
+  adds one); clicking a lit suggestion clears every row holding that text. A
+  row typed by hand with the same text lights the suggestion too. R's
+  parity is proven on all 69 sea × ecosystem choices over 3,864 cases.
+- **SES Wizard: countries from R's governance database.** The Countries step
+  lists the countries R lists for the chosen sea, in two groups, "EU Member
+  States" and "Non-EU Countries". The values are ISO codes and the click order
+  is kept, as in R. Changing the sea drops countries the new sea does not
+  offer.
+- **SES Wizard: Countries and Main Issue can be skipped,** as in R: a "Skip
+  This Question" button, and Next with nothing selected is accepted. The
+  other steps still need an answer.
+- **Export Report: Regional Context section** in the preview, HTML, PDF and
+  Word, with R's content: the site's ecological context and its key
+  DAPSI(W)R(M) elements (relevance 0.8 and above), the scientific evidence
+  the knowledge base holds for the project's connections, the relevant
+  governance frameworks and the country-specific governance groups. A
+  checkbox, "Include Regional Context" (on by default), turns it off. The
+  headings are English in every language, as in R. A sea without knowledge-base
+  contexts (Irish Sea, East Atlantic) gets the governance part only.
+- **About → Overview: "Reference data".** One line per R file the app reads:
+  where it comes from (vendored or shared), the R release, the live R version
+  when known and the first 8 characters of its hash.
+- **Reference-data layer.** R's `ses_knowledge_db.json` and
+  `country_governance_db.json` ship with SESPy under `sespy/data/r_kb/`, with
+  a manifest naming the R release. On a server they can be read live from the
+  R app's `data/` directory instead (`SESPY_R_DATA_DIR` in
+  `APP_DIR/server_settings.env`; an environment variable of the same name
+  wins, and `off` or an empty value turns the override off). A missing or
+  invalid live file logs a warning and the shipped copy is used. Each session
+  keeps the data it started with, so a change on disk never alters a running
+  session.
+- **Provenance.** A saved project records which reference data it used
+  (`metadata.reference_data`: source, hash, version and R tag per file, only
+  for files the session actually read). Loading a project saved with
+  different reference data shows a warning, and says so when the original
+  data is not available on this server.
+- **Live reference-data check.** `tests/parity/check_live.py` checks the live
+  R data files on the server: it blocks on unreadable or invalid files and on
+  a shipped copy that differs from its pin, and warns on content drift.
+  `deploy/deploy.sh` runs it before every deploy (see "Deploy notes"); run it
+  by hand with `--fetch` after an R deploy.
+
+### Changed
+- **Project schema 9** (`metadata.reference_data`). Every save and autosave is
+  stamped `min_sespy_version` 1.16.0, also when no reference data was read. An
+  older SESPy opens a 1.16 file with its "newer SESPy" warning and without
+  autosave (see "Rollback").
+- `sespy/regional_seas.json` keeps sea names, ecosystem types and common
+  issues; its country lists and EU codes are gone (the governance database
+  replaces them). The Claude prompt names the selected countries from the
+  governance database.
+- **R pin moved to v1.35.6** (`d1a655a`), with all 103 changed R paths since
+  v1.33.0 triaged in `docs/parity/R_SYNC.md`. The sync script now also
+  vendors the two R data files, writes their manifest and pins the K1 test
+  fixtures.
+
+### Known differences from R
+- **Countries changed** to R's lists (governance database, checked against
+  `countries_by_sea`). Lists drop countries the old SESPy list offered:
+  Atlantic loses US, CA and NO; Pacific loses CN, JP, ID, PH, CL and US;
+  Caribbean loses FR and NL (their territories GP, MF and MQ are listed
+  instead, as EU members); East Atlantic loses IS and NO; North Sea loses FR.
+  They gain: Atlantic AR, CV, FO, GL, SN, UY; Pacific FM, KI, MH, NR, PW, SB,
+  TO, TV, VU, WS; Caribbean AG, CR, DM, GD, GP, GT, HT, KN, LC, MF, MQ, NI,
+  PA, PR, VC, VI; East Atlantic GM, GW; Indian MU, SC, SO, YE; Arctic FO, GL.
+  Names are R's `name_en`: "Denmark (Greenland)" becomes "Denmark", and the
+  "France (overseas)" and "Netherlands (overseas)" entries are gone, which
+  also changes the Claude prompt text for those picks.
+- **No Select All / Clear All** on the Countries step: the two groups are
+  selectize option groups instead of R's EU/non-EU buttons.
+- **The Main Issue step keeps its name.** R 1.35.2 renamed it "Focus Topics";
+  that rename is not ported (a follow-up). R ignores the issue for
+  suggestions since 1.35.0, and so does SESPy.
+- **Suggestion buttons, compared with R:**
+  - the caption names the sea in English (SESPy has no per-sea
+    translations);
+  - there is no "AI suggested options" heading or click hint (those R keys
+    are not vendored);
+  - there is no "Other" button and no custom list: the free-text rows do
+    that job;
+  - there is no cap on the number of elements (R caps it by user level);
+  - a suggestion lights up from typed text that has not been saved yet, and
+    matching compares the text with surrounding spaces removed (case
+    matters);
+  - tooltips are the browser's native tooltip, and the badges use SESPy
+    colours.
+- **Unsaved step text is discarded by Back,** as before; R has no unsaved
+  state.
+- **The Greek "Skip This Question" label is half English,** copied verbatim
+  from R.
+- **R's regional recommendation lines** from the knowledge base are not in
+  the report; they are deferred to P14 (Report preparation).
+- **Line breaks in the report's evidence table:** a line break inside a cell
+  becomes a space, so each connection stays one row. R pastes it as is. The
+  vendored knowledge base has no line breaks, so the output is identical on
+  its data; only a user label with a line break differs (R then emits a
+  broken table).
+- **R's sea-and-habitat lookup is reproduced exactly, quirks included**
+  (e.g. every Pacific choice resolves to the island/atoll context, every
+  Indian Ocean choice to the coral-reef context). The quirks are drafted as
+  upstream R issues (`docs/parity/upstream-drafts/k1-r-issues.md`).
+
+### Deferred
+- **K1b** (v1.17.0): connection-scorer parity with R (run with its ML model
+  off) and R's connection and synonym knowledge base.
+- R's regional recommendation lines (P14) and the "Focus Topics" rename.
+
+### Corrected
+- The 1.13.0 entry said R's AI generator suggests the extension pairs R→R,
+  P→P and MPF→MPF and that K1 would add them. R's live wizard never does: its
+  only call of `generate_connections` passes no sea or habitat, so the
+  knowledge-base seeding path never runs. SESPy does not add them either.
+
+### Rollback
+- **Policy: forward-fix.** From 1.16.0 every save is schema 9. After a
+  rollback to 1.15.x, files saved by 1.16.0 (SESPy projects and MosaicSES
+  compartments) open as "newer SESPy" files and autosave refuses to overwrite
+  them. Roll back only before users have saved; afterwards, fix forward.
+- **Procedure** (to v1.15.1, the version live before this release). From the
+  current checkout:
+  1. `git worktree add <abs-dir> v1.15.1`
+  2. `DEPLOY_REPO_ROOT=<abs-dir> deploy/deploy.sh --rollback`
+  3. Unset `DEPLOY_REPO_ROOT` afterwards. It must be an absolute path, and
+     must never be left in `deploy/config.env`.
+
+  The old tag's own `deploy.sh` has no atomic swap, which is why the current
+  script deploys the old tree. A rollback is never blocked by the live check.
+- **Rollback window:** the script swaps `sespy/` first and uploads `app.py`
+  second. For a few seconds the K1 `app.py` runs against the old `sespy/`,
+  and a worker that starts in that gap fails with an import error. Reload
+  once the deploy has finished.
+
+### Deploy notes (operators)
+- The deploy runs a pre-flight check of the live reference data
+  (`tests/parity/check_live.py`) before anything on the server changes, and
+  aborts on a structural problem.
+- `APP_DIR/server_settings.env` is created when it is absent (default
+  `SESPY_R_DATA_DIR=/srv/shiny-server/marinesabres/data`); an existing file
+  keeps its content. Either way it is set to mode 0644 so the app can read
+  it. Set `SESPY_R_DATA_DIR=off` there to use the shipped data only.
+- The `sespy/` swap is atomic (`sespy.incoming` → `sespy`).
+- Stranded logs from an interrupted deploy are moved to
+  `APP_DIR/logs.rescued-<timestamp>` with a warning; merge them by hand.
+- The deploy needs GNU `mv -T`, so the server must run Linux.
+- `SESPY_SKIP_LIVE_CHECK=<reason>` skips the pre-flight. It is read from the
+  environment only, and an empty value counts as unset.
+- `DEPLOY_MOSAIC_DIR` (optional) makes the deploy touch MosaicSES's
+  `restart.txt` too, so MosaicSES reloads the new `sespy/`.
+- The settings file is parsed the same way by `deploy.sh` and the app,
+  trimming ASCII whitespace only. Non-ASCII whitespace (U+0085, U+00A0,
+  U+2028 and similar) is not trimmed; keep the file plain ASCII.
+
+### Release checklist
+- **Before deploying** (no commit): the gitignored `deploy/config.env` gains
+  `DEPLOY_MOSAIC_DIR=/srv/shiny-server/MosaicSES`, or MosaicSES is never
+  restarted.
+- **After deploying:**
+  - the worker's `python -s -c "import sespy; print(sespy.__version__)"`
+    shows 1.16.0;
+  - About → Overview → Reference data shows "R v1.35.6" for both files,
+    shared or vendored;
+  - from the MosaicSES checkout, `micromamba run -n shiny python
+    deploy/verify_live.py --expect-version <v>`, where `<v>` is
+    `__version__` in the deployed `MosaicSES/multises/__init__.py` (the file
+    `verify_live.py` reads; `multises_app/__init__.py` has no version).
+
 ## [1.15.1] — 2026-11-13
 
 Live feedback from the first tester (11–12 November 2026, #16–#22): wizard
@@ -269,8 +454,11 @@ against R v1.29.0 (`e33faea`).
 - Excel import marks an imported Measure with `r_kind = "measure"`.
 - Excel type names match case-insensitively, after trimming spaces.
 - A Kumu `Label` starting with "−" (U+2212) also counts as negative.
-- R's AI generator also suggests the extension pairs R→R, P→P and MPF→MPF;
-  SESPy suggests canonical pairs only (extensions are planned for K1).
+- SESPy suggests canonical pairs only. R's AI connection generator has a
+  knowledge-base seeding path that could add the extension pairs R→R, P→P
+  and MPF→MPF, but R's wizard never runs it (it passes no sea or habitat), so
+  R does not suggest them either. (Corrected in 1.16.0: this line said R
+  suggests them and that K1 would add them; K1 dropped them.)
 - The Boolean slider stays at 12 nodes (R allows 20) until P7a makes the
   search non-blocking.
 

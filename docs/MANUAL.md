@@ -81,6 +81,8 @@ Loop Analysis finds five feedback loops in it. The three that close through dema
 
 **Files from a newer SESPy.** A project file saved by a newer version of SESPy still loads, but the information this version does not understand is left out. A warning says so and names the file format or SESPy version the file needs. Autosave is off for that project. **Save Project** then writes a separate copy named `…-older-format.json`, and leaves your earlier autosave in place: keep your original file and open it in the newer version.
 
+**Reference data.** A project records which R reference data (knowledge base, governance database) its suggestions and report context came from. If you load a project saved with different reference data, a warning says that suggestions and report context may differ, and adds when the original data is not available on this server. Files saved by SESPy 1.16 or later open in 1.15 as files from a newer SESPy (see above).
+
 **Recent Projects** (section 23) lists files opened with Load Project.
 
 **Language and theme** are set in the Options dialog. Nine interface languages are available; the language resets to English at the start of each session unless a `?lang=` URL parameter is used (Appendix B). Two themes exist, Light Marine and Deep Ocean (dark).
@@ -139,11 +141,15 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Controls.** "Start Wizard". If the project already holds data, a "Start over?" dialog warns that its elements and connections will be deleted: "Yes, start over" clears them and "Cancel" keeps them. A breadcrumb shows the twelve steps: Regional Sea, Ecosystem Type, Countries, Main Issue, then one free-text step each for Drivers, Activities, Pressures, States, Impacts, Welfare and Responses, then Review Connections. Free-text steps take one entry per row with "Add another" and "Remove". "Back", "Next" and, on the last step, "Finish".
 
+The Countries step lists the countries the R app lists for the chosen sea, from its governance database, in two groups: "EU Member States" and "Non-EU Countries". Pick as many as apply; the order you pick them in is kept. Countries and Main Issue can be left empty: "Skip This Question" (or Next with nothing selected) moves on. Changing the sea later drops countries the new sea does not offer.
+
+**Suggestions (knowledge base).** Each free-text step shows up to twelve suggestion buttons above the rows, the same ones, in the same order, that the R app's AI assistant suggests for your sea, ecosystem and countries. A caption names the context, for example "(tailored for Baltic Sea - Coastal lagoon)". Each button carries a badge: **KB** (from R's knowledge database for the sea and habitat), **GOV** (governance, from the selected countries) or **SE** (socioeconomic, from the selected countries); hover it for the source. Clicking a suggestion writes it into the first empty row (adding a row if none is empty) and lights the button; clicking a lit button clears every row holding that text. Typing the same text by hand lights the button too (spaces around the text are ignored, capitals are not). A sea with no knowledge-base contexts (Irish Sea, East Atlantic) gets R's generic suggestions. The suggestions follow R exactly, including the cases where a habitat falls back to another context of the same sea (all Pacific choices use the island/atoll context, for example).
+
 **Outputs.** On the last step a table of "Rule-based suggestions" with source, target, polarity, confidence, rationale and an Accept checkbox per row. As in the R app's connection review, each row has a polarity switch (+ or −) and a "Reverse" control that swaps source and target; a changed row reads with neutral wording ("drives/increases" or "affects/reduces") instead of the suggested verb, and Finish saves accepted rows as edited. If an Anthropic API key is configured, a "Generate with Claude API" button adds a second table of model-generated suggestions after a consent dialog that lists exactly which fields are sent. A note under each table says what its confidence is based on: for the rule-based table, keyword matches in the two element names (none 0.3, one 0.6, two or more 0.9; 0.5 for Response → Marine Processes links, which have no keyword list); for the Claude table, the model's own estimate.
 
 **Reading it.** Each Next writes the entries as typed elements: Impacts become Ecosystem Services and Welfare becomes Goods & Benefits. Finish appends every accepted suggestion as a connection, de-duplicated by source, target and polarity with the higher confidence winning. The wizard then shows "Your SES is ready" with the element and connection counts, buttons that open CLD Visualization and Edit Data, and "Start over".
 
-**Caveats.** Entries must be non-empty and unique within a step. The Claude path is optional and every failure falls back to rule-based suggestions with a message saying so. Without any scoring backend the wizard still creates the elements; connections are then added in Edit Data.
+**Caveats.** Entries must be non-empty and unique within a step. Text typed into a step is saved by Next; Back discards unsaved text. The country lists are R's: some seas offer different countries than SESPy 1.15 did (for example the Pacific list is the Pacific island states). The step R now calls "Focus Topics" is still "Main Issue" here; neither app uses it for the knowledge-base suggestions. The Claude path is optional and every failure falls back to rule-based suggestions with a message saying so. Without any scoring backend the wizard still creates the elements; connections are then added in Edit Data.
 
 ## 9. Edit Data
 
@@ -369,17 +375,17 @@ Each section below names the panel as it appears in the navigation, then covers 
 
 **Purpose.** Produce a shareable document.
 
-**Controls.** "Download HTML", "Download PDF", "Download Word".
+**Controls.** "Download HTML", "Download PDF", "Download Word", and the "Include Regional Context" checkbox (on by default).
 
-**Outputs.** A live preview of the report. The document contains a summary (elements, connections, loops, density), the element-type counts, the first twenty feedback loops, the top five elements for each centrality metric, and the top ten leverage points.
+**Outputs.** A live preview of the report. The document contains a summary (elements, connections, loops, density), the element-type counts, the first twenty feedback loops, the top five elements for each centrality metric, and the top ten leverage points. When the project has a regional sea and an ecosystem type (the SES Wizard sets both) and the checkbox is on, a **Regional Context** section follows the title block, with the R app's content: the site's ecological context and its key DAPSI(W)R(M) elements from the knowledge base (relevance 0.8 and above), the scientific evidence the knowledge base holds for your connections (rationale, references, time lag, reversibility), the relevant governance frameworks for the sea, and the country-specific governance groups. A sea without knowledge-base contexts (Irish Sea, East Atlantic) gets the governance part only.
 
-**Caveats.** PDF needs WeasyPrint installed (`pip install sespy[pdf]`); HTML and Word always work. The report does not include stakeholders, the quadrant, Boolean or simulation results, or Behaviour Over Time series.
+**Caveats.** PDF needs WeasyPrint installed (`pip install sespy[pdf]`); HTML and Word always work. The Regional Context section is in English in every language, as in the R app, and leaves out R's regional recommendation lines (planned with the report-preparation work). The report does not include stakeholders, the quadrant, Boolean or simulation results, or Behaviour Over Time series.
 
 ## 25. Topbar: Feedback, About, Options, Help
 
 **Feedback** opens a form with a message, a rating (how useful the tool is, 1–5, which helps the developers prioritise; a line under the slider says so) and a category, and lists the ten most recent entries. Entries are stored on the server.
 
-**About** has three tabs: an overview of the app, this manual, and the changelog.
+**About** has three tabs: an overview of the app, this manual, and the changelog. The overview ends with **Reference data**: one line per R data file the app reads (the knowledge base and the governance database), saying whether it is the copy shipped with SESPy ("vendored") or the R app's live file on the server ("shared"), which R release it matches, and the first characters of its hash.
 
 **Options** sets the theme, the language and autosave, shows when the last autosave happened, and can clear the autosave.
 
@@ -522,7 +528,7 @@ Listed by the SESPy feature each paper informed, with the release that shipped i
 
 ## A. File formats
 
-**Project file (`.json`).** Written by Save Project and read by Load Project. Top-level `elements` (list of objects with `id`, `label`, `type` and optional fields) and `connections` (list with `source`, `target`, `polarity` + or −, `strength` weak/medium/strong, `confidence` 1 to 5, `delay` immediate/short/long). Validation rejects duplicate ids, unknown element types, connections to unknown ids, self-loops and any value outside those vocabularies.
+**Project file (`.json`).** Written by Save Project and read by Load Project. Top-level `elements` (list of objects with `id`, `label`, `type` and optional fields) and `connections` (list with `source`, `target`, `polarity` + or −, `strength` weak/medium/strong, `confidence` 1 to 5, `delay` immediate/short/long). Validation rejects duplicate ids, unknown element types, connections to unknown ids, self-loops and any value outside those vocabularies. Since 1.16.0 (schema 9) `metadata.reference_data` records, per R data file the session read, its source (`vendored` or `shared`), hash, version and the R release of SESPy's shipped copy.
 
 **Excel workbook (`.xlsx`, `.xls`).** Read by Import Data. A sheet named Elements with columns id, label, type and a sheet named Connections with columns source, target; optional polarity, strength, confidence, delay and a numeric weight, which is mapped to a signed strength.
 

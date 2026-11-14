@@ -55,9 +55,15 @@ generated block below together; never edit the block by hand.
 **Accepted sync warnings:** none.
 <!-- r-sync:end -->
 
-- **Adopted in:** SESPy 1.15.0 (P1b: response register, indicator fields,
-  stakeholder roles). The previous pin, v1.31.0 (`4b53b7d`), was adopted in
-  SESPy 1.14.0 (P2); before it, v1.29.0 (`e33faea`) in SESPy 1.13.0 (P1a).
+- **Adopted in:** SESPy 1.16.0 (K1: knowledge-base suggestions, governance
+  countries, Regional Context report section, reference-data layer). The
+  previous pin, v1.33.0 (`4017feb`), was adopted in SESPy 1.15.0 (P1b);
+  before it, v1.31.0 (`4b53b7d`) in SESPy 1.14.0 (P2) and v1.29.0 (`e33faea`)
+  in SESPy 1.13.0 (P1a).
+- **K1 adds** 2 vendored runtime files (`sespy/data/r_kb/`) and their
+  generated manifest, 5 R sources (`tests/parity/r_source/`), the
+  `isa_data_entry` and `report_context` translation subsets and 5 K1 fixtures
+  (`tests/parity/r_fixtures/k1/`, pinned from disk).
 - **Roadmap baseline:** moved from v1.31.0 (`4b53b7d`) to v1.33.0
   (`4017feb`), the release laguna runs. The 9 files pinned since P2 are
   unchanged between the two tags (`git diff --quiet v1.31.0 v1.33.0 -- <the
@@ -118,6 +124,66 @@ connection rules and the template loader, hashed with `sha256_norm` /
 Live drift against laguna (`tests/parity/check_live.py`) is owned by **K1**
 in the R-parity roadmap; P1a and P2 read R only through these fixtures and
 the sync script.
+
+## K1 spec errata (2026-11-14)
+
+The K1 design (`docs/superpowers/specs/2026-11-09-k1-knowledge-base-parity-design.md`,
+rev 6, on branch `docs/k1-design`) is not on the K1 implementation branch, so
+its corrections are recorded here. Where they differ, this list and the code
+win over the spec.
+
+- **Pin.** Every "v1.34.2" / `edb42fd` in the spec reads **v1.35.6** /
+  `d1a655a` (user decision, 2026-11-13: laguna runs 1.35.6). The triage is
+  one "v1.33.0 → v1.35.6" table of 103 paths (below), not the 44-path
+  v1.33.0 → v1.34.2 list of §4.9. The knowledge base has 1,183 connections
+  at v1.35.6, not 1,185 (§1.2); the governance counts (105 countries, 15
+  conventions, 11 seas) are unchanged.
+- **§4.2 cell counts.** R ignores `main_issue` from v1.35.0, so the issue
+  branching is gone. The suggestion grid is 69 choices × 7 categories × 2
+  issue sets × 4 country sets = **3,864 cells**, all matching R, not 13,524.
+  The suggestion lists and `deduplicate_suggestions(..., protected=)` were
+  ported straight from R v1.35.6 (`kbport.py` is reused for the lookup only).
+- **F3.** The issue-matching trap is unreachable at R v1.35.6, because R
+  v1.35+ ignores `main_issue`. The `issue` source enum is kept.
+- **§4.2 / plan Task 6, macaronesia.** SP1's legacy `macaronesia` slug
+  resolves like R, so it is not an "unknown slug": with "Open coast" it
+  resolves **exact** to `macaronesia_open_coast`; only habitats with no
+  macaronesia context (e.g. "Coral reef") fall back `sea_only` to
+  `macaronesia_island`. The wizard's own sea list has no macaronesia entry,
+  so the three `macaronesia_*` contexts are unreachable from its 69 choices.
+- **§4.3, prompt content.** "SP4 prompt content stays the same for the same
+  picks" is false. Arctic DK is now "Denmark" (was "Denmark (Greenland)"), so
+  the prompt text changes for that pick; the Caribbean "France (overseas)"
+  and "Netherlands (overseas)" entries no longer exist (FR and NL are not in
+  R's Caribbean list; GP, MF and MQ are), so those picks cannot be repeated.
+- **§4.3 chip rule 6, caption.** The caption is R's `tailored_for` text in
+  the key's own casing ("tailored for"), then the sea name, then
+  " - <ecosystem>" only when an ecosystem is set. The sea name is English
+  (`REGIONAL_SEAS[slug]["name"]`; SESPy has no per-sea translations).
+- **§4.3, container id.** The chip container's DOM id is
+  `wizard-freeform_{target}_container`, built with `resolve_id`.
+- **§4.7, checkbox id.** The Regional Context checkbox's DOM id is
+  `report-include_regional_context`.
+- **§4.8, env override.** `deploy.sh` does not honour an environment
+  `DEPLOY_SERVER` / `DEPLOY_DIR` when `deploy/config.env` exists:
+  `config.env` is sourced after the environment, so its values win.
+- **§4.8.5, rollback.** A rollback runs the **current** `deploy.sh` with
+  `DEPLOY_REPO_ROOT` (absolute) pointing at a worktree of the old tag
+  (`git worktree add <abs-dir> v1.15.1`, then
+  `DEPLOY_REPO_ROOT=<abs-dir> deploy/deploy.sh --rollback`), because the old
+  tag's script has no atomic swap. The rollback target is v1.15.1, the
+  release live before K1, not v1.15.0.
+- **§4.9, prefix rule.** The translation prefix rule does **not** pull in
+  `modules.isa.ai_assistant.eu_member_state`; the vendored
+  `isa_data_entry.json` subset holds exactly the seven listed keys.
+- **§4.9, fixture mode.** The `data/` prefix rule does not cover
+  `RUNTIME_INPUTS` in `--from-fixtures` mode.
+- **§4.10, MosaicSES version.** The deployed MosaicSES version lives in
+  `multises/__init__.py` (`__version__`, the file `deploy/verify_live.py`
+  reads); `multises_app/__init__.py` has no version.
+- **§9, R_SYNC row reference.** The P14 note belongs to the
+  `functions/report_generation.R` row of the v1.31.0 → v1.33.0 table (row
+  18), found by content; the line number `R_SYNC.md:227` is stale.
 
 ## R changes v1.33.0 → v1.35.6 (triaged 2026-11-13)
 
@@ -284,7 +350,7 @@ writes `TenetSource`).
 | 15 | A | `docs/superpowers/specs/2026-10-18-wp5-ws10-workshop-elicitation-design.md` | R spec (reference for P15) | not relevant |
 | 16 | M | `functions/data_structure.R` | JSON load runs `normalize_workshops` on `data$data$pims$workshops` and stamps `min_app_version` 1.32.0 when a workshop or a `TenetSource` value exists (P15); also calls `repair_template_connection_matrices` (R-only matrix storage, not relevant) | P15 |
 | 17 | M | `functions/feedback_analyzer.R` | feedback-log loader tolerates `{}` and `[]` fields; mark functions write `null` as null (1.32.4) | not relevant |
-| 18 | M | `functions/report_generation.R` | `generate_full_content(data, sections)` honours the Prepare Report section ids; new DAPSI(W)R(M) elements and CLD summary sections; recommendations text follows its checkbox | P14 / P6c |
+| 18 | M | `functions/report_generation.R` | `generate_full_content(data, sections)` honours the Prepare Report section ids; new DAPSI(W)R(M) elements and CLD summary sections; recommendations text follows its checkbox. K1 (SESPy 1.16.0) ports only the Regional Context section; its knowledge-base regional recommendation lines (`report_generation.R:476-509`, behind the Recommendations option) are deferred to P14 | P14 / P6c |
 | 19 | M | `functions/response_measures_schema.R` | `normalize_response_measures` validates tenet levels (1.32.1): case and spaces tidied, only `TENET_LEVELS` codes kept, `intermediate` only on `ecol_effective`, anything else blanked and logged | P1b |
 | 20 | M | `functions/scenario_network.R` | `scenario_baseline_edges()`: a saved CLD without edge ids or labels gets `from->to` ids and node labels; removing links on a CLD without edges no longer errors | P8 |
 | 21 | M | `functions/ui_sidebar.R` | PIMS menu item `pims_workshops` ("Workshop elicitation (D5.2)") | P15 |
