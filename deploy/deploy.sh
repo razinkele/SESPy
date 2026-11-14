@@ -12,7 +12,9 @@
 # structural problem aborts the deploy before anything on the server changes.
 # The sespy/ package is uploaded as sespy.incoming and swapped in with two
 # renames, so a worker never sees a half-copied package (K1 spec 4.10); between
-# the renames sespy/ is briefly absent, and a rerun recovers an interrupted swap.
+# the renames sespy/ is briefly absent. A rerun recovers an interrupted swap in
+# step 3, after the step-2 pre-flight (skip it with SESPY_SKIP_LIVE_CHECK if it
+# is what blocks the rerun).
 #
 # Prerequisites:
 #   * passwordless (key-based) SSH to $SERVER for the deploy user

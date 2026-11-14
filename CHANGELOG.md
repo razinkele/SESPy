@@ -169,7 +169,10 @@ laguna runs. Project schema 9.
   worker never sees a half-copied package. The swap itself is two renames in
   one `&&` chain (`sespy` → `sespy.old`, then `sespy.incoming` → `sespy`);
   between them `sespy/` is briefly absent. If a deploy stops there, rerun
-  `deploy/deploy.sh`: it first restores or completes an interrupted swap.
+  `deploy/deploy.sh`: after the live pre-flight it restores or completes the
+  interrupted swap. If that pre-flight aborts (unreadable settings file,
+  `check_live.py` failure), rerun with `SESPY_SKIP_LIVE_CHECK="<reason>"` so
+  recovery can run.
 - Stranded logs from an interrupted deploy are moved to
   `APP_DIR/logs.rescued-<timestamp>` with a warning; merge them by hand.
 - The deploy needs GNU `mv -T`, so the server must run Linux.
