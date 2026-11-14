@@ -160,11 +160,18 @@ decides ties at the 15th place.
   - `min_counts = {"connection_db": 137, "synonym_db": 17}`;
   - `containers = {"connection_db": list, "synonym_db": dict}` (K1's container
     check, added in the PR #33 review).
-- Pins in `tests/parity/r_sync.json`: `sha256_text_norm` of
-  `data/ses_connection_knowledge_base.R` and `sha256_norm` of the JSON.
-- The sync script's check mode verifies the `.R` pin, so a changed R source
-  flags. It does not need R installed. Regenerating needs R and the export
-  script.
+- Pins in `tests/parity/r_sync.json`:
+  - `sha256_text_norm` of **both** R sources: `data/ses_connection_knowledge_base.R`
+    (the data) and `modules/ai_isa/connection_generator.R` (pair order,
+    threshold, cap, `loss_keywords`, polarity rules, verb table);
+  - `sha256_norm` of the JSON.
+- Add them as a `K1B_R_SOURCES` entry beside `R_SOURCES` / `K1_R_SOURCES`
+  (`r_template_catalogue.py:48`, `:74-76`). That brings copies under
+  `tests/parity/r_source/`, `test_k1_sync.py` constant updates and a
+  `docs/parity/R_SYNC.md` row.
+- The sync script's check mode verifies both `.R` pins, so a change to either
+  R file flags. It does not need R installed. Regenerating needs R and the
+  export script.
 - Update the hard-coded file sets: `check_live.check_shipped` (`:56`),
   `test_k1_sync.py:74-85`, `:140`, and `test_r_kb.py:129`.
 - Provenance needs an explicit `r_kb.add_reads(rr, [CONNECTION_DB])` where the
@@ -183,11 +190,19 @@ following R's review list, `action_handlers.R:76-77`):
   SP3 or SP4 scoring backend".
 
 **D11 — Rationale text** (my call):
-- Port R's verb table (R notes §1 step 9; drives / increases / causes /
-  decreases / impacts / reduces / restricts / enables / motivates).
-- Each verb gets an i18n key in 9 languages. English equals R's text exactly.
-- R does not translate the rationale; SESPy does today, and keeps doing so.
-  Record this as a known difference.
+- **Suggestion rationale:** R's English verb table (R notes §1 step 9).
+  - SESPy already ports this table (`_select_verb`,
+    `connection_scorer.py:253-285`) as English literals, which matches R.
+  - Keep it as is. Check it against R's table in the polarity/verb test and
+    fix any drift.
+  - No new i18n keys and no known difference.
+- **Flip/reverse rewrite** (`ROW_JS`, `ai_isa_wizard.py:314-331`) stays as it
+  is: two generic translated verbs, `wizard.verb_positive` and
+  `wizard.verb_negative`.
+  - This is SESPy-only UI, outside parity scope. Changing it would churn
+    `test_wizard_e2e.py:509-514` for no parity gain.
+  - A flipped row may therefore read in a different verb style from an
+    untouched one, exactly as in v1.16.0.
 
 ## 4. Behaviour to reproduce (summary; detail in the R notes)
 
@@ -269,13 +284,19 @@ following R's review list, `action_handlers.R:76-77`):
   - D5: Claude rows default to `medium` / 3;
   - D6: merge on `relevance`, ties to the rule-based row;
   - D10: UI columns and the "Score" label;
-  - D11: translated verbs.
+  - D11: R's English rationale verbs, with the flip/reverse rewrite left
+    unchanged;
+  - D9: pin both R sources (added after the builder check).
 
 ## 7. Release
 
-- v1.17.0, no schema bump. CHANGELOG sections: Added, Changed (suggestions now
-  match R; strength and confidence saved), Known differences (translated
-  rationale), Deferred.
+- v1.17.0, no schema bump. CHANGELOG sections:
+  - Added;
+  - Changed: suggestions now match R; strength and confidence are saved;
+    R→S is no longer a rule-based suggestion, though Claude can still
+    propose it;
+  - Known differences: the flip/reverse rewrite uses generic translated verbs;
+  - Deferred.
 - Rollback to v1.16.0 is a plain redeploy: no schema change, so no forward-fix
   constraint.
 - Deploy as for K1: the pre-flight is unaffected, because `override=false`
