@@ -9,8 +9,7 @@ from pathlib import Path
 import pytest
 
 from sespy import r_template_catalogue as C
-from sespy.r_template_catalogue import (build_manifest, build_pin, fixture_r_tag,
-                                        hash_local_pin)
+from sespy.r_template_catalogue import build_manifest, build_pin, fixture_r_tag, hash_local_pin
 
 sys.path.insert(0, str(Path(__file__).parent))
 import test_r_template_catalogue as T  # noqa: E402  (shared fake-repo helpers)

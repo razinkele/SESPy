@@ -6,8 +6,13 @@ eagerly (a broken build must not start) and reads nothing relative to APP_DIR.
 from __future__ import annotations
 
 import json
+import logging
+import os
+import stat as _stat
+import time
 from dataclasses import dataclass
 from importlib import resources
+from pathlib import Path
 from typing import Any, Iterable, Literal, Mapping
 
 from sespy.r_sync import sha256_norm
@@ -203,12 +208,6 @@ VENDORED: Snapshot = _load_vendored()
 # ---------------------------------------------------------------------------
 # Registry: live override, settings file, change detection, fallback (§4.1)
 # ---------------------------------------------------------------------------
-import logging
-import os
-import stat as _stat
-import time
-from pathlib import Path
-
 ENV_VAR = "SESPY_R_DATA_DIR"
 SETTINGS_FILE = "server_settings.env"
 DEFAULT_OVERRIDE_DIR = "/srv/shiny-server/marinesabres/data"

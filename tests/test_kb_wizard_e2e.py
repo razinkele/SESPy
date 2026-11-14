@@ -24,9 +24,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from playwright.async_api import async_playwright
-
 from _testmode import export_value, snapshot
+from playwright.async_api import async_playwright
 
 URL = "http://127.0.0.1:8000"
 R_TAG = "v1.35.6"

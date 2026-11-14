@@ -35,8 +35,13 @@ SAFE = re.compile(r"^/[A-Za-z0-9._/@+-]+$")
 
 
 def _posix(p: Path | str) -> str:
-    out = subprocess.run([BASH, "-c", 'cygpath -u "$1"', "_", str(p)],
-                         capture_output=True, text=True, check=True)
+    # cygpath exists only in Git Bash / Cygwin; on Linux CI the path is
+    # already POSIX. Same fallback as deploy.sh's native_path().
+    out = subprocess.run(
+        [BASH, "-c",
+         'if command -v cygpath >/dev/null 2>&1; then cygpath -u "$1"; else printf "%s" "$1"; fi',
+         "_", str(p)],
+        capture_output=True, text=True, check=True)
     return out.stdout.strip()
 
 
@@ -100,7 +105,8 @@ prev=""
 for a in "$@"; do
   if [ "$prev" = --live ]; then
     rm -rf "$STUB_DIR/seen_live"
-    cp -r "$(cygpath -u "$a")" "$STUB_DIR/seen_live"
+    if command -v cygpath >/dev/null 2>&1; then a="$(cygpath -u "$a")"; fi
+    cp -r "$a" "$STUB_DIR/seen_live"
   fi
   prev="$a"
 done

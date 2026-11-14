@@ -220,6 +220,11 @@ def test_pdf_passes_kwargs_through(monkeypatch):
         return "<html><body>x</body></html>"
 
     monkeypatch.setattr(report, "render_html", fake_html)
+    # PDF export is optional (WeasyPrint needs native libs; CI's plain env
+    # lacks it). This test checks only the kwargs pass-through, so stub it.
+    fake_weasy = type(sys)("weasyprint")
+    fake_weasy.HTML = lambda string: type("H", (), {"write_pdf": lambda self: b"%PDF"})()
+    monkeypatch.setitem(sys.modules, "weasyprint", fake_weasy)
     report.render_pdf(_project("baltic_lagoon"), snapshot=VENDORED, include_regional_context=True)
     assert seen == {"snapshot": VENDORED, "include_regional_context": True}
 
