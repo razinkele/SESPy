@@ -683,6 +683,13 @@ from it.
 5. **Deselecting** sets `pending[k] = ""` for **every** effective row equal
    to the text, and calls `update_text("")` where the input exists. Nothing
    shifts. This mirrors R's `Filter` removing all matches (module :2050).
+   - *Erratum (final review, F2):* in rules 4 and 5, a chip click that
+     would write into an **existing** row the browser has not bound yet (a
+     row rendered after the last re-render, whose `input.entry_*` does not
+     exist) is ignored. The chip state still matches the visible rows, and
+     the next click works. A chip that adds a new row (`pending[n]`) is
+     unaffected. This closes the double-click race, where `pending[k]=""`
+     could mask later typing.
 6. **Caption.** " (tailored for <sea name> - <ecosystem>)", with R's
    parentheses, key and " - " separator, shown when a sea is set
    (:1574-1582). *(Erratum: the text is R's `tailored_for` in the key's own
