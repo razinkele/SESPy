@@ -148,6 +148,7 @@ def _make_state(**overrides):
         "regional_sea": "baltic",
         "ecosystem_type": "Coastal lagoon",
         "countries": ["LT", "LV"],
+        "country_names": ["Lithuania", "Latvia"],
         "main_issue": ["Eutrophication"],
         "elements": [
             Element(id="D001", type="Drivers", label="Agricultural runoff"),
@@ -164,7 +165,8 @@ def test_user_message_includes_all_5_wizard_state_fields():
     msg = _build_user_message(state)
     assert "Regional sea: baltic" in msg
     assert "Ecosystem type: Coastal lagoon" in msg
-    assert "Countries: LT, LV" in msg
+    # K1: the prompt names the countries (codes are what the wizard stores)
+    assert "Countries: Lithuania, Latvia" in msg
     assert "Main issue(s): Eutrophication" in msg
     assert "## DRIVERS" in msg
 
@@ -202,7 +204,7 @@ def test_user_message_uses_id_label_format():
 
 
 def test_user_message_handles_empty_optional_fields():
-    state = _make_state(regional_sea="", countries=[], main_issue=[])
+    state = _make_state(regional_sea="", countries=[], country_names=[], main_issue=[])
     msg = _build_user_message(state)
     assert "Regional sea: (unspecified)" in msg
     assert "Countries: (unspecified)" in msg

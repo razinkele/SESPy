@@ -59,14 +59,16 @@ class _Wiz:
         self.click("wizard_start")
         answers = {0: ("answer_regional_sea", "baltic"),
                    1: ("answer_ecosystem_type", "Open coast"),
-                   2: ("answer_countries", ["Lithuania"]),
+                   2: ("answer_countries", ["LT"]),
                    3: ("answer_main_issue", ["Eutrophication"])}
         for step in range(11):
             if step in answers:
                 name, value = answers[step]
                 self.scope.set_inputs(**{name: value})
             else:
-                self.scope.set_inputs(**{f"entry_{FREEFORM[step - 4]}_0": f"Item {step}"})
+                target = FREEFORM[step - 4]
+                gen = self.scope.get_export("gen").value[target]   # K1 row-id generation
+                self.scope.set_inputs(**{f"entry_{gen}_{target}_0": f"Item {step}"})
             self.click("wizard_next")
         n_sugg = len(set(re.findall(r'id="wizard-accept_sp3_(\d+)"', self.html())))
         self.scope.set_inputs(**{f"accept_sp3_{i}": False for i in range(n_sugg)})

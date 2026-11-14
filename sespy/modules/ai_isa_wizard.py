@@ -17,11 +17,14 @@ import dataclasses
 import logging
 import os
 from dataclasses import dataclass, replace
-from typing import Any, assert_never
+from typing import TYPE_CHECKING, Any, assert_never
 
 from shiny import Inputs, Outputs, Session, module, reactive, render, ui
+from shiny.module import resolve_id
+from shiny.testmode import export_test_values
 from shiny.types import SilentException
 
+from .. import r_kb
 from ..claude_backend import (  # NOTE: lazy import for runtime use lives in
     _REASON_TO_I18N,  #       claude_backend imports nothing from Shiny,
     ClaudeBackendError,  #       the @reactive.extended_task body (Task 13).
@@ -38,6 +41,11 @@ from ..data_structure import (
 )
 from ..event_bus import EventBus
 from ..i18n import Translator, t
+from ..kb_suggestions import (
+    countries_for_sea,
+    country_names_for,
+    get_context_suggestions,
+)
 from ..utils import next_id
 from ..wizard import (
     ELEMENT_TYPE_MAP,
@@ -45,6 +53,9 @@ from ..wizard import (
     WIZARD_STEPS,
     suggest_connections,
 )
+
+if TYPE_CHECKING:
+    from ..r_kb import Snapshot
 
 # ---------------------------------------------------------------------------
 # SP4 sum-typed status — distinguishes never-called, in-flight, returned-N,
@@ -105,79 +116,183 @@ def _render_choice_one(step: dict, answers: dict) -> ui.Tag:
     return ui.tags.div(f"choice_one renderer doesn't know target {target!r}")
 
 
-def _render_choice_many(step: dict, answers: dict) -> ui.Tag:
-    """Render a multi-select step (steps 2, 3)."""
+def _country_choices(gov: dict | None, sea: str | None) -> dict[str, dict[str, str]]:
+    """Step-2 choices from R's governance data (K1): R `get_countries_for_sea`
+    split as R's country step does (module :1360-1432) into EU member states
+    and non-EU countries, each in `countries_by_sea` order. Values are ISO
+    codes, labels `name_en %||% code`. An empty group is left out, as R
+    leaves out its heading. Selectize optgroups replace R's headings."""
+    eu: dict[str, str] = {}
+    non_eu: dict[str, str] = {}
+    for c in countries_for_sea(gov, sea):
+        (eu if c["eu_member"] else non_eu)[c["code"]] = c["name_en"] or c["code"]
+    choices: dict[str, dict[str, str]] = {}
+    if eu:
+        choices[t("modules.isa.ai_assistant.eu_member_states")] = eu
+    if non_eu:
+        choices[t("modules.isa.ai_assistant.non_eu_countries")] = non_eu
+    return choices
+
+
+def _render_choice_many(step: dict, answers: dict, *, gov: dict | None = None) -> ui.Tag:
+    """Render a multi-select step (steps 2, 3). `gov` is the session's
+    governance data; None means the vendored copy."""
     target = step["target"]
-    selected = answers.get(target, [])
+    selected = list(answers.get(target, []))
     regional_sea = answers.get("regional_sea", "")
-    sea_data = REGIONAL_SEAS.get(regional_sea, {})
+    options: dict[str, Any] = {"plugins": ["remove_button"]}
     if target == "countries":
-        choices = sea_data.get("countries", [])
+        if gov is None:
+            gov = r_kb.VENDORED.governance()
+        choices: Any = _country_choices(gov, regional_sea)
         label = t("wizard.countries_label")
+        # selectize rebuilds its items from <option selected> in DOM order,
+        # and optgroups pin that order; `items` restores the click order
+        # after Back (user settings override the element's).
+        options["items"] = selected
     elif target == "main_issue":
-        choices = sea_data.get("common_issues", [])
+        issues = REGIONAL_SEAS.get(regional_sea, {}).get("common_issues", [])
+        choices = {c: c for c in issues}
         label = t("wizard.main_issue_label")
     else:
-        choices = []
+        choices = {}
         label = ""
     return ui.input_selectize(
         f"answer_{target}", label,
-        choices={c: c for c in choices},
+        choices=choices,
         selected=selected,
         multiple=True,
-        options={"plugins": ["remove_button"]},
+        options=options,
+    )
+
+
+def _row_id(gen: int, target: str, i: int) -> str:
+    """Freeform row input id (K1). `gen` is the target's visit generation:
+    Shiny keeps an input's last value after its element leaves the DOM, so
+    a row id from an earlier visit or wizard run must never be reused."""
+    return f"entry_{gen}_{target}_{i}"
+
+
+def _live_row(input, gen: int, target: str, i: int) -> tuple[bool, str]:
+    """(exists, value) of a row input of generation `gen`. It exists once
+    the client has registered it; an unregistered input raises
+    SilentException on read."""
+    try:
+        v = input[_row_id(gen, target, i)]()
+    except SilentException:
+        return False, ""
+    return True, (v if v is not None else "")
+
+
+def _row_count(target: str, answers: dict, counts: dict, pending: dict) -> int:
+    """max(freeform_counts, len(saved), max(pending index) + 1, 1) (§4.3)."""
+    pd = pending.get(target, {})
+    return max(counts.get(target, 1), len(answers.get(target, [])),
+               (max(pd) + 1) if pd else 0, 1)
+
+
+def _effective_rows(
+    input, gen: int, target: str, answers: dict, counts: dict, pending: dict,
+) -> list[tuple[bool, str]]:
+    """Per row (exists, value): the pending server write if there is one
+    (including ""), else the live input if it exists in this generation
+    (even ""), else the saved answer, else ""."""
+    saved = answers.get(target, [])
+    pd = pending.get(target, {})
+    rows: list[tuple[bool, str]] = []
+    for i in range(_row_count(target, answers, counts, pending)):
+        exists, live = _live_row(input, gen, target, i)
+        if i in pd:
+            rows.append((exists, pd[i]))
+        elif exists:
+            rows.append((exists, live))
+        else:
+            rows.append((exists, saved[i] if i < len(saved) else ""))
+    return rows
+
+
+#: R shows at most 12 suggestions (module :1522).
+N_CHIPS = 12
+
+#: R's source badges (module :1532-1559): label and tooltip key per source.
+_CHIP_BADGES = {
+    "knowledge_db": ("KB", "modules.isa.ai_assistant.from_knowledge_database"),
+    "governance": ("GOV", "modules.isa.ai_assistant.governance_suggestion_tooltip"),
+    "socioeconomic": ("SE", "modules.isa.ai_assistant.socioeconomic_suggestion_tooltip"),
+}
+
+
+def _chips_caption(sea: str | None, ecosystem: str | None) -> str:
+    """R's context caption (module :1574-1582): " (tailored for <sea>",
+    then " - <ecosystem>" only if one is set, then ")". "" without a sea.
+    The sea name is the English REGIONAL_SEAS name: SESPy has no per-sea
+    i18n keys (R's `name_i18n`), a known difference."""
+    if not sea:
+        return ""
+    name = REGIONAL_SEAS.get(sea, {}).get("name", "")
+    eco = f" - {ecosystem}" if ecosystem else ""
+    return f" ({t('modules.isa.ai_assistant.tailored_for')} {name}{eco})"
+
+
+def _render_chips(
+    target: str, suggestions: list[tuple[str, str]], selected: set[str], caption: str,
+) -> ui.Tag:
+    """The chip box of a freeform step: up to N_CHIPS buttons
+    `chip_{target}_{i}`, each the suggestion name plus R's source badge;
+    `chip-on` when an effective row equals the name (stripped, exact)."""
+    chips = []
+    for i, (name, source) in enumerate(suggestions[:N_CHIPS]):
+        badge = None
+        if source in _CHIP_BADGES:
+            label, key = _CHIP_BADGES[source]
+            badge = ui.tags.span(label, class_=f"kb-badge kb-badge-{label}", title=t(key))
+        on = name.strip() in selected
+        chips.append(ui.input_action_button(
+            f"chip_{target}_{i}", ui.TagList(name, badge),
+            class_="btn-sm kb-chip " + ("btn-primary chip-on" if on
+                                        else "btn-outline-secondary chip-off"),
+        ))
+    return ui.div(
+        ui.tags.p(caption, class_="kb-caption text-muted") if caption else None,
+        ui.div(*chips, class_="kb-chips"),
+        class_="kb-chipbox",
     )
 
 
 def _render_freeform_multiple(
-    step: dict, answers: dict, counts: dict, input,
+    step: dict, answers: dict, counts: dict, input, *,
+    gen: int, pending: reactive.Value[dict[str, dict[int, str]]],
 ) -> ui.Tag:
     """Render a list of input_text rows + Add/Remove buttons.
 
-    `counts[target]` is the number of rows currently visible. Pre-populates
-    from `answers[target]` (a list[str]) when re-entering a step via Back —
-    in that case we ALSO bump counts[target] up to match the saved length.
-
-    `input` is passed in (rather than closure-captured) because this is a
-    module-top-scope helper. We use it to snapshot live typing-in-progress
-    so that clicking Add/Remove doesn't wipe what the user just typed.
-    Without this snapshot, the renderer would re-emit `value=""` for any
-    row that hasn't been saved yet, and Shiny would push that empty value
-    back to the client, overwriting the typed text — exactly the spec §9
-    risk. Reads are wrapped in `reactive.isolate()` so we don't subscribe
-    to every entry input (which would cause the renderer to fire on every
-    keystroke).
+    Rows are `entry_{gen}_{target}_{i}`; each row's value is its effective
+    value (`_effective_rows`). The caller reads `answers`, `counts` and
+    `gen` reactively; `pending` and the live inputs are read here under
+    `reactive.isolate()`, so typing (or a pending entry being cleared) does
+    not re-render the step, while an Add/Remove re-render keeps what the
+    user typed. A new visit (new `gen`) has no live inputs and renders from
+    the saved answers.
     """
     target = step["target"]
-    saved = answers.get(target, [])
-    n_rows = max(counts.get(target, 1), len(saved), 1)
-    placeholder = t(f"wizard.placeholder_{target}")
-    # Snapshot live input values so typing survives Add/Remove re-renders.
-    current_values: list[str] = []
     with reactive.isolate():
-        for i in range(n_rows):
-            try:
-                v = input[f"entry_{target}_{i}"]()
-                current_values.append(v if v is not None else "")
-            except Exception:
-                # Input doesn't exist yet (first render) — empty default.
-                current_values.append("")
-    rows = []
-    for i in range(n_rows):
-        row_id = f"entry_{target}_{i}"
-        # Priority: live typing > saved value > empty.
-        value = current_values[i] or (saved[i] if i < len(saved) else "")
-        rows.append(
-            ui.div(
-                ui.input_text(
-                    row_id, "",
-                    value=value,
-                    placeholder=placeholder,
-                    width="100%",
-                ),
-                style="margin-bottom: 4px;",
-            )
+        values = [v for _e, v in _effective_rows(
+            input, gen, target, answers, counts, pending.get())]
+    placeholder = t(f"wizard.placeholder_{target}")
+    # Suggestion chips (K1): their own output, so a chip re-render never
+    # re-renders the rows (spec §4.3 chip rule 2).
+    rows: list[ui.Tag] = [ui.output_ui(f"chips_{target}")]
+    for i, value in enumerate(values):
+        text = ui.input_text(
+            _row_id(gen, target, i), "",
+            value=value,
+            placeholder=placeholder,
+            width="100%",
         )
+        # Stable test hook on the <input> itself (ui.input_text takes no
+        # attrs; on the wrapper div Playwright's fill() would fail).
+        [c for c in text.children
+         if getattr(c, "name", None) == "input"][0].attrs["data-row"] = f"{target}_{i}"
+        rows.append(ui.div(text, style="margin-bottom: 4px;"))
     rows.append(
         ui.div(
             ui.input_action_button(
@@ -192,7 +307,8 @@ def _render_freeform_multiple(
             style="margin-top: 8px;",
         )
     )
-    return ui.div(*rows, id=f"freeform_{target}_container")
+    # Ids inside a module's @render.ui are not namespaced automatically.
+    return ui.div(*rows, id=resolve_id(f"freeform_{target}_container"))
 
 
 ROW_JS = r"""
@@ -476,6 +592,13 @@ def ai_isa_wizard_ui() -> ui.Tag:
             " tr.wiz-sugg td.wiz-pol .shiny-input-container"
             " { display: inline-block; vertical-align: middle; margin-left: 6px; }"
             " tr.wiz-sugg .form-check { margin: 0; min-height: 0; }"
+            " .kb-chipbox { margin-bottom: 10px; }"
+            " .kb-caption { font-size: 0.85rem; margin-bottom: 4px; }"
+            " .kb-chips .kb-chip { margin: 3px; }"
+            " .kb-badge { font-size: 0.65em; vertical-align: super; margin-left: 3px;"
+            " padding: 1px 4px; border-radius: 3px; cursor: help; color: #fff; }"
+            " .kb-badge-KB { background: #0aa2c0; } .kb-badge-GOV { background: #b8860b; }"
+            " .kb-badge-SE { background: #198754; }"
         ),
         class_="sespy-card sespy-card-canvas",
         full_screen=True,
@@ -491,7 +614,17 @@ def ai_isa_wizard_server(
     project_data: reactive.Value[Project],
     event_bus: EventBus,
     translator: Translator | None = None,
+    snapshot: Snapshot | None = None,
+    reference_reads: reactive.Value[frozenset[str]] | None = None,
 ) -> None:
+    # K1: `snapshot` / `reference_reads` are the session's reference data and
+    # the files it read (suggestions and countries, Tasks 11-13). Both
+    # optional: MosaicSES and the unit tests mount the wizard without them.
+    snap = snapshot if snapshot is not None else r_kb.VENDORED
+
+    def _gov() -> dict:
+        return snap.governance()
+
     # Wizard state — three module-local reactives.
     wizard_step: reactive.Value[int] = reactive.value(0)
     wizard_answers: reactive.Value[dict[str, Any]] = reactive.value({})
@@ -514,6 +647,59 @@ def ai_isa_wizard_server(
     wizard_claude_generation: reactive.Value[int] = reactive.Value(0)
     # Per-target counts for the freeform_multiple archetype's dynamic UI.
     freeform_counts: reactive.Value[dict[str, int]] = reactive.value({})
+    _freeform_targets = ["drivers", "activities", "pressures", "states",
+                         "impacts", "welfare", "responses"]
+    # K1 pending overlay (spec §4.3): every server-issued row write (the Add
+    # tombstone now; chip fills and deselects in Task 13), per target and
+    # row index, until the client echoes it. It wins over the live input.
+    pending: reactive.Value[dict[str, dict[int, str]]] = reactive.value({})
+    # Per-target visit generation in the row ids, bumped on every entry to
+    # the step and on Replace, so stale inputs from an earlier visit or run
+    # never resurface.
+    gen: reactive.Value[dict[str, int]] = reactive.value(
+        {t_: 0 for t_ in _freeform_targets})
+
+    def _gen_of(target: str) -> int:
+        return gen.get().get(target, 0)
+
+    def effective_rows(target: str) -> list[tuple[bool, str]]:
+        """(exists, value) per row: pending, else live-if-exists, else saved."""
+        return _effective_rows(input, _gen_of(target), target, wizard_answers.get(),
+                               freeform_counts.get(), pending.get())
+
+    def row_count(target: str) -> int:
+        return _row_count(target, wizard_answers.get(), freeform_counts.get(),
+                          pending.get())
+
+    def _set_pending(target: str, i: int, value: str) -> None:
+        p = dict(pending.get())
+        p[target] = dict(p.get(target, {}))
+        p[target][i] = value
+        pending.set(p)
+
+    def _drop_pending(target: str) -> None:
+        p = dict(pending.get())
+        if p.pop(target, None) is not None:
+            pending.set(p)
+
+    def _bump_gen(targets: list[str]) -> None:
+        """New visit for `targets`: fresh row ids, and their pending dropped
+        (so a server write from the previous visit never leaks into it)."""
+        g = dict(gen.get())
+        p = dict(pending.get())
+        for t_ in targets:
+            g[t_] = g.get(t_, 0) + 1
+            p.pop(t_, None)
+        gen.set(g)
+        pending.set(p)
+
+    def _enter_step(idx: int) -> None:
+        """Move to step `idx` (Next, Back, Skip); entering a freeform step
+        starts a new visit."""
+        new_step = WIZARD_STEPS[idx]
+        if new_step["archetype"] == "freeform_multiple":
+            _bump_gen([new_step["target"]])
+        wizard_step.set(idx)
 
     # ---- Placeholders — Tasks 8-14 fill these in ----------------------------
 
@@ -570,6 +756,8 @@ def ai_isa_wizard_server(
         event_bus.emit_cld_update()
         wizard_answers.set({})
         freeform_counts.set({})
+        pending.set({})
+        _bump_gen(_freeform_targets)   # rows of the previous run never resurface
         wizard_completed.set(False)
         wizard_active.set(True)
         wizard_step.set(0)
@@ -581,16 +769,20 @@ def ai_isa_wizard_server(
         # wizard_active is False by construction (modal only opens when False).
         ui.modal_remove()
 
-    # Add/Remove handlers — one pair per freeform_multiple target.
-    _freeform_targets = ["drivers", "activities", "pressures", "states",
-                         "impacts", "welfare", "responses"]
-
+    # Add/Remove handlers — one pair per freeform_multiple target. Both work
+    # on the effective row count (§4.3).
     def _make_add_handler(target: str):
         @reactive.effect
         @reactive.event(input[f"add_{target}"], ignore_init=True)
         def _():
+            n = row_count(target)
             counts = dict(freeform_counts.get())
-            counts[target] = counts.get(target, 1) + 1
+            counts[target] = n + 1
+            # Tombstone: index n may still hold text from before a Remove in
+            # this generation; the re-added row starts blank.
+            exists, live = _live_row(input, _gen_of(target), target, n)
+            if exists and live:
+                _set_pending(target, n, "")
             freeform_counts.set(counts)
         return _
 
@@ -598,15 +790,146 @@ def ai_isa_wizard_server(
         @reactive.effect
         @reactive.event(input[f"remove_{target}"], ignore_init=True)
         def _():
+            new = max(row_count(target) - 1, 1)
             counts = dict(freeform_counts.get())
-            counts[target] = max(counts.get(target, 1) - 1, 1)
+            counts[target] = new
+            p = dict(pending.get())
+            if target in p:
+                p[target] = {k: v for k, v in p[target].items() if k < new}
+                pending.set(p)
             freeform_counts.set(counts)
         return _
 
+    # Clearing: drop a pending entry as soon as the live input of the current
+    # generation reports the same value (the client echoed the server write),
+    # so pending does not mask what the user types next.
+    def _make_clear_effect(target: str):
+        @reactive.effect
+        def _():
+            pd = pending.get().get(target, {})
+            if not pd:
+                return
+            g = _gen_of(target)
+            done = [k for k, v in pd.items() if _live_row(input, g, target, k) == (True, v)]
+            if done:
+                with reactive.isolate():
+                    p = dict(pending.get())
+                p[target] = {k: v for k, v in p.get(target, {}).items() if k not in done}
+                pending.set(p)
+        return _
+
     _freeform_handlers = [
-        (_make_add_handler(t_), _make_remove_handler(t_))
+        (_make_add_handler(t_), _make_remove_handler(t_), _make_clear_effect(t_))
         for t_ in _freeform_targets
     ]
+
+    def _is_current_step(target: str) -> bool:
+        """True when the wizard is active and on the step whose target is
+        `target`. Per-step buttons (Skip; Task 13's chips) act only then, so a
+        stale click from an earlier render, or one after Finish, is ignored."""
+        return (wizard_active.get()
+                and WIZARD_STEPS[wizard_step.get()]["target"] == target)
+
+    # Skip buttons on steps 2-3 (R's "Skip this question"): record [] and
+    # advance, like an empty Next.
+    def _make_skip_handler(target: str):
+        @reactive.effect
+        @reactive.event(input[f"skip_{target}"], ignore_init=True)
+        def _():
+            if not _is_current_step(target):
+                return
+            ans = dict(wizard_answers.get())
+            ans[target] = []
+            wizard_answers.set(ans)
+            _enter_step(wizard_step.get() + 1)
+        return _
+
+    _skip_handlers = [_make_skip_handler(t_) for t_ in ("countries", "main_issue")]
+
+    # ---- K1 suggestion chips (spec §4.3, chip rules 1-7) --------------------
+
+    @reactive.calc
+    def _step_suggestions() -> list[tuple[str, str]]:
+        """The current freeform step's suggestions, R
+        `get_context_suggestions(..., return_sources = TRUE)` over the
+        session's reference data; [] off steps 4-10. A calc, so the
+        pipeline runs once per step change, not per output or keystroke."""
+        if not wizard_active.get():
+            return []
+        step = WIZARD_STEPS[wizard_step.get()]
+        if step["archetype"] != "freeform_multiple":
+            return []
+        ans = wizard_answers.get()
+        r_kb.add_reads(reference_reads, (r_kb.KB_NAME, r_kb.GOVERNANCE_NAME))
+        return get_context_suggestions(
+            snap.kb(), _gov(), step["target"],
+            ans.get("regional_sea") or None, ans.get("ecosystem_type") or None,
+            list(ans.get("main_issue") or []), list(ans.get("countries") or []),
+        )
+
+    def _make_chips_output(target: str):
+        @output(id=f"chips_{target}")
+        @render.ui
+        def _():
+            # Only the current step's chips render (and compute suggestions).
+            if not _is_current_step(target):
+                return ui.TagList()
+            suggestions = _step_suggestions()
+            if not suggestions:
+                return ui.TagList()          # R shows no block without suggestions
+            selected = {v.strip() for _e, v in effective_rows(target) if v.strip()}
+            ans = wizard_answers.get()
+            caption = _chips_caption(ans.get("regional_sea") or None,
+                                     ans.get("ecosystem_type") or None)
+            return _render_chips(target, suggestions, selected, caption)
+        return _
+
+    def _make_chip_handler(target: str, i: int):
+        @reactive.effect
+        @reactive.event(input[f"chip_{target}_{i}"], ignore_init=True)
+        def _():
+            if not _is_current_step(target):
+                return
+            suggestions = _step_suggestions()[:N_CHIPS]   # the list at click time
+            if i >= len(suggestions):
+                return
+            text = suggestions[i][0].strip()
+            g = _gen_of(target)
+            rows = effective_rows(target)
+            hits = [k for k, (_e, v) in enumerate(rows) if v.strip() == text]
+            empty = None if hits else next(
+                (k for k, (_e, v) in enumerate(rows) if not v.strip()), None)
+            # A click that would write in place into a row the client has not
+            # bound yet is ignored: no update_text can reach it, and a pending
+            # value the client never shows would mask what it echoes and what
+            # the user types next. The usual case is a double click: click 2
+            # arrives before the row added by click 1 is bound, so it counts
+            # as the same click (final review F2). Adding a new row is not
+            # affected; its render carries the pending value.
+            in_place = hits or ([] if empty is None else [empty])
+            if any(not rows[k][0] for k in in_place):
+                return
+            if hits:
+                # Rule 5: blank every matching row in place (R's Filter).
+                for k in hits:
+                    _set_pending(target, k, "")
+                    ui.update_text(_row_id(g, target, k), value="")
+                return
+            # Rule 4: the first empty row, else a new row.
+            if empty is not None:
+                _set_pending(target, empty, text)
+                ui.update_text(_row_id(g, target, empty), value=text)
+            else:
+                n = len(rows)
+                _set_pending(target, n, text)
+                counts = dict(freeform_counts.get())
+                counts[target] = n + 1
+                freeform_counts.set(counts)
+        return _
+
+    _chip_outputs = [_make_chips_output(t_) for t_ in _freeform_targets]
+    _chip_handlers = [_make_chip_handler(t_, i)
+                      for t_ in _freeform_targets for i in range(N_CHIPS)]
 
     @reactive.effect
     @reactive.event(input.wizard_next, ignore_init=True)
@@ -630,27 +953,19 @@ def ai_isa_wizard_server(
                 return
             answer: Any = value
         elif archetype == "choice_many":
-            raw = input[f"answer_{target}"]()
-            value_list = list(raw) if raw else []
-            if not value_list:
-                ui.notification_show(
-                    t("wizard.validation_error"), type="warning", duration=3,
-                )
-                return
-            answer = value_list
+            # Steps 2-3 are skippable (K1, as in R): an empty selection is
+            # accepted and records []. The input is unset when nothing was
+            # ever selected, and reading it then raises SilentException.
+            try:
+                raw = input[f"answer_{target}"]()
+            except SilentException:
+                raw = None
+            answer = list(raw) if raw else []
         elif archetype == "freeform_multiple":
-            # Read row count from BOTH freeform_counts (display state)
-            # AND len(saved answers) — the renderer expands rows for
-            # saved answers without writing back to freeform_counts, so
-            # using freeform_counts alone misses Back-navigation rows.
-            counts = freeform_counts.get()
-            saved = wizard_answers.get().get(target, [])
-            n = max(counts.get(target, 1), len(saved))
-            raw_entries: list[str] = []
-            for i in range(n):
-                v = (input[f"entry_{target}_{i}"]() or "").strip()
-                if v:
-                    raw_entries.append(v)
+            # Effective values over the effective row count (K1 §4.3):
+            # pending server writes win, then this visit's live inputs, then
+            # the saved answers (rows the client has not echoed yet).
+            raw_entries = [v.strip() for _e, v in effective_rows(target) if v.strip()]
             if not raw_entries:
                 ui.notification_show(
                     t("wizard.validation_error"), type="warning", duration=3,
@@ -761,24 +1076,45 @@ def ai_isa_wizard_server(
         # the real suggestions arrive.
         ans = dict(wizard_answers.get())
         ans[target] = answer
+        if step_idx == 0 and ans.get("countries"):
+            # Sea change after Back: keep only codes the new sea offers,
+            # in their selected order.
+            valid = {c["code"] for c in countries_for_sea(_gov(), answer)}
+            ans["countries"] = [c for c in ans["countries"] if c in valid]
         wizard_answers.set(ans)
+        if archetype == "freeform_multiple":
+            # Only after a successful write: a failed Next keeps pending.
+            _drop_pending(target)
 
         if step_idx + 1 == 11:
             wizard_suggestions_sp3.set(suggest_connections(_assemble_wizard_state()))
 
-        wizard_step.set(step_idx + 1)
+        _enter_step(step_idx + 1)
 
     def _assemble_wizard_state() -> WizardState:
         """Build a WizardState snapshot from current reactive state."""
         ans = wizard_answers.get()
         isa = project_data.get().isa_data
+        countries = list(ans.get("countries", []))
         return WizardState(
             regional_sea=ans.get("regional_sea", ""),
             ecosystem_type=ans.get("ecosystem_type", ""),
-            countries=ans.get("countries", []),
+            countries=countries,
             main_issue=ans.get("main_issue", []),
             elements=list(isa.elements),
+            country_names=country_names_for(_gov(), countries),
         )
+
+    # Test-mode only (no-op otherwise): tests assert through these, not ids.
+    export_test_values(
+        step=wizard_step.get,
+        answers=wizard_answers.get,
+        wizard_state=lambda: dataclasses.asdict(_assemble_wizard_state()),
+        # String keys: orjson rejects int keys.
+        pending=lambda: {t_: {str(i): v for i, v in d.items()}
+                         for t_, d in pending.get().items()},
+        gen=lambda: dict(gen.get()),
+    )
 
     @reactive.extended_task
     async def _claude_task(
@@ -934,14 +1270,10 @@ def ai_isa_wizard_server(
             return  # can't go before step 0
         new_step_idx = wizard_step.get() - 1
         # If returning to a freeform_multiple step, pre-seed
-        # freeform_counts[target] = max(current, len(saved)) so that
-        # subsequent Add/Remove clicks operate on the correct visible
-        # row count. Without this, _render_freeform_multiple still shows
-        # the right number of rows (via max(counts, len(saved), 1)),
-        # but Add/Remove handlers mutate the stale `counts` value — a
-        # 3-entry re-entry would show 3 rows but Remove would clamp
-        # `counts[target]` from 1 to 1, leaving the visible 3 rows
-        # unchanged from the user's perspective.
+        # freeform_counts[target] = max(current, len(saved)). Since K1 the
+        # renderer and Add/Remove all use the effective row count
+        # (`row_count`, which already includes len(saved)), so this only
+        # keeps freeform_counts in step with what is shown (1.15.1 shape).
         new_step = WIZARD_STEPS[new_step_idx]
         if new_step["archetype"] == "freeform_multiple":
             target = new_step["target"]
@@ -949,7 +1281,9 @@ def ai_isa_wizard_server(
             counts = dict(freeform_counts.get())
             counts[target] = max(counts.get(target, 1), len(saved), 1)
             freeform_counts.set(counts)
-        wizard_step.set(new_step_idx)
+        # A new visit renders from the saved answers: text typed on the step
+        # and never saved by Next is discarded (K1 behaviour change).
+        _enter_step(new_step_idx)
 
     def _apply_row_edits(s: ConnectionSuggestion, tag: str, i: int) -> ConnectionSuggestion:
         """A row's polarity switch and reverse control (feedback #17). An
@@ -1122,10 +1456,14 @@ def ai_isa_wizard_server(
         if archetype == "choice_one":
             widget = _render_choice_one(step, wizard_answers.get())
         elif archetype == "choice_many":
-            widget = _render_choice_many(step, wizard_answers.get())
+            if step["target"] == "countries":
+                # The country list comes from the session's reference data.
+                r_kb.add_reads(reference_reads, (r_kb.KB_NAME, r_kb.GOVERNANCE_NAME))
+            widget = _render_choice_many(step, wizard_answers.get(), gov=_gov())
         elif archetype == "freeform_multiple":
             widget = _render_freeform_multiple(
                 step, wizard_answers.get(), freeform_counts.get(), input,
+                gen=_gen_of(step["target"]), pending=pending,
             )
         elif archetype == "connection_review":
             claude_available = bool(
@@ -1148,6 +1486,12 @@ def ai_isa_wizard_server(
         if step_idx > 0:
             nav_buttons.append(ui.input_action_button(
                 "wizard_back", t("wizard.back"), class_="btn btn-secondary",
+            ))
+        if archetype == "choice_many":
+            nav_buttons.append(ui.input_action_button(
+                f"skip_{step['target']}",
+                t("modules.isa.ai_assistant.skip_this_question"),
+                class_="btn btn-outline-secondary",
             ))
         if step_idx < 11:
             nav_buttons.append(ui.input_action_button(

@@ -1,0 +1,92 @@
+{
+  "languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "lt",
+    "pt",
+    "it",
+    "no",
+    "el"
+  ],
+  "translation": {
+    "modules.isa.ai_assistant.eu_member_states": {
+      "en": "EU Member States",
+      "es": "Estados miembros de la UE",
+      "fr": "États membres de l'UE",
+      "de": "EU-Mitgliedstaaten",
+      "lt": "ES valstybės narės",
+      "pt": "Estados-Membros da UE",
+      "it": "Stati membri dell'UE",
+      "no": "EU-medlemsland",
+      "el": "Κράτη μέλη της ΕΕ"
+    },
+    "modules.isa.ai_assistant.non_eu_countries": {
+      "en": "Non-EU Countries",
+      "es": "Países no pertenecientes a la UE",
+      "fr": "Pays hors UE",
+      "de": "Nicht-EU-Länder",
+      "lt": "Ne ES šalys",
+      "pt": "Países não-UE",
+      "it": "Paesi non UE",
+      "no": "Ikke-EU-land",
+      "el": "Χώρες εκτός ΕΕ"
+    },
+    "modules.isa.ai_assistant.skip_this_question": {
+      "en": "Skip This Question",
+      "es": "Saltar esta pregunta",
+      "fr": "Passer cette question",
+      "de": "Überspringen Sie diese Frage",
+      "lt": "Praleiskite šį klausimą",
+      "pt": "Pule esta pergunta",
+      "it": "Salta questa domanda",
+      "no": "Hopp over dette spørsmålet",
+      "el": "Παράλειψη This Question"
+    },
+    "modules.isa.ai_assistant.tailored_for": {
+      "en": "tailored for",
+      "es": "adaptado para",
+      "fr": "adapté pour",
+      "de": "angepasst für",
+      "lt": "pritaikytas",
+      "pt": "adaptado para",
+      "it": "adattato per",
+      "no": "tilpasset for",
+      "el": "προσαρμοσμένο για"
+    },
+    "modules.isa.ai_assistant.from_knowledge_database": {
+      "en": "Sourced from knowledge database",
+      "es": "Obtenido de la base de conocimiento",
+      "fr": "Issu de la base de connaissances",
+      "de": "Aus der Wissensdatenbank",
+      "lt": "Iš žinių bazės",
+      "pt": "Da base de conhecimento",
+      "it": "Dalla base di conoscenza",
+      "no": "Fra kunnskapsdatabasen",
+      "el": "Από τη βάση γνώσεων"
+    },
+    "modules.isa.ai_assistant.governance_suggestion_tooltip": {
+      "en": "Governance suggestion based on selected countries",
+      "es": "Sugerencia de gobernanza basada en los países seleccionados",
+      "fr": "Suggestion de gouvernance basée sur les pays sélectionnés",
+      "de": "Governance-Vorschlag basierend auf den ausgewählten Ländern",
+      "lt": "Valdymo pasiūlymas pagal pasirinktas šalis",
+      "pt": "Sugestão de governança com base nos países selecionados",
+      "it": "Suggerimento di governance basato sui paesi selezionati",
+      "no": "Styringsforslag basert på valgte land",
+      "el": "Πρόταση διακυβέρνησης βάσει των επιλεγμένων χωρών"
+    },
+    "modules.isa.ai_assistant.socioeconomic_suggestion_tooltip": {
+      "en": "Socioeconomic suggestion based on selected countries",
+      "es": "Sugerencia socioeconómica basada en los países seleccionados",
+      "fr": "Suggestion socio-économique basée sur les pays sélectionnés",
+      "de": "Sozioökonomischer Vorschlag basierend auf den ausgewählten Ländern",
+      "lt": "Socialinis-ekonominis pasiūlymas pagal pasirinktas šalis",
+      "pt": "Sugestão socioeconômica com base nos países selecionados",
+      "it": "Suggerimento socioeconomico basato sui paesi selezionati",
+      "no": "Sosioøkonomisk forslag basert på valgte land",
+      "el": "Κοινωνικοοικονομική πρόταση βάσει των επιλεγμένων χωρών"
+    }
+  }
+}

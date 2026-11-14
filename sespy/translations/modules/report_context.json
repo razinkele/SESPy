@@ -1,0 +1,26 @@
+{
+  "languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "lt",
+    "pt",
+    "it",
+    "no",
+    "el"
+  ],
+  "translation": {
+    "modules.report_context.include_context": {
+      "en": "Include Regional Context",
+      "es": "Incluir Contexto Regional",
+      "fr": "Inclure le Contexte Régional",
+      "de": "Regionalen Kontext einschließen",
+      "lt": "Įtraukti regioninį kontekstą",
+      "pt": "Incluir Contexto Regional",
+      "it": "Includi Contesto Regionale",
+      "no": "Inkluder Regionalt Kontekst",
+      "el": "Συμπερίληψη Περιφερειακού Πλαισίου"
+    }
+  }
+}

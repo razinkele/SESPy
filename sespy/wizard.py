@@ -57,6 +57,11 @@ WIZARD_STEPS: list[dict[str, Any]] = [
 # 11-sea KB. Originally exported as `REGIONAL_SEAS_PLACEHOLDER` for
 # back-compat with SP1's import; renamed to `REGIONAL_SEAS` on the
 # same day (post-SP2 cleanup, ahead of SP3).
+#
+# K1 (Task 11): the seas carry name, ecosystem_types and common_issues only.
+# Step 2's countries come from R's governance data (codes as values, EU /
+# non-EU groups; see ai_isa_wizard._country_choices), and steps 2-3 are
+# skippable as in R.
 # ---------------------------------------------------------------------------
 
 REGIONAL_SEAS: dict[str, dict[str, Any]] = get_regional_seas()

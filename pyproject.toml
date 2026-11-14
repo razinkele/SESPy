@@ -1,6 +1,6 @@
 [project]
 name = "sespy"
-version = "1.15.1"
+version = "1.16.0"
 description = "Shiny for Python port of the MarineSABRES SES Toolbox — DAPSI(W)R(M) social-ecological systems analysis (Horizon Europe)."
 requires-python = ">=3.11"
 license = "MIT"
@@ -50,6 +50,8 @@ lint = ["ruff>=0.6", "mypy>=1.10"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["slow: builds artefacts; run with -m slow"]
+addopts = "-m \"not slow\""
 
 [tool.ruff]
 line-length = 120
@@ -85,4 +87,4 @@ build-backend = "setuptools.build_meta"
 include = ["sespy*"]
 
 [tool.setuptools.package-data]
-sespy = ["*.json", "translations/*.json", "translations/modules/*.json", "templates/*.json", "templates/marinesabres/*.json", "www/*.css"]
+sespy = ["*.json", "data/r_kb/*.json", "translations/*.json", "translations/modules/*.json", "templates/*.json", "templates/marinesabres/*.json", "www/*.css"]

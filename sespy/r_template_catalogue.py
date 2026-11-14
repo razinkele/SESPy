@@ -19,6 +19,7 @@ tests/parity/test_r_category_parity.py).
 """
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import subprocess
@@ -57,8 +58,36 @@ TRANSLATION_SUBSETS: dict[str, tuple[str, ...]] = {
     "wp5_governance": ("modules.wp5_governance.role.", "modules.wp5_governance.ne_roles"),
     "indicator_registry": ("modules.indicator_registry.policy_target",
                            "modules.indicator_registry.field_"),
+    # K1: knowledge-base wizard and report labels.
+    "isa_data_entry": ("modules.isa.ai_assistant.from_knowledge_database",
+                       "modules.isa.ai_assistant.governance_suggestion_tooltip",
+                       "modules.isa.ai_assistant.socioeconomic_suggestion_tooltip",
+                       "modules.isa.ai_assistant.tailored_for",
+                       "modules.isa.ai_assistant.eu_member_states",
+                       "modules.isa.ai_assistant.non_eu_countries",
+                       "modules.isa.ai_assistant.skip_this_question"),
+    "report_context": ("modules.report_context.include_context",),
 }
 _TR_PREFIX = "translations/modules/"
+
+# K1: R sources the knowledge-base ports are checked against (fixtures only).
+K1_R_SOURCES = ("functions/ses_knowledge_db_loader.R", "modules/ai_isa_knowledge_base.R",
+                "functions/country_governance_loader.R", "functions/kb_report_helpers.R",
+                "functions/report_generation.R")
+# K1: R data files SESPy ships and reads at runtime (R path -> vendored target),
+# the manifest that records their hashes, and the local captured fixtures
+# whose r_tag must equal the pinned tag.
+RUNTIME_INPUTS: dict[str, str] = {
+    "data/ses_knowledge_db.json": "sespy/data/r_kb/ses_knowledge_db.json",
+    "data/country_governance_db.json": "sespy/data/r_kb/country_governance_db.json",
+}
+MANIFEST_PATH = "sespy/data/r_kb/manifest.json"
+LOCAL_PINS: tuple[str, ...] = tuple(
+    f"tests/parity/r_fixtures/k1/{n}.json.gz"
+    for n in ("lookup", "suggestions_grid", "habitat_specific", "countries", "report"))
+# Inputs retired from the pin. Edited deliberately at a re-pin that drops an
+# input; never derived, or the build_pin guard would be vacuous.
+REMOVED_INPUTS: frozenset[str] = frozenset()
 
 # R app path -> fixture path under repo_root (spec §3.2, §3.3 step 6). A
 # template added or removed in R is a deliberate change to this list.
@@ -66,7 +95,7 @@ INPUTS: dict[str, str] = {
     **{f"data/{f}": f"tests/parity/r_templates/{f}" for f in TEMPLATE_FILES},
     "functions/dapsiwrm_connection_rules.R": "tests/parity/r_rules/dapsiwrm_connection_rules.R",
     "functions/template_loader.R": "tests/parity/r_source/template_loader.R",
-    **{p: f"tests/parity/r_source/{p.rsplit('/', 1)[-1]}" for p in R_SOURCES},
+    **{p: f"tests/parity/r_source/{p.rsplit('/', 1)[-1]}" for p in (*R_SOURCES, *K1_R_SOURCES)},
     **{f"{_TR_PREFIX}{s}.json": f"tests/parity/r_translations/{s}.json"
        for s in TRANSLATION_SUBSETS},
 }
@@ -289,6 +318,69 @@ def _same(path: Path, data: bytes) -> bool:
     return disk.replace("\r\n", "\n") == new.replace("\r\n", "\n")
 
 
+def hash_local_pin(path: Path) -> str:
+    """Hash of a gzipped JSON fixture: the parsed content, so gzip mtime and
+    compression level never reach it."""
+    return sha256_norm(json.loads(gzip.decompress(Path(path).read_bytes())))
+
+
+def _gz_doc(path: Path) -> Any:
+    return json.loads(gzip.decompress(Path(path).read_bytes()))
+
+
+def fixture_r_tag(path: Path) -> str:
+    """The top-level r_tag of a gunzipped fixture; "" when absent."""
+    doc = _gz_doc(path)
+    tag = doc.get("r_tag") if isinstance(doc, dict) else None
+    return tag if isinstance(tag, str) else ""
+
+
+def _local_pin_hashes(repo_root: Path, r_tag: str) -> tuple[dict[str, str], list[str]]:
+    """Gunzip each local pin once; return ({path: hash}, errors). A fixture
+    whose r_tag differs from `r_tag`, or that cannot be read, is an error."""
+    hashes: dict[str, str] = {}
+    errors: list[str] = []
+    for rel in LOCAL_PINS:
+        try:
+            doc = _gz_doc(repo_root / rel)
+        except (OSError, EOFError, ValueError) as e:
+            errors.append(f"cannot read {rel}: {type(e).__name__}: {e}")
+            continue
+        tag = doc.get("r_tag") if isinstance(doc, dict) else None
+        if tag != r_tag:
+            errors.append(f"{rel}: r_tag {tag!r} does not match the target {r_tag!r}; "
+                          "recapture the fixture first")
+            continue
+        hashes[rel] = sha256_norm(doc)
+    return hashes, errors
+
+
+def build_manifest(r_tag: str, r_commit: str, runtime_hashes: dict[str, str]) -> bytes:
+    """manifest.json: the release plus each vendored runtime file's hash,
+    keyed by basename. indent=2, LF, newline-terminated."""
+    files = {p.rsplit("/", 1)[-1]: h for p, h in sorted(runtime_hashes.items())}
+    doc = {"r_tag": r_tag, "r_commit": r_commit, "files": files}
+    return (json.dumps(doc, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def build_pin(pin_old: dict, files_new: dict[str, str], warnings_new: list[dict], *,
+              r_tag: str, r_commit: str,
+              removed_inputs: frozenset[str] = frozenset()) -> dict:
+    """The new pin. Raises ValueError when a previously pinned path is
+    neither in `files_new` nor a declared removal: a retired input must be a
+    deliberate edit. Accepted warnings are regenerated from this run."""
+    dropped = set(pin_old.get("files", {})) - set(files_new) - set(removed_inputs)
+    if dropped:
+        raise ValueError("pinned path(s) dropped without being declared removed: "
+                         + ", ".join(sorted(dropped)))
+    accepted: list[dict] = []
+    for w in sorted(warnings_new, key=warning_sort_key):
+        if w not in accepted:
+            accepted.append(w)
+    return {"r_tag": r_tag, "r_commit": r_commit,
+            "files": dict(sorted(files_new.items())), "accepted_warnings": accepted}
+
+
 def _read_json(path: Path) -> Any:
     return json.loads(path.read_bytes().decode("utf-8-sig"))
 
@@ -321,6 +413,16 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
     raw_bytes: dict[str, bytes] = {}
     if from_fixtures:
         r_tag, r_commit = pin_old["r_tag"], pin_old["r_commit"]
+    else:
+        r_tag = rev if rev is not None else pin_old["r_tag"]
+        if not TAG_RE.fullmatch(r_tag):        # fullmatch: "$" alone accepts a trailing "\n"
+            return SyncResult(1, [f"--rev must be a release tag like v1.31.0, got {r_tag!r}"])
+    # K1: the local captured fixtures must belong to the target release; this
+    # runs before any input is read.
+    local_hashes, pin_errors = _local_pin_hashes(repo_root, r_tag)
+    if pin_errors:
+        return SyncResult(1, pin_errors)
+    if from_fixtures:
         for r_path, fixture in INPUTS.items():
             # Templates and translation subsets are converted, so fixture mode
             # reads them; the .R fixtures are only hashed (git mode).
@@ -329,10 +431,12 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
                     raw_bytes[r_path] = (repo_root / fixture).read_bytes()
                 except OSError as e:
                     return SyncResult(1, [f"cannot read {fixture}: {e}"])
+        for r_path, target in RUNTIME_INPUTS.items():
+            try:
+                raw_bytes[r_path] = (repo_root / target).read_bytes()
+            except OSError as e:
+                return SyncResult(1, [f"cannot read {target}: {e}"])
     else:
-        r_tag = rev if rev is not None else pin_old["r_tag"]
-        if not TAG_RE.fullmatch(r_tag):        # fullmatch: "$" alone accepts a trailing "\n"
-            return SyncResult(1, [f"--rev must be a release tag like v1.31.0, got {r_tag!r}"])
         try:
             prefix = _git(r_root, "rev-parse", "--show-prefix").decode().strip()
             r_commit = _git(r_root, "rev-parse", "--short=7", f"{r_tag}^{{commit}}").decode().strip()
@@ -340,7 +444,7 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
             detail = e.stderr.decode(errors="replace").strip() if isinstance(
                 e, subprocess.CalledProcessError) else str(e)
             return SyncResult(1, [f"git failed for {r_tag}: {detail}"])
-        for r_path in INPUTS:
+        for r_path in (*INPUTS, *RUNTIME_INPUTS):
             try:
                 raw_bytes[r_path] = _git(r_root, "show", f"{r_tag}:{prefix}{r_path}")
             except subprocess.CalledProcessError as e:
@@ -356,6 +460,9 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
         vendored, tr_errors = build_vendored_translations(raw_by_stem)
         outputs.update(vendored)
         errors += tr_errors
+        runtime_hashes = {target: _hash(target, raw_bytes[r_path])
+                          for r_path, target in RUNTIME_INPUTS.items()}
+        outputs[MANIFEST_PATH] = build_manifest(r_tag, r_commit, runtime_hashes)
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         # JSON or mapper error, or a template that is not the expected shape
         # (e.g. not an object): exit 1, never a traceback.
@@ -377,16 +484,21 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
         for r_path, fixture in INPUTS.items():
             outputs[fixture] = raw_bytes[r_path]            # raw bytes as read
             files[fixture] = _hash(fixture, raw_bytes[r_path])
-            old = pin_old.get("files", {}).get(fixture)
-            if old != files[fixture]:
-                lines.append(f"hash {fixture}: {old or '(none)'} -> {files[fixture]}")
-        accepted_new: list[dict] = []
-        for w in sorted(warnings, key=warning_sort_key):
-            if w not in accepted_new:
-                accepted_new.append(w)
-        pin_new = {"r_tag": r_tag, "r_commit": r_commit,
-                   "files": dict(sorted(files.items())),
-                   "accepted_warnings": accepted_new}
+        for r_path, target in RUNTIME_INPUTS.items():
+            outputs[target] = raw_bytes[r_path]             # raw bytes as read
+            files[target] = runtime_hashes[target]
+        files[MANIFEST_PATH] = _hash(MANIFEST_PATH, outputs[MANIFEST_PATH])
+        files.update(local_hashes)
+        for path, new_hash in files.items():
+            old = pin_old.get("files", {}).get(path)
+            if old != new_hash:
+                lines.append(f"hash {path}: {old or '(none)'} -> {new_hash}")
+        try:
+            pin_new = build_pin(pin_old, files, warnings, r_tag=r_tag, r_commit=r_commit,
+                                removed_inputs=REMOVED_INPUTS)
+        except ValueError as e:
+            return SyncResult(1, lines + [str(e)])
+        accepted_new = pin_new["accepted_warnings"]
         outputs[PIN_PATH] = (json.dumps(pin_new, indent=2, ensure_ascii=False)
                              + "\n").encode("utf-8")
         try:
@@ -398,6 +510,9 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
 
     if check:
         differing = [p for p, data in outputs.items() if not _same(repo_root / p, data)]
+        if from_fixtures:        # the pin is not rebuilt here, so compare the local pins to it
+            differing += [p for p, h in local_hashes.items()
+                          if pin_old.get("files", {}).get(p) != h]
         lines += [f"differs: {p}" for p in differing]
         return SyncResult(1 if differing else 0, lines)
     for p, data in outputs.items():

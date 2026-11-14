@@ -34,20 +34,23 @@ from sespy.response_register import RM_REGISTER_COLUMNS, add_measure
 
 
 def test_schema_8_and_floor():
-    assert PROJECT_SCHEMA_VERSION == 8
-    assert SCHEMA_MIN_READER == {7: "1.13.0", 8: "1.15.0"}
+    # v8 floor stays 1.15.0; the current schema is v9 (test_schema_v9.py).
+    assert PROJECT_SCHEMA_VERSION >= 8
+    assert SCHEMA_MIN_READER[7] == "1.13.0"
+    assert SCHEMA_MIN_READER[8] == "1.15.0"
 
 
-def test_every_save_is_stamped_1_15_0():
+def test_every_save_is_stamped_with_the_current_floor():
     d = Project.from_isa(IsaData()).to_dict()
-    assert d["metadata"]["schema_version"] == 8
-    assert d["metadata"]["min_sespy_version"] == "1.15.0"
+    assert d["metadata"]["schema_version"] == PROJECT_SCHEMA_VERSION
+    assert d["metadata"]["min_sespy_version"] == SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION]
 
 
 def test_v8_file_is_newer_build_for_a_1_14_reader(monkeypatch):
     raw = Project.from_isa(IsaData()).to_dict()
     monkeypatch.setattr(data_structure, "_running_version", lambda: "1.14.2")
-    assert newer_build_info(raw) == {"min_version": "1.15.0", "running": "1.14.2"}
+    assert newer_build_info(raw) == {
+        "min_version": SCHEMA_MIN_READER[PROJECT_SCHEMA_VERSION], "running": "1.14.2"}
 
 
 # ---- Task 2: Element indicator fields (spec §4.3) ----------------------------

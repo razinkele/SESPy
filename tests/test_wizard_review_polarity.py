@@ -90,12 +90,14 @@ def _drive_to_review(scope):
 
     click("wizard_start")
     answers = {0: ("answer_regional_sea", "baltic"), 1: ("answer_ecosystem_type", "Open coast"),
-               2: ("answer_countries", ["Lithuania"]), 3: ("answer_main_issue", ["Eutrophication"])}
+               2: ("answer_countries", ["LT"]), 3: ("answer_main_issue", ["Eutrophication"])}
     for step in range(11):
         if step in answers:
             scope.set_inputs(**{answers[step][0]: answers[step][1]})
         else:
-            scope.set_inputs(**{f"entry_{FREEFORM[step - 4]}_0": f"Item {step}"})
+            target = FREEFORM[step - 4]
+            gen = scope.get_export("gen").value[target]   # K1 row-id generation
+            scope.set_inputs(**{f"entry_{gen}_{target}_0": f"Item {step}"})
         click("wizard_next")
     html = scope.get_output("wizard_step_render").value["html"]
     n = len(set(re.findall(r'id="wizard-accept_sp3_(\d+)"', html)))

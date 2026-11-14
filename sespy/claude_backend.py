@@ -310,7 +310,7 @@ def _build_user_message(state: WizardState) -> str:
     return (
         f"Regional sea: {state.regional_sea or '(unspecified)'}\n"
         f"Ecosystem type: {state.ecosystem_type or '(unspecified)'}\n"
-        f"Countries: {', '.join(state.countries) or '(unspecified)'}\n"
+        f"Countries: {', '.join(state.country_names) or '(unspecified)'}\n"
         f"Main issue(s): {', '.join(state.main_issue) or '(unspecified)'}\n\n"
         f"## Elements\n\n{elements_block}\n\n"
         f"Suggest connections per the rules. "

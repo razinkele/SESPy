@@ -19,12 +19,12 @@ from typing import Any, Iterable, Literal
 
 _log = logging.getLogger(__name__)
 
-PROJECT_SCHEMA_VERSION = 8
+PROJECT_SCHEMA_VERSION = 9
 
 # Oldest SESPy release that reads each schema without dropping data.
 # Project.to_dict() stamps metadata.min_sespy_version from this table, so a
 # schema bump must add an entry (guarded by tests/test_schema_v7.py).
-SCHEMA_MIN_READER: dict[int, str] = {7: "1.13.0", 8: "1.15.0"}
+SCHEMA_MIN_READER: dict[int, str] = {7: "1.13.0", 8: "1.15.0", 9: "1.16.0"}
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +301,9 @@ class ProjectMetadata:
     origin: str = field(default="", kw_only=True)
     r_template_version: str = field(default="", kw_only=True)
     min_sespy_version: str = field(default="", kw_only=True)
+    # Schema v9, always serialised. Reference-data provenance (K1):
+    # {file key: {version, sha256, ...}}; every value must be a dict.
+    reference_data: dict = field(default_factory=dict, kw_only=True)
 
     @staticmethod
     def new(name: str = "Untitled Project") -> "ProjectMetadata":
@@ -552,11 +555,15 @@ class Project:
         """English summary of `newer_build` ("" for a normal project)."""
         return newer_build_note(self.newer_build)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, reference_data: dict | None = None) -> dict[str, Any]:
+        # `reference_data` (when not None) replaces metadata.reference_data in
+        # the OUTPUT only, like the min_sespy_version stamp below.
         # Stamping changes only the output dict, never self.metadata:
         # Project equality includes metadata, and a newer-build object must
         # keep its raw stamp.
         meta = asdict(self.metadata)
+        if reference_data is not None:
+            meta["reference_data"] = copy.deepcopy(reference_data)
         meta["min_sespy_version"] = _min_reader_stamp(
             self.metadata.min_sespy_version, newer_build=bool(self.newer_build))
         out: dict[str, Any] = {
@@ -577,8 +584,9 @@ class Project:
             out["response_measures"] = self.response_measures.to_dict()
         return out
 
-    def to_json(self, *, indent: int = 2) -> str:
-        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+    def to_json(self, *, indent: int = 2, reference_data: dict | None = None) -> str:
+        return json.dumps(self.to_dict(reference_data=reference_data),
+                          indent=indent, ensure_ascii=False)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "Project":
@@ -590,6 +598,11 @@ class Project:
             _log.warning(
                 "Project metadata had unknown keys (dropped): %s", dropped
             )
+        if "reference_data" in meta_filtered:
+            rd = meta_filtered["reference_data"]
+            if not (isinstance(rd, dict) and all(isinstance(v, dict) for v in rd.values())):
+                _log.warning("Project metadata reference_data is malformed (dropped)")
+                del meta_filtered["reference_data"]
         meta = ProjectMetadata(**meta_filtered)
         isa = _isa_from_dict(raw.get("isa_data", raw))  # tolerate flat shapes
         # Lazy: sespy.stakeholders imports this module.
@@ -764,12 +777,17 @@ class WizardState:
     """Snapshot of the wizard's accumulated context at the moment
     suggest_connections() is invoked. Holds the current SES element list
     plus the wizard-only ephemeral fields (countries, main_issue) that
-    don't persist to the project file."""
+    don't persist to the project file.
+
+    `countries` holds ISO codes (K1: R's governance data); `country_names`
+    holds their display names, resolved from the session snapshot when the
+    wizard assembles the state, for the SP4 prompt."""
     regional_sea: str = ""
     ecosystem_type: str = ""
     countries: list[str] = field(default_factory=list)
     main_issue: list[str] = field(default_factory=list)
     elements: list[Element] = field(default_factory=list)
+    country_names: list[str] = field(default_factory=list)
 
 
 @dataclass

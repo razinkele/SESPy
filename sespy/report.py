@@ -14,13 +14,20 @@ Jinja2 + WeasyPrint runs synchronously in the worker thread.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import BaseLoader, Environment, select_autoescape
 
 from . import network as net_analysis
 from .data_structure import Project
+from .kb_report import CATEGORY_LABELS, HEADINGS, RegionalContext, build_regional_context
+
+if TYPE_CHECKING:
+    from .r_kb import Snapshot
+
+_log = logging.getLogger(__name__)
 
 _TEMPLATE = """\
 <!DOCTYPE html>
@@ -48,6 +55,8 @@ _TEMPLATE = """\
     h2 { font-size: 16pt; margin-top: 24pt;
          border-bottom: 1px solid var(--mist); padding-bottom: 4pt; }
     h3 { font-size: 13pt; margin-top: 16pt; color: var(--ocean-shallow); }
+    h4 { font-size: 11.5pt; margin-top: 12pt; color: var(--ocean-shallow); }
+    h5 { font-size: 10.5pt; margin-top: 10pt; color: var(--slate); }
     .meta { color: var(--muted); font-size: 10pt; margin-bottom: 16pt; }
     .summary {
       display: flex; gap: 12pt; margin: 12pt 0 18pt 0;
@@ -98,6 +107,51 @@ _TEMPLATE = """\
     &nbsp;·&nbsp; Last modified {{ project.metadata.modified_at }}
   {% endif %}
 </p>
+{%- if regional %}
+
+<h2>{{ regional.headings[0] }}</h2>
+{% if regional.rc.site_description is not none %}
+<h3>{{ regional.headings[1] }}</h3>
+<p>{{ regional.rc.site_description }}</p>
+{% endif %}
+{% if regional.rc.top_elements %}
+<h4>{{ regional.headings[2] }}</h4>
+{% for cat, items in regional.rc.top_elements %}
+<p><strong>{{ regional.labels.get(cat, cat) }}</strong></p>
+<ul>
+  {% for item in items %}<li>{{ item }}</li>
+  {% endfor %}
+</ul>
+{% endfor %}
+{% endif %}
+{% if regional.rc.evidence %}
+<h4>{{ regional.headings[3] }}</h4>
+<table>
+  <thead><tr><th>Connection</th><th>Rationale</th><th>References</th>
+    <th>Temporal Lag</th><th>Reversibility</th></tr></thead>
+  <tbody>
+  {% for r in regional.rc.evidence %}
+    <tr><td>{{ r.connection }}</td><td>{{ r.rationale }}</td><td>{{ r.references }}</td>
+        <td>{{ r.temporal_lag }}</td><td>{{ r.reversibility }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% if regional.rc.frameworks %}
+<h4>{{ regional.headings[4] }}</h4>
+<ul>
+  {% for f in regional.rc.frameworks %}<li>{{ f }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% if regional.rc.country_groups %}
+<h5>{{ regional.headings[5] }}</h5>
+<ul>
+  {% for code, grp in regional.rc.country_groups %}<li><strong>{{ code }}</strong>: {{ grp }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{%- endif %}
 
 <h2>Summary</h2>
 <div class="summary">
@@ -233,14 +287,46 @@ def _build_context(project: Project) -> dict[str, Any]:
     }
 
 
-def render_html(project: Project) -> str:
+def regional_context_for(project: Project, snapshot: Snapshot | None) -> RegionalContext | None:
+    """The report's Regional Context, or None when there is nothing to print.
+
+    The one gate for the section (renderers and ``report_export`` both call it):
+    None without a snapshot (only a snapshot carries provenance; unlike the
+    wizard there is no fallback to the vendored data), without a regional sea
+    and ecosystem type, or when the content is empty. A failure while building
+    it logs a warning and omits the section rather than failing the report.
+    """
+    if snapshot is None:
+        return None
+    md = project.metadata
+    if not md.regional_sea or not md.ecosystem_type:
+        return None
+    try:
+        labels = {el.id: el.label for el in project.isa_data.elements}
+        edges = [(labels.get(c.source, c.source), labels.get(c.target, c.target))
+                 for c in project.isa_data.connections]
+        return build_regional_context(snapshot.kb(), snapshot.governance(),
+                                      md.regional_sea, md.ecosystem_type, edges)
+    except Exception:
+        _log.warning("Regional Context could not be generated; omitting it", exc_info=True)
+        return None
+
+
+def render_html(project: Project, *, snapshot: Snapshot | None = None,
+                include_regional_context: bool = False) -> str:
     """Render the report as a self-contained HTML string."""
     env = Environment(loader=BaseLoader(), autoescape=select_autoescape(["html"]))
     template = env.from_string(_TEMPLATE)
-    return template.render(**_build_context(project))
+    ctx = _build_context(project)
+    rc = regional_context_for(project, snapshot) if include_regional_context else None
+    ctx["regional"] = (
+        {"rc": rc, "headings": HEADINGS, "labels": CATEGORY_LABELS} if rc is not None else None
+    )
+    return template.render(**ctx)
 
 
-def render_pdf(project: Project) -> bytes:
+def render_pdf(project: Project, *, snapshot: Snapshot | None = None,
+               include_regional_context: bool = False) -> bytes:
     """Render the report as PDF bytes (WeasyPrint underneath).
 
     PDF export is optional: WeasyPrint pulls native system libraries
@@ -256,11 +342,50 @@ def render_pdf(project: Project) -> bytes:
             "HTML and Word export work without it."
         ) from e
 
-    html = render_html(project)
+    html = render_html(project, snapshot=snapshot,
+                       include_regional_context=include_regional_context)
     return HTML(string=html).write_pdf()
 
 
-def render_docx(project: Project) -> bytes:
+def _docx_regional_context(doc, rc: RegionalContext) -> None:
+    """R's levels 1-4 shifted to Word Heading 2-5, like the HTML section."""
+    h = HEADINGS
+    doc.add_heading(h[0], level=2)
+    if rc.site_description is not None:
+        doc.add_heading(h[1], level=3)
+        doc.add_paragraph(rc.site_description)
+    if rc.top_elements:
+        doc.add_heading(h[2], level=4)
+        for cat, items in rc.top_elements:
+            doc.add_paragraph().add_run(CATEGORY_LABELS.get(cat, cat)).bold = True
+            for item in items:
+                doc.add_paragraph(item, style="List Bullet")
+    if rc.evidence:
+        doc.add_heading(h[3], level=4)
+        table = doc.add_table(rows=1, cols=5)
+        table.style = "Light Grid Accent 1"
+        for cell, text in zip(table.rows[0].cells, (
+                "Connection", "Rationale", "References", "Temporal Lag", "Reversibility")):
+            cell.text = text
+        for r in rc.evidence:
+            cells = table.add_row().cells
+            for cell, text in zip(cells, (r.connection, r.rationale, r.references,
+                                          r.temporal_lag, r.reversibility)):
+                cell.text = text
+    if rc.frameworks:
+        doc.add_heading(h[4], level=4)
+        for f in rc.frameworks:
+            doc.add_paragraph(f, style="List Bullet")
+    if rc.country_groups:
+        doc.add_heading(h[5], level=5)
+        for code, grp in rc.country_groups:
+            para = doc.add_paragraph(style="List Bullet")
+            para.add_run(code).bold = True
+            para.add_run(f": {grp}")
+
+
+def render_docx(project: Project, *, snapshot: Snapshot | None = None,
+                include_regional_context: bool = False) -> bytes:
     """Render the report as a Word .docx, returned as bytes ready for
     `@render.download` to stream. Uses `python-docx` — same content as
     the HTML/PDF, restructured into native Word elements (heading styles,
@@ -288,6 +413,11 @@ def render_docx(project: Project) -> bytes:
     ).italic = True
     if project.metadata.modified_at:
         meta.add_run(f"  ·  Last modified {project.metadata.modified_at}").italic = True
+
+    # ---- Regional Context (K1) -------------------------------------------
+    rc = regional_context_for(project, snapshot) if include_regional_context else None
+    if rc is not None:
+        _docx_regional_context(doc, rc)
 
     # ---- Summary ----------------------------------------------------------
     doc.add_heading("Summary", level=1)

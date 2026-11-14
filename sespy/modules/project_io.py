@@ -23,6 +23,7 @@ import logging
 from shiny import Inputs, Outputs, Session, reactive, render, ui
 
 from .. import data_structure as ds
+from .. import r_kb
 from ..autosave import (
     autosave_age_seconds,
     clear_autosave,
@@ -43,6 +44,33 @@ logger = logging.getLogger(__name__)
 
 # Notification id of the "saved by a newer SESPy" warning (also used by e2e).
 _NEWER_BUILD_TOAST = "newer-build-warning"
+
+# Notification id prefix of the reference-data provenance warnings: one
+# sticky toast per file, `kb-provenance-<file>` (spec §4.6).
+_PROVENANCE_TOAST = "kb-provenance-"
+
+
+def provenance_outcome(entry, name: str, snapshot) -> str | None:
+    """Load-check outcome for one saved `reference_data` entry (spec §4.6).
+
+    None: nothing to say (no `sha256_norm`, a file this snapshot does not
+    have, or equal to the session snapshot's hash). "differs": equal to the
+    vendored copy or to the registry's last parsed shared copy. "unavailable":
+    equal to none of them.
+    """
+    if not isinstance(entry, dict):
+        return None
+    saved = entry.get("sha256_norm")
+    if not isinstance(saved, str) or not saved:
+        return None
+    if name not in snapshot.files:
+        return None
+    if saved == snapshot.files[name].sha256_norm:
+        return None
+    vendored, shared = r_kb.hashes_for_load_check(name)
+    if saved in (vendored, shared):
+        return "differs"
+    return "unavailable"
 
 
 def quick_actions_ui(translator: Translator | None = None) -> ui.Tag:
@@ -110,12 +138,20 @@ def quick_actions_server(
     sample_path: Path,
     translator: Translator | None = None,
     autosave_enabled=None,
+    snapshot: r_kb.Snapshot | None = None,
+    reference_reads: reactive.Value[frozenset[str]] | None = None,
 ) -> None:
     """Wire the Quick Actions buttons.
 
     `project_data` is the source of truth for the loaded project. Save reads
     it; Load and New write to it (and emit `isa_change` so analysis modules
     invalidate their caches, mirroring `server/project_io.R`).
+
+    `snapshot` / `reference_reads` (K1) are the session's reference-data
+    snapshot and the set of files it read. With both, save and autosave stamp
+    `r_kb.current_provenance(...)`, and loading a project checks its saved
+    provenance. With either missing (MosaicSES), files keep the loaded
+    `metadata.reference_data` as is and nothing is checked.
     """
     def t(key: str, fallback: str, **fmt) -> str:
         if translator:
@@ -132,6 +168,16 @@ def quick_actions_server(
     @reactive.calc
     def browser_token() -> str | None:
         return read_browser_token(input)
+
+    def _reference_data(meta) -> dict | None:
+        """The provenance stamp for a save; None = write metadata as is.
+        Reads `reference_reads` isolated: a KB read alone never triggers
+        an autosave (it reaches disk with the next isa_change)."""
+        if snapshot is None or reference_reads is None:
+            return None
+        with reactive.isolate():
+            reads = reference_reads.get()
+        return r_kb.current_provenance(meta, snapshot, reads)
 
     # Set once this browser's recovery check has run. No autosave is written
     # before then, so a fresh session can never overwrite the work it is
@@ -158,7 +204,8 @@ def quick_actions_server(
             autosave_time.set("")
             return
         try:
-            write_autosave(proj, token=token)
+            write_autosave(proj, token=token,
+                           reference_data=_reference_data(proj.metadata))
             from datetime import datetime as _dt
             autosave_time.set(_dt.now().strftime("%H:%M:%S"))
         except Exception as e:
@@ -268,6 +315,50 @@ def quick_actions_server(
             id=_NEWER_BUILD_TOAST,
         )
 
+    # ---- REFERENCE-DATA RESET AND LOAD CHECK (K1, spec §4.6) -----------
+    # One effect, on the load events only: replacing the project resets the
+    # session's reads, then the loaded provenance is compared with this
+    # session's snapshot. project_data is read isolated, so ordinary edits
+    # never re-check. Priority 1: in the flush that loads a project, the
+    # reset must run before the autosave effect (which the same load
+    # triggers via isa_change), or the new project's autosave would carry
+    # the previous project's reads. New resets the reads in _on_new.
+    @reactive.effect(priority=1)
+    @reactive.event(event_bus.project_loaded, event_bus.template_loaded,
+                    ignore_init=True)
+    def _reference_data_on_load():
+        if reference_reads is None:
+            return
+        reference_reads.set(frozenset())
+        if snapshot is None:
+            return
+        with reactive.isolate():
+            loaded = project_data.get().metadata.reference_data
+        if not isinstance(loaded, dict):
+            return
+        for name, entry in loaded.items():
+            outcome = provenance_outcome(entry, name, snapshot)
+            if outcome is None:
+                continue
+            tag = entry.get("vendored_r_tag") or "?"
+            parts = [ui.tags.div(t(
+                "kb.provenance_differs",
+                "This project was saved with different reference data "
+                "({file}, R {tag}); suggestions and report context may differ.",
+                file=name, tag=tag))]
+            if outcome == "unavailable":
+                parts.append(ui.tags.div(
+                    t("kb.provenance_unavailable",
+                      "The original reference data is not available on this server."),
+                    class_="kb-provenance-unavailable"))
+            # Sticky; a stale toast from an earlier load is left as is.
+            ui.notification_show(
+                ui.tags.div(*parts),
+                type="warning",
+                duration=None,
+                id=_PROVENANCE_TOAST + name,
+            )
+
     def _newer_build_details(info: dict) -> str:
         parts = []
         if "schema" in info:
@@ -315,7 +406,7 @@ def quick_actions_server(
             )
         # Emit before yield so the generator's continuation isn't required.
         event_bus.emit_project_saved()
-        yield project_to_bytes(proj)
+        yield project_to_bytes(proj, reference_data=_reference_data(proj.metadata))
 
     # ---- RECOVERY ACTION (from the toast button) -----------------------
     @reactive.effect
@@ -379,6 +470,10 @@ def quick_actions_server(
     @reactive.effect
     @reactive.event(input.new_project, ignore_init=True)
     def _on_new():
+        # New emits no load event, so it resets the reads itself (before
+        # isa_change triggers the autosave).
+        if reference_reads is not None:
+            reference_reads.set(frozenset())
         project_data.set(ds.Project.from_isa(ds.load_sample(sample_path)))
         event_bus.emit_isa_change()
         event_bus.emit_cld_update()

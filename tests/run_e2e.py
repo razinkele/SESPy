@@ -58,6 +58,10 @@ def _child_env(extra: dict[str, str]) -> dict[str, str]:
     env.update(extra)
     env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
     env["SESPY_FEEDBACK_DB"] = str(E2E_FEEDBACK_DB)
+    # K1: never let a stray local server_settings.env (or an inherited
+    # variable) feed live R reference data into the gate. `off`, not "":
+    # Windows tooling can drop empty variables.
+    env["SESPY_R_DATA_DIR"] = "off"
     env["SHINY_TESTMODE"] = "1"   # 1.7.0: serve /session/{id}/dataobj/shinytest
     # _child_env is used for both the app server and the Playwright client
     # scripts, so SHINY_TESTMODE also reaches those client processes; it is

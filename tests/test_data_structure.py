@@ -14,8 +14,8 @@ from sespy.data_structure import (
 )
 
 
-def test_schema_version_is_8():
-    assert PROJECT_SCHEMA_VERSION == 8
+def test_schema_version_is_9():
+    assert PROJECT_SCHEMA_VERSION == 9
 
 
 def test_metadata_has_pims_fields_with_empty_defaults():
