@@ -10,6 +10,11 @@ the builder check and four review rounds:
 
 Branch `docs/k1-design`, from `main` 999ed6e.
 
+**Errata applied 2026-11-14.** The corrections found while executing K1
+(recorded in `docs/parity/R_SYNC.md`, "K1 spec errata", on the K1 branch)
+are applied in place below, each marked *(erratum)*. The main one: the R pin
+moved to **v1.35.6 @ `d1a655a`** (user decision 2026-11-13).
+
 **K1 is split** (decision 4). This document specifies K1 (v1.16.0). §8
 records the scope and the decisions already taken for **K1b**
 (connection-scorer parity), which gets its own spec and plan later.
@@ -21,8 +26,10 @@ sub-project". Every §3 rule binds this sub-project. Deviations are listed in
 
 **Release:** SESPy **v1.16.0**, project schema **9**.
 
-**R pin:** **v1.34.2 @ `edb42fd`**, which is what laguna runs (checked
-2026-11-09 in `/srv/shiny-server/marinesabres/VERSION_INFO.json`).
+**R pin:** **v1.35.6 @ `d1a655a`**, which is what laguna runs *(erratum:
+was v1.34.2 @ `edb42fd`, checked 2026-11-09 in
+`/srv/shiny-server/marinesabres/VERSION_INFO.json`; the user moved the pin
+to v1.35.6 on 2026-11-13, when laguna ran 1.35.6)*.
 
 **Evidence already gathered:** the round-1 dry run built a Python port of
 R's lookup and suggestion code and compared it with R run headless.
@@ -31,7 +38,8 @@ R's lookup and suggestion code and compared it with R run headless.
 - **Suggestions:** `get_context_suggestions(return_sources = TRUE)` was run
   over **4,830 cells**: 69 choices × 7 categories × 5 issue sets × 2 country
   sets. Items, order and sources all matched, with 0 mismatches, across 284
-  relevance ties.
+  relevance ties. *(Erratum: this round-1 evidence is at v1.34.2. At the
+  v1.35.6 pin R ignores `main_issue`, and the grid is 3,864 cells; §7.)*
 - **Prototypes:** `kbport.py`, `r_capture.R`, `compare.py`, `r_report.R`
   and related scripts are kept in the main checkout under the gitignored
   `.superpowers/k1-prototypes/`. The plan may build on them.
@@ -132,7 +140,7 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
 - **R's KB "regional recommendation" lines are deferred to P14** (Report
   prep). Details in §4.7.
 
-### 1.2 Facts this design rests on (verified at v1.34.2)
+### 1.2 Facts this design rests on (verified at v1.34.2; pin now v1.35.6, erratum)
 
 **`data/ses_knowledge_db.json`**
 - Top-level keys: `version` "1.0", `description`, `last_updated`,
@@ -143,7 +151,9 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
 - One element (mediterranean_island, pressures) has no `relevance` but has
   a `description`; R defaults its relevance to 0.5. Another element carries a
   `flag`.
-- Totals: 1,260 elements and 1,185 connections. A connection has `from`,
+- Totals: 1,260 elements and 1,183 connections *(erratum: 1,183 at
+  v1.35.6, where R's category rulings removed two; it was 1,185 at
+  v1.34.2)*. A connection has `from`,
   `from_type`, `to`, `to_type`, `polarity`, `strength`, `confidence` (2–5),
   `rationale`, `references[]`, `temporal_lag` and `reversibility`.
 - `generic_fallback` has the 7 lists but no connections.
@@ -227,8 +237,9 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
   and checked on load. This is the schema bump to 9 (§4.6).
 - **G7 Live check:** `tests/parity/check_live.py` as a `deploy.sh`
   pre-flight. It blocks on broken files and warns on drift (§4.8).
-- **G8 Re-pin** all pins to v1.34.2. Triage every changed R path between
-  v1.33.0 and v1.34.2, one row per path in `R_SYNC.md` as P1b did (§4.9).
+- **G8 Re-pin** all pins to v1.35.6. Triage every changed R path between
+  v1.33.0 and v1.35.6, one row per path in `R_SYNC.md` as P1b did (§4.9).
+  *(Erratum: was v1.34.2.)*
 - **G9 Safe deploy:** an atomic `sespy/` swap, a MosaicSES restart, and a
   stated MosaicSES compatibility contract (§4.10).
 
@@ -315,7 +326,8 @@ the shared reference-data layer that P4, P5, P6, P8 and K1b reuse:
 - `min_counts`, a dict whose keys are dotted paths into the parsed JSON and
   whose values are minimum `len()`, e.g. `{"contexts": 33,
   "cross_ecosystem_links": 0}` and `{"countries": 105,
-  "regional_conventions": 15, "countries_by_sea": 11}` (the v1.34.2 counts);
+  "regional_conventions": 15, "countries_by_sea": 11}` (the v1.35.6 counts,
+  unchanged from v1.34.2);
 - `version_key`;
 - `override: bool`.
 
@@ -443,7 +455,9 @@ takes the snapshot data as an argument; none reads a global. It covers:
   and `get_context_connections` (`ses_knowledge_db_loader.R:94-307`);
 - `deduplicate_suggestions` (`ai_isa_knowledge_base.R:233-283`);
 - the hardcoded universal, regional, issue and ecosystem lists, verbatim
-  (:325-525);
+  (:325-525). *(Erratum: at v1.35.6 the suggestion lists and
+  `deduplicate_suggestions(..., protected=)` are ported straight from R's
+  v1.35.6 source; the round-1 `kbport.py` is reused for the lookup only.)*;
 - `get_habitat_specific_suggestions` (:642 onward), used only when the KB
   returns nothing. That cannot happen with the pinned data, but it can with
   an override, so it gets direct fixtures (§7);
@@ -459,13 +473,23 @@ trap for a naive port):
 - **Habitat-key cascade.** The `if … else if` chain is kept in order.
   Regexes are translated one by one, including `sch.ren|sk.rg.rd` and the
   PCRE lookahead in `coast(?!al lagoon)`.
+- **Legacy `macaronesia` slug** *(erratum)*. SP1's `macaronesia` slug
+  resolves like R, so it is not an "unknown slug": with "Open coast" it
+  resolves **exact** to `macaronesia_open_coast`; only habitats with no
+  macaronesia context (e.g. "Coral reef") fall back `sea_only` to
+  `macaronesia_island`. The wizard's own sea list has no macaronesia entry,
+  so the three `macaronesia_*` contexts stay unreachable from its 69
+  choices.
 - **Context iteration** uses JSON file order and is never sorted.
 - **Relevance.** Missing relevance becomes 0.5. Empty names are dropped.
 - **Sort.** Descending and stable, like R's radix `order(decreasing=TRUE)`.
 - **`main_issue` matching.** It is a list. Each branch tests "any issue
   matches", in R's branch order. For example, with
   `["Eutrophication", "Overfishing"]` activities take the fishing branch
-  and pressures take the eutrophication branch.
+  and pressures take the eutrophication branch. *(Erratum: R ignores
+  `main_issue` from v1.35.0, so at the v1.35.6 pin the issue branching is
+  gone and this issue-matching trap is unreachable. The `issue` source enum
+  is kept.)*
 - **Combining sources.** R's `unique()` is exact and case-sensitive. It
   runs on the concatenation in R's order: KB, universal, regional,
   ecosystem, habitat, issue, governance, socioeconomic. Then
@@ -517,8 +541,12 @@ trap for a naive port):
 - `WizardState.countries` holds codes.
 - A new `WizardState.country_names` holds the names, resolved from the
   session snapshot when the state is assembled.
-- `claude_backend.py:313` uses `country_names`. The SP4 prompt content
-  stays the same as today for the same picks.
+- `claude_backend.py:313` uses `country_names`. *(Erratum: the SP4
+  prompt content does **not** stay the same for every pick. Arctic DK is
+  now "Denmark" (was "Denmark (Greenland)"), so the prompt text changes for
+  that pick; the Caribbean "France (overseas)" and "Netherlands (overseas)"
+  entries no longer exist (FR and NL are not in R's Caribbean list; GP, MF
+  and MQ are), so those picks cannot be repeated.)*
 - The code-to-name helper takes the snapshot as an argument.
 - `regional_seas.json` loses `countries`, `country_codes` and
   `eu_member_codes`. `get_eu_member_codes()` is deleted with its tests;
@@ -560,7 +588,8 @@ carry a generation: `entry_{gen}_{target}_{i}`.
 - **Stable test hook.** Each current-generation row input carries
   `data-row="{target}_{i}"` (it is unique, since only the current
   generation is in the DOM). e2e selectors use
-  `#wizard-freeform_{target}_container [data-row="{target}_{i}"]`, never
+  `#wizard-freeform_{target}_container [data-row="{target}_{i}"]` (the
+  container's DOM id is built with `resolve_id`; erratum), never
   `[id$=…]`. The existing `#wizard-entry_{target}_{i}` selectors in
   `test_wizard_e2e.py` (:86, :120, :360-361, :378, :381, :413) are
   rewritten to it.
@@ -654,9 +683,12 @@ from it.
 5. **Deselecting** sets `pending[k] = ""` for **every** effective row equal
    to the text, and calls `update_text("")` where the input exists. Nothing
    shifts. This mirrors R's `Filter` removing all matches (module :2050).
-6. **Caption.** " (Tailored for <translated sea name> - <ecosystem>)", with
-   R's parentheses, key and " - " separator, shown when a sea is set
-   (:1574-1582).
+6. **Caption.** " (tailored for <sea name> - <ecosystem>)", with R's
+   parentheses, key and " - " separator, shown when a sea is set
+   (:1574-1582). *(Erratum: the text is R's `tailored_for` in the key's own
+   casing ("tailored for"), then the sea name, then " - <ecosystem>" only
+   when an ecosystem is set. The sea name is English
+   (`REGIONAL_SEAS[slug]["name"]`); SESPy has no per-sea translations.)*
 7. **No max-elements limit.** SESPy has no user-level setting. Known
    difference, recorded in the CHANGELOG.
 
@@ -848,7 +880,9 @@ only h1–h3, so h4 and h5 styles are added. Word uses Heading 2–5.
 - The section is rendered when `regional_sea` and `ecosystem_type` are
   **non-empty** (SESPy defaults them to `""`; R tests `!is.null`) and the
   toggle is on.
-- The toggle is a checkbox on Export Report (`report_export-include_regional_context`),
+- The toggle is a checkbox on Export Report (DOM id
+  `report-include_regional_context`; erratum, was written
+  `report_export-include_regional_context`),
   labelled with R's `modules.report_context.include_context`. It defaults
   to **on** unconditionally, as R's checkbox does
   (`prepare_report_module.R:65-67`). The non-empty gate above decides
@@ -881,8 +915,10 @@ itself. Blocking on drift would gate hotfixes and rollbacks after every R
 redeploy.
 
 **Fetching is done by `deploy.sh`**, with its own `ssh`/`scp` and the
-`$SERVER` it is deploying to, so it honours the env override at :27-30 and
-uses the same ssh agent.
+`$SERVER` it is deploying to, and uses the same ssh agent. *(Erratum: it
+does **not** honour an environment `DEPLOY_SERVER` / `DEPLOY_DIR` when
+`deploy/config.env` exists: `config.env` is sourced after the environment,
+so its values win.)*
 1. Read the server's `$APP_DIR/server_settings.env` to get
    `SESPY_R_DATA_DIR`.
    - **If the file is absent** (the first K1 deploy), use the default path
@@ -925,7 +961,12 @@ uses the same ssh agent.
    exits 0. When deploying a tag older than K1,
    `check_live.py` is absent from the checkout, and `deploy.sh` (from the
    current working tree) skips the check with a message. No server-version
-   detection is attempted.
+   detection is attempted. *(Erratum: a rollback runs the **current**
+   `deploy.sh` with `DEPLOY_REPO_ROOT` (absolute) pointing at a worktree of
+   the old tag (`git worktree add <abs-dir> v1.15.1`, then
+   `DEPLOY_REPO_ROOT=<abs-dir> deploy/deploy.sh --rollback`), because the
+   old tag's script has no atomic swap. The rollback target is v1.15.1, the
+   release live before K1, not v1.15.0.)*
 
 `accepted_live` is not needed and is not added. `r_sync.json` keeps only
 `accepted_warnings`.
@@ -947,15 +988,16 @@ pins everything. Three kinds of input:
      **through `TRANSLATION_SUBSETS`** rather than as separate `INPUTS`
      rows: `INPUTS` already includes every subset stem, and the vendored
      file is named after the R stem (`r_template_catalogue.py:51-71`).
-     - The keys, all present at v1.34.2:
+     - The keys, all present at v1.34.2 and at the v1.35.6 pin:
        - in `translations/modules/isa_data_entry.json`,
          `modules.isa.ai_assistant.` + `from_knowledge_database`,
          `governance_suggestion_tooltip`,
          `socioeconomic_suggestion_tooltip`, `tailored_for`,
          `eu_member_states`, `non_eu_countries` and `skip_this_question`.
          `eu_member_state` (R's per-country badge tooltip) is not used,
-         because optgroups replace the badge; the prefix rule pulls it in
-         harmlessly;
+         because optgroups replace the badge. *(Erratum: the prefix rule
+         does **not** pull it in; the vendored `isa_data_entry.json` subset
+         holds exactly the seven keys listed.)*;
        - in `translations/modules/report_context.json`,
          `modules.report_context.include_context`.
      - Prefix matching (`r_template_catalogue.py:226-235`) also selects
@@ -975,9 +1017,10 @@ pins everything. Three kinds of input:
    - These are pins of a **new class**: vendored runtime outputs. P1b
      pinned only fixtures. It is consistent with umbrella §3's "vendored
      files".
-   - In `--from-fixtures` mode the `data/` prefix rule (:327) reads them
-     from the already-vendored copies. `--check` compares rebuilt outputs
-     with disk, as for templates.
+   - *(Erratum: the `data/` prefix rule (:327) does **not** cover
+     `RUNTIME_INPUTS` in `--from-fixtures` mode; this bullet said it read
+     them from the already-vendored copies.)* `--check` compares rebuilt
+     outputs with disk, as for templates.
 3. **`LOCAL_PINS`** (new): paths hashed from disk, never fetched or
    written. These are the five K1 fixtures under
    `tests/parity/r_fixtures/k1/` (§7).
@@ -1002,8 +1045,13 @@ pins everything. Three kinds of input:
   `sorted(pin["files"]) == sorted(INPUTS.values())` becomes "all three
   kinds".
 
-**Triage.** `git diff --stat v1.33.0 v1.34.2` lists 44 paths, and each gets
-a row in `R_SYNC.md` (P1b format). Rows that matter to K1:
+**Triage.** *(Erratum: the triage is one "v1.33.0 → v1.35.6" table of
+**103** paths in `R_SYNC.md`, not the 44-path v1.33.0 → v1.34.2 list
+below; the rows named below are among them, and the v1.35.x rows that
+matter to K1 are `data/ses_knowledge_db.json` and
+`modules/ai_isa_knowledge_base.R`.)* `git diff --stat v1.33.0 v1.34.2`
+lists 44 paths, and each gets a row in `R_SYNC.md` (P1b format). Rows that
+matter to K1:
 - `modules/ai_isa_assistant_module.R`: a source-badge tooltip fix, which
   affects the K1 badge tooltips;
 - `translations/modules/isa_data_entry.json`;
@@ -1012,7 +1060,7 @@ a row in `R_SYNC.md` (P1b format). Rows that matter to K1:
   P4/PIMS. It is P1b's pinned fixture, so its hash moves and P1b's parity
   tests must stay green.
 
-All 18 existing pins move to v1.34.2.
+All 18 existing pins move to v1.35.6 *(erratum: was v1.34.2)*.
 
 ### 4.10 Deploy atomicity, MosaicSES contract, rollback
 **Atomic SESPy deploy.** `deploy.sh:80-84` does `rm -rf sespy` and then a
@@ -1036,7 +1084,9 @@ The `logs/` stash-and-restore moves into the same sequence.
   task) runs MosaicSES's
   `micromamba run -n shiny python deploy/verify_live.py --expect-version <v>`
   from the MosaicSES checkout. `<v>` is the version in the deployed
-  MosaicSES's `multises_app/__init__.py`, read over ssh.
+  MosaicSES's `multises/__init__.py` (`__version__`, the file
+  `deploy/verify_live.py` reads), read over ssh. *(Erratum: was
+  `multises_app/__init__.py`, which has no version.)*
 - `deploy.sh` itself only touches `restart.txt`.
 - This is a change to **SESPy's** deploy script only. MosaicSES's own
   deploy script is unchanged (§3).
@@ -1131,7 +1181,8 @@ Rscript at the pinned tag.
 - It first checks that the R working tree is clean and that
   `git describe --tags` equals the target tag. The R app is the
   `MarineSABRES_SES_Shiny/` subdirectory of the `SESToolbox` repository;
-  the tag is an annotated tag object (`v1.34.2^{commit}` = `edb42fd`).
+  the tag is an annotated tag object (`v1.35.6^{commit}` = `d1a655a`;
+  erratum, was `v1.34.2^{commit}` = `edb42fd`).
 
 **Suggestion grid:** every SESPy sea × that sea's ecosystem types × 7
 categories, crossed with:
@@ -1146,6 +1197,11 @@ categories, crossed with:
 
 SESPy must match the full ordered list and the source map, beyond the first
 12. This supersedes the roadmap's narrower "3 contexts" criterion.
+
+*(Erratum, §4.2 cell counts: R ignores `main_issue` from v1.35.0, so the
+issue branching is gone. At the v1.35.6 pin the grid is 69 choices × 7
+categories × 2 issue sets × 4 country sets = **3,864 cells**, all matching
+R.)*
 
 **Further fixtures:**
 - **Lookup table:** `find_context` key and match kind for all 69 choices,
@@ -1207,7 +1263,8 @@ selectors.
 4. Type a chip's text by hand and see it selected.
 5. Go Back to step 2 and Next again: the country order is unchanged.
 6. Finish, then export a report and check that Regional Context is present.
-7. About's `#about-reference-data` shows source "vendored" and "R v1.34.2".
+7. About's `#about-reference-data` shows source "vendored" and "R v1.35.6"
+   (erratum: was "R v1.34.2").
    The runner sets `SESPY_R_DATA_DIR=off`.
 
 `test_wizard_e2e.py` is updated for country codes and optional steps 2–3.
@@ -1222,13 +1279,14 @@ selectors.
 - all gates are green;
 - the pins are re-pinned and triaged (§4.9);
 - `deploy.sh` runs the pre-flight;
-- the CHANGELOG names K1, R v1.34.2 and the known differences;
+- the CHANGELOG names K1, R v1.35.6 and the known differences (erratum:
+  was R v1.34.2);
 - the MANUAL has a K1 section and the version line;
 - screenshots are regenerated with `tests/make_docs_screenshots.py`;
 - after deploy:
   - the worker's `python -s` reports 1.16.0;
   - a fresh live session's About shows `source=shared` labelled
-    "R v1.34.2", with live R 1.34.2;
+    "R v1.35.6", with live R 1.35.6 (erratum: was 1.34.2);
   - MosaicSES has been restarted and its `verify_live.py` passes;
 - the release notes state the one-way schema-9 rollback policy (§4.10).
 
@@ -1278,7 +1336,8 @@ No MosaicSES code uses `suggest_connections` or `ConnectionSuggestion`.
 
 ## 9. Follow-ups this sub-project owns
 **Umbrella edits** (branch `docs/r-parity-roadmap`, committed with K1):
-- **Header and §3 Sync tracking:** the baseline becomes v1.34.2 @ `edb42fd`.
+- **Header and §3 Sync tracking:** the baseline becomes v1.35.6 @ `d1a655a`
+  (erratum: was v1.34.2 @ `edb42fd`).
 - **§3 release line:** add "K1 = v1.16.0 (schema 9); K1b = v1.17.0".
 - **K1 section:**
   - the R-source line drops `data/ses_connection_knowledge_base.R` (→ K1b)
@@ -1287,7 +1346,8 @@ No MosaicSES code uses `suggest_connections` or `ConnectionSuggestion`.
   - restate "Done when" as the §7 criteria: the full suggestion grid, the
     lookup, countries and report fixtures, and a pre-flight that blocks
     broken files and warns on drift;
-  - pin v1.34.2, with counts 105 countries, 15 conventions and 11 seas;
+  - pin v1.35.6 (erratum: was v1.34.2), with counts 105 countries,
+    15 conventions and 11 seas;
   - note that `cross_ecosystem_links` are unused;
   - drop the stale "if K1 is the first schema bump, M is its prerequisite"
     sentence, since P1b made the first bump.
@@ -1331,7 +1391,9 @@ No MosaicSES code uses `suggest_connections` or `ConnectionSuggestion`.
   run-by-hand mode after an R deploy (§4.8).
 - **P14:** add "K1's KB regional recommendation lines
   (`report_generation.R:476-509`), behind the Recommendations option". Add a
-  note to row 18 of R_SYNC.md's v1.31 → v1.33 triage table (`R_SYNC.md:227`).
+  note to the `functions/report_generation.R` row (row 18) of R_SYNC.md's
+  v1.31 → v1.33 triage table, found by content (erratum: the line number
+  `R_SYNC.md:227` given here was stale).
 
 **Other corrections:**
 - **P1a spec and CHANGELOG:** correct the extension-pair description
