@@ -19,6 +19,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from playwright.async_api import async_playwright
 
 
+def _row(target: str, i: int) -> str:
+    """Selector of a freeform row input (K1). Row ids carry a per-visit
+    generation (`entry_{gen}_{target}_{i}`), so tests address rows through
+    the stable `data-row` hook inside the step's namespaced container."""
+    return f'#wizard-freeform_{target}_container [data-row="{target}_{i}"]'
+
+
+async def _fill_row(page, target: str, i: int, text: str) -> None:
+    """Fill a row and blur it: the blur fires `change`, which Shiny's text
+    binding sends at once (typing alone is debounced), so the server has
+    the value before the next click."""
+    sel = _row(target, i)
+    await page.fill(sel, text)
+    await page.press(sel, "Tab")
+
+
 async def _open_wizard(page):
     await page.wait_for_selector("#sespy_nav_wizard", timeout=60000)
     await page.click("#sespy_nav_wizard")
@@ -76,14 +92,14 @@ async def _drive_to_step_11(page):
             )
         elif step in (2, 3):
             target = "countries" if step == 2 else "main_issue"
-            value_js = "['Lithuania']" if step == 2 else "['Eutrophication']"
+            value_js = "['LT']" if step == 2 else "['Eutrophication']"
             await page.evaluate(
                 f"() => Shiny.setInputValue('wizard-answer_{target}', {value_js},"
                 " {priority: 'event'})"
             )
         else:
             target = ["drivers", "activities", "pressures", "states", "impacts", "welfare", "responses"][step - 4]
-            await page.fill(f"#wizard-entry_{target}_0", f"E2E {target} sample")
+            await _fill_row(page, target, 0, f"E2E {target} sample")
         await page.wait_for_timeout(300)
         await page.click("#wizard-wizard_next")
         await page.wait_for_timeout(500)
@@ -110,14 +126,14 @@ async def case_full_run(page):
             )
         elif step in (2, 3):
             target = "countries" if step == 2 else "main_issue"
-            value_js = "['Lithuania']" if step == 2 else "['Eutrophication']"
+            value_js = "['LT']" if step == 2 else "['Eutrophication']"
             await page.evaluate(
                 f"() => Shiny.setInputValue('wizard-answer_{target}', {value_js},"
                 " {priority: 'event'})"
             )
         else:
             target = ["drivers","activities","pressures","states","impacts","welfare","responses"][step-4]
-            await page.fill(f"#wizard-entry_{target}_0", f"E2E {target} sample")
+            await _fill_row(page, target, 0, f"E2E {target} sample")
         await page.wait_for_timeout(300)
         await page.click("#wizard-wizard_next")
         await page.wait_for_timeout(500)
@@ -326,7 +342,7 @@ async def case_mid_nav_resume(page):
             )
         elif step == 2:
             await page.evaluate(
-                "() => Shiny.setInputValue('wizard-answer_countries', ['Lithuania'], {priority: 'event'})"
+                "() => Shiny.setInputValue('wizard-answer_countries', ['LT'], {priority: 'event'})"
             )
         await page.wait_for_timeout(300)
         await page.click("#wizard-wizard_next")
@@ -365,9 +381,11 @@ async def case_back_preserves(page):
     # 1 entry can't distinguish "row[0] preserved" from "everything reset
     # because n_rows=1 by default".
     await page.click("#wizard-add_drivers")
-    await page.wait_for_timeout(500)
-    await page.fill("#wizard-entry_drivers_0", "Tourism demand")
-    await page.fill("#wizard-entry_drivers_1", "Fishing pressure")
+    # Add re-renders the rows; filling before the second row exists could
+    # land row 0's text in an element the re-render then replaces.
+    await page.wait_for_selector(_row("drivers", 1), timeout=30000)
+    await _fill_row(page, "drivers", 0, "Tourism demand")
+    await _fill_row(page, "drivers", 1, "Fishing pressure")
     await page.wait_for_timeout(300)
     await page.click("#wizard-wizard_next")
     await page.wait_for_timeout(500)
@@ -384,10 +402,10 @@ async def case_back_preserves(page):
     )
     # Both rows must pre-populate from saved answers.
     val0 = await page.evaluate(
-        "() => document.getElementById('wizard-entry_drivers_0')?.value"
+        "(sel) => document.querySelector(sel)?.value", _row("drivers", 0)
     )
     val1 = await page.evaluate(
-        "() => document.getElementById('wizard-entry_drivers_1')?.value"
+        "(sel) => document.querySelector(sel)?.value", _row("drivers", 1)
     )
     assert val0 == "Tourism demand", f"row 0 lost: {val0!r}"
     assert val1 == "Fishing pressure", f"row 1 lost: {val1!r}"
@@ -410,7 +428,7 @@ async def case_validation_failure(page):
             )
         elif step in (2, 3):
             target = "countries" if step == 2 else "main_issue"
-            value_js = "['Lithuania']" if step == 2 else "['Eutrophication']"
+            value_js = "['LT']" if step == 2 else "['Eutrophication']"
             await page.evaluate(
                 f"() => Shiny.setInputValue('wizard-answer_{target}', {value_js},"
                 " {priority: 'event'})"
@@ -419,7 +437,7 @@ async def case_validation_failure(page):
         await page.click("#wizard-wizard_next")
         await page.wait_for_timeout(500)
     # On step 4 with empty driver — click Next.
-    await page.fill("#wizard-entry_drivers_0", "   ")  # whitespace-only
+    await _fill_row(page, "drivers", 0, "   ")  # whitespace-only
     await page.click("#wizard-wizard_next")
     # Match the validation toast's OWN text. Counting .shiny-notification is
     # vacuous: test_autosave_e2e sorts first and leaves an autosave file, so
