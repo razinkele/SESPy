@@ -33,7 +33,9 @@ def test_boolean_module_clamps_max_nodes_to_ui_range(monkeypatch, ui_value, want
         analysis_boolean_server("boolean", project_data=reactive.value(project),
                                 event_bus=create_event_bus())
 
-    with test_server(server) as ts:
+    # A cold lazy matplotlib/pandas import on the first flush can exceed the
+    # 5 s default on a loaded machine (fails the same on pre-K1 main).
+    with test_server(server, timeout_secs=90) as ts:
         scope = ts.make_scope("boolean")
         # Action buttons ignore their initial value: set 0, then 1.
         scope.set_inputs(direction="cols", max_nodes=ui_value, run_boolean=0)

@@ -161,6 +161,62 @@ def test_settings_file_reread_each_refresh(env):
     assert r_kb.current().files[KB].source == "shared"
 
 
+# ---- a bad settings file never stops a session (final review F1) -------------
+# app.py calls r_kb.refresh() then r_kb.current() at every session start.
+
+def _shared_via_settings(env) -> Path:
+    env.write_both()
+    env.mp.delenv(r_kb.ENV_VAR)                  # the env var would win over the file
+    settings = env.app / r_kb.SETTINGS_FILE
+    settings.write_text(f"SESPY_R_DATA_DIR={env.data}\n", encoding="utf-8")
+    r_kb.refresh()
+    assert r_kb.current().files[KB].source == "shared"
+    return settings
+
+
+def test_non_utf8_settings_does_not_raise(env):
+    settings = _shared_via_settings(env)
+    comment = "# Šiauliai: R data\n".encode("cp1257")
+    settings.write_bytes(comment + f"SESPY_R_DATA_DIR={env.data}\n".encode())
+    r_kb.refresh()                               # the ASCII key line still counts
+    assert r_kb.current().files[KB].source == "shared"
+    settings.write_bytes(comment + b"SESPY_R_DATA_DIR=off\n")
+    r_kb.refresh()                               # off, not "absent" = the default dir
+    assert r_kb.current().files[KB].source == "vendored"
+    settings.write_bytes(b"\xef\xbb\xbf" + comment + b"SESPY_R_DATA_DIR=off\r\n")
+    r_kb.refresh()                               # BOM + bad byte + CRLF
+    assert r_kb.current().files[KB].source == "vendored"
+
+
+def test_nul_in_settings_value_does_not_raise(env, caplog):
+    settings = _shared_via_settings(env)
+    settings.write_bytes(f"SESPY_R_DATA_DIR={env.data}\x00x\n".encode())
+    caplog.set_level(logging.WARNING, logger="sespy.r_kb")
+    r_kb.refresh()
+    snap = r_kb.current()
+    assert all(e.source == "vendored" for e in snap.files.values())
+    assert any("override directory unavailable: ValueError" in m for m in transitions(caplog))
+
+
+def test_refresh_failure_falls_back_to_vendored(env, monkeypatch, caplog):
+    _shared_via_settings(env)
+
+    def boom(*_a, **_kw):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(r_kb, "override_dir_from", boom)
+    caplog.set_level(logging.WARNING, logger="sespy.r_kb")
+    r_kb.refresh()                               # must not raise
+    snap = r_kb.current()
+    assert all(e.source == "vendored" for e in snap.files.values())
+    assert snap.live_r_version is None
+    assert any("r_kb.refresh failed (RuntimeError" in r.getMessage() for r in caplog.records)
+    caplog.clear()
+    r_kb.refresh()                               # already vendored: still logged
+    assert r_kb.current().files[KB].source == "vendored"
+    assert any("r_kb.refresh failed" in r.getMessage() for r in caplog.records)
+
+
 def test_corrupt_keeps_last_good_then_retries(env, caplog):
     env.write_both()
     r_kb.refresh()

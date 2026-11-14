@@ -548,6 +548,74 @@ def test_back_deselect_add_stays_blank(updates):
         assert wiz.export("answers")["drivers"] == [T(0), T(2)]
 
 
+# ---- clicks that arrive before the client has bound the row (final review F2) ---------
+
+def _double_click_on_added_row(wiz) -> None:
+    """Rows all filled; click 1 adds row 1 holding the chip text; click 2 of
+    the same chip arrives before the client has bound row 1 (one round trip)."""
+    wiz.to_drivers()
+    wiz.type(0, "typed A")
+    wiz.chip(0)                                         # click 1: new row 1
+    wiz.chip(0)                                         # click 2: row 1 not bound yet
+    assert wiz.pending() == {"drivers": {"1": T(0)}}    # one click, not select+deselect
+    assert wiz.rows() == ["typed A", T(0)]
+
+
+def test_double_click_before_row_binds_saves_visible_text(updates):
+    with _wizard() as wiz:
+        _double_click_on_added_row(wiz)
+        assert updates == []                            # row 1 has no input to update
+        wiz.type(1, T(0))                               # the client binds row 1 as shown
+        assert wiz.pending() == {"drivers": {}}
+        assert wiz.on() == [T(0)]
+        wiz.click("wizard_next")
+        assert wiz.export("answers")["drivers"] == ["typed A", T(0)]
+
+
+def test_double_click_before_row_binds_then_typing_is_honoured():
+    with _wizard() as wiz:
+        _double_click_on_added_row(wiz)
+        wiz.type(1, T(0))                               # bind
+        wiz.type(1, "Edited")                           # later typing in that row
+        assert wiz.on() == []
+        wiz.click("wizard_next")
+        assert wiz.export("answers")["drivers"] == ["typed A", "Edited"]
+
+
+def test_deselect_before_saved_row_binds_is_ignored(updates):
+    # Back into a step: the rows render from the saved answers, unbound. A
+    # deselect then could not reach the client, so it is ignored, not masked.
+    with _wizard() as wiz:
+        wiz.to_drivers()
+        wiz.type(0, T(0))
+        wiz.click("wizard_next")
+        wiz.click("wizard_back")
+        assert wiz.rows() == [T(0)]
+        wiz.chip(0)                                         # before the client binds row 0
+        assert wiz.pending() == {}
+        assert updates == []
+        wiz.type(0, T(0))                                   # bind
+        wiz.chip(0)                                         # now it deselects
+        assert wiz.pending() == {"drivers": {"0": ""}}
+        assert updates == [(wiz.rid(0), "")]
+
+
+def test_fill_before_added_row_binds_is_ignored(updates):
+    # Add renders an empty row; a chip before the client binds it would set
+    # pending text the client never shows, so it is ignored.
+    with _wizard() as wiz:
+        wiz.to_drivers()
+        wiz.type(0, "typed A")
+        wiz.click("add_drivers")
+        wiz.chip(0)                                         # row 1 not bound yet
+        assert wiz.pending() == {}
+        assert updates == []
+        wiz.type(1, "")                                     # bind
+        wiz.chip(0)
+        assert wiz.pending() == {"drivers": {"1": T(0)}}
+        assert updates == [(wiz.rid(1), T(0))]
+
+
 def test_typing_after_server_fill_wins():
     with _wizard() as wiz:
         wiz.to_drivers()

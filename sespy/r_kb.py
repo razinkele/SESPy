@@ -286,6 +286,20 @@ class _Registry:
         return self._vendored.files[name].sha256_norm, self._last_shared.get(name)
 
     def refresh(self) -> None:
+        """Never raises: it runs at every session start (app.py), so any
+        unexpected failure logs a warning and falls back to the shipped copy."""
+        try:
+            self._refresh()
+        except Exception as exc:  # noqa: BLE001 - a session must always start
+            _log.warning("r_kb.refresh failed (%s: %s); using the shipped copy",
+                         type(exc).__name__, exc)
+            try:
+                self._fall_to_vendored(f"refresh failed: {type(exc).__name__}")
+            except Exception:  # noqa: BLE001
+                self._seen = None
+                self._snapshot = self._vendored
+
+    def _refresh(self) -> None:
         if self._app_dir is None:
             return
         directory_str = override_dir_from(os.environ, self._read_settings())
@@ -296,7 +310,7 @@ class _Registry:
         try:
             if not _stat.S_ISDIR(os.stat(directory).st_mode):
                 raise FileNotFoundError(str(directory))
-        except OSError as exc:
+        except (OSError, ValueError) as exc:  # ValueError: a NUL in the path
             self._fall_to_vendored(f"override directory unavailable: {type(exc).__name__}")
             return
 
@@ -355,8 +369,13 @@ class _Registry:
                 self._log(name, "shared", "shared", "override file changed", entry.sha256_norm)
 
     def _read_settings(self) -> str | None:
+        # errors="replace": deploy.sh parses the file as bytes, so a non-UTF-8
+        # byte elsewhere (e.g. a cp1257 comment) must not hide the ASCII
+        # SESPY_R_DATA_DIR= line; treating the file as absent would switch an
+        # `off` file to the default directory.
         try:
-            return (self._app_dir / SETTINGS_FILE).read_text(encoding="utf-8-sig")
+            return (self._app_dir / SETTINGS_FILE).read_text(encoding="utf-8-sig",
+                                                              errors="replace")
         except OSError:
             return None
 

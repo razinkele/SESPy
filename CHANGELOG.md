@@ -104,6 +104,8 @@ laguna runs. Project schema 9.
   - there is no "Other" button and no custom list: the free-text rows do
     that job;
   - there is no cap on the number of elements (R caps it by user level);
+    the optional Claude connection scoring still skips projects of more
+    than 200 elements and uses rule-based scoring, as before;
   - a suggestion lights up from typed text that has not been saved yet, and
     matching compares the text with surrounding spaces removed (case
     matters);

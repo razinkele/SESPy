@@ -214,6 +214,12 @@ class Remote:
             paths = shlex.split(cmd[3])[3:]
             cp.stdout = "".join(
                 f"stat {self.stat_mode if p.endswith('.json') else '755'} root shiny {p}\n" for p in paths)
+        # Like the real subprocess.run: bytes unless text=True, and text=True
+        # decodes with the locale codec (cp1252 on a Windows checkout).
+        for attr in ("stdout", "stderr"):
+            v = getattr(cp, attr)
+            b = v if isinstance(v, bytes) else v.encode("utf-8")
+            setattr(cp, attr, b.decode("cp1252") if kw.get("text") else b)
         return cp
 
 
@@ -295,6 +301,25 @@ def test_fetch_quotes_remote_paths(fetch_run):
     assert stat[0] == "ssh"
     assert shlex.quote(evil + "/ses_knowledge_db.json") in stat[3]
     assert evil + "/ses_knowledge_db.json" in shlex.split(stat[3])  # one literal argument
+
+
+def test_fetch_settings_bom_is_stripped_like_the_app(fetch_run):
+    # final review F3: decoded as utf-8-sig bytes, as Registry._read_settings does
+    go, live_src = fetch_run
+    remote = Remote(live_src, settings=b"\xef\xbb\xbfSESPY_R_DATA_DIR=off\n")
+    assert go(remote) == 0
+    assert all(c[0] == "ssh" for c in remote.calls)  # off: not the default path
+    remote = Remote(live_src, settings=b"\xef\xbb\xbfSESPY_R_DATA_DIR=/data/live\r\n")
+    assert go(remote) == 0
+    assert any(c[0] == "scp" and c[3].endswith(":/data/live/ses_knowledge_db.json")
+               for c in remote.calls)
+
+
+def test_fetch_settings_bytes_undefined_in_cp1252_do_not_crash(fetch_run):
+    go, live_src = fetch_run
+    remote = Remote(live_src, settings=b"# \x81\x8d\x8f\x90\x9d\nSESPY_R_DATA_DIR=off\n")
+    assert go(remote) == 0
+    assert all(c[0] == "ssh" for c in remote.calls)
 
 
 @pytest.mark.parametrize("value", ["relative/dir", "/a\x00b"])

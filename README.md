@@ -466,7 +466,7 @@ micromamba run -n shiny pytest tests/ -q \
   --ignore-glob='*e2e*' --ignore=tests/test_burger.py \
   --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py
 
-# Full Playwright e2e — one command boots the server, runs all 36 browser
+# Full Playwright e2e — one command boots the server, runs all 37 browser
 # scripts, and handles the wizard's ANTHROPIC_API_KEY two-pass:
 micromamba run -n shiny python tests/run_e2e.py
 ```

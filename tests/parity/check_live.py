@@ -217,10 +217,16 @@ def _read_config_env(path: Path) -> dict[str, str]:
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
+    """Run `cmd`; stdout and stderr come back as str. Never the locale codec:
+    stdout is decoded as utf-8-sig with replacement, as Registry._read_settings
+    reads the settings file (a BOM is dropped, a stray byte cannot crash)."""
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        cp = subprocess.run(cmd, capture_output=True, timeout=120)
     except (OSError, subprocess.SubprocessError) as exc:
         raise ConnectionFailed(f"{' '.join(cmd)}: {exc}") from exc
+    cp.stdout = (cp.stdout or b"").decode("utf-8-sig", errors="replace")
+    cp.stderr = (cp.stderr or b"").decode("utf-8", errors="replace")
+    return cp
 
 
 def _conn_fail(cmd: list[str], cp: subprocess.CompletedProcess) -> ConnectionFailed:

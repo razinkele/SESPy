@@ -897,19 +897,28 @@ def ai_isa_wizard_server(
             g = _gen_of(target)
             rows = effective_rows(target)
             hits = [k for k, (_e, v) in enumerate(rows) if v.strip() == text]
+            empty = None if hits else next(
+                (k for k, (_e, v) in enumerate(rows) if not v.strip()), None)
+            # A click that would write in place into a row the client has not
+            # bound yet is ignored: no update_text can reach it, and a pending
+            # value the client never shows would mask what it echoes and what
+            # the user types next. The usual case is a double click: click 2
+            # arrives before the row added by click 1 is bound, so it counts
+            # as the same click (final review F2). Adding a new row is not
+            # affected; its render carries the pending value.
+            in_place = hits or ([] if empty is None else [empty])
+            if any(not rows[k][0] for k in in_place):
+                return
             if hits:
                 # Rule 5: blank every matching row in place (R's Filter).
                 for k in hits:
                     _set_pending(target, k, "")
-                    if rows[k][0]:
-                        ui.update_text(_row_id(g, target, k), value="")
+                    ui.update_text(_row_id(g, target, k), value="")
                 return
             # Rule 4: the first empty row, else a new row.
-            empty = next((k for k, (_e, v) in enumerate(rows) if not v.strip()), None)
             if empty is not None:
                 _set_pending(target, empty, text)
-                if rows[empty][0]:
-                    ui.update_text(_row_id(g, target, empty), value=text)
+                ui.update_text(_row_id(g, target, empty), value=text)
             else:
                 n = len(rows)
                 _set_pending(target, n, text)

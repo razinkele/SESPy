@@ -752,7 +752,23 @@ PARSE_CASES = {
     "fs_gs_rs_split": "OTHER=1\x1cSESPY_R_DATA_DIR=/srv/fs\x1dX=1\x1eY=2\n",
     "bom_then_value":"\ufeffOTHER=1\nSESPY_R_DATA_DIR=/srv/data/x\n",
     "form_feed_split": "OTHER=1\fSESPY_R_DATA_DIR=/srv/data/ff\n",
+    # bytes: not valid UTF-8 (final review F1); the app decodes with errors="replace"
+    "non_utf8_comment": "# Šiauliai\n".encode("cp1257") + b"SESPY_R_DATA_DIR=/srv/data/x\n",
+    "non_utf8_before_newline_off": b"OTHER=caf\xe9\nSESPY_R_DATA_DIR=off\n",
+    "non_utf8_after_bom": b"\xef\xbb\xbf# \xff\xfe\r\nSESPY_R_DATA_DIR=/srv/data/x\r\n",
+    "non_utf8_after_value_line": b"SESPY_R_DATA_DIR=/srv/data/x\n# \x81\x8d\x8f\n",
+    # Known difference, not a case: bash `read` drops NUL bytes, so deploy.sh
+    # reads "/srv/da\0ta" as /srv/data, while the app keeps the NUL, cannot
+    # stat the path and uses the shipped copy (fails closed; test_r_kb_registry).
 }
+
+
+def _app_text(v: str | bytes | None) -> str | None:
+    """What Registry._read_settings hands the parser for file contents `v`."""
+    if v is None:
+        return None
+    raw = v if isinstance(v, bytes) else v.encode("utf-8")
+    return raw.decode("utf-8-sig", errors="replace")
 
 PARSE_SCRIPT = """
 source "$1"
@@ -777,8 +793,8 @@ def deploy_copy(tmp_path_factory) -> Path:
 def test_settings_parse_matches_python(deploy_copy, case):
     text = PARSE_CASES[case]
     data = deploy_copy / f"{case}.env"
-    if text is not None:
-        data.write_bytes(text.encode("utf-8"))  # bytes: no newline translation
+    if text is not None:  # bytes: no newline translation
+        data.write_bytes(text if isinstance(text, bytes) else text.encode("utf-8"))
     cp = subprocess.run(
         [BASH, _posix(deploy_copy / "parse.sh"), _posix(deploy_copy / "deploy.sh"),
          "absent" if text is None else "present", _posix(data)],
@@ -787,12 +803,12 @@ def test_settings_parse_matches_python(deploy_copy, case):
     assert out.endswith("|rc=0"), (out, cp.stderr)
     bash_value = out[: -len("|rc=0")]
     # the app reads the file as utf-8-sig (Registry._read_settings): a BOM is dropped
-    py = r_kb.override_dir_from({}, None if text is None else text.encode().decode("utf-8-sig"))
+    py = r_kb.override_dir_from({}, _app_text(text))
     assert bash_value == ("" if py is None else py), case
 
 
 def test_parse_cases_cover_both_outcomes():
-    results = {r_kb.override_dir_from({}, t) for t in PARSE_CASES.values()}
+    results = {r_kb.override_dir_from({}, _app_text(t)) for t in PARSE_CASES.values()}
     assert None in results and r_kb.DEFAULT_OVERRIDE_DIR in results
     assert "/srv/data/x" in results
 
