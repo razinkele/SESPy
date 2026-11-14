@@ -1,5 +1,13 @@
 # K1 Knowledge-Base Parity Implementation Plan
 
+> **Superseded pin (executed 2026-11-13/14).** This plan was written against
+> R v1.34.2 (`edb42fd`). It was executed against **R v1.35.6 (`d1a655a`)**, the
+> release laguna runs, and the rollback target became v1.15.1. Every
+> "v1.34.2"/"edb42fd" below means v1.35.6/`d1a655a`. Do not re-pin or
+> recapture fixtures from this plan. The current facts are in the design spec
+> (`docs/superpowers/specs/2026-11-09-k1-knowledge-base-parity-design.md`) and
+> the errata in `docs/parity/R_SYNC.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use

@@ -359,3 +359,14 @@ def test_not_collected_by_pytest(tmp_path):
         cwd=tmp_path, capture_output=True, text=True).stdout
     assert "test_check_live_cli.py::test_canary" in out
     assert "\ncheck_live.py::" not in "\n" + out
+
+
+@pytest.mark.parametrize("path, want", [
+    ("/srv/data/kb.json", ["/srv/data", "/srv", "/"]),
+    ("//srv/data/kb.json", ["//srv/data", "//srv", "//", "/"]),
+    ("/kb.json", ["/"]),
+])
+def test_ancestors_terminates_on_double_slash_root(path, want):
+    # PR #33 review: posixpath.dirname("//") == "//", so a SESPY_R_DATA_DIR of
+    # //srv/... looped forever in fetch()/check_perms(). Stop at a fixed point.
+    assert check_live._ancestors(path) == want

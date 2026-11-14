@@ -10,8 +10,9 @@
 # server's $APP_DIR/server_settings.env, fetches the live R data files it
 # points at into the stage and runs tests/parity/check_live.py on them. A
 # structural problem aborts the deploy before anything on the server changes.
-# The sespy/ package is swapped in atomically (sespy.incoming -> sespy), so a
-# worker never sees a half-copied package (K1 spec 4.10).
+# The sespy/ package is uploaded as sespy.incoming and swapped in with two
+# renames, so a worker never sees a half-copied package (K1 spec 4.10); between
+# the renames sespy/ is briefly absent, and a rerun recovers an interrupted swap.
 #
 # Prerequisites:
 #   * passwordless (key-based) SSH to $SERVER for the deploy user

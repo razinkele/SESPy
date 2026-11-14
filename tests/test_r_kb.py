@@ -49,6 +49,29 @@ def test_validate_rejects_missing_key_and_small_count():
     assert r_kb.validate(row, [], 1) is not None  # not an object
 
 
+def test_validate_rejects_wrong_container_type():
+    # PR #33 review: a list with enough entries passed the length check, then
+    # the wizard's countries.get(code) raised AttributeError on it.
+    gov_row = r_kb._row(r_kb.GOVERNANCE_NAME)
+    gov = json.loads(json.dumps(r_kb.VENDORED.governance()))
+    gov_major = r_kb.version_major(gov[gov_row.version_key])
+    assert r_kb.validate(gov_row, gov, gov_major) is None
+    as_list = dict(gov, countries=list(gov["countries"].values()))
+    assert len(as_list["countries"]) >= gov_row.min_counts["countries"]
+    reason = r_kb.validate(gov_row, as_list, gov_major)
+    assert reason is not None and "countries" in reason
+    kb_row = r_kb._row(r_kb.KB_NAME)
+    kb = json.loads(json.dumps(r_kb.VENDORED.kb()))
+    links_as_dict = dict(kb, cross_ecosystem_links={"a": 1})
+    reason = r_kb.validate(kb_row, links_as_dict, 1)
+    assert reason is not None and "cross_ecosystem_links" in reason
+
+
+def test_every_counted_path_declares_its_container():
+    for row in r_kb.ALLOW_LIST:
+        assert set(row.containers) == set(row.min_counts), row.name
+
+
 def test_provenance_has_no_data_key():
     p = r_kb.VENDORED.provenance("ses_knowledge_db.json")
     assert set(p) == {"source", "sha256_norm", "version", "vendored_r_tag"}

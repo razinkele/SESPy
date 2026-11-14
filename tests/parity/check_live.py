@@ -151,7 +151,10 @@ def _ancestors(path: str) -> list[str]:
     cur = posixpath.dirname(path.rstrip("/"))
     while cur and cur != "/":
         out.append(cur)
-        cur = posixpath.dirname(cur)
+        parent = posixpath.dirname(cur)
+        if parent == cur:   # "//" is its own dirname: stop at the fixed point
+            break
+        cur = parent
     out.append("/")
     return out
 

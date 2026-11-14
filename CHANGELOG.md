@@ -150,7 +150,7 @@ laguna runs. Project schema 9.
   3. Unset `DEPLOY_REPO_ROOT` afterwards. It must be an absolute path, and
      must never be left in `deploy/config.env`.
 
-  The old tag's own `deploy.sh` has no atomic swap, which is why the current
+  The old tag's own `deploy.sh` has no swap-in-place, which is why the current
   script deploys the old tree. A rollback is never blocked by the live check.
 - **Rollback window:** the script swaps `sespy/` first and uploads `app.py`
   second. For a few seconds the K1 `app.py` runs against the old `sespy/`,
@@ -165,7 +165,11 @@ laguna runs. Project schema 9.
   `SESPY_R_DATA_DIR=/srv/shiny-server/marinesabres/data`); an existing file
   keeps its content. Either way it is set to mode 0644 so the app can read
   it. Set `SESPY_R_DATA_DIR=off` there to use the shipped data only.
-- The `sespy/` swap is atomic (`sespy.incoming` → `sespy`).
+- The new `sespy/` is uploaded beside the live one as `sespy.incoming`, so a
+  worker never sees a half-copied package. The swap itself is two renames in
+  one `&&` chain (`sespy` → `sespy.old`, then `sespy.incoming` → `sespy`);
+  between them `sespy/` is briefly absent. If a deploy stops there, rerun
+  `deploy/deploy.sh`: it first restores or completes an interrupted swap.
 - Stranded logs from an interrupted deploy are moved to
   `APP_DIR/logs.rescued-<timestamp>` with a warning; merge them by hand.
 - The deploy needs GNU `mv -T`, so the server must run Linux.

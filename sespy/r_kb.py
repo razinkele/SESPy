@@ -10,7 +10,7 @@ import logging
 import os
 import stat as _stat
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from typing import Any, Iterable, Literal, Mapping
@@ -29,6 +29,9 @@ class AllowRow:
     min_counts: dict[str, int]
     version_key: str
     override: bool
+    # JSON container each min_counts path must be: a list of the right length
+    # where readers call .get() would pass the count and crash a session.
+    containers: dict[str, type] = field(default_factory=dict)
 
 
 ALLOW_LIST: tuple[AllowRow, ...] = (
@@ -38,6 +41,7 @@ ALLOW_LIST: tuple[AllowRow, ...] = (
         min_counts={"contexts": 33, "cross_ecosystem_links": 0},
         version_key="version",
         override=True,
+        containers={"contexts": dict, "cross_ecosystem_links": list},
     ),
     AllowRow(
         name=GOVERNANCE_NAME,
@@ -48,6 +52,7 @@ ALLOW_LIST: tuple[AllowRow, ...] = (
         min_counts={"countries": 105, "regional_conventions": 15, "countries_by_sea": 11},
         version_key="version",
         override=True,
+        containers={"countries": dict, "regional_conventions": dict, "countries_by_sea": dict},
     ),
 )
 
@@ -92,9 +97,14 @@ def validate(row: AllowRow, data: Any, vendored_major: int) -> str | None:
         return f"major version {major} differs from vendored {vendored_major}"
     for path, minimum in row.min_counts.items():
         try:
-            n = len(_dig(data, path))
+            value = _dig(data, path)
         except KeyError:
             return f"missing {path!r}"
+        want = row.containers.get(path)
+        if want is not None and not isinstance(value, want):
+            return f"{path!r} is a {type(value).__name__}, expected a {want.__name__}"
+        try:
+            n = len(value)
         except TypeError:
             return f"{path!r} has no length"
         if n < minimum:

@@ -154,6 +154,9 @@ class Fake:
         for name, body in (("ssh", STUB_SSH), ("scp", STUB_SCP), ("sudo", STUB_SUDO),
                            ("git", STUB_GIT), ("fake_check_live", STUB_CHECK_LIVE)):
             _write_lf(self.stubs / name, body)
+            # A shebang alone does not make a file runnable on POSIX (Git Bash
+            # on Windows ignores the mode, which hid this locally).
+            (self.stubs / name).chmod(0o755)
 
     def _env(self) -> dict[str, str]:
         env = dict(os.environ)
