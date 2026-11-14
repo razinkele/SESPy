@@ -52,6 +52,23 @@ def env(tmp_path, monkeypatch):
     return Env(tmp_path, monkeypatch)
 
 
+@pytest.fixture
+def allow_refresh_failure():
+    """Opt out of the guard below (the test provokes the catch-all)."""
+
+
+@pytest.fixture(autouse=True)
+def _no_swallowed_refresh_failure(request, caplog):
+    # refresh() catches everything (final review F1), so a test that expects a
+    # specific fallback could pass through the catch-all instead: fail it.
+    caplog.set_level(logging.WARNING, logger="sespy.r_kb")
+    yield
+    if "allow_refresh_failure" not in request.fixturenames:
+        swallowed = [r.getMessage() for r in caplog.records
+                     if r.getMessage().startswith("r_kb.refresh failed")]
+        assert not swallowed, swallowed
+
+
 def transitions(caplog):
     return [r.getMessage() for r in caplog.records
             if "r_kb.transition" in r.getMessage() and r.name == "sespy.r_kb"]
@@ -198,7 +215,7 @@ def test_nul_in_settings_value_does_not_raise(env, caplog):
     assert any("override directory unavailable: ValueError" in m for m in transitions(caplog))
 
 
-def test_refresh_failure_falls_back_to_vendored(env, monkeypatch, caplog):
+def test_refresh_failure_falls_back_to_vendored(env, monkeypatch, caplog, allow_refresh_failure):
     _shared_via_settings(env)
 
     def boom(*_a, **_kw):
