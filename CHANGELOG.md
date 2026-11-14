@@ -24,8 +24,8 @@ laguna runs. Project schema 9.
   with R's tooltip. A caption names the context, e.g. "(tailored for Baltic
   Sea - Coastal lagoon)". Clicking a suggestion fills the first empty row (or
   adds one); clicking a lit suggestion clears every row holding that text. A
-  row typed by hand with the same text lights the suggestion too. R's
-  parity is proven on all 69 sea × ecosystem choices over 3,864 cases.
+  row typed by hand with the same text lights the suggestion too. Parity
+  with R is tested on all 69 sea × ecosystem choices over 3,864 cases.
 - **SES Wizard: countries from R's governance database.** The Countries step
   lists the countries R lists for the chosen sea, in two groups, "EU Member
   States" and "Non-EU Countries". The values are ISO codes and the click order
@@ -109,8 +109,8 @@ laguna runs. Project schema 9.
     matters);
   - tooltips are the browser's native tooltip, and the badges use SESPy
     colours.
-- **Unsaved step text is discarded by Back,** as before; R has no unsaved
-  state.
+- **Unsaved step text is discarded by Back** (Next saves a step); R has no
+  unsaved state.
 - **The Greek "Skip This Question" label is half English,** copied verbatim
   from R.
 - **R's regional recommendation lines** from the knowledge base are not in

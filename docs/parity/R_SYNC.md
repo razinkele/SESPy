@@ -64,8 +64,10 @@ generated block below together; never edit the block by hand.
   generated manifest, 5 R sources (`tests/parity/r_source/`), the
   `isa_data_entry` and `report_context` translation subsets and 5 K1 fixtures
   (`tests/parity/r_fixtures/k1/`, pinned from disk).
-- **Roadmap baseline:** moved from v1.31.0 (`4b53b7d`) to v1.33.0
-  (`4017feb`), the release laguna runs. The 9 files pinned since P2 are
+- **Roadmap baseline:** K1 moved it from v1.33.0 (`4017feb`) to v1.35.6
+  (`d1a655a`), the release laguna runs (triage below). Before that, P1b
+  moved it from v1.31.0 (`4b53b7d`) to v1.33.0 (`4017feb`), then the
+  release laguna ran. The 9 files pinned since P2 are
   unchanged between the two tags (`git diff --quiet v1.31.0 v1.33.0 -- <the
   9 paths>` exits 0). P1b adds 9 fixtures: `constants.R`,
   `functions/response_measures_schema.R`, `functions/stakeholder_schema.R`

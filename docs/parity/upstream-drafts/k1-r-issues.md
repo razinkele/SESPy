@@ -19,8 +19,10 @@ tag. Re-check them against the current R `main` before filing.
 **What happens.** The AI assistant's sea × ecosystem choices (the
 `ecosystem_types` of each sea in `modules/ai_isa_knowledge_base.R`) are
 mapped to a knowledge-base context by keyword rules, then a prefix match,
-then a fallback to the sea's first context. Of the 69 choices, 29 resolve to
-the context their name suggests (`exact`), 2 by prefix, 26 fall back to
+then a fallback to the sea's first context. Of the 69 choices, 29 hit a
+keyword rule (`exact`; not always the context the name suggests, e.g.
+Atlantic "Open ocean" and "Continental shelf" → `atlantic_offshore`), 2 match
+by prefix, 26 fall back to
 another habitat of the same sea (`sea_only`) and 12 (Irish Sea, East
 Atlantic) have no context at all and use `generic_fallback`. Highlights:
 
