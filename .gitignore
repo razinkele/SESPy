@@ -62,3 +62,6 @@ restart.txt
 
 # superpowers SDD scratch (ledgers, briefs, review packages)
 .superpowers/
+
+# Server-owned live-data setting (created on the server by deploy.sh)
+server_settings.env
