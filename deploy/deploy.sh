@@ -31,20 +31,28 @@
 #                      touched too, so MosaicSES reloads the swapped sespy/.
 #   DEPLOY_REPO_ROOT   deploy this checkout instead of the script's own repo
 #                      (rollback: deploy a worktree of an old tag with the
-#                      CURRENT script).
+#                      CURRENT script). Use an ABSOLUTE path: a relative one
+#                      resolves against the caller's current directory, not
+#                      the repo. Pass it per run; never leave it set in
+#                      config.env, or every normal deploy ships that tree.
 #   DEPLOY_SUDO_TEST   1 = check live-file readability with `sudo -n -u shiny`
 #                      (a denied sudo can raise auth alerts; default is stat).
-#   SESPY_SKIP_LIVE_CHECK="<reason>"  skip the live pre-flight entirely.
 #   SESPY_PY           python command for check_live.py
 #                      (default: micromamba run -n shiny python).
+#
+# Environment only (read before config.env is sourced; setting it there does
+# nothing):
+#   SESPY_SKIP_LIVE_CHECK="<reason>"  skip the live pre-flight entirely. The
+#                      reason must be non-empty: set-but-empty counts as unset
+#                      and the pre-flight runs.
 #
 # Usage (run from anywhere; the script resolves the repo root):
 #   deploy/deploy.sh               # normal deploy, gated by check_live.py
 #   deploy/deploy.sh --rollback    # never gated: check_live.py --warn-only
 #
 # Rollback to an older tag (the old tag's script has no atomic swap):
-#   git worktree add ../sespy-rollback v1.15.1
-#   DEPLOY_REPO_ROOT=../sespy-rollback deploy/deploy.sh --rollback
+#   git worktree add /abs/path/sespy-rollback v1.15.1
+#   DEPLOY_REPO_ROOT=/abs/path/sespy-rollback deploy/deploy.sh --rollback
 # ---------------------------------------------------------------------------
 
 # --- settings-file parse rule ------------------------------------------------
@@ -69,8 +77,15 @@ settings_raw_value() {
     esac
   done < <(tr '\r\013\014\034\035\036' '\n\n\n\n\n\n')
   [ "$found" -eq 0 ] || return 1
-  value="${value#"${value%%[![:space:]]*}"}"
-  value="${value%"${value##*[![:space:]]}"}"
+  # Python's str.strip() whitespace, ASCII part: space, TAB, LF, VT, FF, CR and
+  # FS/GS/RS/US (0x1c-0x1f; the first three already split lines above).
+  # Known difference: non-ASCII whitespace that Python also strips or splits on
+  # (U+0085, U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F,
+  # U+3000) is kept here as bytes. Such a value fails DIR validation, so the
+  # deploy fails closed (missing.txt) rather than checking a different dir.
+  local ws=$' \t\n\v\f\r\034\035\036\037'
+  while [ -n "$value" ] && [[ "$ws" == *"${value:0:1}"* ]]; do value="${value:1}"; done
+  while [ -n "$value" ] && [[ "$ws" == *"${value: -1}"* ]]; do value="${value:0:${#value}-1}"; done
   printf '%s' "$value"
 }
 
@@ -115,9 +130,11 @@ for arg in "$@"; do
   esac
 done
 SKIP_LIVE=0
-if [ -n "${SESPY_SKIP_LIVE_CHECK+x}" ]; then
+if [ -n "${SESPY_SKIP_LIVE_CHECK:-}" ]; then
   SKIP_LIVE=1
-  echo "==> skipping live check: ${SESPY_SKIP_LIVE_CHECK:-(no reason given)}"
+  echo "==> skipping live check: ${SESPY_SKIP_LIVE_CHECK}"
+elif [ -n "${SESPY_SKIP_LIVE_CHECK+x}" ]; then
+  echo "    ! SESPY_SKIP_LIVE_CHECK is set but empty; a reason is required, so the live check runs" >&2
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -204,8 +221,12 @@ else
       fi
       ;;
     *)
-      echo "!! could not read $SETTINGS over ssh (exit $settings_rc). Aborting before upload." >&2
-      exit 2
+      if [ "$ROLLBACK" = 1 ]; then
+        echo "    ! WARNING: could not read $SETTINGS over ssh (exit $settings_rc); live checks skipped (--rollback)" >&2
+      else
+        echo "!! could not read $SETTINGS over ssh (exit $settings_rc). Aborting before upload." >&2
+        exit 2
+      fi
       ;;
   esac
 
@@ -229,6 +250,14 @@ else
     while IFS= read -r n; do
       [ -n "$n" ] && NAMES+=("$n")
     done < <(printf '%s\n' "$names_out" | tr -d '\r')
+    if [ "${#NAMES[@]}" -eq 0 ]; then
+      if [ "$ROLLBACK" = 1 ]; then
+        echo "    ! WARNING: check_live.py --print-override-names gave no names; live checks skipped (--rollback)" >&2
+      else
+        echo "!! check_live.py --print-override-names gave no names, so nothing could be checked. Aborting before upload." >&2
+        exit 2
+      fi
+    fi
 
     if [ "${#NAMES[@]}" -gt 0 ]; then
       mkdir -p "$LIVE"
@@ -300,22 +329,36 @@ rm -rf "$STAGE/.live"
 # 3. Recovery prologue: repair what an interrupted earlier deploy left behind,
 #    then clear any half-uploaded incoming package.
 #    - sespy/ gone but sespy.old/ there: the swap died between its two mv's.
-#    - sespy.incoming/logs: logs were moved in but the swap never happened;
-#      put them back before sespy.incoming is wiped.
-#    - .deploy-keep/logs: the pre-K1 script died between stash and restore.
-ssh "$SERVER" "
+#    - sespy.old/logs or sespy.incoming/logs: the swap died after moving the
+#      logs. A sespy.old or sespy.incoming that still holds logs/ is NEVER
+#      deleted with them: the logs go back to sespy/logs, or, when a worker
+#      has already recreated sespy/logs (feedback_store mkdirs it on every
+#      call), aside to $APP_DIR/logs.rescued-<timestamp> with a warning.
+#    - .deploy-keep/logs: the pre-K1 script died between stash and restore
+#      (left in place if sespy/logs already exists).
+# Remote helper, defined in every ssh that may delete sespy.old/sespy.incoming.
+REMOTE_RESCUE='rescue_logs() {
+  [ -e "$1/logs" ] || return 0
+  if [ ! -e sespy/logs ]; then
+    mkdir -p sespy && mv -T "$1/logs" sespy/logs
+  else
+    r="logs.rescued-$(date +%Y%m%d%H%M%S)"
+    [ -e "$r" ] && r="$r-$1"
+    mv -T "$1/logs" "$r" &&
+      echo "!! WARNING: $1/logs was stranded and sespy/logs already exists; kept it as $PWD/$r - merge it by hand" >&2
+  fi
+}'
+ssh "$SERVER" "$REMOTE_RESCUE
   mkdir -p '$APP_DIR' &&
   cd '$APP_DIR' &&
-  if [ ! -e sespy ] && [ -d sespy.old ]; then mv sespy.old sespy; fi &&
-  rm -rf sespy.old &&
-  if [ ! -e sespy/logs ] && [ -d sespy.incoming/logs ]; then
-    mkdir -p sespy && mv sespy.incoming/logs sespy/logs;
-  fi &&
+  if [ ! -e sespy ] && [ -d sespy.old ]; then mv -T sespy.old sespy; fi &&
+  rescue_logs sespy.old &&
+  rescue_logs sespy.incoming &&
   if [ ! -e sespy/logs ] && [ -d .deploy-keep/logs ]; then
-    mkdir -p sespy && mv .deploy-keep/logs sespy/logs;
+    mkdir -p sespy && mv -T .deploy-keep/logs sespy/logs;
   fi &&
   if [ -d .deploy-keep ] && [ ! -e .deploy-keep/logs ]; then rm -rf .deploy-keep; fi &&
-  rm -rf sespy.incoming
+  rm -rf sespy.old sespy.incoming
 "
 
 # 4. Upload the package beside the live one, then swap. sespy/ goes first: a
@@ -323,12 +366,15 @@ ssh "$SERVER" "
 #    old app.py runs fine against the new sespy/ (new kwargs are optional).
 #    The server-owned sespy/logs/ (feedback.db) moves into the incoming
 #    package, so it is never overwritten; the whole sequence is one && chain.
+#    mv -T fails (instead of nesting the package) if a worker recreated
+#    sespy/ in the instant between the two renames.
 scp -rq "$STAGE/sespy" "$SERVER:$APP_DIR/sespy.incoming"
-ssh "$SERVER" "
+ssh "$SERVER" "$REMOTE_RESCUE
   cd '$APP_DIR' &&
-  if [ -d sespy/logs ]; then mv sespy/logs sespy.incoming/logs; fi &&
-  if [ -e sespy ]; then mv sespy sespy.old; fi &&
-  mv sespy.incoming sespy &&
+  if [ -d sespy/logs ]; then mv -T sespy/logs sespy.incoming/logs; fi &&
+  if [ -e sespy ]; then mv -T sespy sespy.old; fi &&
+  mv -T sespy.incoming sespy &&
+  rescue_logs sespy.old &&
   rm -rf sespy.old &&
   rm -rf '$APP_DIR/__pycache__' '$APP_DIR/docs/screenshots'
 "
@@ -343,20 +389,30 @@ if [ "${#OTHERS[@]}" -gt 0 ]; then
   scp -rq "${OTHERS[@]}" "$SERVER:$APP_DIR/"
 fi
 
-# 6. Create the server settings file if absent (never touch an existing one),
-#    then reload: Shiny Server restarts an app's workers when restart.txt
-#    changes. MosaicSES symlinks this sespy/, so it reloads too.
-MOSAIC_TOUCH=""
-if [ -n "${DEPLOY_MOSAIC_DIR:-}" ]; then
-  MOSAIC_TOUCH=" && touch '$DEPLOY_MOSAIC_DIR/restart.txt'"
-fi
+# 6. Create the server settings file if absent (an existing one keeps its
+#    content), chmod 0644 either way so user shiny can read what the
+#    pre-flight read; then reload: Shiny Server restarts an app's workers when
+#    restart.txt changes. A settings failure only warns: it must not skip the
+#    reload of the code that is already swapped in.
 ssh "$SERVER" "
   if [ ! -e '$SETTINGS' ]; then
-    ( umask 022 && printf 'SESPY_R_DATA_DIR=%s\n' '$DEFAULT_R_DATA_DIR' > '$SETTINGS' && chmod 0644 '$SETTINGS' );
-  fi &&
-  touch '$APP_DIR/restart.txt'$MOSAIC_TOUCH
+    ( umask 022 && printf 'SESPY_R_DATA_DIR=%s\n' '$DEFAULT_R_DATA_DIR' > '$SETTINGS' ) ||
+      echo '!! WARNING: could not create $SETTINGS' >&2
+  fi
+  if [ -e '$SETTINGS' ]; then
+    chmod 0644 '$SETTINGS' || echo '!! WARNING: could not chmod 0644 $SETTINGS' >&2
+  fi
+  touch '$APP_DIR/restart.txt'
 "
-
 echo "==> Done. ${APP_DIR} updated to ${VERSION}; Shiny Server reloads on next request."
-[ -n "${DEPLOY_MOSAIC_DIR:-}" ] && echo "==> MosaicSES at ${DEPLOY_MOSAIC_DIR} restarted; run its deploy/verify_live.py."
+
+# 7. MosaicSES symlinks this sespy/; restart it too. The SESPy deploy has
+#    already succeeded, so a failure here only warns.
+if [ -n "${DEPLOY_MOSAIC_DIR:-}" ]; then
+  if ssh "$SERVER" "touch '$DEPLOY_MOSAIC_DIR/restart.txt'"; then
+    echo "==> MosaicSES at ${DEPLOY_MOSAIC_DIR} restarted; run its deploy/verify_live.py."
+  else
+    echo "!! WARNING: could not touch ${DEPLOY_MOSAIC_DIR}/restart.txt; restart MosaicSES by hand." >&2
+  fi
+fi
 exit 0

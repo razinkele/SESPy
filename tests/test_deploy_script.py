@@ -55,7 +55,11 @@ def _copy_lf(src: Path, dst: Path) -> None:
 STUB_SSH = """#!/usr/bin/bash
 cmd="${@: -1}"
 printf 'ssh %s\\n' "${cmd//$'\\n'/ }" >> "$STUB_LOG"
-exec /usr/bin/bash -c "$cmd"
+# fault injection: fail the remote command that contains $STUB_SSH_FAIL
+if [ -n "${STUB_SSH_FAIL:-}" ] && [[ "$cmd" == *"$STUB_SSH_FAIL"* ]]; then
+  exit "${STUB_SSH_FAIL_RC:-255}"
+fi
+exec /usr/bin/bash -c "${STUB_SSH_PRELUDE:-}"$'\\n'"$cmd"
 """
 
 STUB_SCP = """#!/usr/bin/bash
@@ -87,6 +91,7 @@ STUB_CHECK_LIVE = """#!/usr/bin/bash
 printf 'check_live %s\\n' "$*" >> "$STUB_LOG"
 for a in "$@"; do
   if [ "$a" = --print-override-names ]; then
+    [ "${STUB_NO_NAMES:-}" = 1 ] && exit 0
     printf 'ses_knowledge_db.json\\r\\ncountry_governance_db.json\\r\\n'
     exit 0
   fi
@@ -189,11 +194,15 @@ class Fake:
         self.settings(f"SESPY_R_DATA_DIR={self.live_posix}\n")
 
     # -- run ---------------------------------------------------------------
-    def run(self, *args: str, **env: str) -> subprocess.CompletedProcess:
+    def run(self, *args: str, _prelude: str = "", **env: str) -> subprocess.CompletedProcess:
+        """`_prelude` runs in bash before exec'ing the script (e.g. to export a
+        set-but-empty variable, which a Windows env block may not carry)."""
         e = dict(self.env)
         e.update(env)
-        cp = subprocess.run([BASH, _posix(self.repo / "deploy" / "deploy.sh"), *args],
-                            env=e, capture_output=True, text=True, timeout=180)
+        script = _posix(self.repo / "deploy" / "deploy.sh")
+        cmd = ([BASH, "-c", _prelude + '\nexec "$BASH" "$0" "$@"', script, *args]
+               if _prelude else [BASH, script, *args])
+        cp = subprocess.run(cmd, env=e, capture_output=True, text=True, timeout=180)
         self.out = cp.stdout + cp.stderr
         return cp
 
@@ -260,7 +269,7 @@ def test_uses_incoming_swap(fake):
     sespy_scps = [c for c in fake.calls("scp") if c.split()[-2].endswith("/sespy")]
     assert len(sespy_scps) == 1
     assert sespy_scps[0].split()[-1] == f"{SERVER}:{fake.app_posix}/sespy.incoming"
-    assert any("mv sespy.incoming sespy" in c for c in fake.calls("ssh"))
+    assert any("mv -T sespy.incoming sespy" in c for c in fake.calls("ssh"))
     assert not (fake.app / "sespy" / "old_module.py").exists()
 
 
@@ -270,7 +279,7 @@ def test_app_py_uploaded_after_swap(fake):
     i_incoming = next(i for i, ln in enumerate(lines)
                       if ln.startswith("scp ") and ln.endswith("/sespy.incoming"))
     i_swap = next(i for i, ln in enumerate(lines)
-                  if ln.startswith("ssh ") and "mv sespy.incoming sespy" in ln)
+                  if ln.startswith("ssh ") and "mv -T sespy.incoming sespy" in ln)
     i_app = next(i for i, ln in enumerate(lines)
                  if ln.startswith("scp ") and "/app.py" in ln)
     assert i_incoming < i_swap < i_app
@@ -287,8 +296,8 @@ def test_logs_moved_into_incoming_before_swap(fake):
     assert not (fake.app / "sespy" / "old_module.py").exists()
     assert not (fake.app / "sespy" / "logs" / "local.db").exists(), "local logs must never ship"
     assert not (fake.app / "sespy" / "logs" / "logs").exists()
-    swap = next(c for c in fake.calls("ssh") if "mv sespy.incoming sespy" in c)
-    assert swap.index("mv sespy/logs sespy.incoming/logs") < swap.index("mv sespy.incoming sespy")
+    swap = next(c for c in fake.calls("ssh") if "mv -T sespy.incoming sespy" in c)
+    assert swap.index("mv -T sespy/logs sespy.incoming/logs") < swap.index("mv -T sespy.incoming sespy")
 
 
 def test_recovers_interrupted_swap(fake):
@@ -352,8 +361,14 @@ def test_settings_file_created_only_if_absent_with_0644(make_fake):
     _ok(fresh.run(), fresh)
     created = (fresh.app / "server_settings.env").read_bytes()
     assert created == b"SESPY_R_DATA_DIR=/srv/shiny-server/marinesabres/data\n"
+    # NTFS under MSYS cannot show Unix modes (stat reports 644 whatever chmod
+    # did), so the 0644 contract is asserted on the remote command instead.
+    # chmod sits outside the creation branch: an existing file is chmodded too.
     final = fresh.calls("ssh")[-1]
-    assert "umask 022" in final and "chmod 0644" in final and "[ ! -e " in final
+    assert "umask 022" in final and "[ ! -e " in final
+    create_branch, after = final.split(" fi ", 1)
+    assert "chmod 0644" not in create_branch and "chmod 0644" in after
+    assert "chmod 0644" in existing.calls("ssh")[-1]
 
 
 def test_settings_off_skips_fetch(fake):
@@ -396,7 +411,7 @@ def test_check_live_nonzero_aborts_before_upload(fake):
     cp = fake.run(STUB_EXIT="2")
     assert cp.returncode == 2, fake.out
     assert not any(c.split()[-1].endswith("/sespy.incoming") for c in fake.calls("scp"))
-    assert not any("mv sespy" in c for c in fake.calls("ssh"))
+    assert not any("mv -T sespy" in c for c in fake.calls("ssh"))
     assert (fake.app / "sespy" / "marker.py").read_text() == "live code"
     assert not (fake.app / "restart.txt").exists()
 
@@ -571,6 +586,130 @@ def test_default_dir_used_when_settings_absent(fake):
 
 
 # ---------------------------------------------------------------------------
+# Fix round 1: stranded logs (I1), non-blocking tail (M6), gates (M4/M5/M8),
+# failing swap (M10)
+# ---------------------------------------------------------------------------
+def _rescued(fake: Fake) -> list[Path]:
+    return sorted(p for p in fake.app.iterdir() if p.name.startswith("logs.rescued-"))
+
+
+def test_incoming_logs_kept_when_sespy_logs_recreated(fake):
+    """Swap died after logs moved into sespy.incoming; a worker then recreated
+    an empty sespy/logs. The real history must not be deleted with incoming."""
+    real = b"REAL-HISTORY-" * 64
+    fake.put("sespy/__init__.py", "old")
+    fake.put("sespy/logs/feedback.db", b"NEW-EMPTY")
+    fake.put("sespy.incoming/logs/feedback.db", real)
+    _ok(fake.run(), fake)
+    assert (fake.app / "sespy" / "logs" / "feedback.db").read_bytes() == b"NEW-EMPTY"
+    rescued = _rescued(fake)
+    assert len(rescued) == 1
+    assert (rescued[0] / "feedback.db").read_bytes() == real
+    assert "sespy.incoming/logs was stranded" in fake.out
+    assert not (fake.app / "sespy.incoming").exists()
+
+
+def test_old_logs_kept_when_sespy_present(make_fake):
+    real = b"REAL-OLD-HISTORY-" * 64
+    # sespy present WITH recreated logs: old logs go aside
+    f1 = make_fake()
+    f1.put("sespy/__init__.py", "recreated")
+    f1.put("sespy/logs/feedback.db", b"NEW-EMPTY")
+    f1.put("sespy.old/logs/feedback.db", real)
+    _ok(f1.run(), f1)
+    assert (f1.app / "sespy" / "logs" / "feedback.db").read_bytes() == b"NEW-EMPTY"
+    rescued = _rescued(f1)
+    assert len(rescued) == 1 and (rescued[0] / "feedback.db").read_bytes() == real
+    assert "sespy.old/logs was stranded" in f1.out
+    assert not (f1.app / "sespy.old").exists()
+
+    # sespy present WITHOUT logs: old logs are restored in place
+    f2 = make_fake()
+    f2.put("sespy/__init__.py", "recreated")
+    f2.put("sespy.old/logs/feedback.db", real)
+    _ok(f2.run(), f2)
+    assert (f2.app / "sespy" / "logs" / "feedback.db").read_bytes() == real
+    assert _rescued(f2) == []
+    assert not (f2.app / "sespy.old").exists()
+
+
+def test_failing_swap_step_aborts(fake):
+    fake.put("sespy/logs/feedback.db", b"DB")
+    cp = fake.run(STUB_SSH_FAIL="mv -T sespy.incoming sespy", STUB_SSH_FAIL_RC="1")
+    assert cp.returncode != 0
+    assert not any("/app.py" in c for c in fake.calls("scp")), "app.py uploaded after a failed swap"
+    assert not (fake.app / "restart.txt").exists()
+    assert (fake.app / "sespy" / "logs" / "feedback.db").read_bytes() == b"DB"
+
+
+def test_settings_create_failure_still_restarts(fake):
+    # printf as a failing function: the settings write fails remotely
+    cp = fake.run(STUB_SSH_PRELUDE="printf() { return 1; }")
+    assert cp.returncode == 0, fake.out
+    assert "could not create" in fake.out
+    assert (fake.app / "restart.txt").is_file()
+
+
+def test_mosaic_touch_failure_only_warns(fake):
+    cp = fake.run(DEPLOY_MOSAIC_DIR=_posix(fake.server / "no" / "such" / "dir"))
+    assert cp.returncode == 0, fake.out
+    assert "could not touch" in fake.out
+    assert "==> Done." in fake.out
+    assert (fake.app / "restart.txt").is_file()
+
+
+def test_settings_read_ssh_failure_gates_unless_rollback(make_fake):
+    f1 = make_fake()
+    cp = f1.run(STUB_SSH_FAIL="|| exit 4")
+    assert cp.returncode == 2, f1.out
+    assert not (f1.app / "sespy").exists()
+
+    f2 = make_fake()
+    cp = f2.run("--rollback", STUB_SSH_FAIL="|| exit 4")
+    assert cp.returncode == 0, f2.out
+    assert "could not read" in f2.out
+    checks = f2.check_calls()
+    assert len(checks) == 1 and "--live" not in checks[0] and "--warn-only" in checks[0]
+    assert (f2.app / "sespy" / "__init__.py").is_file()
+
+
+def test_empty_skip_var_counts_as_unset(fake):
+    fake.settings_on()
+    _ok(fake.run(_prelude="export SESPY_SKIP_LIVE_CHECK="), fake)
+    assert "set but empty" in fake.out
+    assert "skipping live check" not in fake.out
+    assert len(fake.check_calls()) == 1
+
+
+def test_skip_var_in_config_env_is_ignored(fake):
+    _write_lf(fake.repo / "deploy" / "config.env",
+              f"DEPLOY_SERVER={SERVER}\nDEPLOY_DIR={fake.app_posix}\n"
+              "SESPY_SKIP_LIVE_CHECK=from-config\n")
+    fake.settings_on()
+    _ok(fake.run(), fake)
+    assert "skipping live check" not in fake.out
+    assert len(fake.check_calls()) == 1
+
+
+def test_no_override_names_gates_unless_rollback(make_fake):
+    f1 = make_fake()
+    f1.settings_on()
+    cp = f1.run(STUB_NO_NAMES="1")
+    assert cp.returncode == 2, f1.out
+    assert "gave no names" in f1.out
+    assert not (f1.app / "sespy").exists()
+
+    f2 = make_fake()
+    f2.settings_on()
+    cp = f2.run("--rollback", STUB_NO_NAMES="1")
+    assert cp.returncode == 0, f2.out
+    assert "gave no names" in f2.out
+    checks = f2.check_calls()
+    assert len(checks) == 1 and "--live" not in checks[0]
+    assert (f2.app / "sespy" / "__init__.py").is_file()
+
+
+# ---------------------------------------------------------------------------
 # Settings parse parity: deploy.sh's bash mirror vs sespy.r_kb (Ruling F10)
 # ---------------------------------------------------------------------------
 PARSE_CASES = {
@@ -607,6 +746,10 @@ PARSE_CASES = {
     "bom_first_line": "\ufeffSESPY_R_DATA_DIR=/srv/data/x\n",
     "bom_off": "﻿SESPY_R_DATA_DIR=off\n",
     "bom_second_line_not_stripped": "OTHER=1\n﻿SESPY_R_DATA_DIR=off\n",
+    "us_trailing_off": "SESPY_R_DATA_DIR=off\x1f\n",
+    "us_around_path": "SESPY_R_DATA_DIR=\x1f /srv/data/x\x1f\t\n",
+    "us_interior_kept": "SESPY_R_DATA_DIR=/srv/a\x1fb\n",
+    "fs_gs_rs_split": "OTHER=1\x1cSESPY_R_DATA_DIR=/srv/fs\x1dX=1\x1eY=2\n",
     "bom_then_value":"\ufeffOTHER=1\nSESPY_R_DATA_DIR=/srv/data/x\n",
     "form_feed_split": "OTHER=1\fSESPY_R_DATA_DIR=/srv/data/ff\n",
 }
