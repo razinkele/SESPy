@@ -10,8 +10,8 @@ with ``re.ASCII`` when a pattern contains ``\\b`` (R's PCRE ``\\b`` is
 ASCII-only). Floating-point operation order follows R exactly.
 
 The no-match keyword lists below are the *live* ones from the KB file
-(KB:1257-1291). They differ from ``connection_keywords.json``, which holds the
-lists of R's dead ``.calculate_basic_relevance``; that file is left alone.
+(KB:1257-1291); R's dead `.calculate_basic_relevance` lists were dropped with
+the old `connection_keywords.json` (K1b Task 6).
 """
 from __future__ import annotations
 
@@ -115,18 +115,55 @@ def _keyword_idf_weight(keyword: str) -> float:
     return 1.0
 
 
+_ENTRIES: dict[tuple[int, str, str], tuple] = {}
+_SIDE_HITS: dict[tuple, tuple[bool, ...]] = {}
+_SYN_CACHE: dict[tuple[int, str, str], bool] = {}
+
+
+def _typed_entries(db: dict, from_type: str, to_type: str) -> tuple:
+    """DB entries of one type pair, in DB order (cached per db object, which
+    is kept alive so its id cannot be reused)."""
+    key = (id(db), from_type, to_type)
+    entries = _ENTRIES.get(key)
+    if entries is None:
+        _SYN_KEEPALIVE[id(db)] = db
+        entries = tuple(e for e in db["connection_db"]
+                        if e["from_type"] == from_type and e["to_type"] == to_type)
+        _ENTRIES[key] = entries
+    return entries
+
+
+def _side_hits(db: dict, from_type: str, to_type: str, side: str,
+               lowered: str, entries: tuple) -> tuple[bool, ...]:
+    """Per-entry pattern hits for one name (a name meets many partners)."""
+    key = (id(db), from_type, to_type, side, lowered)
+    hits = _SIDE_HITS.get(key)
+    if hits is None:
+        pat = side + "_pattern"
+        hits = tuple(_search(e[pat], lowered) for e in entries)
+        _SIDE_HITS[key] = hits
+    return hits
+
+
+def _synonym_cached(db: dict, text: str, pattern: str) -> bool:
+    key = (id(db), text, pattern)
+    hit = _SYN_CACHE.get(key)
+    if hit is None:
+        hit = _synonym_match(text, pattern, db["synonym_db"])
+        _SYN_CACHE[key] = hit
+    return hit
+
+
 def lookup_knowledge_base(from_name: str, from_type: str, to_name: str,
                           to_type: str, db: dict) -> KBMatch | None:
     from_lower = from_name.lower()
     to_lower = to_name.lower()
-    synonym_db = db["synonym_db"]
+    entries = _typed_entries(db, from_type, to_type)
+    from_hits = _side_hits(db, from_type, to_type, "from", from_lower, entries)
+    to_hits = _side_hits(db, from_type, to_type, "to", to_lower, entries)
     best: KBMatch | None = None
     best_score = 0.0
-    for entry in db["connection_db"]:
-        if entry["from_type"] != from_type or entry["to_type"] != to_type:
-            continue
-        from_match = _search(entry["from_pattern"], from_lower)
-        to_match = _search(entry["to_pattern"], to_lower)
+    for entry, from_match, to_match in zip(entries, from_hits, to_hits):
         p = entry["probability"]
         if from_match and to_match:
             score = p * 1.0
@@ -135,9 +172,9 @@ def lookup_knowledge_base(from_name: str, from_type: str, to_name: str,
                 best = KBMatch(entry["polarity"], entry["strength"], p, "exact")
         elif from_match or to_match:
             if from_match:
-                expanded = _synonym_match(to_lower, entry["to_pattern"], synonym_db)
+                expanded = _synonym_cached(db, to_lower, entry["to_pattern"])
             else:
-                expanded = _synonym_match(from_lower, entry["from_pattern"], synonym_db)
+                expanded = _synonym_cached(db, from_lower, entry["from_pattern"])
             if expanded:
                 score = p * 0.8
                 if score > best_score:
@@ -154,9 +191,42 @@ def _words(lowered: str) -> list[str]:
     return re.split(r"\s+", stripped)
 
 
+@lru_cache(maxsize=1 << 16)
+def _keyword_hits(keywords: tuple[str, ...], lowered: str) -> tuple[bool, ...]:
+    """Per-name keyword hits (a name is scored against many partners)."""
+    return tuple(_search(kw, lowered) for kw in keywords)
+
+
+_SYN_KEEPALIVE: dict[int, dict] = {}
+_SYN_GROUPS: dict[tuple[int, str], frozenset] = {}
+
+
+def _synonym_groups_hit(synonym_db: dict, lowered: str) -> frozenset:
+    """Indices of the synonym groups with a member matching a word of the
+    name. Depends on one name only, so it is cached per (db, name); the db
+    is kept alive so its id cannot be reused."""
+    key = (id(synonym_db), lowered)
+    hit = _SYN_GROUPS.get(key)
+    if hit is None:
+        _SYN_KEEPALIVE[id(synonym_db)] = synonym_db
+        words = _words(lowered)
+        hit = frozenset(
+            idx for idx, synonyms in enumerate(synonym_db.values())
+            if any(_search(s, w) for s in synonyms for w in words))
+        _SYN_GROUPS[key] = hit
+    return hit
+
+
+_UNSET = object()
+
+
 def calculate_enhanced_relevance(from_name: str, to_name: str, from_type: str,
-                                 to_type: str, db: dict) -> float:
-    kb = lookup_knowledge_base(from_name, from_type, to_name, to_type, db)
+                                 to_type: str, db: dict, kb=_UNSET) -> float:
+    """``kb`` may carry the caller's already-computed lookup (or None for no
+    match) so a scorer does one lookup per candidate; R repeats it, but the
+    lookup is deterministic."""
+    if kb is _UNSET:
+        kb = lookup_knowledge_base(from_name, from_type, to_name, to_type, db)
     if kb is not None:
         kb_score = kb.probability if kb.match_quality == "exact" else kb.probability * 0.9
         return min(1.0, kb_score)
@@ -169,24 +239,21 @@ def calculate_enhanced_relevance(from_name: str, to_name: str, from_type: str,
 
     total_weight = 0.0
     matched_weight = 0.0
-    for kw in keywords:
+    from_hits = _keyword_hits(keywords, from_lower)
+    to_hits = _keyword_hits(keywords, to_lower)
+    for kw, from_hit, to_hit in zip(keywords, from_hits, to_hits):
         weight = _keyword_idf_weight(kw)
         total_weight = total_weight + weight
-        from_hit = _search(kw, from_lower)
-        to_hit = _search(kw, to_lower)
         if from_hit and to_hit:
             matched_weight = matched_weight + weight * 1.5
         elif from_hit or to_hit:
             matched_weight = matched_weight + weight
 
     bonus = 0.0
-    from_words = _words(from_lower)
-    to_words = _words(to_lower)
-    for synonyms in db["synonym_db"].values():
-        from_in = any(_search(s, w) for s in synonyms for w in from_words)
-        to_in = any(_search(s, w) for s in synonyms for w in to_words)
-        if from_in and to_in:
-            bonus = bonus + 0.1
+    shared = (_synonym_groups_hit(db["synonym_db"], from_lower)
+              & _synonym_groups_hit(db["synonym_db"], to_lower))
+    for _ in shared:
+        bonus = bonus + 0.1
     bonus = min(bonus, 0.3)
 
     if total_weight == 0:

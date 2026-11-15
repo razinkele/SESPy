@@ -1,44 +1,27 @@
-"""Connection scoring backend for the AI-ISA wizard (SP3).
+"""Connection scoring backend for the AI-ISA wizard.
 
-Pure-Python rule-based scoring across all 11 DAPSI(W)R(M) connection
-types. Loads a keyword JSON eagerly at module import; exposes
-suggest_connections(state) as the SP3 contract — same signature as
-SP1's stub, replacing it via sespy/wizard.py.
-
-R source-of-truth: ../SESToolbox/MarineSABRES_SES_Shiny/modules/ai_isa/
-connection_generator.R (1009 LOC; SP3 ports lines 62-187, 198-226,
-264-323, 338-387, 436-574, 755-1001 with KB-lookup and ML branches
-dropped per scope).
+Rule-based scorer: an exact port of R v1.35.6 generate_connections (ML off)
+on R's 10 type pairs (connection_generator.R:62-187, 198-226, 436-574,
+755-1001; relevance and KB lookup live in r_connection_kb). Exposes
+suggest_connections(state, snapshot=None), re-exported by sespy/wizard.py.
 """
 from __future__ import annotations
 
-import json
 import logging
 import re
-from pathlib import Path
-from typing import Any
 
 from . import r_connection_kb as r_kb  # noqa: E402
 from .r_kb import VENDORED as _R_VENDORED  # noqa: E402
 from .data_structure import (
-    _CONN_TYPES,  # re-exported for SP3-era tests
+    _CONN_TYPES,  # noqa: F401  re-exported for SP3-era tests
     ELEMENT_TYPE_MAP,  # post-Task-2 home (data_structure.py)
     ConnectionSuggestion,
     Element,
     WizardState,
 )
 
-_KW_PATH = Path(__file__).parent / "connection_keywords.json"
 _logger = logging.getLogger(__name__)
 
-
-def _load_keywords() -> dict[str, Any]:
-    """Read and parse the keyword JSON. Called once at module import."""
-    with _KW_PATH.open(encoding="utf-8") as f:
-        return json.load(f)
-
-
-_KW = _load_keywords()
 _TYPE_TO_SLUG = {v: k for k, v in ELEMENT_TYPE_MAP.items()}
 # {"Drivers": "drivers", "Activities": "activities", ...,
 #  "Marine Processes & Functioning": "states", "Ecosystem Services": "impacts",
@@ -104,45 +87,6 @@ def _any_match(patterns, text: str) -> bool:
     )
 
 
-def calculate_relevance(
-    from_name: str, to_name: str, from_slug: str, to_slug: str
-) -> float:
-    """Return one of {0.3, 0.6, 0.9} based on keyword-substring-match
-    count across both names (0 matches → 0.3 floor, 1 → 0.6, 2+ → 0.9).
-    Returns 0.5 if the (from_slug, to_slug) pair is missing from the
-    keyword JSON (R line 376). That is the normal path for responses_states
-    (R->MPF): R has no keywords for it and scores it at a flat 0.5, so the
-    keyword JSON deliberately has no responses_states key (10 keys for the
-    11 pairs).
-
-    Slug params are lowercase (e.g., "drivers", "states"), NOT human
-    Element.type strings.
-
-    Direct port of R's .calculate_basic_relevance at
-    connection_generator.R:338-387.
-    """
-    key = f"{from_slug}_{to_slug}"
-    keywords = _KW["connection_types"].get(key)
-    if keywords is None:
-        return 0.5
-
-    from_lower = from_name.lower()
-    to_lower = to_name.lower()
-    from_matches = sum(
-        1 for kw in keywords if re.search(re.escape(kw), from_lower)
-    )
-    to_matches = sum(
-        1 for kw in keywords if re.search(re.escape(kw), to_lower)
-    )
-    total_matches = from_matches + to_matches
-
-    if total_matches == 0:
-        return 0.3
-    if total_matches == 1:
-        return 0.6
-    return 0.9
-
-
 def _analyze_polarity_phrase(name_lower: str) -> tuple[str, bool]:
     """Return (sentiment, negated); port of R's analyze_phrase_polarity
     (ses_connection_knowledge_base.R:1363-1435), which R's
@@ -173,6 +117,12 @@ def detect_polarity(from_name: str, to_name: str, from_type: str,
     entry's polarity when lookup_knowledge_base matches, else R's rules.
     Types are R's plural slugs."""
     kb = r_kb.lookup_knowledge_base(from_name, from_type, to_name, to_type, db)
+    return _polarity_from_match(kb, from_name, to_name, from_type, to_type)
+
+
+def _polarity_from_match(kb, from_name: str, to_name: str, from_type: str,
+                         to_type: str) -> str:
+    """detect_polarity given the caller's precomputed KB lookup result."""
     if kb is not None and kb.polarity is not None:
         return kb.polarity
 
@@ -265,6 +215,28 @@ def _select_verb(from_slug: str, polarity: str) -> str:
     return "affects positively" if polarity == "+" else "affects negatively"
 
 
+# R's generate_connections block order (connection_generator.R:922-993).
+R_CONNECTION_PAIRS: tuple[tuple[str, str], ...] = (
+    ("drivers", "activities"), ("activities", "pressures"),
+    ("pressures", "states"), ("states", "impacts"), ("impacts", "welfare"),
+    ("responses", "pressures"), ("welfare", "drivers"),
+    ("welfare", "responses"), ("responses", "drivers"),
+    ("responses", "activities"),
+)
+
+# R's double-negative filter list (connection_generator.R:440-444).
+_LOSS_KEYWORDS = (
+    "loss", "decline", "declin", "degrad", "reduc", "damag", "destruct",
+    "decreas", "diminish", "deplet", "erosion", "collapse", "extinct",
+    "mortality", "death", "disappear", "absent", "lack", "scarcity",
+)
+_LOSS_RX = re.compile("|".join(_LOSS_KEYWORDS))
+
+
+def _is_loss(lowered: str) -> bool:
+    return _LOSS_RX.search(lowered) is not None
+
+
 def _generate_smart_connections(
     from_elements: list[Element],
     to_elements: list[Element],
@@ -272,88 +244,58 @@ def _generate_smart_connections(
     to_slug: str,
     max_count: int = _MAX_PER_TYPE,
     min_relevance: float = _MIN_RELEVANCE,
+    db: dict | None = None,
 ) -> list[ConnectionSuggestion]:
-    """Per-type pair generator. Cross-product, threshold filter,
-    double-negative filter, sort desc by confidence, cap at max_count.
+    """Port of R's generate_smart_connections (connection_generator.R:436-574,
+    ML off): (i, j) candidates, inclusive threshold, double-negative filter,
+    one KB lookup per candidate reused for relevance, polarity, strength and
+    confidence, stable descending sort by relevance, cap."""
+    if db is None:
+        db = _R_VENDORED.connection_db()
+    from_loss = [_is_loss(e.label.lower()) for e in from_elements]
+    to_loss = [_is_loss(e.label.lower()) for e in to_elements]
+    # (relevance, from element, to element, KB match). Polarity, verb and
+    # rationale never feed the threshold, the filter or the sort, so they are
+    # built only for the survivors of the cap.
+    candidates: list[tuple[float, Element, Element, r_kb.KBMatch | None]] = []
 
-    Direct port of R's generate_smart_connections at
-    connection_generator.R:436-574 (KB and ML branches dropped per
-    scope). Verb is derived per-pair via _select_verb(from_slug,
-    polarity) -- NOT a parameter, because verb is polarity-aware and
-    polarity varies per pair.
-
-    Note: the conn_type_key (f"{from_slug}_{to_slug}") is reproducible
-    from from_slug+to_slug and is used internally by calculate_relevance
-    via the same construction. Not passed as a separate parameter.
-
-    The double-negative filter uses _KW["polarity_signals"]
-    ["loss_keywords"] (specific decline/loss vocabulary), NOT
-    "negative_keywords" (broader, includes pollutants like 'pollut',
-    'contaminat'). The two sets overlap but are distinct in R.
-    """
-    loss_keywords = _KW["polarity_signals"]["loss_keywords"]
-    candidates: list[ConnectionSuggestion] = []
-
-    for from_el in from_elements:
-        for to_el in to_elements:
-            relevance = calculate_relevance(
-                from_el.label, to_el.label, from_slug, to_slug
-            )
-            # Threshold gate (R uses >= at line 452; vacuous given 0.3 floor
-            # but pinned by test_pair_with_relevance_exactly_03_survives).
+    for i, from_el in enumerate(from_elements):
+        for j, to_el in enumerate(to_elements):
+            kb = r_kb.lookup_knowledge_base(
+                from_el.label, from_slug, to_el.label, to_slug, db)
+            relevance = r_kb.calculate_enhanced_relevance(
+                from_el.label, to_el.label, from_slug, to_slug, db, kb=kb)
             if relevance < min_relevance:
                 continue
+            if from_loss[i] and to_loss[j]:
+                continue  # skipped candidates do not use the cap
+            candidates.append((relevance, from_el, to_el, kb))
 
-            # Double-negative filter (R lines 440-463).
-            from_lower = from_el.label.lower()
-            to_lower = to_el.label.lower()
-            from_is_loss = any(
-                re.search(re.escape(kw), from_lower) for kw in loss_keywords
-            )
-            to_is_loss = any(
-                re.search(re.escape(kw), to_lower) for kw in loss_keywords
-            )
-            if from_is_loss and to_is_loss:
-                continue
-
-            db = _R_VENDORED.connection_db()
-            polarity = detect_polarity(
-                from_el.label, to_el.label, from_slug, to_slug, db
-            )
-            kb = r_kb.lookup_knowledge_base(
-                from_el.label, from_slug, to_el.label, to_slug, db
-            )
-            strength = kb.strength if kb is not None else "medium"
-            confidence = 4 if kb is not None and kb.match_quality == "exact" else 3
-            verb = _select_verb(from_slug, polarity)
-            candidates.append(ConnectionSuggestion(
-                source=from_el.id,
-                target=to_el.id,
-                polarity=polarity,
-                relevance=relevance,
-                rationale=f"{from_el.label} {verb} {to_el.label}",
-                strength=strength,
-                confidence=confidence,
-            ))
-
-    # Sort desc by confidence (stable -- preserves cross-product order on ties).
-    candidates.sort(key=lambda s: s.relevance, reverse=True)
-    return candidates[:max_count]
+    candidates.sort(key=lambda c: -c[0])  # stable: ties keep (i, j) order
+    out: list[ConnectionSuggestion] = []
+    for relevance, from_el, to_el, kb in candidates[:max_count]:
+        polarity = _polarity_from_match(
+            kb, from_el.label, to_el.label, from_slug, to_slug)
+        verb = _select_verb(from_slug, polarity)
+        out.append(ConnectionSuggestion(
+            source=from_el.id,
+            target=to_el.id,
+            polarity=polarity,
+            relevance=relevance,
+            rationale=f"{from_el.label} {verb} {to_el.label}",
+            strength=kb.strength if kb is not None else "medium",
+            confidence=4 if kb is not None and kb.match_quality == "exact" else 3,
+        ))
+    return out
 
 
-def suggest_connections(state: WizardState) -> list[ConnectionSuggestion]:
-    """SP3 contract: rule-based scoring across all 11 connection types.
-    Same signature as SP1's stub at sespy/wizard.py:92.
-
-    Top-level orchestrator (R lines 755-1001; constants MAX_PER_TYPE=15
-    and MIN_RELEVANCE=0.3 at R 757-758). KB-seed and ML-scoring
-    branches dropped per rule-based-only scope.
-
-    Returns a flat list of <=165 (11 types x 15 cap) ConnectionSuggestions
-    sorted globally by source group order (per _CONN_TYPES iteration)
-    and within each group by confidence descending.
-    """
-    # 1. Group state.elements by type using _TYPE_TO_SLUG.
+def suggest_connections(state: WizardState,
+                        snapshot=None) -> list[ConnectionSuggestion]:
+    """R's generate_connections with ML off: the 10 pairs in R's order, at
+    most 15 per pair, no cross-pair dedup. ``snapshot`` None means the
+    vendored R data."""
+    snap = snapshot if snapshot is not None else _R_VENDORED
+    db = snap.connection_db()
     grouped: dict[str, list[Element]] = {
         slug: [] for slug in _TYPE_TO_SLUG.values()
     }
@@ -367,18 +309,12 @@ def suggest_connections(state: WizardState) -> list[ConnectionSuggestion]:
             continue
         grouped[slug].append(el)
 
-    # 2. For each of the 11 connection-type pairs, generate suggestions.
-    # _CONN_TYPES is a 3-tuple list (from_slug, to_slug, conn_type_key);
-    # we destructure the 3rd field but don't pass it -- calculate_relevance
-    # rebuilds the conn_type_key from (from_slug, to_slug) internally.
     out: list[ConnectionSuggestion] = []
-    for from_slug, to_slug, _conn_type_key in _CONN_TYPES:
+    for from_slug, to_slug in R_CONNECTION_PAIRS:
         from_list = grouped[from_slug]
         to_list = grouped[to_slug]
         if not from_list or not to_list:
-            continue  # cross-product would be empty anyway
+            continue
         out.extend(_generate_smart_connections(
-            from_list, to_list, from_slug, to_slug
-        ))
-
+            from_list, to_list, from_slug, to_slug, db=db))
     return out

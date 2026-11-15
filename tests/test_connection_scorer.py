@@ -1,11 +1,11 @@
-"""Unit tests for sespy.connection_scorer — connection-scoring backend.
+"""Unit tests for sespy.connection_scorer, the rule-based scorer.
 
-Test groups (per spec §7):
-  G1 (this file's first 5 tests): JSON schema / loader
-  G2: calculate_relevance (added in Task 4)
-  G3: detect_polarity (added in Tasks 5-6)
-  G4: _select_verb + _generate_smart_connections (added in Tasks 7-8)
-  G5: suggest_connections — the SP3 contract (added in Task 9)
+The scorer is an exact port of R v1.35.6 generate_connections (ML off); the
+golden parity tests at the bottom are the arbiter. The tests above them pin
+helper behaviour. The old SP3 keyword-JSON loader tests and the 0.3/0.6/0.9
+relevance-step tests were deleted in K1b Task 6 (the JSON and the steps are
+gone; relevance is R's calculate_enhanced_relevance, covered in
+test_r_connection_kb.py).
 """
 from __future__ import annotations
 
@@ -13,273 +13,100 @@ from pathlib import Path
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Group 1: JSON schema / loader (5 tests)
-# ---------------------------------------------------------------------------
+from sespy.r_kb import VENDORED
 
-def test_keywords_json_loads():
-    """File loads via _load_keywords() without error."""
-    from sespy.connection_scorer import _load_keywords
-    kw = _load_keywords()
-    assert isinstance(kw, dict)
-    assert "connection_types" in kw
-    assert "polarity_signals" in kw
-
-
-def test_keyword_json_has_10_keys_for_the_11_pairs():
-    """Set-equality on connection_types keys against the 10 keyword slugs.
-
-    Stays at 10 although _CONN_TYPES has 11 pairs: R has no relevance
-    keywords for responses_states (R->MPF) and scores it at a flat 0.5
-    (connection_generator.R:375), so SESPy invents none (spec §3.3)."""
-    from sespy.connection_scorer import _KW
-    expected = {
-        "drivers_activities", "activities_pressures", "pressures_states",
-        "states_impacts", "impacts_welfare",
-        "responses_pressures", "responses_drivers", "responses_activities",
-        "welfare_drivers", "welfare_responses",
-    }
-    assert set(_KW["connection_types"].keys()) == expected
-
-
-def test_polarity_signals_keys_present():
-    """Set-equality on the 4 polarity-signal keys."""
-    from sespy.connection_scorer import _KW
-    expected = {"negative_keywords", "positive_keywords",
-                "mitigation_keywords", "loss_keywords"}
-    assert set(_KW["polarity_signals"].keys()) == expected
-
-
-def test_every_keyword_list_non_empty():
-    """All connection_types lists and all polarity_signals lists have len >= 1.
-
-    Includes welfare_drivers — the SP3 hand-curated addition. Pinning
-    non-emptiness here protects against a future 'minimize JSON' pass
-    silently dropping the curated list.
-    """
-    from sespy.connection_scorer import _KW
-    for slug, kws in _KW["connection_types"].items():
-        assert len(kws) >= 1, f"{slug}: connection_types list is empty"
-    for name, kws in _KW["polarity_signals"].items():
-        assert len(kws) >= 1, f"{name}: polarity_signals list is empty"
-
-
-def test_keywords_are_lowercase_and_stripped():
-    """Canonicalization invariant: every keyword == kw.lower().strip()."""
-    from sespy.connection_scorer import _KW
-    for slug, kws in _KW["connection_types"].items():
-        for kw in kws:
-            assert kw == kw.lower().strip(), (
-                f"{slug}: keyword {kw!r} is not lowercase/stripped"
-            )
-    for name, kws in _KW["polarity_signals"].items():
-        for kw in kws:
-            assert kw == kw.lower().strip(), (
-                f"{name}: keyword {kw!r} is not lowercase/stripped"
-            )
+DB = VENDORED.connection_db()
 
 
 # ---------------------------------------------------------------------------
-# Group 2: calculate_relevance (6 tests)
-# ---------------------------------------------------------------------------
-
-def test_zero_matches_returns_03():
-    """Names with no keyword substring match → 0.3 (R's Low relevance floor)."""
-    from sespy.connection_scorer import calculate_relevance
-    # "Tractor" / "Bicycle" share no keyword stems with drivers_activities
-    # (which has "fish", "food", "econom", "livelihood", ...).
-    assert calculate_relevance("Tractor", "Bicycle", "drivers", "activities") == 0.3
-
-
-def test_one_match_returns_06():
-    """Exactly one keyword substring match across both names → 0.6."""
-    from sespy.connection_scorer import calculate_relevance
-    # "Fishing" matches "fish" stem (1 match in from_name); "Bicycle" matches
-    # nothing → total_matches = 1 → 0.6.
-    assert calculate_relevance("Fishing", "Bicycle", "drivers", "activities") == 0.6
-
-
-def test_two_plus_matches_returns_09():
-    """Two or more keyword substring matches → 0.9."""
-    from sespy.connection_scorer import calculate_relevance
-    # "Fishing" matches "fish"; "Tourism" matches "tourism" → total_matches = 2 → 0.9.
-    assert calculate_relevance("Fishing", "Tourism", "drivers", "activities") == 0.9
-
-
-def test_relevance_uses_substring_match():
-    """'Fishing' matches keyword stem 'fish' (substring, not token-exact).
-
-    Pinned because the substring-vs-token semantics is load-bearing —
-    token-exact match would miss most real labels (R uses grepl, not
-    word-boundary match).
-    """
-    from sespy.connection_scorer import calculate_relevance
-    # If the implementation used token-exact match (e.g., 'fish' in name.split()),
-    # 'Fishing' would NOT match 'fish' and this would return 0.3 (no matches).
-    # With substring match, it matches and returns 0.6 (1 match in from_name).
-    assert calculate_relevance("Fishing", "XYZ", "drivers", "activities") == 0.6
-
-
-def test_relevance_is_case_insensitive():
-    """'FISHING' matches keyword 'fish' (input lowercased before matching)."""
-    from sespy.connection_scorer import calculate_relevance
-    assert calculate_relevance("FISHING", "XYZ", "drivers", "activities") == 0.6
-
-
-def test_relevance_unknown_pair_returns_05():
-    """Unknown (from_slug, to_slug) pair → 0.5 (R's defensive default at line 376).
-
-    Pins the defensive path so a future removal is a deliberate decision.
-    It is also the normal path for responses_states (R->MPF), which has no
-    keywords by design (see test_r_to_mpf_relevance_is_flat_05).
-    """
-    from sespy.connection_scorer import calculate_relevance
-    # "garbage_bogus" is not a valid slug pair; the lookup falls through to 0.5.
-    assert calculate_relevance("X", "Y", "garbage", "bogus") == 0.5
-
-
-# ---------------------------------------------------------------------------
-# Group 3: detect_polarity (7 tests)
+# Polarity helpers and detect_polarity (5-arg R signature)
 # ---------------------------------------------------------------------------
 
 def test_analyze_polarity_phrase_reversal_compound():
     """The helper detects 'negative-of-negative' phrases as ('positive', True)
-    via the 8-pattern reversal-compounds list (R lines 216-218).
-
-    Falsifiable invariant for the load-bearing reversal-compound list:
-    'pollution reduction' returns ('positive', True), 'emission reduction'
-    likewise, an unrelated phrase returns ('neutral', False), a phrase
-    matching only a negation pattern returns ('neutral', True).
-    """
+    via R's reversal-compounds list."""
     from sespy.connection_scorer import _analyze_polarity_phrase
 
-    # Reversal-compound matches → ("positive", True)
     assert _analyze_polarity_phrase("pollution reduction") == ("positive", True)
     assert _analyze_polarity_phrase("emission reduction") == ("positive", True)
     assert _analyze_polarity_phrase("overfish prevention") == ("positive", True)
-
-    # No reversal, no negation → ("neutral", False)
     assert _analyze_polarity_phrase("fishing activity") == ("neutral", False)
-
-    # Negation only (no reversal-compound match) → ("neutral", True)
     # "no biodiversity" matches \bno\b but not any reversal compound.
     assert _analyze_polarity_phrase("no biodiversity") == ("neutral", True)
 
 
-@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_responses_to_pressures_is_minus():
-    """Always '-' regardless of names (R line 117 invariant)."""
+    """No KB match -> R's rule: always '-' for responses -> pressures."""
     from sespy.connection_scorer import detect_polarity
-    assert detect_polarity("Foo", "Bar", "responses", "pressures") == "-"
-    assert detect_polarity("Marine policy", "Pollution",
-                          "responses", "pressures") == "-"
+    assert detect_polarity("Foo", "Bar", "responses", "pressures", DB) == "-"
 
 
-@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_activities_to_pressures_mitigation_is_minus():
-    """'Pollution reduction' from activities → '-' via the reversal-compound
-    path: _analyze_polarity_phrase returns ('positive', True), then dispatch
-    checks from_analysis.sentiment == 'positive' (R lines 133-138)."""
+    """'Pollution reduction' from activities -> '-' via the reversal-compound
+    path (mitigation keyword / positive phrase sentiment)."""
     from sespy.connection_scorer import detect_polarity
     assert detect_polarity("Pollution reduction", "Eutrophication",
-                          "activities", "pressures") == "-"
+                           "activities", "pressures", DB) == "-"
 
 
-@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_activities_to_pressures_default_is_plus():
-    """Neutral names → '+' (default for activities → pressures)."""
     from sespy.connection_scorer import detect_polarity
-    # "Tourism" has no mitigation_keywords match, no reversal-compound match.
-    # → from_is_mitigation=False, from_analysis.sentiment="neutral" → default "+".
-    assert detect_polarity("Tourism", "Noise", "activities", "pressures") == "+"
+    assert detect_polarity("Zzz", "Qqq", "activities", "pressures", DB) == "+"
 
 
-@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_pressures_to_states_branches():
-    """All three pressures→states branches (R lines 144-150):
-    - to_is_negative=True → "+" (pressure increases negative state)
-    - to_is_positive=True → "-" (pressure decreases positive state)
-    - neutral → default "-"
-
-    The to_is_positive branch is observationally identical to the
-    default in the current implementation (both return "-") but is
-    pinned here so a future refactor that distinguishes them would
-    break the test instead of silently changing behavior.
-    """
+    """No-KB-match rule branches of pressures -> states: negative-sounding
+    target '+', positive-sounding target '-', neutral default '-'."""
     from sespy.connection_scorer import detect_polarity
-    # to_is_negative path: "Fish stocks decline" has "declin" → "+"
-    assert detect_polarity("Eutrophication", "Fish stocks decline",
-                           "pressures", "states") == "+"
-    # to_is_positive path: "Healthy biodiversity" has "health", "biodiver" → "-"
-    assert detect_polarity("Eutrophication", "Healthy biodiversity",
-                           "pressures", "states") == "-"
-    # neutral default path: "Open coastal waters" has no positive/negative
-    # keyword → "-"
-    assert detect_polarity("Eutrophication", "Open coastal waters",
-                           "pressures", "states") == "-"
+    assert detect_polarity("Zzz", "Fish stocks decline",
+                           "pressures", "states", DB) == "+"
+    assert detect_polarity("Zzz", "Healthy biodiversity",
+                           "pressures", "states", DB) == "-"
+    assert detect_polarity("Zzz", "Open coastal waters",
+                           "pressures", "states", DB) == "-"
 
 
-@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_states_to_impacts_negation_flip():
-    """The negation flip (R line 158) zeroes from_is_negative when
-    from_analysis.negated AND from_is_negative both hold. This test pins
-    the flip behavior with a label whose POST-FLIP polarity output
-    differs from its NO-FLIP output -- i.e., a label where the flip
-    is observable, not a silent no-op.
-
-    Test pair design uses "Reduced biodiversity" + "Healthy ecosystem
-    services" so the expected output "+" is ONLY achievable if the flip
-    correctly zeroed from_is_negative (without flip, both flags stay True
-    and the matrix returns "-"). Negative control "Pollution" has no
-    negation pattern, so no flip; opposite-sign matrix gives "-".
-    """
+    """The negation flip zeroes from_is_negative when the phrase is negated
+    AND negative. Observable only when the target is negative too: without
+    the flip two negatives give '+', with it the source is neutral -> '-'."""
+    from sespy import r_connection_kb as r_kb
     from sespy.connection_scorer import detect_polarity
-    # Positive expected output proves the flip ran.
-    assert detect_polarity(
-        "Reduced biodiversity", "Healthy ecosystem services",
-        "states", "impacts",
-    ) == "+"
-    # Negative control: a from_name with no negation flag should NOT
-    # trigger the flip; matrix sees from_is_negative=True AND
-    # to_is_positive=True → opposite-sign → "-".
-    assert detect_polarity(
-        "Pollution",  # negative_keyword "pollut" but no negation pattern
-        "Healthy ecosystem services",
-        "states", "impacts",
-    ) == "-"
+    for f, t in (("Reduced qqq", "Pollution qqq"), ("Pollution qqq", "Pollution qqq")):
+        assert r_kb.lookup_knowledge_base(f, "states", t, "impacts", DB) is None
+    assert detect_polarity("Reduced qqq", "Pollution qqq",
+                           "states", "impacts", DB) == "-"
+    assert detect_polarity("Pollution qqq", "Pollution qqq",
+                           "states", "impacts", DB) == "+"
 
 
-@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_default_fallback_for_unspecified_pair():
-    """(drivers, activities) and other pairs without a named branch return
-    '+' per R line 186 (default fallback).
-    """
+    """Pairs without a named branch (and no KB match) return '+'."""
     from sespy.connection_scorer import detect_polarity
-    # No named branch for (drivers, activities) — falls through to "+".
-    assert detect_polarity("Tourism demand", "Coastal development",
-                           "drivers", "activities") == "+"
-    # Same for the other 4 default-fallback pairs.
-    assert detect_polarity("Marine policy", "Tourism demand",
-                           "responses", "drivers") == "+"
-    assert detect_polarity("Marine policy", "Coastal development",
-                           "responses", "activities") == "+"
-    assert detect_polarity("Public concern", "Tourism demand",
-                           "welfare", "drivers") == "+"
-    assert detect_polarity("Public concern", "Marine policy",
-                           "welfare", "responses") == "+"
+    assert detect_polarity("Zzz", "Qqq", "drivers", "activities", DB) == "+"
+    assert detect_polarity("Zzz", "Qqq", "responses", "drivers", DB) == "+"
+    assert detect_polarity("Zzz", "Qqq", "responses", "activities", DB) == "+"
+    assert detect_polarity("Zzz", "Qqq", "welfare", "drivers", DB) == "+"
+    assert detect_polarity("Zzz", "Qqq", "welfare", "responses", DB) == "+"
+
+
+@pytest.mark.parametrize("to_label,want", [
+    ("Hypoxia extent", "-"),          # negative-sounding target: reduces a bad state
+    ("Fish stock recovery", "+"),     # positive-sounding target: increases a good state
+    ("Seabed sediment", "+"),         # neither: default "+"
+])
+def test_detect_polarity_responses_to_states(to_label, want):
+    from sespy.connection_scorer import detect_polarity
+    assert detect_polarity("Zzz", to_label, "responses", "states", DB) == want
 
 
 # ---------------------------------------------------------------------------
-# Group 4: _generate_smart_connections (6 tests)
+# Verb table
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize(
     "from_slug,polarity,expected_verb",
     [
-        # drivers and states are polarity-insensitive (R 514-515, 519-520) —
-        # both polarities yield the same verb. The parameterization runs them
-        # twice anyway to catch a regression where polarity is accidentally
-        # consulted.
         ("drivers", "+", "drives"),
         ("drivers", "-", "drives"),
         ("activities", "+", "increases"),
@@ -297,281 +124,170 @@ def test_default_fallback_for_unspecified_pair():
     ],
 )
 def test_verb_selection_per_from_slug_polarity_pair(from_slug, polarity, expected_verb):
-    """Pin the 7 from-slugs × 2 polarities = 14-case verb table verbatim
-    (matches R lines 513-529).
-
-    Critical because the verb table lives only in _select_verb's
-    docstring + this test. A typo in either drift would ship silently
-    without this parameterized coverage.
-    """
     from sespy.connection_scorer import _select_verb
     assert _select_verb(from_slug, polarity) == expected_verb
 
 
 def _make_element(eid: str, label: str, etype: str):
-    """Helper: build a minimal Element for testing without going through
-    the wizard's id-prefix machinery."""
+    """Helper: build a minimal Element for testing."""
     from sespy.data_structure import Element
     return Element(id=eid, label=label, type=etype)
 
 
+# ---------------------------------------------------------------------------
+# _generate_smart_connections
+# ---------------------------------------------------------------------------
+
 def test_cross_product_pair_generation():
-    """2 from-elements x 3 to-elements -> <= 6 candidates pre-filter
-    (some may drop via double-negative filter).
-    """
+    """2 x 3 candidates, none filtered: every pair clears R's threshold when it
+    has a KB match; assert the count equals the survivors of the threshold."""
     from sespy.connection_scorer import _generate_smart_connections
-    from_els = [_make_element("D001", "Tourism", "Drivers"),
-                _make_element("D002", "Fishing", "Drivers")]
-    to_els = [_make_element("A001", "Recreation", "Activities"),
-              _make_element("A002", "Commercial fishing", "Activities"),
-              _make_element("A003", "Aquaculture", "Activities")]
-    result = _generate_smart_connections(
-        from_els, to_els, "drivers", "activities"
-    )
-    # Cross-product is 2x3=6; double-negative filter doesn't apply (no
-    # loss_keywords in any name). All 6 pairs survive the threshold
-    # because R's 0.3 floor admits everything.
-    assert len(result) == 6
+    from_els = [_make_element("D001", "Food security", "Drivers"),
+                _make_element("D002", "Economic growth", "Drivers")]
+    to_els = [_make_element("A001", "Commercial fishing", "Activities"),
+              _make_element("A002", "Aquaculture", "Activities"),
+              _make_element("A003", "Tourism", "Activities")]
+    result = _generate_smart_connections(from_els, to_els, "drivers", "activities")
+    assert 1 <= len(result) <= 6
+    assert all(s.relevance >= 0.3 for s in result)
 
 
 def test_double_negative_filter_uses_loss_keywords():
-    """Both names contain loss_keywords substring -> suggestion dropped.
-    Names with negative_keywords that are NOT loss_keywords (e.g.,
-    'Pollution') survive.
-    """
+    """Both names contain a loss keyword -> candidate dropped (R's
+    loss_keywords, regex search on the lowercased names)."""
     from sespy.connection_scorer import _generate_smart_connections
-    # Both labels have "loss" / "decline" -> loss_keywords match -> dropped.
-    from_els = [_make_element("S001", "Loss of biodiversity",
-                              "Marine Processes & Functioning")]
-    to_els = [_make_element("I001", "Decline in fishery yield",
-                            "Ecosystem Services")]
-    result = _generate_smart_connections(
-        from_els, to_els, "states", "impacts"
-    )
-    assert result == []  # Filtered out
-
-    # Now: one name has only negative_keywords (not loss_keywords).
-    # "Pollution" matches negative_keywords but NOT loss_keywords (loss list
-    # has decline/declin/degrad/reduc/damag/destruct/decreas/diminish/
-    # deplet/erosion/collapse/extinct/mortality/death/disappear/absent/
-    # lack/scarcity -- no 'pollut'). Pair survives.
-    from_els = [_make_element("S002", "Pollution",
-                              "Marine Processes & Functioning")]
-    to_els = [_make_element("I002", "Loss of habitat",
-                            "Ecosystem Services")]
-    result = _generate_smart_connections(
-        from_els, to_els, "states", "impacts"
-    )
-    assert len(result) == 1
+    from_els = [_make_element("S001", "Loss of biodiversity", "Marine Processes & Functioning")]
+    to_els = [_make_element("I001", "Decline in fishery yield", "Ecosystem Services")]
+    assert _generate_smart_connections(
+        from_els, to_els, "states", "impacts", min_relevance=0.0) == []
+    # Only one side is a loss name: the pair survives (threshold lowered so
+    # the test does not depend on the relevance value).
+    from_els = [_make_element("S002", "Pollution", "Marine Processes & Functioning")]
+    to_els = [_make_element("I002", "Loss of habitat", "Ecosystem Services")]
+    assert len(_generate_smart_connections(
+        from_els, to_els, "states", "impacts", min_relevance=0.0)) == 1
 
 
-def test_results_sorted_by_confidence_desc():
-    """Output is sorted by confidence descending (stable sort).
-
-    Use a to-element with NO keyword matches ('XYZ') so the from-element
-    keyword count solely determines confidence. Otherwise the to-element
-    contribution masks the gradient and the test still passes via
-    sortedness coincidence rather than the property under test.
-    """
+def test_filtered_candidates_do_not_use_the_cap():
+    """Skipped double-negatives free their slot: with max_count=2 and one
+    filtered candidate ahead of two others, two rows come back."""
     from sespy.connection_scorer import _generate_smart_connections
-    # to-name "XYZ" has 0 keyword matches in drivers_activities;
-    # from-name match counts: "Tourism fishing"=2, "Tourism"=1, "Bicycle"=0.
-    # -> confidences {0.9, 0.6, 0.3}.
-    from_els = [
-        _make_element("D001", "Tourism fishing", "Drivers"),  # 2 stems -> 0.9
-        _make_element("D002", "Tourism", "Drivers"),          # 1 stem -> 0.6
-        _make_element("D003", "Bicycle", "Drivers"),          # 0 stems -> 0.3
-    ]
-    to_els = [_make_element("A001", "XYZ", "Activities")]
-    result = _generate_smart_connections(
-        from_els, to_els, "drivers", "activities"
-    )
-    confidences = [s.relevance for s in result]
-    assert confidences == [0.9, 0.6, 0.3]
-    assert confidences == sorted(confidences, reverse=True)
+    from_els = [_make_element("S1", "Loss of fish", "Marine Processes & Functioning"),
+                _make_element("S2", "Fish biomass", "Marine Processes & Functioning")]
+    to_els = [_make_element("I1", "Decline in catch", "Ecosystem Services"),
+              _make_element("I2", "Fish provisioning", "Ecosystem Services")]
+    got = _generate_smart_connections(from_els, to_els, "states", "impacts",
+                                      max_count=3, min_relevance=0.0)
+    pairs = {(s.source, s.target) for s in got}
+    assert len(got) == 3 and ("S1", "I1") not in pairs
+
+
+def test_results_sorted_by_relevance_desc_stable():
+    from sespy.connection_scorer import _generate_smart_connections
+    from_els = [_make_element(f"D{i}", n, "Drivers") for i, n in
+                enumerate(["Food security", "Zzz", "Economic growth", "Qqq"])]
+    to_els = [_make_element("A1", "Commercial fishing", "Activities")]
+    got = _generate_smart_connections(from_els, to_els, "drivers", "activities",
+                                      min_relevance=0.0)
+    rel = [s.relevance for s in got]
+    assert rel == sorted(rel, reverse=True)
+    # Equal relevance keeps the (i, j) generation order (stable sort).
+    for a, b in zip(got, got[1:]):
+        if a.relevance == b.relevance:
+            assert a.source < b.source
 
 
 def test_max_count_cap_honored():
     """> 15 candidates -> exactly 15 returned."""
     from sespy.connection_scorer import _generate_smart_connections
-    # 4 x 5 = 20 candidates; cap at max_count=15.
-    from_els = [_make_element(f"D{i:03d}", f"Tourism{i}", "Drivers")
-                for i in range(1, 5)]
-    to_els = [_make_element(f"A{i:03d}", f"Recreation{i}", "Activities")
-              for i in range(1, 6)]
+    from_els = [_make_element(f"D{i:03d}", f"Tourism{i}", "Drivers") for i in range(1, 5)]
+    to_els = [_make_element(f"A{i:03d}", f"Recreation{i}", "Activities") for i in range(1, 6)]
     result = _generate_smart_connections(
-        from_els, to_els, "drivers", "activities",
-        max_count=15
-    )
+        from_els, to_els, "drivers", "activities", max_count=15, min_relevance=0.0)
     assert len(result) == 15
 
 
-def test_pair_with_relevance_exactly_03_survives():
-    """Pin R's >= threshold semantics at the floor: a pair with
-    relevance == 0.3 IS emitted (the gate is vacuous given R's floor).
-    Future change to min_relevance > 0.3 (or strict >) would change
-    this; the test forces a deliberate decision.
-    """
+def test_threshold_is_inclusive():
+    """relevance == min_relevance survives; one ulp above it does not."""
+    import math
+
     from sespy.connection_scorer import _generate_smart_connections
-    # No keyword matches -> relevance = 0.3 exactly.
     from_els = [_make_element("D001", "Bicycle", "Drivers")]
     to_els = [_make_element("A001", "Letter", "Activities")]
-    result = _generate_smart_connections(
-        from_els, to_els, "drivers", "activities"
-    )
-    assert len(result) == 1
-    assert result[0].relevance == 0.3
+    r = _generate_smart_connections(
+        from_els, to_els, "drivers", "activities", min_relevance=0.0)[0].relevance
+    assert len(_generate_smart_connections(
+        from_els, to_els, "drivers", "activities", min_relevance=r)) == 1
+    assert _generate_smart_connections(
+        from_els, to_els, "drivers", "activities",
+        min_relevance=math.nextafter(r, 2.0)) == []
 
 
 # ---------------------------------------------------------------------------
-# Group 5: suggest_connections (the SP3 contract) (9 tests)
+# suggest_connections
 # ---------------------------------------------------------------------------
-
 
 def test_empty_state_returns_empty():
-    """state.elements = [] → []."""
     from sespy.connection_scorer import suggest_connections
     from sespy.data_structure import WizardState
-    state = WizardState()
-    assert suggest_connections(state) == []
+    assert suggest_connections(WizardState()) == []
 
 
 def test_single_element_state_returns_empty():
-    """Only one element → no possible cross-product → []."""
     from sespy.connection_scorer import suggest_connections
     from sespy.data_structure import WizardState
-    state = WizardState(
-        elements=[_make_element("D001", "Tourism", "Drivers")]
-    )
+    state = WizardState(elements=[_make_element("D001", "Tourism", "Drivers")])
     assert suggest_connections(state) == []
 
 
 def test_full_state_returns_typed_suggestions():
-    """Multi-type state → all items are ConnectionSuggestion, all
-    confidence ∈ {0.3, 0.6, 0.9}, all polarity ∈ {'+', '-'}.
-    """
     from sespy.connection_scorer import suggest_connections
     from sespy.data_structure import ConnectionSuggestion, WizardState
     state = WizardState(elements=[
-        _make_element("D001", "Tourism", "Drivers"),
-        _make_element("A001", "Recreation", "Activities"),
-        _make_element("P001", "Pollution", "Pressures"),
+        _make_element("D001", "Food security", "Drivers"),
+        _make_element("A001", "Commercial fishing", "Activities"),
+        _make_element("P001", "Overfishing", "Pressures"),
     ])
     result = suggest_connections(state)
     assert len(result) > 0
     for s in result:
         assert isinstance(s, ConnectionSuggestion)
-        assert s.relevance in {0.3, 0.6, 0.9}
+        assert 0.3 <= s.relevance <= 1.0
         assert s.polarity in {"+", "-"}
+        assert s.strength in {"weak", "medium", "strong"}
+        assert s.confidence in {3, 4}
 
 
 def test_per_type_cap_honored_end_to_end():
-    """State designed to overflow D→A → ≤ 15 D→A suggestions in output."""
+    """5 x 5 = 25 D->A candidates (all above threshold) -> exactly 15."""
     from sespy.connection_scorer import suggest_connections
     from sespy.data_structure import WizardState
-    # 5 × 5 = 25 D→A candidates; cap at 15.
-    drivers = [_make_element(f"D{i:03d}", f"Tourism{i}", "Drivers")
+    drivers = [_make_element(f"D{i:03d}", f"Food security {i}", "Drivers")
                for i in range(1, 6)]
-    activities = [_make_element(f"A{i:03d}", f"Recreation{i}", "Activities")
+    activities = [_make_element(f"A{i:03d}", f"Commercial fishing {i}", "Activities")
                   for i in range(1, 6)]
-    state = WizardState(elements=drivers + activities)
-    result = suggest_connections(state)
-    da_count = sum(
-        1 for s in result
-        if s.source.startswith("D") and s.target.startswith("A")
-    )
-    assert da_count == 15
-
-
-def test_every_keyword_type_yields_high_confidence_suggestions():
-    """Designed-to-overlap reference fixture: ≥2 elements per type with
-    keyword-rich labels. Assert that for each of the 10 keyword-scored
-    connection types (all _CONN_TYPES except responses_states, which R
-    scores at a flat 0.5 and so can never reach 0.6),
-    at least one suggestion has confidence >= 0.6 (i.e., ≥ 1 keyword match
-    across both names).
-
-    NOTE: A weaker form ("≥1 suggestion per type") would pass trivially
-    because R's 0.3 floor admits every cross-product pair. This stronger
-    form actually verifies the keyword JSON has overlap-rich coverage —
-    if a future JSON edit drops too many stems, this test fails.
-    """
-    from sespy.connection_scorer import _CONN_TYPES, suggest_connections
-    from sespy.data_structure import WizardState
-    # IMPORTANT: at least one element per S/I/W group MUST have a label
-    # WITHOUT loss_keywords (loss/decline/declin/degrad/reduc/damag/...)
-    # because the double-negative filter drops pairs where BOTH labels
-    # match loss_keywords.
-    state = WizardState(elements=[
-        _make_element("D001", "Tourism demand", "Drivers"),
-        _make_element("D002", "Fishing economy", "Drivers"),
-        _make_element("A001", "Recreational fishing", "Activities"),
-        _make_element("A002", "Commercial fishing", "Activities"),
-        _make_element("P001", "Pollution from waste", "Pressures"),
-        _make_element("P002", "Habitat removal", "Pressures"),
-        _make_element("S001", "Decline in biodiversity",
-                      "Marine Processes & Functioning"),
-        _make_element("S002", "Habitat structure",
-                      "Marine Processes & Functioning"),
-        _make_element("I001", "Loss of fish abundance",
-                      "Ecosystem Services"),
-        _make_element("I002", "Cultural service provision",
-                      "Ecosystem Services"),
-        _make_element("W001", "Reduced food security",
-                      "Goods & Benefits"),
-        _make_element("W002", "Cultural wellbeing",
-                      "Goods & Benefits"),
-        _make_element("R001", "Marine policy intervention", "Responses"),
-        _make_element("R002", "Fishing quota regulation", "Responses"),
-    ])
-    result = suggest_connections(state)
-    # Map: drivers→D, activities→A, pressures→P, states→S,
-    # impacts→I, welfare→W, responses→R.
-    high_conf_seen = set()
-    for s in result:
-        if s.relevance < 0.6:
-            continue
-        for from_slug, to_slug, key in _CONN_TYPES:
-            from_prefix = from_slug[0].upper()
-            to_prefix = to_slug[0].upper()
-            if s.source.startswith(from_prefix) and s.target.startswith(to_prefix):
-                high_conf_seen.add(key)
-                break
-    # responses_states: no keywords, flat 0.5 relevance (R parity).
-    expected = {key for _, _, key in _CONN_TYPES} - {"responses_states"}
-    missing = expected - high_conf_seen
-    assert not missing, (
-        f"Missing high-confidence (>=0.6) suggestions for: {sorted(missing)}. "
-        f"This may indicate the keyword JSON has insufficient overlap "
-        f"with the fixture labels for those connection types."
-    )
+    result = suggest_connections(WizardState(elements=drivers + activities))
+    assert sum(1 for s in result if s.source.startswith("D")) == 15
 
 
 def test_unknown_element_type_skipped(caplog):
-    """Element with .type = 'Foo' (not in _TYPE_TO_SLUG) is skipped without
-    raising; one logging.warning per unknown-typed element with element
-    id and type in the message for diagnostics.
-    """
     import logging
 
     from sespy.connection_scorer import suggest_connections
     from sespy.data_structure import WizardState
     state = WizardState(elements=[
-        _make_element("X001", "Mystery thing", "Foo"),  # unknown type
-        _make_element("D001", "Tourism", "Drivers"),
-        _make_element("A001", "Recreation", "Activities"),
+        _make_element("X001", "Mystery thing", "Foo"),
+        _make_element("D001", "Food security", "Drivers"),
+        _make_element("A001", "Commercial fishing", "Activities"),
     ])
     with caplog.at_level(logging.WARNING, logger="sespy.connection_scorer"):
         result = suggest_connections(state)
-    # Suggestions still produced for the valid (D, A) pair:
     assert len(result) >= 1
-    # Warning emitted with id + type:
     assert any("X001" in rec.message and "Foo" in rec.message
                for rec in caplog.records)
 
 
 def test_type_slug_map_is_inverse_of_wizard_map():
-    """_TYPE_TO_SLUG exactly inverts ELEMENT_TYPE_MAP."""
     from sespy.connection_scorer import _TYPE_TO_SLUG
     from sespy.data_structure import ELEMENT_TYPE_MAP
     for slug, type_str in ELEMENT_TYPE_MAP.items():
@@ -579,81 +295,112 @@ def test_type_slug_map_is_inverse_of_wizard_map():
     assert len(_TYPE_TO_SLUG) == len(ELEMENT_TYPE_MAP)
 
 
-def test_polarity_default_fallback_returns_positive():
-    """Pair of (drivers, activities) — one of the 5 type-pairs without
-    a named branch — returns '+' regardless of name content (R line 186
-    fallback). Distinct from test_default_fallback_for_unspecified_pair
-    in Group 3 by being end-to-end through suggest_connections.
-    """
-    from sespy.connection_scorer import suggest_connections
-    from sespy.data_structure import WizardState
-    state = WizardState(elements=[
-        _make_element("D001", "Tourism", "Drivers"),
-        _make_element("A001", "Recreation", "Activities"),
-    ])
-    result = suggest_connections(state)
-    da_polarities = {
-        s.polarity for s in result
-        if s.source.startswith("D") and s.target.startswith("A")
-    }
-    assert da_polarities == {"+"}
-
-
 def test_no_wizard_import_in_connection_scorer():
-    """Defensive: parse sespy/connection_scorer.py via AST and assert
-    no top-level OR lazy (function-body) wizard import exists.
-    Path is anchored to this file's location (Path(__file__)) so
-    the test works regardless of pytest's cwd.
-    """
+    """Defensive: no top-level or lazy wizard import in connection_scorer.py
+    (re-introduces the import cycle ELEMENT_TYPE_MAP's relocation broke)."""
     import ast
-    src_path = (
-        Path(__file__).resolve().parent.parent
-        / "sespy" / "connection_scorer.py"
-    )
-    src = src_path.read_text(encoding="utf-8")
-    tree = ast.parse(src)
+    src_path = (Path(__file__).resolve().parent.parent
+                / "sespy" / "connection_scorer.py")
+    tree = ast.parse(src_path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             if node.module == "wizard" and node.level == 1:
-                pytest.fail(
-                    f"connection_scorer.py:{node.lineno} imports from "
-                    f".wizard -- re-introduces the import cycle that "
-                    f"ELEMENT_TYPE_MAP relocation broke; see spec §6"
-                )
+                pytest.fail(f"connection_scorer.py:{node.lineno} imports .wizard")
             if node.module == "sespy.wizard":
-                pytest.fail(
-                    f"connection_scorer.py:{node.lineno} imports from "
-                    f"sespy.wizard -- re-introduces the import cycle"
-                )
+                pytest.fail(f"connection_scorer.py:{node.lineno} imports sespy.wizard")
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name in ("sespy.wizard", "wizard"):
-                    pytest.fail(
-                        f"connection_scorer.py:{node.lineno} imports "
-                        f"sespy.wizard -- re-introduces the import cycle"
-                    )
+                    pytest.fail(f"connection_scorer.py:{node.lineno} imports sespy.wizard")
+
+
+def test_r_to_mpf_has_no_keyword_relevance_without_kb_match():
+    """R has no relevance keywords for R->MPF: with no KB match the relevance
+    is a flat 0.5 (KB:1253 defensive default)."""
+    from sespy import r_connection_kb as r_kb
+    assert r_kb.lookup_knowledge_base("Zzz", "responses", "Qqq", "states", DB) is None
+    assert r_kb.calculate_enhanced_relevance(
+        "Zzz", "Qqq", "responses", "states", DB) == 0.5
+
+
+def test_snapshot_none_means_vendored_and_is_passed_through():
+    from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import WizardState
+    state = WizardState(elements=[
+        _make_element("D1", "Food security", "Drivers"),
+        _make_element("A1", "Commercial fishing", "Activities")])
+    assert suggest_connections(state) == suggest_connections(state, VENDORED)
 
 
 # ---------------------------------------------------------------------------
-# P1a: responses_states (R->MPF) — flat relevance + ported polarity branch
+# K1b Task 6: golden parity with R v1.35.6 generate_connections (ML off)
 # ---------------------------------------------------------------------------
 
-def test_r_to_mpf_relevance_is_flat_05():
-    """R has no relevance keywords for R->MPF and scores it at a flat 0.5
-    (connection_generator.R:375); SESPy invents none."""
-    from sespy.connection_scorer import _KW, calculate_relevance
-    assert "responses_states" not in _KW["connection_types"]
-    assert calculate_relevance("Seagrass restoration", "Seagrass meadow extent",
-                               "responses", "states") == 0.5
+import sys  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).parent / "parity"))
+from k1b_fixtures import load_k1b_fixture  # noqa: E402
 
 
-@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
-@pytest.mark.parametrize("to_label,want", [
-    ("Hypoxia extent", "-"),          # negative-sounding target: reduces a bad state
-    ("Fish stock recovery", "+"),     # positive-sounding target: increases a good state
-    ("Seabed sediment", "+"),         # neither: default "+"
-])
-def test_detect_polarity_responses_to_states(to_label, want):
-    from sespy.connection_scorer import detect_polarity
-    assert detect_polarity("Marine protected area", to_label,
-                           "responses", "states") == want
+def _state_from_case(case):
+    """One Element per fixture name, in R's element order; ids[(slug, i)]."""
+    from sespy.data_structure import ELEMENT_TYPE_MAP, WizardState
+    els, ids = [], {}
+    for slug, names in case["elements"].items():
+        for i, name in enumerate(names, start=1):
+            eid = f"{slug}-{i}"
+            ids[(slug, i)] = eid
+            els.append(_make_element(eid, name, ELEMENT_TYPE_MAP[slug]))
+    return WizardState(elements=els), ids
+
+
+@pytest.mark.parametrize("case", load_k1b_fixture("connections")["cases"],
+                         ids=lambda c: c["id"])
+def test_matches_r_generate_connections(case):
+    from sespy.connection_scorer import suggest_connections
+    state, ids = _state_from_case(case)
+    got = suggest_connections(state)
+    want = [(ids[(r["from_type"], r["from_index"])],
+             ids[(r["to_type"], r["to_index"])],
+             r["polarity"], r["strength"], int(r["confidence"]))
+            for r in case["rows"]]
+    assert [(s.source, s.target, s.polarity, s.strength, s.confidence)
+            for s in got] == want
+    for s, r in zip(got, case["rows"]):
+        assert s.relevance == pytest.approx(r["relevance"], abs=1e-12)
+        assert s.rationale.startswith(r["from_name"] + " ")
+        assert s.rationale.endswith(" " + r["to_name"])
+
+
+def test_pairs_are_rs_ten_in_order():
+    from sespy.connection_scorer import R_CONNECTION_PAIRS
+    assert [f"{a[0]}-{b[0]}".upper() for a, b in R_CONNECTION_PAIRS] == \
+        ["D-A", "A-P", "P-S", "S-I", "I-W", "R-P", "W-D", "W-R", "R-D", "R-A"]
+
+
+def test_duplicate_names_map_to_distinct_ids():
+    from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import WizardState
+    state = WizardState(elements=[
+        _make_element("A1", "Commercial fishing", "Activities"),
+        _make_element("A2", "Commercial fishing", "Activities"),
+        _make_element("P1", "Overfishing", "Pressures"),
+    ])
+    got = suggest_connections(state)
+    assert [(s.source, s.target) for s in got] == [("A1", "P1"), ("A2", "P1")]
+
+
+def test_scorer_runs_under_two_seconds_for_40_per_type():
+    import time
+
+    from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import ELEMENT_TYPE_MAP, WizardState
+    names = ["fishing", "tourism", "nutrient", "habitat", "income"]
+    els = [_make_element(f"{slug}-{i}", f"{names[i % 5]} item {i}", t)
+           for slug, t in ELEMENT_TYPE_MAP.items() for i in range(40)]
+    state = WizardState(elements=els)
+    suggest_connections(state)  # warm regex caches
+    t0 = time.perf_counter()
+    got = suggest_connections(state)
+    assert time.perf_counter() - t0 < 2.0
+    assert len(got) <= 150

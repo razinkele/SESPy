@@ -240,25 +240,23 @@ def test_conn_types_set_equal_to_rule_table_canonical_targets():
     assert got == want
 
 
-def test_rule_based_scorer_suggests_r_to_mpf():
-    from sespy.connection_scorer import suggest_connections
-    from sespy.data_structure import WizardState
-    state = WizardState(elements=[
-        Element("R001", "Seagrass restoration", "Responses"),
-        Element("MPF1", "Seagrass meadow extent", MPF),
-    ])
-    pairs = {(s.source, s.target) for s in suggest_connections(state)}
-    assert ("R001", "MPF1") in pairs
+def test_claude_pair_list_includes_r_to_mpf():
+    """Spec D2: the rule-based scorer follows R's 10 pairs and does not emit
+    R->S; Claude's pair list (_CONN_TYPES / _VALID_TYPE_PAIRS) keeps it."""
+    from sespy.connection_scorer import R_CONNECTION_PAIRS
+    from sespy.data_structure import _VALID_TYPE_PAIRS
+    assert ("responses", "states") in _VALID_TYPE_PAIRS
+    assert ("responses", "states") not in R_CONNECTION_PAIRS
 
 
 def test_scorer_never_suggests_extension_pairs():
     from sespy.connection_scorer import suggest_connections
     from sespy.data_structure import WizardState
     state = WizardState(elements=[
-        Element("R001", "Fishing quota", "Responses"),
-        Element("R002", "Fishing licence", "Responses"),
-        Element("P001", "Nutrient load", "Pressures"),
-        Element("P002", "Nutrient runoff", "Pressures"),
+        Element("R001", "Fishing quotas", "Responses"),
+        Element("R002", "Marine policy", "Responses"),
+        Element("P001", "Overfishing", "Pressures"),
+        Element("P002", "Nutrient enrichment", "Pressures"),
     ])
     by_id = {e.id: e for e in state.elements}
     sugs = suggest_connections(state)

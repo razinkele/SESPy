@@ -75,7 +75,8 @@ REGIONAL_SEAS: dict[str, dict[str, Any]] = get_regional_seas()
 # a list of ConnectionSuggestion out. SP1 always returns [].
 # ---------------------------------------------------------------------------
 
-def suggest_connections(state: WizardState) -> list[ConnectionSuggestion]:
+def suggest_connections(state: WizardState,
+                        snapshot=None) -> list[ConnectionSuggestion]:
     """SP3 contract: rule-based scoring across all 11 connection types.
     Delegates to sespy.connection_scorer.suggest_connections (imported
     as _suggest_impl at module top).
@@ -83,4 +84,4 @@ def suggest_connections(state: WizardState) -> list[ConnectionSuggestion]:
     SP4 (Claude API) will replace the implementation behind a settings
     switch; the signature is the contract.
     """
-    return _suggest_impl(state)
+    return _suggest_impl(state, snapshot)

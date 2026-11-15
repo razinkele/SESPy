@@ -130,7 +130,7 @@ An opt-in anti-anchoring mechanism that hides peer evaluations from the user unt
 The 12-step DAPSI creation wizard is supported by two distinct recommendation backends.
 
 ### 5.1 SP3 Rule-Based Engine (`sespy/connection_scorer.py`)
-- **Word-Level Substring Relevance:** Calculates connection relevance (scores: $0.3$, $0.6$, $0.9$) by matching vocabulary against an active keyword corpus (`connection_keywords.json`).
+- **R-parity relevance:** Relevance is R v1.35.6's `calculate_enhanced_relevance` (KB-match probability, else IDF-weighted keyword score plus synonym bonus), ported in `sespy/r_connection_kb.py`; the old 0.3/0.6/0.9 keyword steps and `connection_keywords.json` are gone.
 - **Semantic Polarity Dispatch:** Features an advanced polarity generator that analyzes nouns and verbs. It handles reversal-compounds (e.g. `"pollution reduction"`) and double-negation flips across different types (e.g. `Responses → Pressures` is automatically negative; `Activities → Pressures` is mitigation-aware).
 - **Quality Ceiling:** Limits suggestions to at most 15 entries per connection type, sorting by confidence descending.
 

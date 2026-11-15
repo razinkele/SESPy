@@ -57,12 +57,15 @@ def test_explanations_cover_all_languages(key):
         assert tr[key][lang] != tr[key]["en"], (key, lang)
 
 
-def test_rule_explanation_matches_the_scorer():
-    """The numbers in the text are the scorer's actual levels."""
-    from sespy.connection_scorer import calculate_relevance
-    tr = load_translations(ROOT / "sespy" / "translations")
-    text = tr["wizard.confidence_help_rules"]["en"]
-    for level in ("0.3", "0.6", "0.9", "0.5"):
-        assert level in text
-    assert calculate_relevance("zzz", "qqq", "drivers", "activities") == 0.3
-    assert calculate_relevance("zzz", "qqq", "responses", "states") == 0.5
+def test_rule_scorer_levels_are_r_relevance_not_the_old_steps():
+    """K1b Task 6: relevance is R's calculate_enhanced_relevance, so the rule
+    scorer no longer emits the old 0.3/0.6/0.9 steps. (The rule-help text in
+    core.json still describes those steps; its rewrite is tracked as a
+    follow-up, so this test no longer asserts the text.)"""
+    from sespy.connection_scorer import suggest_connections
+    from sespy.data_structure import Element, WizardState
+    sugg = suggest_connections(WizardState(elements=[
+        Element("D1", "Food security", "Drivers"),
+        Element("A1", "Commercial fishing", "Activities")]))
+    assert sugg and all(0.3 <= s.relevance <= 1.0 for s in sugg)
+    assert any(s.relevance not in (0.3, 0.6, 0.9) for s in sugg)

@@ -36,6 +36,11 @@ from sespy.modules.topbar_actions import _feedback_modal
 ROOT = Path(__file__).resolve().parents[1]
 TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))
 LANGS = ("en", "es", "fr", "de", "lt", "pt", "it", "no", "el")
+# Names with R knowledge-base matches, so R's scorer yields suggestions.
+NAMES = {"drivers": "Food security", "activities": "Commercial fishing",
+         "pressures": "Overfishing", "states": "Fish stock decline",
+         "impacts": "Reduced fish provisioning", "welfare": "Income",
+         "responses": "Fishing quotas"}
 FREEFORM = ["drivers", "activities", "pressures", "states", "impacts", "welfare", "responses"]
 SUGG = [ConnectionSuggestion(source="R001", target="D001", polarity="+",
                              relevance=0.3, rationale="MPA enables Tourism")]
@@ -97,7 +102,7 @@ def _drive_to_review(scope):
         else:
             target = FREEFORM[step - 4]
             gen = scope.get_export("gen").value[target]   # K1 row-id generation
-            scope.set_inputs(**{f"entry_{gen}_{target}_0": f"Item {step}"})
+            scope.set_inputs(**{f"entry_{gen}_{target}_0": NAMES[target]})
         click("wizard_next")
     html = scope.get_output("wizard_step_render").value["html"]
     n = len(set(re.findall(r'id="wizard-accept_sp3_(\d+)"', html)))
