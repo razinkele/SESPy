@@ -4,6 +4,54 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.17.0] — 2026-11-15
+
+Roadmap K1b (connection-scorer parity; R-parity roadmap §2 K1b). The SES
+Wizard's rule-based connection suggestions now equal what the R app's
+`generate_connections` produces (ML model off), against R **v1.35.6**
+(`d1a655a`), the release laguna runs. No schema change (schema stays 9).
+
+### Added
+- **R's connection and synonym knowledge base** ships with SESPy as
+  `sespy/data/r_kb/ses_connection_db.json` (exported from R's
+  `data/ses_connection_knowledge_base.R` by
+  `scripts/export_r_connection_db.R`). It is pinned together with both R
+  sources (`data/ses_connection_knowledge_base.R` and
+  `modules/ai_isa/connection_generator.R`) and listed in About → Overview →
+  "Reference data" as "vendored".
+- **Rule-based suggestions equal R's.** The ten element-type pairs R scores,
+  in R's order, with R's knowledge-base lookup, synonym matching, relevance
+  and polarity; threshold 0.3 and a cap of 15 suggestions, as in R.
+- **Strength and Confidence** on every rule-based suggestion (R's values:
+  weak/medium/strong and 1 to 5).
+
+### Changed
+- Suggestions and their order now match R's. The wizard table shows Strength
+  and Confidence (1 to 5) for rule-based rows; the Claude table's 0 to 1
+  column is now called "Score". The help text is rewritten in all nine
+  languages.
+- **Accepted suggestions save R's strength and confidence** (they were always
+  medium and 3 before). The merge of rule-based and Claude rows is unchanged:
+  the higher relevance wins, a tie keeps the rule-based row.
+- **Response to Drivers (R→S) is no longer a rule-based suggestion,** as in R;
+  the optional Claude path can still propose it.
+- `ConnectionSuggestion`: the 0 to 1 field is renamed `relevance`, with new
+  `strength` and integer `confidence` fields.
+- The connection-database read is recorded in `metadata.reference_data`.
+- `sespy/connection_keywords.json` is removed (it held R's unused
+  basic-relevance lists).
+
+### Known differences from R
+- **Reversed or flipped rows are reworded with two generic translated verbs;**
+  untouched rows use R's English verb table.
+
+### Deferred
+- R's regional recommendation lines (P14) and the "Focus Topics" rename.
+
+### Rollback
+A plain redeploy of v1.16.0. There is no schema change (SCHEMA_VERSION stays
+9) and the R pin is unchanged (v1.35.6).
+
 ## [1.16.0] — 2026-11-14
 
 Roadmap K1 (general knowledge-base parity; R-parity roadmap §2 K1). The SES
