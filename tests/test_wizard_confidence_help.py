@@ -2,10 +2,10 @@
 AI-assisted SES Creation? Maybe there could be explained how the score was
 calculated or what is it based on."
 
-The rule-based score (ported from R's .calculate_basic_relevance) counts
-keyword matches in the two element names: none 0.3, one 0.6, two or more
-0.9, and a flat 0.5 for link types with no keyword list. Claude's scores are
-the model's own estimate. The review step now says so under each table.
+Since K1b the rule-based table shows R's Strength and Confidence from the
+connection knowledge base (exact match 4, synonym or keyword match 3), not the
+old 0.3/0.6/0.9 keyword steps. Claude's scores are the model's own estimate.
+The review step says so under each table.
 """
 from __future__ import annotations
 
@@ -57,15 +57,18 @@ def test_explanations_cover_all_languages(key):
         assert tr[key][lang] != tr[key]["en"], (key, lang)
 
 
-def test_rule_scorer_levels_are_r_relevance_not_the_old_steps():
-    """K1b Task 6: relevance is R's calculate_enhanced_relevance, so the rule
-    scorer no longer emits the old 0.3/0.6/0.9 steps. (The rule-help text in
-    core.json still describes those steps; its rewrite is tracked as a
-    follow-up, so this test no longer asserts the text.)"""
+def test_rule_help_text_describes_r_kb_confidence_and_strength():
+    """K1b Task 7: confidence comes from R's connection KB (exact match 4,
+    synonym or keyword match 3), strength from the KB, else medium. The scorer
+    must actually behave as the help text says."""
+    assert "exact match gives confidence 4" in TR.t("wizard.confidence_help_rules")
+    assert "synonym or keyword match gives 3" in TR.t("wizard.confidence_help_rules")
     from sespy.connection_scorer import suggest_connections
     from sespy.data_structure import Element, WizardState
     sugg = suggest_connections(WizardState(elements=[
         Element("D1", "Food security", "Drivers"),
         Element("A1", "Commercial fishing", "Activities")]))
-    assert sugg and all(0.3 <= s.relevance <= 1.0 for s in sugg)
-    assert any(s.relevance not in (0.3, 0.6, 0.9) for s in sugg)
+    assert sugg
+    assert all(s.confidence in (3, 4) for s in sugg)
+    assert all(s.strength in ("weak", "medium", "strong") for s in sugg)
+    assert any(s.confidence == 4 for s in sugg)

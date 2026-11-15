@@ -339,8 +339,12 @@ def _render_suggestions_table(
     title: str,
     note: str | None = None,
     labels: dict[str, str] | None = None,
+    rule_based: bool = False,
 ) -> ui.Tag:
     """Render a suggestions table with accept-checkboxes.
+
+    `rule_based` (K1b) adds R's Strength and Confidence (1-5) columns; the
+    Claude table keeps its single 0..1 column, labelled Score.
 
     `note` (feedback #16) is shown under the title: what the Confidence
     column is based on, which differs between the rule-based and Claude
@@ -359,7 +363,9 @@ def _render_suggestions_table(
         ui.tags.th(t("wizard.target")),
         ui.tags.th(t("wizard.polarity")),
         ui.tags.th(t("wizard.reverse")),
-        ui.tags.th(t("wizard.confidence")),
+        *([ui.tags.th(t("wizard.col_strength")),
+           ui.tags.th(t("wizard.col_confidence"))] if rule_based
+          else [ui.tags.th(t("wizard.col_score"))]),
         ui.tags.th(t("wizard.rationale")),
         ui.tags.th(t("wizard.accept")),
     ))
@@ -380,7 +386,9 @@ def _render_suggestions_table(
             ),
             ui.tags.td(ui.input_checkbox(f"swap_{tag}{i}", "\u21c4", value=False),
                        class_="wiz-swap"),
-            ui.tags.td(f"{s.relevance:.2f}"),
+            *([ui.tags.td(s.strength, class_="wiz-str"),
+               ui.tags.td(str(s.confidence), class_="wiz-conf")] if rule_based
+              else [ui.tags.td(f"{s.relevance:.2f}")]),
             ui.tags.td(s.rationale, class_="wiz-rat"),
             ui.tags.td(ui.input_checkbox(f"{prefix}{i}", "", value=False)),
             class_="wiz-sugg",
@@ -433,7 +441,7 @@ def _render_connection_review(
         sp3, prefix="accept_sp3_",
         title=t("wizard.suggestions_rule_based_n").format(n=len(sp3)),
         note=t("wizard.confidence_help_rules") if sp3 else None,
-        labels=labels,
+        labels=labels, rule_based=True,
     ))
 
     # Generate-with-Claude button — only when env key set + not disabled.
@@ -1087,7 +1095,10 @@ def ai_isa_wizard_server(
             _drop_pending(target)
 
         if step_idx + 1 == 11:
-            wizard_suggestions_sp3.set(suggest_connections(_assemble_wizard_state()))
+            # Provenance (D9): the connection DB feeds these suggestions.
+            r_kb.add_reads(reference_reads, (r_kb.CONNECTION_DB_NAME,))
+            wizard_suggestions_sp3.set(
+                suggest_connections(_assemble_wizard_state(), snap))
 
         _enter_step(step_idx + 1)
 
@@ -1374,6 +1385,7 @@ def ai_isa_wizard_server(
             for s in final:
                 new_conns.append(Connection(
                     source=s.source, target=s.target, polarity=s.polarity,
+                    strength=s.strength, confidence=s.confidence,
                 ))
             new_isa = IsaData(
                 elements=list(current.isa_data.elements),

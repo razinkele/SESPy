@@ -2861,15 +2861,15 @@
       "el": "Έναρξη από την αρχή"
     },
     "wizard.confidence_help_rules": {
-      "en": "Confidence (rule-based): each kind of link has a list of keywords, and the score counts how many appear in the two element names: none = 0.3, one = 0.6, two or more = 0.9. Links from Responses to Marine Processes have no keyword list and score 0.5. It measures word matches, not evidence, so check each suggestion before accepting it.",
-      "es": "Confianza (basada en reglas): cada tipo de enlace tiene una lista de palabras clave y la puntuación cuenta cuántas aparecen en los nombres de los dos elementos: ninguna = 0,3, una = 0,6, dos o más = 0,9. Los enlaces de Respuestas a Procesos marinos no tienen lista de palabras clave y puntúan 0,5. Mide coincidencias de palabras, no evidencia: revise cada sugerencia antes de aceptarla.",
-      "fr": "Confiance (fondée sur des règles) : chaque type de lien a une liste de mots-clés, et le score compte combien apparaissent dans les noms des deux éléments : aucun = 0,3, un = 0,6, deux ou plus = 0,9. Les liens des Réponses vers les Processus marins n'ont pas de liste de mots-clés et valent 0,5. Il mesure des correspondances de mots, pas des preuves : vérifiez chaque suggestion avant de l'accepter.",
-      "de": "Konfidenz (regelbasiert): Jede Verbindungsart hat eine Liste von Schlüsselwörtern, und der Wert zählt, wie viele davon in den Namen der beiden Elemente vorkommen: keines = 0,3, eines = 0,6, zwei oder mehr = 0,9. Verbindungen von Maßnahmen zu Meeresprozessen haben keine Schlüsselwortliste und erhalten 0,5. Gemessen werden Wortübereinstimmungen, keine Belege – prüfen Sie jeden Vorschlag, bevor Sie ihn annehmen.",
-      "lt": "Patikimumas (pagal taisykles): kiekviena ryšio rūšis turi raktažodžių sąrašą, o balas skaičiuoja, kiek jų yra abiejų elementų pavadinimuose: nė vieno = 0,3, vienas = 0,6, du ar daugiau = 0,9. Ryšiai nuo Atsakų į Jūrų procesus neturi raktažodžių sąrašo ir gauna 0,5. Tai žodžių atitikimai, ne įrodymai, todėl prieš priimdami patikrinkite kiekvieną pasiūlymą.",
-      "pt": "Confiança (baseada em regras): cada tipo de ligação tem uma lista de palavras-chave, e a pontuação conta quantas aparecem nos nomes dos dois elementos: nenhuma = 0,3, uma = 0,6, duas ou mais = 0,9. As ligações de Respostas para Processos marinhos não têm lista de palavras-chave e valem 0,5. Mede correspondências de palavras, não evidência: verifique cada sugestão antes de a aceitar.",
-      "it": "Affidabilità (basata su regole): ogni tipo di collegamento ha un elenco di parole chiave e il punteggio conta quante compaiono nei nomi dei due elementi: nessuna = 0,3, una = 0,6, due o più = 0,9. I collegamenti dalle Risposte ai Processi marini non hanno un elenco di parole chiave e valgono 0,5. Misura corrispondenze di parole, non prove: controlla ogni suggerimento prima di accettarlo.",
-      "no": "Sikkerhet (regelbasert): hver koblingstype har en liste med nøkkelord, og verdien teller hvor mange som finnes i navnene på de to elementene: ingen = 0,3, ett = 0,6, to eller flere = 0,9. Koblinger fra Tiltak til Marine prosesser har ingen nøkkelordliste og får 0,5. Den måler ordtreff, ikke belegg, så kontroller hvert forslag før du godtar det.",
-      "el": "Βεβαιότητα (με κανόνες): κάθε είδος σύνδεσης έχει μια λίστα λέξεων-κλειδιών και η βαθμολογία μετρά πόσες εμφανίζονται στα ονόματα των δύο στοιχείων: καμία = 0,3, μία = 0,6, δύο ή περισσότερες = 0,9. Οι συνδέσεις από Αποκρίσεις προς Θαλάσσιες διεργασίες δεν έχουν λίστα λέξεων-κλειδιών και παίρνουν 0,5. Μετρά αντιστοιχίες λέξεων, όχι τεκμήρια, οπότε ελέγξτε κάθε πρόταση πριν την αποδεχτείτε."
+      "en": "Strength and confidence come from R's connection knowledge base: an exact match gives confidence 4, a synonym or keyword match gives 3; strength is the knowledge base's, otherwise medium.",
+      "es": "La intensidad y la confianza proceden de la base de conocimiento de conexiones de R: una coincidencia exacta da confianza 4, una coincidencia de sinónimo o palabra clave da 3; la intensidad es la de la base de conocimiento y, si no hay, media.",
+      "fr": "La force et la confiance proviennent de la base de connaissances des connexions de R : une correspondance exacte donne une confiance de 4, une correspondance par synonyme ou mot-clé donne 3 ; la force est celle de la base de connaissances, sinon moyenne.",
+      "de": "Stärke und Konfidenz stammen aus der Verbindungs-Wissensbasis von R: Ein exakter Treffer ergibt Konfidenz 4, ein Treffer über Synonym oder Schlüsselwort ergibt 3; die Stärke stammt aus der Wissensbasis, sonst mittel.",
+      "lt": "Stiprumas ir patikimumas imami iš R ryšių žinių bazės: tikslus atitikimas suteikia patikimumą 4, sinonimo ar raktažodžio atitikimas – 3; stiprumas yra žinių bazės, o jei jos nėra – vidutinis.",
+      "pt": "A intensidade e a confiança vêm da base de conhecimento de ligações do R: uma correspondência exata dá confiança 4, uma correspondência por sinónimo ou palavra-chave dá 3; a intensidade é a da base de conhecimento e, caso contrário, média.",
+      "it": "Intensità e affidabilità provengono dalla base di conoscenza dei collegamenti di R: una corrispondenza esatta dà affidabilità 4, una corrispondenza per sinonimo o parola chiave dà 3; l'intensità è quella della base di conoscenza, altrimenti media.",
+      "no": "Styrke og sikkerhet kommer fra Rs kunnskapsbase for koblinger: et eksakt treff gir sikkerhet 4, et treff på synonym eller nøkkelord gir 3; styrken er kunnskapsbasens, ellers middels.",
+      "el": "Η ένταση και η βεβαιότητα προέρχονται από τη βάση γνώσης συνδέσεων της R: μια ακριβής αντιστοιχία δίνει βεβαιότητα 4, μια αντιστοιχία συνωνύμου ή λέξης-κλειδιού δίνει 3· η ένταση είναι αυτή της βάσης γνώσης, διαφορετικά μέτρια."
     },
     "wizard.confidence_help_claude": {
       "en": "Confidence (Claude): the model's own estimate, from 0 to 1, of how plausible each link is, given your answers. It is not computed from data, so check each suggestion before accepting it.",
@@ -2938,15 +2938,15 @@
       "el": "Η έναρξη από την αρχή διαγράφει το τρέχον SES: όλα τα στοιχεία και οι συνδέσεις του θα χαθούν. Για να κρατήσετε αντίγραφο, πατήστε Ακύρωση και χρησιμοποιήστε πρώτα την Αποθήκευση έργου στην πλαϊνή στήλη."
     },
     "wizard.no_suggestions": {
-      "en": "No connection suggestions yet — install the SP3 or SP4 scoring backend to enable AI-assisted connection generation.",
-      "es": "No connection suggestions yet — install the SP3 or SP4 scoring backend to enable AI-assisted connection generation.",
-      "fr": "No connection suggestions yet — install the SP3 or SP4 scoring backend to enable AI-assisted connection generation.",
-      "de": "No connection suggestions yet — install the SP3 or SP4 scoring backend to enable AI-assisted connection generation.",
-      "lt": "No connection suggestions yet — install the SP3 or SP4 scoring backend to enable AI-assisted connection generation.",
-      "pt": "No connection suggestions yet — install the SP3 or SP4 scoring backend to enable AI-assisted connection generation.",
-      "it": "No connection suggestions yet — install the SP3 or SP4 scoring backend to enable AI-assisted connection generation.",
-      "no": "No connection suggestions yet — install the SP3 or SP4 scoring backend to enable AI-assisted connection generation.",
-      "el": "No connection suggestions yet — install the SP3 or SP4 scoring backend to enable AI-assisted connection generation."
+      "en": "No rule-based connection suggestions match these elements.",
+      "es": "Ninguna sugerencia de conexión basada en reglas coincide con estos elementos.",
+      "fr": "Aucune suggestion de connexion fondée sur des règles ne correspond à ces éléments.",
+      "de": "Für diese Elemente passt kein regelbasierter Verbindungsvorschlag.",
+      "lt": "Šiems elementams netinka jokie pagal taisykles sudaryti ryšių pasiūlymai.",
+      "pt": "Nenhuma sugestão de ligação baseada em regras corresponde a estes elementos.",
+      "it": "Nessun suggerimento di collegamento basato su regole corrisponde a questi elementi.",
+      "no": "Ingen regelbaserte koblingsforslag passer til disse elementene.",
+      "el": "Καμία πρόταση σύνδεσης με κανόνες δεν ταιριάζει με αυτά τα στοιχεία."
     },
     "wizard.add_another": {
       "en": "Add another",
@@ -3123,6 +3123,39 @@
       "it": "Suggested connections",
       "no": "Suggested connections",
       "el": "Suggested connections"
+    },
+    "wizard.col_strength": {
+      "en": "Strength",
+      "es": "Intensidad",
+      "fr": "Force",
+      "de": "Stärke",
+      "lt": "Stiprumas",
+      "pt": "Intensidade",
+      "it": "Intensità",
+      "no": "Styrke",
+      "el": "Ένταση"
+    },
+    "wizard.col_confidence": {
+      "en": "Confidence",
+      "es": "Confianza",
+      "fr": "Confiance",
+      "de": "Konfidenz",
+      "lt": "Patikimumas",
+      "pt": "Confiança",
+      "it": "Affidabilità",
+      "no": "Sikkerhet",
+      "el": "Βεβαιότητα"
+    },
+    "wizard.col_score": {
+      "en": "Score",
+      "es": "Puntuación",
+      "fr": "Score",
+      "de": "Wert",
+      "lt": "Balas",
+      "pt": "Pontuação",
+      "it": "Punteggio",
+      "no": "Poeng",
+      "el": "Βαθμολογία"
     },
     "wizard.confidence": {
       "en": "Confidence",

@@ -70,6 +70,12 @@ async def _start_wizard_empty_via_replace(page):
     await page.wait_for_timeout(1500)
 
 
+_KB_NAMES = {"drivers": "Food security", "activities": "Commercial fishing",
+             "pressures": "Overfishing", "states": "Fish stock decline",
+             "impacts": "Reduced fish provisioning", "welfare": "Income",
+             "responses": "Fishing quotas"}
+
+
 async def _drive_to_step_11(page):
     """Reusable: drive the wizard from boot through step-10 → Next →
     step 11. Mirrors the navigation portion of case_full_run; copy-adapted
@@ -99,7 +105,9 @@ async def _drive_to_step_11(page):
             )
         else:
             target = ["drivers", "activities", "pressures", "states", "impacts", "welfare", "responses"][step - 4]
-            await _fill_row(page, target, 0, f"E2E {target} sample")
+            # K1b: names the R connection knowledge base matches, so the
+            # R-matched scorer yields rule-based rows at step 11.
+            await _fill_row(page, target, 0, _KB_NAMES[target])
         await page.wait_for_timeout(300)
         await page.click("#wizard-wizard_next")
         await page.wait_for_timeout(500)
