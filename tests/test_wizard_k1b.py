@@ -17,7 +17,7 @@ from sespy.autosave import read_autosave, write_autosave
 from sespy.data_structure import Connection, ConnectionSuggestion, Element, IsaData, Project
 from sespy.event_bus import create_event_bus
 from sespy.i18n import Translator, load_translations
-from sespy.modules.ai_isa_wizard import ai_isa_wizard_server, _render_suggestions_table
+from sespy.modules.ai_isa_wizard import _render_suggestions_table, ai_isa_wizard_server
 from sespy.persistent_storage import load_project, project_to_bytes, save_project_atomic
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,7 +84,7 @@ def _rows(html):
         src = re.search(r'data-from-id="([^"]+)"', tr).group(1)
         tgt = re.search(r'data-to-id="([^"]+)"', tr).group(1)
         pol = re.search(r'data-pol="([+-])"', tr).group(1)
-        st = re.search(r'class="wiz-str"[^>]*>([^<]*)<', tr).group(1)
+        st = re.search(r'class="wiz-str"[^>]*>([^<]*)<', tr).group(1).lower()  # shown translated (English here)
         cf = re.search(r'class="wiz-conf"[^>]*>([^<]*)<', tr).group(1)
         out.append((src, tgt, pol, st, int(cf)))
     return out
@@ -146,7 +146,7 @@ def test_rule_table_shows_strength_and_confidence_columns(monkeypatch):
                                          rule_based=True))
     assert _headers(html) == ["#", "Source", "Target", "Polarity", "Reverse",
                               "Strength", "Confidence", "Rationale", "Accept"]
-    assert 'class="wiz-str"' in html and ">strong<" in html
+    assert 'class="wiz-str"' in html and ">Strong<" in html
 
 
 def test_claude_table_labels_score(monkeypatch):
@@ -206,3 +206,76 @@ def test_keys_cover_all_languages(key):
     tr = load_translations(ROOT / "sespy" / "translations")
     for lang in LANGS:
         assert tr[key].get(lang, "").strip(), (key, lang)
+
+
+def _claude_outcome(*sugg):
+    from typing import get_args
+
+    from sespy.claude_backend import DropReason, ValidationOutcome
+    return ValidationOutcome(suggestions=list(sugg), raw_count=len(sugg),
+                             drops_by_reason=dict.fromkeys(get_args(DropReason), 0))
+
+
+def _generate_with_claude(monkeypatch, scope, click, outcome):
+    """Run the Claude task against a stubbed backend and wait for the
+    Claude table to render."""
+    import time
+
+    import sespy.claude_backend as cb
+    monkeypatch.setattr(cb, "suggest_connections", lambda state: outcome)
+    click("wizard_claude_generate")
+    click("wizard_claude_consent_confirm")
+    deadline = time.time() + 20
+    html = ""
+    while time.time() < deadline:
+        html = scope.get_output("wizard_step_render").value["html"]
+        if 'id="wizard-accept_sp4_0"' in html:
+            return html
+        time.sleep(0.2)
+    raise AssertionError("Claude table never rendered")
+
+
+def test_claude_row_with_higher_relevance_beats_kb_exact_rule_row(monkeypatch):
+    """D6: for the same (source, target, polarity) the strictly higher
+    relevance wins, so a Claude row replaces a KB-exact rule-based row and
+    is saved with the Claude defaults (medium, 3)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    with _wizard(monkeypatch) as (scope, holder):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        html, click = _drive(scope, KB_NAMES)
+        rule = _rows(html)
+        exact = next(r for r in rule if r[3] == "strong" or r[4] == 4)
+        assert exact[4] == 4, "need a KB-exact rule row"
+        src, tgt, pol = exact[:3]
+        claude = ConnectionSuggestion(src, tgt, pol, 1.0, "claude says so",
+                                      "medium", 3)
+        html = _generate_with_claude(monkeypatch, scope, click,
+                                     _claude_outcome(claude))
+        n = _accept_all(scope, html)
+        scope.set_inputs(accept_sp4_0=True)
+        click("wizard_finish")
+        saved = [c for c in _conns(holder)
+                 if (c.source, c.target, c.polarity) == (src, tgt, pol)]
+        assert len(saved) == 1
+        assert (saved[0].strength, saved[0].confidence) == ("medium", 3)
+        assert len(_conns(holder)) == n  # the Claude row replaced, not added
+
+
+def test_finish_with_claude_rows_only(monkeypatch):
+    """Review Focus 4: no rule-based row, accepted Claude rows are saved."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    with _wizard(monkeypatch) as (scope, holder):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        html, click = _drive(scope, NO_MATCH)
+        assert not _rows(html)
+        with reactive.isolate():
+            ids = {e.type: e.id for e in holder[0][0].get().isa_data.elements}
+        claude = ConnectionSuggestion(ids["Drivers"], ids["Activities"], "+",
+                                      0.9, "claude only", "medium", 3)
+        html = _generate_with_claude(monkeypatch, scope, click,
+                                     _claude_outcome(claude))
+        scope.set_inputs(accept_sp4_0=True)
+        click("wizard_finish")
+        conns = _conns(holder)
+        assert [(c.source, c.target, c.polarity, c.strength, c.confidence)
+                for c in conns] == [(claude.source, claude.target, "+", "medium", 3)]

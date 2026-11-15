@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import TYPE_CHECKING
 
-from . import r_connection_kb as r_kb  # noqa: E402
-from .r_kb import VENDORED as _R_VENDORED  # noqa: E402
+from . import r_connection_kb as r_kb
 from .data_structure import (
     _CONN_TYPES,  # noqa: F401  re-exported for SP3-era tests
     ELEMENT_TYPE_MAP,  # post-Task-2 home (data_structure.py)
@@ -19,6 +19,10 @@ from .data_structure import (
     Element,
     WizardState,
 )
+from .r_kb import VENDORED as _R_VENDORED
+
+if TYPE_CHECKING:
+    from .r_kb import Snapshot
 
 _logger = logging.getLogger(__name__)
 
@@ -290,7 +294,7 @@ def _generate_smart_connections(
 
 
 def suggest_connections(state: WizardState,
-                        snapshot=None) -> list[ConnectionSuggestion]:
+                        snapshot: Snapshot | None = None) -> list[ConnectionSuggestion]:
     """R's generate_connections with ML off: the 10 pairs in R's order, at
     most 15 per pair, no cross-pair dedup. ``snapshot`` None means the
     vendored R data."""

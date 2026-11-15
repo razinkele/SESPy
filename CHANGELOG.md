@@ -33,7 +33,7 @@ Wizard's rule-based connection suggestions now equal what the R app's
 - **Accepted suggestions save R's strength and confidence** (they were always
   medium and 3 before). The merge of rule-based and Claude rows is unchanged:
   the higher relevance wins, a tie keeps the rule-based row.
-- **Response to Drivers (R→S) is no longer a rule-based suggestion,** as in R;
+- **Responses → Marine Processes & Functioning (R→S) is no longer a rule-based suggestion,** as in R;
   the optional Claude path can still propose it.
 - `ConnectionSuggestion`: the 0 to 1 field is renamed `relevance`, with new
   `strength` and integer `confidence` fields.

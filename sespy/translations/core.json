@@ -3126,14 +3126,14 @@
     },
     "wizard.col_strength": {
       "en": "Strength",
-      "es": "Intensidad",
+      "es": "Fuerza",
       "fr": "Force",
       "de": "Stärke",
       "lt": "Stiprumas",
-      "pt": "Intensidade",
-      "it": "Intensità",
+      "pt": "Força",
+      "it": "Forza",
       "no": "Styrke",
-      "el": "Ένταση"
+      "el": "Ισχύς"
     },
     "wizard.col_confidence": {
       "en": "Confidence",

@@ -400,7 +400,18 @@ def test_scorer_runs_under_two_seconds_for_40_per_type():
            for slug, t in ELEMENT_TYPE_MAP.items() for i in range(40)]
     state = WizardState(elements=els)
     suggest_connections(state)  # warm regex caches
+    # 5.0 s, not tighter: the warm path measures 0.3-0.6 s locally, but a
+    # shared CI runner can be several times slower. The limit only guards
+    # against the ~20 s uncached-lookup regression.
     t0 = time.perf_counter()
     got = suggest_connections(state)
-    assert time.perf_counter() - t0 < 2.0
+    assert time.perf_counter() - t0 < 5.0
+    assert len(got) <= 150
+    # Fresh element names after the warm-up cover the non-memoized path.
+    fresh = WizardState(elements=[
+        _make_element(f"{slug}-{i}", f"{names[i % 5]} fresh entry {i}", t)
+        for slug, t in ELEMENT_TYPE_MAP.items() for i in range(40)])
+    t0 = time.perf_counter()
+    got = suggest_connections(fresh)
+    assert time.perf_counter() - t0 < 5.0
     assert len(got) <= 150

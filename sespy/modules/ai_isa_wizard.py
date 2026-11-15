@@ -353,8 +353,9 @@ def _render_suggestions_table(
     `prefix` is the input-id prefix ('accept_sp3_' or 'accept_sp4_').
     Extracted from the existing inline rendering in
     _render_connection_review (SP1) to support the SP4 two-table flow.
-    Column order matches SP1: # | Source | Target | Polarity | Confidence
-    | Rationale | Accept (Polarity column added for SP4 parity).
+    Column order: # | Source | Target | Polarity | Reverse | Strength |
+    Confidence | Rationale | Accept for the rule-based table; the Claude
+    table has a single Score column in place of Strength and Confidence.
     """
     rows = []
     rows.append(ui.tags.tr(
@@ -386,7 +387,7 @@ def _render_suggestions_table(
             ),
             ui.tags.td(ui.input_checkbox(f"swap_{tag}{i}", "\u21c4", value=False),
                        class_="wiz-swap"),
-            *([ui.tags.td(s.strength, class_="wiz-str"),
+            *([ui.tags.td(t(f"strength.{s.strength}"), class_="wiz-str"),
                ui.tags.td(str(s.confidence), class_="wiz-conf")] if rule_based
               else [ui.tags.td(f"{s.relevance:.2f}")]),
             ui.tags.td(s.rationale, class_="wiz-rat"),

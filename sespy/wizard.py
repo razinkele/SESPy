@@ -18,12 +18,15 @@ This matches `constants.ELEMENT_ID_PREFIX` (impacts→ES, welfare→GB).
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .connection_scorer import suggest_connections as _suggest_impl
 from .data_structure import ELEMENT_TYPE_MAP as ELEMENT_TYPE_MAP  # re-export (SP1 caller compat)
 from .data_structure import ConnectionSuggestion, WizardState
 from .regional_seas import get_regional_seas
+
+if TYPE_CHECKING:
+    from .r_kb import Snapshot
 
 # ---------------------------------------------------------------------------
 # Wizard step flow — 12 steps as a list of dicts. Each dict has:
@@ -68,16 +71,16 @@ REGIONAL_SEAS: dict[str, dict[str, Any]] = get_regional_seas()
 
 
 # ---------------------------------------------------------------------------
-# suggest_connections — SP1 stub.
+# suggest_connections — rule-based scorer entry point.
 #
-# SP3 (TF-IDF + rules) and SP4 (Claude API) replace this with real
-# implementations. The signature is the contract: a WizardState in,
-# a list of ConnectionSuggestion out. SP1 always returns [].
+# Delegates to sespy.connection_scorer (R's rule-based generate_connections,
+# ML off). The signature is the contract: a WizardState in, a list of
+# ConnectionSuggestion out. SP4 (Claude API) is a separate, optional path.
 # ---------------------------------------------------------------------------
 
 def suggest_connections(state: WizardState,
-                        snapshot=None) -> list[ConnectionSuggestion]:
-    """SP3 contract: rule-based scoring across all 11 connection types.
+                        snapshot: Snapshot | None = None) -> list[ConnectionSuggestion]:
+    """Rule-based scoring across R's 10 connection type pairs.
     Delegates to sespy.connection_scorer.suggest_connections (imported
     as _suggest_impl at module top).
 
