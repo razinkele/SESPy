@@ -481,7 +481,7 @@ def test_real_run_writes_everything_then_checks_clean(tmp_path, r_app):
     assert sorted(pin["files"]) == sorted(
         [*C.INPUTS.values(), *C.RUNTIME_INPUTS.values(), *C.GENERATED_RUNTIME.values(),
          C.MANIFEST_PATH, *C.LOCAL_PINS])
-    assert len(pin["files"]) == 36
+    assert len(pin["files"]) == 39
     assert pin["accepted_warnings"] == []
     assert any(line.startswith("hash tests/parity/r_source/template_loader.R: ")
                for line in res.lines)

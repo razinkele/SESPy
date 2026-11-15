@@ -27,6 +27,9 @@ generated block below together; never edit the block by hand.
 | `tests/parity/r_fixtures/k1/lookup.json.gz` | `abc1aacb645ce7195d2c5bdb250381fb2f9a7ee1bd85426cf1092f5e03c64bbb` |
 | `tests/parity/r_fixtures/k1/report.json.gz` | `24fb0cdf6146eea41336bb37f2fc49ae6a02f98ad2687d43d1b8c31cd77bac16` |
 | `tests/parity/r_fixtures/k1/suggestions_grid.json.gz` | `37ad016538f00109908239e1aeb85f4ceb5d4ddcb268ffd8d543a8b8aa03e5db` |
+| `tests/parity/r_fixtures/k1b/connections.json.gz` | `20ee2bd62a03fb82b3b1633db8a26e6ffba77b1e3ee6b8a93a0c5de4371fe18d` |
+| `tests/parity/r_fixtures/k1b/lookup.json.gz` | `3f8509691e1d9e164b3171baf5b19210c000b62cdf1bc576cc3808dbfbf7ceb3` |
+| `tests/parity/r_fixtures/k1b/polarity.json.gz` | `b03cd3765ef0c8f29aa1c6839cd68ecb31b053146c2ac7a5f5f95f4394922a9a` |
 | `tests/parity/r_rules/dapsiwrm_connection_rules.R` | `ca4294f10974af34adf7dad9fe029318955c1c498356224b656a3e69525422a5` |
 | `tests/parity/r_source/ai_isa_knowledge_base.R` | `32c782fd1cbc3720f7bd3924ad6454aee0247328a811bd231f163693acc04c9d` |
 | `tests/parity/r_source/connection_generator.R` | `bbab2195bb787ddb9592f39e0d4868ef52bc2cea23f34a56818858d42f06964b` |

@@ -25,7 +25,7 @@ def test_pin_shape():
     assert re.fullmatch(r"v\d+\.\d+\.\d+", PIN["r_tag"]), PIN["r_tag"]
     assert re.fullmatch(r"[0-9a-f]{7}", PIN["r_commit"]), PIN["r_commit"]
     paths = sorted(PIN["files"])
-    assert len(paths) == 36
+    assert len(paths) == 39
     assert "tests/parity/r_rules/dapsiwrm_connection_rules.R" in paths
     assert "tests/parity/r_source/template_loader.R" in paths
     assert sum(p.startswith("tests/parity/r_templates/") for p in paths) == 7

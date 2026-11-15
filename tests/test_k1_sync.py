@@ -76,9 +76,11 @@ def test_constants():
         "data/ses_knowledge_db.json": "sespy/data/r_kb/ses_knowledge_db.json",
         "data/country_governance_db.json": "sespy/data/r_kb/country_governance_db.json"}
     assert C.MANIFEST_PATH == "sespy/data/r_kb/manifest.json"
-    assert C.LOCAL_PINS == tuple(
-        f"tests/parity/r_fixtures/k1/{n}.json.gz"
-        for n in ("lookup", "suggestions_grid", "habitat_specific", "countries", "report"))
+    assert C.LOCAL_PINS == (
+        *(f"tests/parity/r_fixtures/k1/{n}.json.gz"
+          for n in ("lookup", "suggestions_grid", "habitat_specific", "countries", "report")),
+        *(f"tests/parity/r_fixtures/k1b/{n}.json.gz"
+          for n in ("connections", "lookup", "polarity")))
     for r in C.K1_R_SOURCES:
         assert C.INPUTS[r] == f"tests/parity/r_source/{r.rsplit('/', 1)[-1]}"
     assert C.GENERATED_RUNTIME == {

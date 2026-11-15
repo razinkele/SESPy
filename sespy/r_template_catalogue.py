@@ -91,9 +91,11 @@ GENERATED_RUNTIME: dict[str, str] = {
     "scripts/export_r_connection_db.R": "sespy/data/r_kb/ses_connection_db.json",
 }
 MANIFEST_PATH = "sespy/data/r_kb/manifest.json"
-LOCAL_PINS: tuple[str, ...] = tuple(
-    f"tests/parity/r_fixtures/k1/{n}.json.gz"
-    for n in ("lookup", "suggestions_grid", "habitat_specific", "countries", "report"))
+LOCAL_PINS: tuple[str, ...] = (
+    *(f"tests/parity/r_fixtures/k1/{n}.json.gz"
+      for n in ("lookup", "suggestions_grid", "habitat_specific", "countries", "report")),
+    *(f"tests/parity/r_fixtures/k1b/{n}.json.gz"
+      for n in ("connections", "lookup", "polarity")))
 # Inputs retired from the pin. Edited deliberately at a re-pin that drops an
 # input; never derived, or the build_pin guard would be vacuous.
 REMOVED_INPUTS: frozenset[str] = frozenset()
