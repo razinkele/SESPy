@@ -219,9 +219,11 @@ following R's review list, `action_handlers.R:76-77`):
 - **Regex:**
   - KB entry patterns, synonym matching and negation/reversal checks are PCRE
     in R (`grepl(perl=TRUE)`);
-  - the other keyword checks are substring searches (TRE);
-  - in Python use `re.search`, with `re.ASCII` wherever `\b` appears, because
-    R's `\b` is ASCII-only.
+  - the other keyword checks use `grepl` with R's default TRE engine. They are
+    still regexes: several keywords are patterns, such as `gear.*restrict`
+    and `anti.?foul`.
+  - In Python use `re.search` for every match, never `in`, with `re.ASCII`
+    wherever `\b` appears, because R's `\b` is ASCII-only.
 - **Quirks to keep (parity):**
   - `ecosystem` gets the low IDF weight through `system`;
   - `mpa` matches inside "impact" and `ice` inside "service";
