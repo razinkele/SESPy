@@ -19,7 +19,8 @@ generated block below together; never edit the block by hand.
 | File | Hash |
 |---|---|
 | `sespy/data/r_kb/country_governance_db.json` | `4b66223f001b092ba2879b4e267b2ee62eef6440bb7ed17621f521326dfabc78` |
-| `sespy/data/r_kb/manifest.json` | `85bcdc323ad1913144b011bd6f29dc1f22d3fa1b1fd7079f8d040be486b308c4` |
+| `sespy/data/r_kb/manifest.json` | `01869f592bed7a38c596a3be9a6c737bafda4e4d4f5fa4c73615816ed7969e21` |
+| `sespy/data/r_kb/ses_connection_db.json` | `d6b2a4a8365ea160ad353a0966648c657f1835aebba4c80385c85b1f0b66765c` |
 | `sespy/data/r_kb/ses_knowledge_db.json` | `4ca4c3d2023bb571f3015cc6fc95138ac11f43847b58a29b60b7e93f86db3519` |
 | `tests/parity/r_fixtures/k1/countries.json.gz` | `2e9841f65ac5a62fe91e0fbcef0ab405f8e874cd73e70bc8f5d16d15187c1e4a` |
 | `tests/parity/r_fixtures/k1/habitat_specific.json.gz` | `8b6eb9f3da70a1fed20651a20184ee6c04b66608f197c7c756f8d3f499e0e12a` |
@@ -28,11 +29,13 @@ generated block below together; never edit the block by hand.
 | `tests/parity/r_fixtures/k1/suggestions_grid.json.gz` | `37ad016538f00109908239e1aeb85f4ceb5d4ddcb268ffd8d543a8b8aa03e5db` |
 | `tests/parity/r_rules/dapsiwrm_connection_rules.R` | `ca4294f10974af34adf7dad9fe029318955c1c498356224b656a3e69525422a5` |
 | `tests/parity/r_source/ai_isa_knowledge_base.R` | `32c782fd1cbc3720f7bd3924ad6454aee0247328a811bd231f163693acc04c9d` |
+| `tests/parity/r_source/connection_generator.R` | `bbab2195bb787ddb9592f39e0d4868ef52bc2cea23f34a56818858d42f06964b` |
 | `tests/parity/r_source/constants.R` | `c39d20974193a99d60f0f7625987bff491339640eed93904fe1a7d02b3a8a6d6` |
 | `tests/parity/r_source/country_governance_loader.R` | `f30965e866d8193d1a79ef0857f252dfa98433c5a2b43ece1eb05ad475173bea` |
 | `tests/parity/r_source/kb_report_helpers.R` | `45d7b069eb05789bb636cc8d002ae282474e57777e17824d8081aec827aa1848` |
 | `tests/parity/r_source/report_generation.R` | `8fde2c288fd4b62d12997bc14cde4f0903e865213f5e4250ad97e965eff104a5` |
 | `tests/parity/r_source/response_measures_schema.R` | `ac3de5f9dbfb87d9451ae6cc3c8a0e3e12594c10a7253def09565e55ce34c9b7` |
+| `tests/parity/r_source/ses_connection_knowledge_base.R` | `3ba77ae69380866bfbc84df0a5e60e8f02c35ad839b0dd0ea2766a7c4c64bc69` |
 | `tests/parity/r_source/ses_knowledge_db_loader.R` | `d7a1151f40aa8ec0dc14bf4cd229414cbdb38bedf3899e10cd42e58d613f0aa4` |
 | `tests/parity/r_source/stakeholder_schema.R` | `489311719ba13863a0ae84934fa4116378736b52c41374d1b957da1354ee1bce` |
 | `tests/parity/r_source/template_loader.R` | `3ebe6c83a737ead8e91936f9f11ca5cfa4244d56d52f1644fc7df2af131d02d3` |
@@ -64,6 +67,12 @@ generated block below together; never edit the block by hand.
   generated manifest, 5 R sources (`tests/parity/r_source/`), the
   `isa_data_entry` and `report_context` translation subsets and 5 K1 fixtures
   (`tests/parity/r_fixtures/k1/`, pinned from disk).
+- **K1b adds** two R sources (`ses_connection_knowledge_base.R`,
+  `connection_generator.R`, hashed only) and one generated runtime file,
+  `sespy/data/r_kb/ses_connection_db.json`. R has no such file: it is generated
+  by `scripts/export_r_connection_db.R` from `SES_CONNECTION_DB` and
+  `SES_SYNONYM_DB`, read from the repo in both sync modes, hashed into the
+  manifest and the pin, and its `r_tag` must equal the pinned tag.
 - **Roadmap baseline:** K1 moved it from v1.33.0 (`4017feb`) to v1.35.6
   (`d1a655a`), the release laguna runs (triage below). Before that, P1b
   moved it from v1.31.0 (`4b53b7d`) to v1.33.0 (`4017feb`), then the

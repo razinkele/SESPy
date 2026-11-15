@@ -36,7 +36,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from sespy import r_kb  # noqa: E402
 from sespy.r_sync import sha256_norm  # noqa: E402
-from sespy.r_template_catalogue import MANIFEST_PATH, RUNTIME_INPUTS  # noqa: E402
+from sespy.r_template_catalogue import GENERATED_RUNTIME, MANIFEST_PATH, RUNTIME_INPUTS  # noqa: E402
 
 DEFAULT_PIN = REPO_ROOT / "tests" / "parity" / "r_sync.json"
 VENDORED_DIR = Path("sespy") / "data" / "r_kb"
@@ -53,7 +53,7 @@ def _load_json(path: Path):
 def check_shipped(stage: Path, pin: dict) -> list[str]:
     problems: list[str] = []
     pinned = pin.get("files", {})
-    for rel in (*RUNTIME_INPUTS.values(), MANIFEST_PATH):
+    for rel in (*RUNTIME_INPUTS.values(), *GENERATED_RUNTIME.values(), MANIFEST_PATH):
         path = stage / rel
         want = pinned.get(rel)
         if want is None:

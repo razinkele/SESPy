@@ -19,6 +19,7 @@ from sespy.r_sync import sha256_norm
 
 KB_NAME = "ses_knowledge_db.json"
 GOVERNANCE_NAME = "country_governance_db.json"
+CONNECTION_DB_NAME = "ses_connection_db.json"
 MANIFEST_NAME = "manifest.json"
 
 
@@ -53,6 +54,16 @@ ALLOW_LIST: tuple[AllowRow, ...] = (
         version_key="version",
         override=True,
         containers={"countries": dict, "regional_conventions": dict, "countries_by_sea": dict},
+    ),
+    # K1b: R's connection knowledge base and synonym table, exported by
+    # scripts/export_r_connection_db.R. Vendored only: no live override.
+    AllowRow(
+        name=CONNECTION_DB_NAME,
+        required_keys=("version", "r_tag", "connection_db", "synonym_db"),
+        min_counts={"connection_db": 137, "synonym_db": 17},
+        version_key="version",
+        override=False,
+        containers={"connection_db": list, "synonym_db": dict},
     ),
 )
 
@@ -168,6 +179,9 @@ class Snapshot:
 
     def governance(self) -> Any:
         return self.get(GOVERNANCE_NAME)
+
+    def connection_db(self) -> Any:
+        return self.get(CONNECTION_DB_NAME)
 
     def provenance(self, name: str) -> dict:
         return self.files[name].provenance(self.manifest["r_tag"])

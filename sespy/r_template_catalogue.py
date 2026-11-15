@@ -74,12 +74,21 @@ _TR_PREFIX = "translations/modules/"
 K1_R_SOURCES = ("functions/ses_knowledge_db_loader.R", "modules/ai_isa_knowledge_base.R",
                 "functions/country_governance_loader.R", "functions/kb_report_helpers.R",
                 "functions/report_generation.R")
+# K1b: R sources the connection scorer is checked against (hashed, not parsed).
+K1B_R_SOURCES = ("data/ses_connection_knowledge_base.R",
+                 "modules/ai_isa/connection_generator.R")
 # K1: R data files SESPy ships and reads at runtime (R path -> vendored target),
 # the manifest that records their hashes, and the local captured fixtures
 # whose r_tag must equal the pinned tag.
 RUNTIME_INPUTS: dict[str, str] = {
     "data/ses_knowledge_db.json": "sespy/data/r_kb/ses_knowledge_db.json",
     "data/country_governance_db.json": "sespy/data/r_kb/country_governance_db.json",
+}
+# K1b: runtime files generated from R by a script (script -> output). They are
+# read from the repo in both sync modes (R has no such file in git), hashed into
+# the manifest and the pin, and their r_tag must equal the pinned tag.
+GENERATED_RUNTIME: dict[str, str] = {
+    "scripts/export_r_connection_db.R": "sespy/data/r_kb/ses_connection_db.json",
 }
 MANIFEST_PATH = "sespy/data/r_kb/manifest.json"
 LOCAL_PINS: tuple[str, ...] = tuple(
@@ -95,7 +104,7 @@ INPUTS: dict[str, str] = {
     **{f"data/{f}": f"tests/parity/r_templates/{f}" for f in TEMPLATE_FILES},
     "functions/dapsiwrm_connection_rules.R": "tests/parity/r_rules/dapsiwrm_connection_rules.R",
     "functions/template_loader.R": "tests/parity/r_source/template_loader.R",
-    **{p: f"tests/parity/r_source/{p.rsplit('/', 1)[-1]}" for p in (*R_SOURCES, *K1_R_SOURCES)},
+    **{p: f"tests/parity/r_source/{p.rsplit('/', 1)[-1]}" for p in (*R_SOURCES, *K1_R_SOURCES, *K1B_R_SOURCES)},
     **{f"{_TR_PREFIX}{s}.json": f"tests/parity/r_translations/{s}.json"
        for s in TRANSLATION_SUBSETS},
 }
@@ -355,6 +364,30 @@ def _local_pin_hashes(repo_root: Path, r_tag: str) -> tuple[dict[str, str], list
     return hashes, errors
 
 
+def _generated_hashes(repo_root: Path, r_tag: str) -> tuple[dict[str, str], list[str]]:
+    """Hash each generated runtime file, read from the repo. One whose r_tag
+    differs from `r_tag`, or that cannot be read, is an error."""
+    hashes: dict[str, str] = {}
+    errors: list[str] = []
+    for rel in GENERATED_RUNTIME.values():
+        try:
+            doc = _read_json(repo_root / rel)
+        except (OSError, ValueError) as e:
+            errors.append(f"cannot read {rel}: {type(e).__name__}: {e}")
+            continue
+        tag = doc.get("r_tag") if isinstance(doc, dict) else None
+        if tag != r_tag:
+            errors.append(f"{rel}: r_tag {tag!r} does not match the target {r_tag!r}; "
+                          f"rerun the exporter ({_script_for(rel)}) first")
+            continue
+        hashes[rel] = sha256_norm(doc)
+    return hashes, errors
+
+
+def _script_for(target: str) -> str:
+    return next(s for s, t in GENERATED_RUNTIME.items() if t == target)
+
+
 def build_manifest(r_tag: str, r_commit: str, runtime_hashes: dict[str, str]) -> bytes:
     """manifest.json: the release plus each vendored runtime file's hash,
     keyed by basename. indent=2, LF, newline-terminated."""
@@ -420,6 +453,8 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
     # K1: the local captured fixtures must belong to the target release; this
     # runs before any input is read.
     local_hashes, pin_errors = _local_pin_hashes(repo_root, r_tag)
+    gen_hashes, gen_errors = _generated_hashes(repo_root, r_tag)
+    pin_errors += gen_errors
     if pin_errors:
         return SyncResult(1, pin_errors)
     if from_fixtures:
@@ -462,6 +497,7 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
         errors += tr_errors
         runtime_hashes = {target: _hash(target, raw_bytes[r_path])
                           for r_path, target in RUNTIME_INPUTS.items()}
+        runtime_hashes.update(gen_hashes)
         outputs[MANIFEST_PATH] = build_manifest(r_tag, r_commit, runtime_hashes)
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         # JSON or mapper error, or a template that is not the expected shape
@@ -487,6 +523,7 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
         for r_path, target in RUNTIME_INPUTS.items():
             outputs[target] = raw_bytes[r_path]             # raw bytes as read
             files[target] = runtime_hashes[target]
+        files.update(gen_hashes)
         files[MANIFEST_PATH] = _hash(MANIFEST_PATH, outputs[MANIFEST_PATH])
         files.update(local_hashes)
         for path, new_hash in files.items():
@@ -511,7 +548,7 @@ def sync(*, repo_root: Path, r_root: Path | None = None, rev: str | None = None,
     if check:
         differing = [p for p, data in outputs.items() if not _same(repo_root / p, data)]
         if from_fixtures:        # the pin is not rebuilt here, so compare the local pins to it
-            differing += [p for p, h in local_hashes.items()
+            differing += [p for p, h in {**local_hashes, **gen_hashes}.items()
                           if pin_old.get("files", {}).get(p) != h]
         lines += [f"differs: {p}" for p in differing]
         return SyncResult(1 if differing else 0, lines)

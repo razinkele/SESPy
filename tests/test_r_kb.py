@@ -126,5 +126,21 @@ def test_wheel_contains_r_kb(tmp_path):
     assert r.returncode == 0, r.stderr[-2000:]
     wheel = next(tmp_path.glob("*.whl"))
     names = zipfile.ZipFile(wheel).namelist()
-    for n in ("ses_knowledge_db.json", "country_governance_db.json", "manifest.json"):
+    for n in ("ses_knowledge_db.json", "country_governance_db.json",
+              "ses_connection_db.json", "manifest.json"):
         assert f"sespy/data/r_kb/{n}" in names
+
+
+def test_connection_db_vendored_and_valid():
+    db = r_kb.VENDORED.connection_db()
+    assert db["version"] == 1 and db["r_tag"] == "v1.35.6"
+    assert isinstance(db["connection_db"], list) and len(db["connection_db"]) == 137
+    assert isinstance(db["synonym_db"], dict) and len(db["synonym_db"]) == 17
+    assert sum(len(v) for v in db["synonym_db"].values()) == 146
+
+
+def test_connection_db_row_is_vendored_only():
+    row = r_kb._row(r_kb.CONNECTION_DB_NAME)
+    assert row.override is False
+    assert row.containers == {"connection_db": list, "synonym_db": dict}
+    assert r_kb.VENDORED.files[r_kb.CONNECTION_DB_NAME].source == "vendored"

@@ -29,7 +29,7 @@ def trees(tmp_path):
     stage = tmp_path / "stage"
     dst = stage / "sespy" / "data" / "r_kb"
     dst.mkdir(parents=True)
-    for f in (KB, GOV, "manifest.json"):
+    for f in (KB, GOV, "ses_connection_db.json", "manifest.json"):
         shutil.copy(VENDORED / f, dst / f)
     live = tmp_path / "live"
     live.mkdir()

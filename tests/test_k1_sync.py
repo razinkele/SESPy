@@ -81,6 +81,10 @@ def test_constants():
         for n in ("lookup", "suggestions_grid", "habitat_specific", "countries", "report"))
     for r in C.K1_R_SOURCES:
         assert C.INPUTS[r] == f"tests/parity/r_source/{r.rsplit('/', 1)[-1]}"
+    assert C.GENERATED_RUNTIME == {
+        "scripts/export_r_connection_db.R": "sespy/data/r_kb/ses_connection_db.json"}
+    for r in C.K1B_R_SOURCES:
+        assert C.INPUTS[r] == f"tests/parity/r_source/{r.rsplit('/', 1)[-1]}"
     assert len(C.TRANSLATION_SUBSETS["isa_data_entry"]) == 7
     assert C.TRANSLATION_SUBSETS["report_context"] == ("modules.report_context.include_context",)
 
@@ -137,7 +141,34 @@ def test_git_mode_vendors_runtime_inputs_raw_and_pins_all_kinds(tmp_path):
     for r_path, target in C.RUNTIME_INPUTS.items():
         assert (root / target).read_bytes() == (app / r_path).read_bytes()
     man = json.loads((root / C.MANIFEST_PATH).read_bytes())
-    assert sorted(man["files"]) == ["country_governance_db.json", "ses_knowledge_db.json"]
+    assert sorted(man["files"]) == ["country_governance_db.json", "ses_connection_db.json",
+                                    "ses_knowledge_db.json"]
     pin = T._pin(root)
     assert set(C.LOCAL_PINS) <= set(pin["files"]) and C.MANIFEST_PATH in pin["files"]
     assert set(C.RUNTIME_INPUTS.values()) <= set(pin["files"])
+    assert set(C.GENERATED_RUNTIME.values()) <= set(pin["files"])
+
+
+def test_k1b_sources_pinned():
+    assert C.K1B_R_SOURCES == ("data/ses_connection_knowledge_base.R",
+                               "modules/ai_isa/connection_generator.R")
+    pin = json.loads((T.ROOT / C.PIN_PATH).read_text(encoding="utf-8"))
+    for r in C.K1B_R_SOURCES:
+        assert f"tests/parity/r_source/{r.rsplit('/', 1)[-1]}" in pin["files"]
+    assert "sespy/data/r_kb/ses_connection_db.json" in pin["files"]
+
+
+def test_manifest_lists_connection_db():
+    man = json.loads((T.ROOT / C.MANIFEST_PATH).read_text(encoding="utf-8"))
+    assert "ses_connection_db.json" in json.dumps(man)
+
+
+def test_generated_runtime_tag_must_match_pin(tmp_path):
+    root = T._tree(tmp_path)
+    target = root / "sespy/data/r_kb/ses_connection_db.json"
+    doc = json.loads(target.read_bytes())
+    doc["r_tag"] = "v1.34.2"
+    target.write_bytes(json.dumps(doc).encode("utf-8"))
+    res = C.sync(repo_root=root, from_fixtures=True, check=True)
+    assert res.code == 1
+    assert any("ses_connection_db.json" in m and "v1.34.2" in m for m in res.lines)

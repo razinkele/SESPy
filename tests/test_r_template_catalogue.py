@@ -65,6 +65,12 @@ def _retag(root: Path, tag: str) -> None:
     for rel in C.LOCAL_PINS:
         _write_gz(root / rel, {"r_tag": tag, "stub": Path(rel).name})
         pin["files"][rel] = C.hash_local_pin(root / rel)
+    for rel in C.GENERATED_RUNTIME.values():
+        if (root / rel).is_file():
+            doc = json.loads((root / rel).read_bytes())
+            doc["r_tag"] = tag
+            (root / rel).write_bytes(json.dumps(doc, indent=1).encode("utf-8") + b"\n")
+            pin["files"][rel] = C.sha256_norm(doc)
     (root / C.PIN_PATH).write_bytes(json.dumps(pin, indent=2).encode("utf-8"))
 
 
@@ -88,6 +94,14 @@ def _tree(tmp_path: Path, tag: str | None = None) -> Path:
         (root / target).write_bytes(RUNTIME_STUBS[r_path])
         hashes[target] = C.sha256_norm(json.loads(RUNTIME_STUBS[r_path]))
     pin = _pin(root)
+    # K1b: the generated runtime file is read from the repo, so the tree holds
+    # the real one, carrying the tree's tag.
+    for target in C.GENERATED_RUNTIME.values():
+        doc = json.loads((ROOT / target).read_bytes())
+        doc["r_tag"] = tag or pin["r_tag"]
+        (root / target).parent.mkdir(parents=True, exist_ok=True)
+        (root / target).write_bytes(json.dumps(doc, indent=1).encode("utf-8") + b"\n")
+        hashes[target] = C.sha256_norm(doc)
     (root / C.MANIFEST_PATH).write_bytes(
         C.build_manifest(pin["r_tag"], pin["r_commit"], hashes))
     _retag(root, tag or pin["r_tag"])
@@ -122,7 +136,8 @@ def _fake_r(tmp_path: Path, tag: str = "v1.31.0") -> Path:
     (app / "functions" / "template_loader.R").write_bytes(LOADER_STUB)
     # P1b inputs: the R sources are only hashed (stubs do); the translation
     # files are parsed by the subset step, so they are the real fixtures.
-    for r_path in (*C.R_SOURCES, *C.K1_R_SOURCES):
+    for r_path in (*C.R_SOURCES, *C.K1_R_SOURCES, *C.K1B_R_SOURCES):
+        (app / r_path).parent.mkdir(parents=True, exist_ok=True)
         (app / r_path).write_bytes(f"# stand-in for {r_path}\n".encode("utf-8"))
     # K1: runtime data (sync does not validate it) and the two new translation
     # files (exactly the 8 keys; the real fixtures arrive in Task 3).
@@ -464,8 +479,9 @@ def test_real_run_writes_everything_then_checks_clean(tmp_path, r_app):
     commit = _git(app, "rev-parse", "--short=7", "v1.31.0^{commit}").strip()
     assert (pin["r_tag"], pin["r_commit"]) == ("v1.31.0", commit)
     assert sorted(pin["files"]) == sorted(
-        [*C.INPUTS.values(), *C.RUNTIME_INPUTS.values(), C.MANIFEST_PATH, *C.LOCAL_PINS])
-    assert len(pin["files"]) == 33
+        [*C.INPUTS.values(), *C.RUNTIME_INPUTS.values(), *C.GENERATED_RUNTIME.values(),
+         C.MANIFEST_PATH, *C.LOCAL_PINS])
+    assert len(pin["files"]) == 36
     assert pin["accepted_warnings"] == []
     assert any(line.startswith("hash tests/parity/r_source/template_loader.R: ")
                for line in res.lines)
