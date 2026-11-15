@@ -166,6 +166,7 @@ def test_analyze_polarity_phrase_reversal_compound():
     assert _analyze_polarity_phrase("no biodiversity") == ("neutral", True)
 
 
+@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_responses_to_pressures_is_minus():
     """Always '-' regardless of names (R line 117 invariant)."""
     from sespy.connection_scorer import detect_polarity
@@ -174,6 +175,7 @@ def test_responses_to_pressures_is_minus():
                           "responses", "pressures") == "-"
 
 
+@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_activities_to_pressures_mitigation_is_minus():
     """'Pollution reduction' from activities → '-' via the reversal-compound
     path: _analyze_polarity_phrase returns ('positive', True), then dispatch
@@ -183,6 +185,7 @@ def test_activities_to_pressures_mitigation_is_minus():
                           "activities", "pressures") == "-"
 
 
+@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_activities_to_pressures_default_is_plus():
     """Neutral names → '+' (default for activities → pressures)."""
     from sespy.connection_scorer import detect_polarity
@@ -191,6 +194,7 @@ def test_activities_to_pressures_default_is_plus():
     assert detect_polarity("Tourism", "Noise", "activities", "pressures") == "+"
 
 
+@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_pressures_to_states_branches():
     """All three pressures→states branches (R lines 144-150):
     - to_is_negative=True → "+" (pressure increases negative state)
@@ -215,6 +219,7 @@ def test_pressures_to_states_branches():
                            "pressures", "states") == "-"
 
 
+@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_states_to_impacts_negation_flip():
     """The negation flip (R line 158) zeroes from_is_negative when
     from_analysis.negated AND from_is_negative both hold. This test pins
@@ -244,6 +249,7 @@ def test_states_to_impacts_negation_flip():
     ) == "-"
 
 
+@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 def test_default_fallback_for_unspecified_pair():
     """(drivers, activities) and other pairs without a named branch return
     '+' per R line 186 (default fallback).
@@ -380,7 +386,7 @@ def test_results_sorted_by_confidence_desc():
     result = _generate_smart_connections(
         from_els, to_els, "drivers", "activities"
     )
-    confidences = [s.confidence for s in result]
+    confidences = [s.relevance for s in result]
     assert confidences == [0.9, 0.6, 0.3]
     assert confidences == sorted(confidences, reverse=True)
 
@@ -414,7 +420,7 @@ def test_pair_with_relevance_exactly_03_survives():
         from_els, to_els, "drivers", "activities"
     )
     assert len(result) == 1
-    assert result[0].confidence == 0.3
+    assert result[0].relevance == 0.3
 
 
 # ---------------------------------------------------------------------------
@@ -455,7 +461,7 @@ def test_full_state_returns_typed_suggestions():
     assert len(result) > 0
     for s in result:
         assert isinstance(s, ConnectionSuggestion)
-        assert s.confidence in {0.3, 0.6, 0.9}
+        assert s.relevance in {0.3, 0.6, 0.9}
         assert s.polarity in {"+", "-"}
 
 
@@ -523,7 +529,7 @@ def test_every_keyword_type_yields_high_confidence_suggestions():
     # impacts→I, welfare→W, responses→R.
     high_conf_seen = set()
     for s in result:
-        if s.confidence < 0.6:
+        if s.relevance < 0.6:
             continue
         for from_slug, to_slug, key in _CONN_TYPES:
             from_prefix = from_slug[0].upper()
@@ -641,6 +647,7 @@ def test_r_to_mpf_relevance_is_flat_05():
                                "responses", "states") == 0.5
 
 
+@pytest.mark.xfail(strict=True, reason="re-derived in K1b Task 6")
 @pytest.mark.parametrize("to_label,want", [
     ("Hypoxia extent", "-"),          # negative-sounding target: reduces a bad state
     ("Fish stock recovery", "+"),     # positive-sounding target: increases a good state

@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))
 LANGS = ("en", "es", "fr", "de", "lt", "pt", "it", "no", "el")
 SUGG = [ConnectionSuggestion(source="D001", target="A001", polarity="+",
-                             confidence=0.6, rationale="Tourism drives boating")]
+                             relevance=0.6, rationale="Tourism drives boating")]
 
 
 def test_rule_based_table_explains_its_confidence(monkeypatch):

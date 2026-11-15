@@ -797,5 +797,7 @@ class ConnectionSuggestion:
     source: str  # element id
     target: str  # element id
     polarity: str  # "+" reinforcing, "-" opposing
-    confidence: float  # 0..1
+    relevance: float  # 0..1 (rule-based: R's relevance; Claude: its score)
     rationale: str  # short string explaining the suggestion
+    strength: str = "medium"  # "weak" | "medium" | "strong"
+    confidence: int = 3  # 1..5; rule-based: 4 exact KB match, else 3

@@ -38,7 +38,7 @@ TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))
 LANGS = ("en", "es", "fr", "de", "lt", "pt", "it", "no", "el")
 FREEFORM = ["drivers", "activities", "pressures", "states", "impacts", "welfare", "responses"]
 SUGG = [ConnectionSuggestion(source="R001", target="D001", polarity="+",
-                             confidence=0.3, rationale="MPA enables Tourism")]
+                             relevance=0.3, rationale="MPA enables Tourism")]
 LABELS = {"R001": "MPA", "D001": "Tourism"}
 
 

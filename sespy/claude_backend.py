@@ -455,7 +455,7 @@ def _validate_and_coerce(
             source=source,
             target=target,
             polarity=polarity,
-            confidence=confidence,
+            relevance=confidence,
             rationale=rationale,
         ))
 

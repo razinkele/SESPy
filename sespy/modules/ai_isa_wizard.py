@@ -380,7 +380,7 @@ def _render_suggestions_table(
             ),
             ui.tags.td(ui.input_checkbox(f"swap_{tag}{i}", "\u21c4", value=False),
                        class_="wiz-swap"),
-            ui.tags.td(f"{s.confidence:.2f}"),
+            ui.tags.td(f"{s.relevance:.2f}"),
             ui.tags.td(s.rationale, class_="wiz-rat"),
             ui.tags.td(ui.input_checkbox(f"{prefix}{i}", "", value=False)),
             class_="wiz-sugg",
@@ -503,7 +503,7 @@ def _dedup_accepted(
     """Pure-data dedup helper extracted from _on_finish.
 
     Dedups by (source, target, polarity) — different polarity for the
-    same edge is NOT a duplicate. On confidence tie, the FIRST entry
+    same edge is NOT a duplicate. On relevance tie, the FIRST entry
     wins (iteration order; in _on_finish, SP3 is iterated first so SP3
     wins ties).
 
@@ -519,7 +519,7 @@ def _dedup_accepted(
         prev = seen.get(key)
         if prev is None:
             seen[key] = s
-        elif s.confidence > prev.confidence:
+        elif s.relevance > prev.relevance:
             seen[key] = s
             overwritten += 1
         else:

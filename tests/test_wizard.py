@@ -89,7 +89,7 @@ from sespy.modules.ai_isa_wizard import _dedup_accepted as _dedup
 def _make_sug(source, target, polarity, confidence, rationale="r"):
     return ConnectionSuggestion(
         source=source, target=target, polarity=polarity,
-        confidence=confidence, rationale=rationale,
+        relevance=confidence, rationale=rationale,
     )
 
 
@@ -113,7 +113,7 @@ def test_dedup_drops_lower_confidence_same_polarity():
     final, discarded, overwritten = _dedup([sp3, sp4])
     assert len(final) == 1
     # Higher confidence wins.
-    assert final[0].confidence == 0.9
+    assert final[0].relevance == 0.9
     assert final[0].rationale == "sp4 r"
     assert overwritten == 1
     assert discarded == 0

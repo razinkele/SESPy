@@ -18,6 +18,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from . import r_connection_kb as r_kb  # noqa: E402
+from .r_kb import VENDORED as _R_VENDORED  # noqa: E402
 from .data_structure import (
     _CONN_TYPES,  # re-exported for SP3-era tests
     ELEMENT_TYPE_MAP,  # post-Task-2 home (data_structure.py)
@@ -45,23 +47,61 @@ _TYPE_TO_SLUG = {v: k for k, v in ELEMENT_TYPE_MAP.items()}
 _MAX_PER_TYPE = 15
 _MIN_RELEVANCE = 0.3
 
-# Reversal-compounds used by _analyze_polarity_phrase to detect
-# "negative-of-negative" phrases (e.g., "pollution reduction" → positive).
-# Bare X.*Y stems with no \b boundaries — matches R lines 216-218 verbatim.
-# Algorithm-shape (regex), kept inline rather than in JSON.
+# R's analyze_phrase_polarity tables (ses_connection_knowledge_base.R:1363-1435),
+# 28 reversal compounds and 19 negation patterns, PCRE -> Python re.
 _REVERSAL_COMPOUNDS: list[str] = [
-    r"pollut.*reduc",  r"emission.*reduc",  r"pressure.*reduc",
-    r"litter.*reduc",  r"waste.*reduc",     r"noise.*reduc",
-    r"overfish.*prevent",  r"erosion.*control",
+    r"pollut.*reduc", r"pollut.*remov", r"pollut.*control",
+    r"emission.*reduc", r"emission.*control", r"emission.*limit",
+    r"pressure.*reduc", r"stress.*reduc", r"risk.*reduc",
+    r"litter.*reduc", r"litter.*remov", r"litter.*clean",
+    r"waste.*reduc", r"waste.*treat", r"waste.*remov",
+    r"erosion.*control", r"erosion.*prevent",
+    r"noise.*reduc", r"noise.*control",
+    r"overfish.*prevent", r"overfish.*reduc",
+    r"deforest.*prevent", r"habitat.*loss.*prevent",
+    r"decline.*halt", r"decline.*revers",
+    r"degradat.*halt", r"degradat.*revers",
 ]
 
-# Negation-regex patterns with \b word boundaries — matches R lines 209-211
-# verbatim. Algorithm-shape (regex), kept inline rather than in JSON.
 _NEGATION_PATTERNS: list[str] = [
-    r"\bno\b",       r"\bnot\b",       r"\bnon[- ]",     r"\bwithout\b",
-    r"\bprevent",    r"\bban\b",       r"\breduc",       r"\bremov",
-    r"\bcontrol",    r"\blimit",       r"\brestrict",
+    r"\bno\b", r"\bnot\b", r"\bnon[- ]", r"\bwithout\b",
+    r"\bprevent", r"\bprohibit", r"\bban\b", r"\bbanned\b",
+    r"\breduc", r"\bremov", r"\belimin", r"\bavoid",
+    r"\bcontrol", r"\blimit", r"\brestrict", r"\bstop",
+    r"\bless\b", r"\black\b", r"\babsence\b",
 ]
+
+_PHRASE_POSITIVE_KW = ("increas", "improv", "enhanc", "restor", "recover",
+                       "growth", "benefit", "gain", "protect", "conserv",
+                       "sustain", "resilient", "healthy", "abundant")
+_PHRASE_NEGATIVE_KW = ("declin", "loss", "degrad", "damag", "destruct",
+                       "pollut", "contamin", "overfish", "erosion",
+                       "deplet", "collapse", "extinct", "harm",
+                       "bleach", "hypox", "mortality")
+
+# R's detect_polarity keyword lists (connection_generator.R:86-105).
+_NEGATIVE_KEYWORDS = (
+    "declin", "degrad", "loss", "reduc", "damag", "destruct", "pollut",
+    "eutrophic", "overfish", "bycatch", "invasive", "extinct", "harm",
+    "contaminat", "erosion", "acidific", "hypox", "dead zone", "bleach",
+    "disease", "mortality", "collapse", "fragment", "depletion",
+)
+_POSITIVE_KEYWORDS = (
+    "increas", "growth", "restor", "recover", "improv", "enhanc", "protect",
+    "conserv", "benefit", "health", "sustain", "resilient", "biodiver",
+    "abundance", "productiv", "regenerat", "rehabilit", "rebui",
+)
+_MITIGATION_KEYWORDS = (
+    "ban", "prohibit", "restrict", "limit", "regulat", "control", "manag",
+    "reduce", "prevent", "mitigat", "protect", "enforce", "monitor",
+    "stop", "remov", "clean", "treat",
+)
+
+
+def _any_match(patterns, text: str) -> bool:
+    return any(
+        re.search(p, text, re.ASCII if r"\b" in p else 0) for p in patterns
+    )
 
 
 def calculate_relevance(
@@ -104,149 +144,89 @@ def calculate_relevance(
 
 
 def _analyze_polarity_phrase(name_lower: str) -> tuple[str, bool]:
-    """Return (sentiment, negated) for a single name. Two-check scheme;
-    reversal takes precedence in the return.
-
-    Returns only ("positive", True), ("neutral", True), or
-    ("neutral", False) — never ("negative", *). R's helper has no path
-    emitting "negative" sentiment; the negative semantic is captured
-    separately by the from_is_negative / to_is_negative substring flags
-    computed in detect_polarity Step A (see §5 of the spec).
-
-    Direct port of R's .analyze_polarity_phrase at
-    connection_generator.R:198-226. R's third return field
-    base_sentiment is dropped — R's detect_polarity (R 117-186) reads
-    only sentiment and negated.
-
-    Implementation notes:
-    - name_lower is assumed already lowercased by the caller (matches
-      R's code path where tolower() runs before this helper).
-    - Reversal-compounds are checked first to give them return-priority.
-      In R, both checks compute their flags before the early return on
-      reversal; either order produces the same observable behaviour.
-    - Pattern lists _REVERSAL_COMPOUNDS and _NEGATION_PATTERNS are
-      module-level (algorithm-shape, not data; see §5).
-    """
-    # Phase 1: reversal-compounds (precedence in return).
-    for pattern in _REVERSAL_COMPOUNDS:
-        if re.search(pattern, name_lower):
-            return ("positive", True)
-
-    # Phase 2: negation regex with \b boundaries.
-    for pattern in _NEGATION_PATTERNS:
-        if re.search(pattern, name_lower):
-            return ("neutral", True)
-
-    return ("neutral", False)
+    """Return (sentiment, negated); port of R's analyze_phrase_polarity
+    (ses_connection_knowledge_base.R:1363-1435), which R's
+    .analyze_polarity_phrase delegates to (the inline fallback is dead)."""
+    if _any_match(_REVERSAL_COMPOUNDS, name_lower):
+        return ("positive", True)
+    has_negation = _any_match(_NEGATION_PATTERNS, name_lower)
+    has_pos = _any_match(_PHRASE_POSITIVE_KW, name_lower)
+    has_neg = _any_match(_PHRASE_NEGATIVE_KW, name_lower)
+    if has_pos and not has_neg:
+        base = "positive"
+    elif has_neg and not has_pos:
+        base = "negative"
+    elif has_pos and has_neg:
+        base = "mixed"
+    else:
+        base = "neutral"
+    if has_negation and base == "positive":
+        return ("negative", True)
+    if has_negation and base == "negative":
+        return ("positive", True)
+    return (base, has_negation)
 
 
-def detect_polarity(
-    from_name: str, to_name: str, from_slug: str, to_slug: str
-) -> str:
-    """Return '+' or '-' via per-pair dispatch with precomputed per-name
-    signals. Faithful to R's structure at connection_generator.R:62-187
-    (KB-lookup branch at R 63-75 dropped per scope).
+def detect_polarity(from_name: str, to_name: str, from_type: str,
+                    to_type: str, db: dict) -> str:
+    """Port of R's detect_polarity (connection_generator.R:62-187): the KB
+    entry's polarity when lookup_knowledge_base matches, else R's rules.
+    Types are R's plural slugs."""
+    kb = r_kb.lookup_knowledge_base(from_name, from_type, to_name, to_type, db)
+    if kb is not None and kb.polarity is not None:
+        return kb.polarity
 
-    Slug params are lowercase, NOT human Element.type strings.
-
-    Step A: Precompute per-name signals (R lines 86-112):
-      - Lowercase both names.
-      - Substring-match polarity_signals keyword sets against each name.
-      - Call _analyze_polarity_phrase twice (once per name).
-
-    Step B: Per-pair dispatch over (from_slug, to_slug):
-      - ("responses", "pressures"): always "-" (R line 117).
-      - ("responses", "states"): to-flag-aware, default "+" (R 122-130).
-      - ("activities", "pressures"): mitigation-aware (R 133-138).
-      - ("pressures", "states"): to-flag-aware (R 143-150).
-      - ("states", "impacts"): negation-flip + matrix (R 153-167).
-      - ("impacts", "welfare"): negation-flip + simple fall-through (R 170-183).
-      - All other pairs: default "+" (R line 186).
-
-    R's KB-lookup branch (R 63-75) and ML-scoring branch are not
-    ported per the rule-based-only scope decision. The
-    ("responses", "states") branch (R 122-130) is ported since P1a made
-    R->MPF a canonical pair in _CONN_TYPES.
-    """
     from_lower = from_name.lower()
     to_lower = to_name.lower()
-
-    # --- Step A: Precompute per-name signals (universal hoist) -----
-    polarity = _KW["polarity_signals"]
-    negative_keywords = polarity["negative_keywords"]
-    positive_keywords = polarity["positive_keywords"]
-    mitigation_keywords = polarity["mitigation_keywords"]
-
-    def _has_any(text: str, kws: list[str]) -> bool:
-        return any(re.search(re.escape(kw), text) for kw in kws)
-
-    from_is_negative = _has_any(from_lower, negative_keywords)
-    from_is_positive = _has_any(from_lower, positive_keywords)
-    to_is_negative = _has_any(to_lower, negative_keywords)
-    to_is_positive = _has_any(to_lower, positive_keywords)
-    from_is_mitigation = _has_any(from_lower, mitigation_keywords)
-
     from_analysis = _analyze_polarity_phrase(from_lower)
     to_analysis = _analyze_polarity_phrase(to_lower)
 
-    # --- Step B: Per-pair dispatch ---------------------------------
-    # ("responses", "pressures") — R line 117: always "-".
-    if from_slug == "responses" and to_slug == "pressures":
+    to_is_negative = _any_match(_NEGATIVE_KEYWORDS, to_lower)
+    to_is_positive = _any_match(_POSITIVE_KEYWORDS, to_lower)
+    from_is_mitigation = _any_match(_MITIGATION_KEYWORDS, from_lower)
+
+    if from_type == "responses" and to_type == "pressures":
         return "-"
-
-    # ("responses", "states") — R lines 122-130.
-    if from_slug == "responses" and to_slug == "states":
+    if from_type == "responses" and to_type == "states":
         if to_is_negative:
-            return "-"  # reduces a bad state
+            return "-"
         if to_is_positive:
-            return "+"  # increases a good state
-        return "+"  # default: responses improve states
-
-    # ("activities", "pressures") — R lines 133-138.
-    if from_slug == "activities" and to_slug == "pressures":
+            return "+"
+        return "+"
+    if from_type == "activities" and to_type == "pressures":
         if from_is_mitigation or from_analysis[0] == "positive":
             return "-"
         return "+"
-
-    # ("pressures", "states") — R lines 143-150.
-    if from_slug == "pressures" and to_slug == "states":
+    if from_type == "pressures" and to_type == "states":
         if to_is_negative:
-            return "+"  # pressure increases negative state
+            return "+"
         if to_is_positive:
             return "-"
-        return "-"  # default
-
-    # ("states", "impacts") — R lines 153-167.
-    if from_slug == "states" and to_slug == "impacts":
-        # Negation flip: only negative flags flip; positive flags NEVER flip.
-        if from_analysis[1] and from_is_negative:  # from_analysis.negated
+        return "-"
+    if from_type == "states" and to_type == "impacts":
+        from_is_negative = _any_match(_NEGATIVE_KEYWORDS, from_lower)
+        from_is_positive = _any_match(_POSITIVE_KEYWORDS, from_lower)
+        if from_analysis[1] and from_is_negative:
             from_is_negative = False
         if to_analysis[1] and to_is_negative:
             to_is_negative = False
-        # Matrix:
         if (from_is_negative and to_is_negative) or (
-            from_is_positive and to_is_positive
-        ):
-            return "+"  # same-sign reinforcement
+                from_is_positive and to_is_positive):
+            return "+"
         if (from_is_negative and to_is_positive) or (
-            from_is_positive and to_is_negative
-        ):
-            return "-"  # opposite-sign opposition
-        return "-"  # default for ambiguous/neutral pairs
-
-    # ("impacts", "welfare") — R lines 170-183.
-    if from_slug == "impacts" and to_slug == "welfare":
-        # Only from-side flags are read (R reads only from_*); to_is_*
-        # were precomputed in Step A but UNUSED in this branch.
-        if from_analysis[1] and from_is_negative:  # from_analysis.negated
+                from_is_positive and to_is_negative):
+            return "-"
+        return "-"
+    if from_type == "impacts" and to_type == "welfare":
+        from_is_negative = _any_match(_NEGATIVE_KEYWORDS, from_lower)
+        from_is_positive = _any_match(_POSITIVE_KEYWORDS, from_lower)
+        if from_analysis[1] and from_is_negative:
             from_is_negative = False
         if from_is_negative:
             return "-"
         if from_is_positive:
             return "+"
-        return "-"  # default: impacts reduce welfare
-
-    # All other pairs (D->A, R->D, R->A, W->D, W->R) — R line 186 default.
+        return "-"
     return "+"
 
 
@@ -336,20 +316,28 @@ def _generate_smart_connections(
             if from_is_loss and to_is_loss:
                 continue
 
+            db = _R_VENDORED.connection_db()
             polarity = detect_polarity(
-                from_el.label, to_el.label, from_slug, to_slug
+                from_el.label, to_el.label, from_slug, to_slug, db
             )
+            kb = r_kb.lookup_knowledge_base(
+                from_el.label, from_slug, to_el.label, to_slug, db
+            )
+            strength = kb.strength if kb is not None else "medium"
+            confidence = 4 if kb is not None and kb.match_quality == "exact" else 3
             verb = _select_verb(from_slug, polarity)
             candidates.append(ConnectionSuggestion(
                 source=from_el.id,
                 target=to_el.id,
                 polarity=polarity,
-                confidence=relevance,
+                relevance=relevance,
                 rationale=f"{from_el.label} {verb} {to_el.label}",
+                strength=strength,
+                confidence=confidence,
             ))
 
     # Sort desc by confidence (stable -- preserves cross-product order on ties).
-    candidates.sort(key=lambda s: s.confidence, reverse=True)
+    candidates.sort(key=lambda s: s.relevance, reverse=True)
     return candidates[:max_count]
 
 

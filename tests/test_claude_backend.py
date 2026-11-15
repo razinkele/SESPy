@@ -381,7 +381,7 @@ def test_clamps_confidence_out_of_range(conf, clamped):
     sug = _valid_suggestion(confidence=conf)
     outcome = _validate_and_coerce([sug], valid_ids, elements)
     assert len(outcome.suggestions) == 1
-    assert outcome.suggestions[0].confidence == clamped
+    assert outcome.suggestions[0].relevance == clamped
 
 
 @pytest.mark.parametrize("rationale", ["", "   ", "\t\n"])

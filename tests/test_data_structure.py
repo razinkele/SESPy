@@ -110,12 +110,12 @@ def test_connection_suggestion_construction():
     from sespy.data_structure import ConnectionSuggestion
     s = ConnectionSuggestion(
         source="D001", target="P001", polarity="+",
-        confidence=0.7, rationale="Tourism drives anchor damage."
+        relevance=0.7, rationale="Tourism drives anchor damage."
     )
     assert s.source == "D001"
     assert s.target == "P001"
     assert s.polarity == "+"
-    assert s.confidence == 0.7
+    assert s.relevance == 0.7
     assert "anchor" in s.rationale.lower()
 
 
