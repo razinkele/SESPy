@@ -92,8 +92,9 @@ class Translator:
 
 
 # --------------------------------------------------------------------------
-# Module-level singleton — any module can `from sespy.i18n import t` and
-# call `t("key")` without explicitly receiving the Translator instance.
+# Module-level singleton: library code may `from sespy.i18n import t`; app/UI
+# code imports it from `sespy.ui_i18n` instead. Either way it can call
+# `t("key")` without explicitly receiving the Translator instance.
 # The app calls `set_default(T)` after creating its Translator.
 #
 # One injection point: a resolver. When set, `get_default()` returns

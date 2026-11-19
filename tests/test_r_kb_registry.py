@@ -114,6 +114,18 @@ def test_missing_default_dir_serves_vendored(tmp_path, monkeypatch):
     assert r_kb.current() is r_kb.VENDORED
 
 
+def test_configure_default_override_dir_loads_real_dir(env):
+    # No env var and no settings line: only the configured default dir applies.
+    env.write_both(marker="from-default-dir")
+    env.mp.delenv(r_kb.ENV_VAR)
+    r_kb.configure(env.app, default_override_dir=str(env.data))
+    r_kb.refresh()
+    snap = r_kb.current()
+    assert snap is not r_kb.VENDORED
+    assert snap.files[KB].source == "shared"
+    assert snap.kb()["x_marker"] == "from-default-dir"
+
+
 def test_library_has_no_laguna_path():
     assert "/srv/" not in Path(r_kb.__file__).read_text(encoding="utf-8")
 
