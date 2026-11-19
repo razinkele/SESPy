@@ -71,7 +71,8 @@ Nid4Ocean shows the problem today. It pins `sespy @ git+…@v1.8.0` and gets the
   - `templates/**.json`;
   - **all of `translations/`, including `core.json`.**
   - Library code returns keys and looks one up itself (`link_rules` → `entry.off_rule_link`).
-  - The app and MosaicSES read the directory via `Path(sespy.__file__).parent / "translations"`. That keeps working unchanged.
+  - MosaicSES reads the directory via `Path(sespy.__file__).parent / "translations"`, which keeps working.
+  - The app currently uses the repo-relative `ROOT / "sespy" / "translations"` (`app.py:76`). It **must change** to the `sespy.__file__` form, because a sespy-app checkout has no `sespy/` beside `app.py`.
 - **Repo-level:**
   - `tests/parity/` (fixtures, `r_sync.json` pin, `check_live.py`), `scripts/` (sync and R capture scripts), `docs/parity/`;
   - `LITERATURE/`, `.superpowers/`;
@@ -92,7 +93,7 @@ Nid4Ocean shows the problem today. It pins `sespy @ git+…@v1.8.0` and gets the
   - `deploy/`, `environment.yml`;
   - the app tests (§7) and `tests/make_docs_screenshots.py`, `tests/run_e2e.py`, `tests/_testmode.py`, `tests/fixtures/bot_*.csv`.
 
-The app's imports change from relative to absolute: `from ..data_structure import …` becomes `from sespy.data_structure import …`. The package moves one level, so `topbar_actions._REPO_ROOT` (`parents[2]`) must be re-derived. It still has to find `docs/MANUAL.md` and `CHANGELOG.md` beside the package.
+The app's imports change from relative to absolute: `from ..data_structure import …` becomes `from sespy.data_structure import …`. `sespy_app/modules/` sits at the same depth as `sespy/modules/`, so `topbar_actions._REPO_ROOT` (`parents[2]`) still finds `docs/MANUAL.md` and `CHANGELOG.md`. A test pins that.
 
 ## 5. Decoupling inside the library
 
@@ -119,6 +120,10 @@ All of this lands in **stage 1** (§8), inside the current repo, before anything
   - per-session language;
   - process-wide fallback;
   - the per-session reset that broke once before (memory `sespy-translator-global-lang-reset`).
+- **MosaicSES constraints (my calls):**
+  - **Self-install on import.** Importing the reactive module installs the resolver hook. MosaicSES calls no setup function, and must not need to.
+  - **`_default_translator` keeps its name** as the library's storage for the process-wide default, because MosaicSES's `test_multises_app_imports.py:201` writes it directly.
+  - **No re-export.** In stage 1 the plain `sespy.i18n.Translator` would replace the reactive one MosaicSES imports today. The library won't re-export the reactive class (anti-goal). Instead, the MosaicSES bridge release (§8 stage 4) ships **before** SESPy 1.17.1 is deployed. Its translator import chain is `sespy_app.i18n` → `sespy.ui_i18n` → `sespy.i18n`.
 
 ### 5.2 r_kb
 
@@ -126,6 +131,9 @@ All of this lands in **stage 1** (§8), inside the current repo, before anything
 - `DEFAULT_OVERRIDE_DIR = "/srv/shiny-server/marinesabres/data"` and the `server_settings.env` lookup relative to `configure(app_dir)` leave the library's defaults:
   - the app passes the override dir and app dir in;
   - the library takes them as parameters, with the `SESPY_R_DATA_DIR` env var still honoured.
+- **`check_live.py` (my call).**
+  - `tests/parity/check_live.py` (library repo) gains a required `--default-override-dir` argument. `override_dir_from` takes the default as a parameter, and the library has no laguna path.
+  - The app's `deploy.sh` passes `/srv/shiny-server/marinesabres/data`. `test_deploy_script.py` (moving to the app) keeps asserting it.
 - The vendored-KB loading, `Snapshot`, `ALLOW_LIST` and the registry stay in the library unchanged.
 
 ### 5.3 feedback_store
@@ -180,10 +188,12 @@ The split follows the survey's classification.
   - `test_network` (`build_loop_payload`);
   - `test_qsem_import` (`parse_upload`);
   - `test_templates` (`MAX_TEMPLATES`);
-  - `test_wizard` and `test_connection_polarity` (`_dedup_accepted`).
+  - `test_wizard` and `test_connection_polarity` (`_dedup_accepted`);
+  - `test_i18n` (`shiny.testserver` and reactive-translator tests at L296 onward; the reactive half moves to the app in stage 2, and in stage 1 it tests `sespy/ui_i18n.py`).
+- The full per-file classification is in Appendix A.
 - **New `test_public_api.py`.** It imports every name the known consumers use, recorded once from:
-  - the MosaicSES `multises/` imports listed in the survey;
-  - Nid4Ocean's `network` / `dynamics` / `constants` / `data_structure.to_visnetwork`.
+  - the MosaicSES library-side imports in Appendix B;
+  - Nid4Ocean's names in Appendix B, to be re-derived read-only from the public repo `github.com/razinkele/nid4ocean-dst` at planning time.
   
   It pins them, so a library refactor can't silently break a consumer.
 - **CI:** lint (ruff on `sespy tests scripts`), plus unit tests on 3.11/3.12 without UI deps (§5.5).
@@ -198,7 +208,7 @@ The tests rely on `pythonpath=["."]` for `app`, `scripts` and `_testmode`, and o
 
 ## 8. Stages
 
-**Stage 1: decouple in place.** Ships as an ordinary SESPy release (**1.17.1**), with no consumer change and no file moves across packages.
+**Stage 1: decouple in place.** Ships as an ordinary SESPy release (**1.17.1**), with no file moves across packages. It needs one consumer change first: the MosaicSES bridge release (stage 4, step 1) must be live on laguna **before** 1.17.1 is deployed (§5.1). The bridge can be built and released right after stage 1 is coded, ahead of stages 2–3.
 - Does: §5.1 i18n split, §5.2 r_kb, the §5.4 version-equality test, §5.5 gate.
 - `feedback_store` stays put in this stage.
 - Normal SESPy gates (full unit + full e2e), deployed as usual. MosaicSES is unaffected because names keep working in the monolith.
@@ -215,7 +225,7 @@ The tests rely on `pythonpath=["."]` for `app`, `scripts` and `_testmode`, and o
 
 **Stage 3: shrink the library.** On a branch of SESPy:
 - delete the moved files; this keeps full history, with no rewrite;
-- drop the UI deps and www package data, and split the 5 mixed tests;
+- drop the UI deps and www package data, and split the 6 mixed tests;
 - add `test_public_api.py` and the README / CHANGELOG / `__init__` wording;
 - release **1.18.0**.
 - sespy-app pins `sespy==1.18.0` and releases **1.0.0**.
@@ -227,10 +237,12 @@ The tests rely on `pythonpath=["."]` for `app`, `scripts` and `_testmode`, and o
      - `test_compartment_switcher_contract.py`;
      - `test_multises_app_imports.py`.
      
-     Its `test_import_allowlist.py` must keep `multises/` library-only;
-   - its deploy symlinks `sespy_app` when it exists;
-   - `pyproject`: `sespy>=1.18` (for `multises`), optional extra `app = ["sespy-app>=1.0"]`;
-   - its `release.sh:80-88` check compares both versions.
+     Its `test_import_allowlist.py` must keep `multises/` library-only.
+   - **Fallback (my call):** the fallback catches only `ModuleNotFoundError` whose `.name` is the module being tried, so a real error inside `sespy_app` is never masked.
+   - **Symlink (my call):** its `deploy.sh` creates `sespy_app -> $SESPY_APP_DIR/sespy_app` **unconditionally**, next to the existing `sespy` link. Until the cutover the link dangles; a dangling link is not an importable package, so the import fails with `ModuleNotFoundError` and the bridge falls back to `sespy.*`. At the cutover it resolves, and sespy-app's deploy touches MosaicSES `restart.txt` as today. No second MosaicSES deploy is needed.
+   - **Pin (my call):** the bridge keeps `sespy>=1.17.0`. The `sespy>=1.18` pin and the `app = ["sespy-app>=1.0"]` extra move to the cleanup release (step 3).
+   - **`release.sh:80-88` (my call):** it keeps comparing `sespy.__version__` local vs server. It adds a `sespy_app.__version__` comparison only when the server has `$SESPY_APP_DIR/sespy_app`.
+   - **Tests:** the bridge's suite (unit and full e2e) runs twice, against monolith 1.17.1 and against the split layout (library 1.18.0 + app 1.0.0, local editable).
 2. **Cutover deploy** of sespy-app to laguna (§9).
 3. **MosaicSES cleanup release:** drop the fallback.
 4. **Nid4Ocean:** re-pin `[ses]` to `sespy @ git+https://github.com/razinkele/SESPy@v1.18.0`. Its tests use names `test_public_api.py` pins.
@@ -257,13 +269,16 @@ The tests rely on `pythonpath=["."]` for `app`, `scripts` and `_testmode`, and o
 - The script refuses to continue if it finds DBs at both paths.
 
 **Order**
+0. Before any of this, the bridge goes live before 1.17.1 (§8 stage 1).
 1. MosaicSES bridge release is live (works on old and new layout).
 2. sespy-app deploy: the app is switched; MosaicSES now picks up `sespy_app` through the symlink and touches `restart.txt` as today.
 3. Verify: About shows both versions; MosaicSES's live check; a project load in each.
 
 **Rollback**
 - Re-deploy SESPy v1.17.1 with the existing `deploy.sh --rollback` from a v1.17.1 worktree.
-- The MosaicSES bridge falls back to `sespy.*`.
+- The v1.17.1 script copies with scp and never deletes, so a stale `$APP_DIR/sespy_app/` would survive. Then the MosaicSES symlink would still resolve and MosaicSES would run the 1.18-built app over the 1.17.1 library.
+- **So the rollback instructions also remove `$APP_DIR/sespy_app/`** (after moving `feedback.db` out of it, below), as a user-run step. sespy-app's own `deploy.sh --rollback` (app version to app version) is unaffected.
+- With `sespy_app/` gone, the MosaicSES link dangles again and the bridge falls back to `sespy.*`.
 - `feedback.db` is moved back by the same rule in reverse. The rollback path must handle it; the builder adds that to the old-layout rollback instructions rather than editing the v1.17.1 script.
 
 ## 10. Repositories and commands the user runs
@@ -290,3 +305,47 @@ The tests rely on `pythonpath=["."]` for `app`, `scripts` and `_testmode`, and o
 - The `filter-repo` path list (derived from §4.2) and commit layout within each stage.
 - How the import blocker is wired (§5.5).
 - Wording of READMEs, CHANGELOG entries and the About line.
+
+## Appendix A: test classification (survey of 0c38fbb)
+
+**Library: core-unit**
+- autosave, bayes, bayes_consensus, bookmark, claude_backend, claude_session_import, connection_scorer, data_structure, dynamics, excel_import;
+- k1_sync, kb_report, kb_suggestions, link_rules, persistent_storage, performance, provenance, qsem_dapsiwrm_map, qsem_models_load, r_connection_kb, r_kb, r_kb_registry;
+- r_template_catalogue, r_template_mapper, recent_projects, regional_seas, report, response_register;
+- schema_read_ahead, schema_v7, schema_v8, schema_v9, stakeholder_reports, stakeholders, utils;
+- **feedback_store moves to the app with its module.**
+
+**Library: parity.** Everything under `tests/parity/`.
+
+**Split: library half plus app half.** network, qsem_import, templates, wizard, connection_polarity, i18n (§7).
+
+**App: unit**
+- analysis_boolean_clamp, browser_token, cld, cld_filter, cld_legend_density, data_changed_notice, feedback_store, feedback_table, governance_gap_ui, help_offcanvas, intervention_diffusion;
+- isa_entry_edit, isa_entry_link_rules, k1_wiring, leverage_module, metrics_explanations, metrics_hypermodules, metrics_testmode_export, mosaicses_contract;
+- pims_project, report_regional, response_register_module, stakeholders_module, templates_module, testmode_helper, topbar_reference_data;
+- wizard_chips, wizard_completion, wizard_confidence_help, wizard_countries, wizard_k1b, wizard_overlay, wizard_review_polarity;
+- manual, skin_card_header, no_deprecations, deploy_script.
+
+**App: e2e and tools**
+- every `test_*_e2e.py`, test_burger, test_stepper, test_stepper_click;
+- run_e2e.py, _testmode.py, make_docs_screenshots.py, the probe and diagnostic scripts, fixtures/bot_*.csv;
+- report_default_golden.html stays with test_report in the library.
+
+**Rule for anything unlisted:** it goes to the library if it imports no shiny, htmltools, pyvis, `sespy.modules`, `app`, `dashboard`, `event_bus` or `browser_token`; otherwise it goes to the app.
+
+## Appendix B: consumer imports to pin in `test_public_api.py`
+
+**MosaicSES library-side** (b5daf1e):
+- `constants`: `ELEMENT_ID_PREFIX`, `DA_SITES`, `SPATIAL_SCALES`, `TEMPORAL_SCALES`, `DAPSIWRM_ADJACENCY_RULES`.
+- `data_structure`: `Connection`, `Element`, `IsaData`, `Project`, `ProjectMetadata`, `PROJECT_SCHEMA_VERSION`, `SCHEMA_MIN_READER`.
+- `utils`: `next_id`.
+- `network`: `CENTRALITY_METRICS`, `centrality_metrics`, `leverage_scores`, `to_digraph`, `remove_nodes`, `feedback_loops`, `classify_loops`.
+- `regional_seas`: `get_regional_seas`.
+- `autosave`: `token_key`, `valid_token`.
+- `sespy.__version__`, and `sespy/translations/` as a package-data path.
+
+**Nid4Ocean** (pins v1.8.0 today; re-derive at planning time):
+- `data_structure`: model classes and `to_visnetwork`.
+- `constants`.
+- `network`: `intervention_impact`, `causal_paths`, `delay_edge_kwargs`.
+- `dynamics`: `token_diffusion`, the `isa_to_*_matrix` helpers, and boolean-network functions.
