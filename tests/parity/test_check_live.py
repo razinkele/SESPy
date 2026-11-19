@@ -230,7 +230,8 @@ def fetch_run(monkeypatch, trees):
     def go(remote, *extra):
         monkeypatch.setattr(subprocess, "run", remote)
         return check_live.main(["--pin", str(PIN), "--stage", str(stage), "--fetch",
-                                "--server", "deploy@example.test", "--app-dir", "/srv/app", *extra])
+                                "--server", "deploy@example.test", "--app-dir", "/srv/app",
+                                "--default-override-dir", "/data/default", *extra])
 
     return go, live_src
 
@@ -244,7 +245,8 @@ def test_fetch_reads_config_env(monkeypatch, tmp_path, trees):
         'DEPLOY_SERVER=deploy@example.test\nDEPLOY_DIR="/srv/app"\n', encoding="utf-8")
     remote = Remote(live_src)
     monkeypatch.setattr(subprocess, "run", remote)
-    rc = check_live.main(["--pin", str(PIN), "--stage", str(stage), "--fetch"])
+    rc = check_live.main(["--pin", str(PIN), "--stage", str(stage), "--fetch",
+                          "--default-override-dir", "/data/default"])
     assert rc == 0  # complete stat output: the happy path
     assert remote.calls[0][:3] == ["ssh", "--", "deploy@example.test"]
     assert "/srv/app/server_settings.env" in remote.calls[0][3]  # settings read comes first
@@ -273,9 +275,15 @@ def test_fetch_override_off_skips_live(fetch_run):
 def test_fetch_absent_settings_uses_default_path(fetch_run):
     go, live_src = fetch_run
     remote = Remote(live_src, settings_rc=3)  # exit 3 = file absent
-    go(remote)
-    default = check_live.r_kb.DEFAULT_OVERRIDE_DIR
+    default = "/srv/shiny-server/marinesabres/data"
+    go(remote, "--default-override-dir", default)
     assert any(c[0] == "scp" and c[3].endswith(f":{default}/ses_knowledge_db.json") for c in remote.calls)
+
+
+def test_fetch_requires_default_override_dir():
+    with pytest.raises(SystemExit) as exc:
+        check_live.main(["--fetch"])
+    assert exc.value.code == 2
 
 
 def test_fetch_unreadable_settings_is_structural(fetch_run):

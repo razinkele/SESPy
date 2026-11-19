@@ -93,14 +93,29 @@ def test_parse_settings_text_rules():
 
 def test_override_dir_from_precedence():
     f = r_kb.override_dir_from
-    assert f({}, None) == r_kb.DEFAULT_OVERRIDE_DIR
-    assert f({}, "nothing here\n") == r_kb.DEFAULT_OVERRIDE_DIR
-    assert f({}, "SESPY_R_DATA_DIR=/s\n") == "/s"
-    assert f({"SESPY_R_DATA_DIR": "/e"}, "SESPY_R_DATA_DIR=/s\n") == "/e"     # env wins
-    assert f({"SESPY_R_DATA_DIR": ""}, "SESPY_R_DATA_DIR=/s\n") is None       # empty env = off
-    assert f({"SESPY_R_DATA_DIR": "OFF"}, "SESPY_R_DATA_DIR=/s\n") is None
-    assert f({}, "SESPY_R_DATA_DIR=\n") is None
-    assert f({}, "SESPY_R_DATA_DIR= Off \n") is None
+    assert f({}, None, "/d") == "/d"
+    assert f({}, "nothing here\n", "/d") == "/d"
+    assert f({}, None, None) is None
+    assert f({}, "SESPY_R_DATA_DIR=/s\n", "/d") == "/s"
+    assert f({"SESPY_R_DATA_DIR": "/e"}, "SESPY_R_DATA_DIR=/s\n", "/d") == "/e"     # env wins
+    assert f({"SESPY_R_DATA_DIR": ""}, "SESPY_R_DATA_DIR=/s\n", "/d") is None       # empty env = off
+    assert f({"SESPY_R_DATA_DIR": "OFF"}, "SESPY_R_DATA_DIR=/s\n", "/d") is None
+    assert f({}, "SESPY_R_DATA_DIR=\n", "/d") is None
+    assert f({}, "SESPY_R_DATA_DIR= Off \n", "/d") is None
+
+
+def test_missing_default_dir_serves_vendored(tmp_path, monkeypatch):
+    monkeypatch.setattr(r_kb, "_REGISTRY", r_kb._Registry())
+    monkeypatch.delenv(r_kb.ENV_VAR, raising=False)
+    app = tmp_path / "app"
+    app.mkdir()
+    r_kb.configure(app, default_override_dir=str(tmp_path / "absent"))
+    r_kb.refresh()
+    assert r_kb.current() is r_kb.VENDORED
+
+
+def test_library_has_no_laguna_path():
+    assert "/srv/" not in Path(r_kb.__file__).read_text(encoding="utf-8")
 
 
 def test_settings_file_last_line_wins_and_off(tmp_path, monkeypatch):

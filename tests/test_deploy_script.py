@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests" / "parity"))
 
 from sespy import r_kb  # noqa: E402
+from sespy.ui_r_kb import LAGUNA_R_DATA_DIR  # noqa: E402
 
 BASH = shutil.which("bash")
 pytestmark = pytest.mark.skipif(BASH is None, reason="bash is not available")
@@ -812,13 +813,14 @@ def test_settings_parse_matches_python(deploy_copy, case):
     assert out.endswith("|rc=0"), (out, cp.stderr)
     bash_value = out[: -len("|rc=0")]
     # the app reads the file as utf-8-sig (Registry._read_settings): a BOM is dropped
-    py = r_kb.override_dir_from({}, _app_text(text))
+    py = r_kb.override_dir_from({}, _app_text(text), LAGUNA_R_DATA_DIR)
     assert bash_value == ("" if py is None else py), case
 
 
 def test_parse_cases_cover_both_outcomes():
-    results = {r_kb.override_dir_from({}, _app_text(t)) for t in PARSE_CASES.values()}
-    assert None in results and r_kb.DEFAULT_OVERRIDE_DIR in results
+    results = {r_kb.override_dir_from({}, _app_text(t), LAGUNA_R_DATA_DIR)
+               for t in PARSE_CASES.values()}
+    assert None in results and LAGUNA_R_DATA_DIR in results
     assert "/srv/data/x" in results
 
 
@@ -838,3 +840,10 @@ def test_safe_dir_rule_matches_check_live(deploy_copy):
     got = cp.stdout.decode().split()
     want = ["1" if check_live.SAFE_REMOTE.match(v) else "0" for v in SAFE_CASES]
     assert got == want, list(zip(SAFE_CASES, got, want))
+
+
+def test_deploy_default_matches_app_constant():
+    text = (ROOT / "deploy" / "deploy.sh").read_text(encoding="utf-8")
+    m = re.search(r'^DEFAULT_R_DATA_DIR="([^"]*)"', text, re.M)
+    assert m, "DEFAULT_R_DATA_DIR not found in deploy.sh"
+    assert m.group(1) == LAGUNA_R_DATA_DIR

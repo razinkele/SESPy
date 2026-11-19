@@ -18,7 +18,7 @@ from shiny.testserver import test_server
 
 import sespy.i18n
 import sespy.modules.project_io as pio
-from sespy import r_kb
+from sespy import r_kb, ui_r_kb
 from sespy.data_structure import IsaData, Project
 from sespy.event_bus import create_event_bus
 from sespy.modules.project_io import quick_actions_server
@@ -108,7 +108,7 @@ def _make_server(h: dict, *, snapshot=SNAP, with_reads: bool = True):
         def _read():
             if not input.t_read():
                 return
-            r_kb.add_reads(rr, [KB, GOV])
+            ui_r_kb.add_reads(rr, [KB, GOV])
 
         @reactive.effect
         @reactive.event(input.t_edit, ignore_init=True)
@@ -146,7 +146,7 @@ def _kb_toasts(shown) -> list[dict]:
 # ---------------------------------------------------------------- add_reads
 
 def test_add_reads_none_is_noop():
-    assert r_kb.add_reads(None, [KB]) is None
+    assert ui_r_kb.add_reads(None, [KB]) is None
 
 
 def test_add_reads_no_self_invalidation():
@@ -159,8 +159,8 @@ def test_add_reads_no_self_invalidation():
         @render.text
         def out():
             h["runs"] += 1
-            r_kb.add_reads(rr, [KB])
-            r_kb.add_reads(rr, [KB])
+            ui_r_kb.add_reads(rr, [KB])
+            ui_r_kb.add_reads(rr, [KB])
             return "x"
 
         @reactive.effect

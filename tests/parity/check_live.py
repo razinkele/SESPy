@@ -243,7 +243,8 @@ def _valid_remote_dir(value: str) -> bool:
     return value.startswith("/") and not any(c in value for c in "\n\r\0")
 
 
-def fetch(server: str, app_dir: str, tmp: Path) -> tuple[Path | None, list[str]]:
+def fetch(server: str, app_dir: str, tmp: Path,
+          default_override_dir: str | None = None) -> tuple[Path | None, list[str]]:
     """Fetch the override files into `tmp`. Returns (live dir or None when the
     override is off or unusable, structural problems). Writes tmp/perms.txt.
     Raises ConnectionFailed only for ssh/scp rc 255 (or ssh not runnable)."""
@@ -262,7 +263,7 @@ def fetch(server: str, app_dir: str, tmp: Path) -> tuple[Path | None, list[str]]
         return None, problems
     else:
         raise _conn_fail(cmd, cp)
-    remote_dir = r_kb.override_dir_from({}, settings_text)
+    remote_dir = r_kb.override_dir_from({}, settings_text, default_override_dir)
     if remote_dir is None:
         return None, problems
     if not _valid_remote_dir(remote_dir):
@@ -321,11 +322,16 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--app-dir", default=None)
     ap.add_argument("--perms", type=Path, default=None)
     ap.add_argument("--print-override-names", action="store_true")
+    ap.add_argument("--default-override-dir", default=None,
+                    help="override directory used when the live settings file names none (required with --fetch)")
     return ap
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    ap = build_parser()
+    args = ap.parse_args(argv)
+    if args.fetch and not args.default_override_dir:
+        ap.error("--fetch needs --default-override-dir")
     if args.print_override_names:
         for r in r_kb.ALLOW_LIST:
             if r.override:
@@ -346,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         tmp_ctx = tempfile.TemporaryDirectory(prefix="check_live_")
         try:
-            live, fetch_problems = fetch(server, app_dir, Path(tmp_ctx.name))
+            live, fetch_problems = fetch(server, app_dir, Path(tmp_ctx.name), args.default_override_dir)
         except ConnectionFailed as exc:
             print(f"check_live: connection failed: {exc}", file=sys.stderr)
             tmp_ctx.cleanup()

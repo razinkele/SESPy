@@ -28,6 +28,7 @@ from sespy.dashboard import (
 )
 from sespy.event_bus import create_event_bus
 from sespy.ui_i18n import Translator, detect_initial_language, load_translations
+from sespy.ui_r_kb import LAGUNA_R_DATA_DIR
 from sespy.modules.ai_isa_wizard import ai_isa_wizard_server, ai_isa_wizard_ui
 from sespy.modules.analysis_boolean import (
     analysis_boolean_server,
@@ -83,7 +84,7 @@ _i18n.set_default(T)  # so modules can `from sespy.ui_i18n import t` and use `t(
 
 # K1 reference data: the registry reads server_settings.env beside this file.
 # Only server() below reads the registry; modules get the session snapshot.
-r_kb.configure(Path(__file__).parent)
+r_kb.configure(Path(__file__).parent, default_override_dir=LAGUNA_R_DATA_DIR)
 
 # Nav items grow as we port more modules. The shape is intentionally
 # tree-friendly so submenus (PIMS, SES Creation in the R app) can be added
