@@ -4,6 +4,10 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.17.1] — 2026-11-19
+
+Internal: library code no longer needs Shiny (translator and reference-data reads split into `sespy.ui_i18n` / `sespy.ui_r_kb`); no user-visible change.
+
 ## [1.17.0] — 2026-11-15
 
 Roadmap K1b (connection-scorer parity; R-parity roadmap §2 K1b). The SES
