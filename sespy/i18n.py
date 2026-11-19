@@ -5,23 +5,19 @@ Compatible with the R app's translation JSON files (see
 shape). Each file is `{"languages": [...], "translation": {key: {lang: text}}}`.
 The same file can feed both apps once the R-side path is shared.
 
-Reactive integration:
-- `Translator.language` is a `reactive.value(str)`. UI rendered inside an
-  `@render.ui` context that calls `t(...)` automatically re-renders when
-  the language changes — no full-page reload needed for those.
-- Static UI built at app construction time captures the language at the
-  moment of construction. To re-render those, the language switcher
-  triggers a page reload (same fallback pattern as the R app at app.R:838).
+This is the library side: it imports no shiny. The language is a plain
+attribute. The reactive layer (a `reactive.Value` notification channel and
+per-session translators) lives in the app-layer `sespy.ui_i18n`, which
+plugs into the process-wide default below through `set_resolver`.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-from shiny import reactive
 
 DEFAULT_FALLBACK = "en"
 SUPPORTED_LANGUAGES = (
@@ -57,41 +53,24 @@ def load_translations(directory: Path | str) -> dict[str, dict[str, str]]:
 
 @dataclass
 class Translator:
-    """Stateful translator. One instance per app (created in app.py).
+    """Stateful translator with a plain `_lang` attribute.
 
-    The plain `_lang` attribute is the source of truth — it always reflects
-    the current language synchronously, so unit tests and non-reactive code
-    work without a Shiny session.
-
-    The `language` `reactive.Value` is a *notification channel*: any UI
-    rendered inside an `@render.ui` that calls `t(...)` subscribes via
-    `language.get()` and re-renders when `set_language` is called. Outside
-    a reactive flush, the reactive value may lag the plain attribute by one
-    flush cycle — that's fine, the read in `t()` prefers the plain attr.
+    `_lang` is the source of truth — it always reflects the current language
+    synchronously, so unit tests and non-reactive code work without a Shiny
+    session. The app's `sespy.ui_i18n.Translator` subclass adds the reactive
+    `language` channel on top.
     """
 
     translations: dict[str, dict[str, str]]
     languages: tuple[str, ...] = SUPPORTED_LANGUAGES
     fallback: str = DEFAULT_FALLBACK
     _lang: str = field(default=DEFAULT_FALLBACK)
-    language: reactive.Value[str] = field(default=None)  # type: ignore
-
-    def __post_init__(self) -> None:
-        if self.language is None:
-            self.language = reactive.value(self._lang)
 
     def t(self, key: str, **fmt: Any) -> str:
         """Look up a translation key. Falls back to the fallback language,
         then to the key itself if missing entirely. Supports `str.format`-
         style keyword interpolation for templates like `"Found {n} loops"`.
         """
-        # Touch the reactive value so this call subscribes when called
-        # inside a reactive context. The actual lang choice comes from the
-        # plain attribute (works synchronously in tests too).
-        try:
-            self.language.get()
-        except Exception:
-            pass
         lang = self._lang
         entry = self.translations.get(key)
         if entry is None:
@@ -106,34 +85,28 @@ class Translator:
         return text
 
     def set_language(self, lang: str) -> None:
+        """Switch language; unsupported codes are ignored."""
         if lang not in self.languages:
             return
         self._lang = lang
-        try:
-            with reactive.isolate():
-                self.language.set(lang)
-        except Exception:
-            # Outside a Shiny session (e.g. in unit tests) the reactive
-            # write is a no-op — the plain attribute is what matters.
-            pass
 
 
 # --------------------------------------------------------------------------
 # Module-level singleton — any module can `from sespy.i18n import t` and
 # call `t("key")` without explicitly receiving the Translator instance.
-# `app.py` calls `set_default(T)` after creating its Translator. Modules
-# that import `t` get whatever is set at the time their UI is constructed
-# (i.e. the language picked from the URL query, plus any subsequent
-# `T.set_language` calls — which won't re-render statically-built UIs).
+# The app calls `set_default(T)` after creating its Translator.
 #
-# Multi-user safe: Inside a Shiny session context, get_default() returns a
-# session-specific clone of the default translator, isolating user language.
-# The clone lives on the root session: inside a module server the current
-# session is a SessionProxy, and every module scope must see the translator
-# app.py configured, not a fresh clone at the process default.
+# One injection point: a resolver. When set, `get_default()` returns
+# `_resolver(_default_translator)` instead of the process default. The app
+# layer (`sespy.ui_i18n`) installs one on import that returns the current
+# Shiny session's translator, which keeps each user's language isolated.
+# `_default_translator` keeps its name: MosaicSES writes it directly.
 # --------------------------------------------------------------------------
 
+Resolver = Callable[[Translator | None], Translator | None]
+
 _default_translator: Translator | None = None
+_resolver: Resolver | None = None
 
 
 def set_default(translator: Translator) -> None:
@@ -141,24 +114,15 @@ def set_default(translator: Translator) -> None:
     _default_translator = translator
 
 
+def set_resolver(fn: Resolver | None) -> None:
+    """Install (or, with None, remove) the hook `get_default()` consults."""
+    global _resolver
+    _resolver = fn
+
+
 def get_default() -> Translator | None:
-    from shiny.session import get_current_session
-    session = get_current_session()
-    if session is not None:
-        session = session.root_scope()
-        if not hasattr(session, "_translator"):
-            if _default_translator is not None:
-                # Construct a session-isolated clone sharing the same translations reference
-                sess_t = Translator(
-                    translations=_default_translator.translations,
-                    languages=_default_translator.languages,
-                    fallback=_default_translator.fallback,
-                    _lang=_default_translator._lang,
-                )
-                setattr(session, "_translator", sess_t)
-            else:
-                return None
-        return getattr(session, "_translator")
+    if _resolver is not None:
+        return _resolver(_default_translator)
     return _default_translator
 
 

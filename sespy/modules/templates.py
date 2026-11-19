@@ -22,8 +22,8 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from ..data_structure import Project
 from ..event_bus import EventBus
-from ..i18n import Translator, t
 from ..templates import TemplateInfo, list_catalogue, list_templates, load_template
+from ..ui_i18n import Translator, t
 
 GROUPS = ("marinesabres", "sespy")      # display order of the two groups
 

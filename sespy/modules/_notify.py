@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from shiny import ui
 
-from ..i18n import t
+from ..ui_i18n import t
 
 # One id for every tab's "data changed — re-run" notice: Shiny replaces a
 # notification with the same id instead of stacking a second copy, so an ISA

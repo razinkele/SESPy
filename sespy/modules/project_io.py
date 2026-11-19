@@ -33,7 +33,7 @@ from ..autosave import (
 )
 from ..browser_token import browser_token_script, read_browser_token
 from ..event_bus import EventBus
-from ..i18n import Translator
+from ..ui_i18n import Translator
 from ..persistent_storage import (
     load_project,
     project_to_bytes,

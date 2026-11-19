@@ -17,7 +17,7 @@ from pathlib import Path
 from shiny import App, Inputs, Outputs, Session, reactive, ui
 
 from sespy import data_structure
-from sespy import i18n as _i18n
+from sespy import ui_i18n as _i18n
 from sespy import r_kb
 from sespy.dashboard import (
     NavItem,
@@ -27,7 +27,7 @@ from sespy.dashboard import (
     workflow_stepper_slot,
 )
 from sespy.event_bus import create_event_bus
-from sespy.i18n import Translator, detect_initial_language, load_translations
+from sespy.ui_i18n import Translator, detect_initial_language, load_translations
 from sespy.modules.ai_isa_wizard import ai_isa_wizard_server, ai_isa_wizard_ui
 from sespy.modules.analysis_boolean import (
     analysis_boolean_server,
@@ -79,7 +79,7 @@ TRANSLATIONS_DIR = ROOT / "sespy" / "translations"
 # Translator is created at module-import time so the same instance feeds
 # UI construction (static labels) AND server-side reactive labels.
 T = Translator(translations=load_translations(TRANSLATIONS_DIR))
-_i18n.set_default(T)  # so modules can `from sespy.i18n import t` and use `t(...)` directly
+_i18n.set_default(T)  # so modules can `from sespy.ui_i18n import t` and use `t(...)` directly
 
 # K1 reference data: the registry reads server_settings.env beside this file.
 # Only server() below reads the registry; modules get the session snapshot.

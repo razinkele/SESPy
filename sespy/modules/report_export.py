@@ -16,9 +16,9 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from ..data_structure import Project
 from ..event_bus import EventBus
-from ..i18n import Translator
 from ..r_kb import add_reads
 from ..report import regional_context_for, render_docx, render_html, render_pdf
+from ..ui_i18n import Translator
 
 #: The reference files the Regional Context section is built from.
 _REGIONAL_READS = frozenset({"ses_knowledge_db.json", "country_governance_db.json"})

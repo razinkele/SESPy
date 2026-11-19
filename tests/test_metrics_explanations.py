@@ -23,9 +23,9 @@ from shiny.testserver import test_server  # noqa: E402
 from sespy import i18n  # noqa: E402
 from sespy.data_structure import Project  # noqa: E402
 from sespy.event_bus import create_event_bus  # noqa: E402
-from sespy.i18n import Translator, load_translations  # noqa: E402
 from sespy.modules.analysis_metrics import analysis_metrics_server, analysis_metrics_ui  # noqa: E402
 from sespy.network import CENTRALITY_METRICS  # noqa: E402
+from sespy.ui_i18n import Translator, load_translations  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))

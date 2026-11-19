@@ -287,42 +287,49 @@ def test_every_category_and_complexity_the_port_emits_has_a_key(translations):
         assert f"templates.complexity_{value}" in translations, value
 
 
-def test_module_scopes_share_the_root_session_translator(translations, monkeypatch):
-    # Inside a module server get_current_session() is a SessionProxy. The
-    # session translator app.py sets from ?lang= lives on the root session, so
-    # get_default() must resolve to it from every scope, nested ones included,
-    # not build a fresh clone at the process default per namespace.
-    from shiny import module
-    from shiny.testserver import test_server
+# ---- library split (stage 1): plain Translator + resolver hook ---------------
+# The session-scoped (reactive) behaviour is tested in tests/test_ui_i18n.py.
 
+def test_plain_translator_has_no_reactive_field():
+    assert not hasattr(Translator(translations={}), "language")
+
+
+def test_t_without_default_returns_key(monkeypatch):
     from sespy import i18n
 
-    monkeypatch.setattr(i18n, "_default_translator", Translator(translations=translations))
-    seen = {}
+    monkeypatch.setattr(i18n, "_default_translator", None)
+    monkeypatch.setattr(i18n, "_resolver", None)
+    assert i18n.t("x.y") == "x.y"
+    monkeypatch.setattr(i18n, "_resolver", lambda d: d)
+    assert i18n.t("x.y") == "x.y"
 
-    @module.server
-    def inner(input, output, session):
-        seen["inner"] = i18n.get_default()
 
-    @module.server
-    def outer(input, output, session):
-        seen["outer"] = i18n.get_default()
-        seen["outer_text"] = i18n.t("templates.load")
-        inner("child")
+def test_resolver_hook_is_used(monkeypatch):
+    from sespy import i18n
 
-    def server(input, output, session):
-        root = i18n.get_default()
-        root.set_language("de")
-        seen["root"] = root
-        outer("parent")
+    sentinel = Translator(translations={})
+    monkeypatch.setattr(i18n, "_resolver", i18n._resolver)   # restored on teardown
+    i18n.set_resolver(lambda d: sentinel)
+    assert i18n.get_default() is sentinel
 
-    with test_server(server):
-        pass
 
-    assert seen["outer"] is seen["root"]
-    assert seen["inner"] is seen["root"]
-    assert seen["outer_text"] == translations["templates.load"]["de"]
-    assert i18n._default_translator._lang == "en"  # the process default is untouched
+def test_library_i18n_imports_without_shiny():
+    # A child process with the UI blocker installed first, so the shiny this
+    # test run may already hold cannot mask an import of it.
+    import subprocess
+    import sys
+
+    blocker = ROOT / "tests" / "_ui_blocker.py"
+    code = (
+        "import importlib.util, sys; "
+        f"spec = importlib.util.spec_from_file_location('_ui_blocker', {str(blocker)!r}); "
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); m.install(); "
+        "import sespy.i18n, sespy.link_rules; "
+        "sys.exit(1 if 'shiny' in sys.modules else 0)"
+    )
+    r = subprocess.run([sys.executable, "-c", code], cwd=ROOT,
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
 
 
 # ---- P1b (Task 8): SESPy-only keys in core.json; R keys used directly --------

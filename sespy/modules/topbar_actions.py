@@ -19,8 +19,8 @@ from .. import feedback_store, r_kb
 from ..autosave import autosave_age_seconds, clear_autosave
 from ..browser_token import read_browser_token
 from ..dashboard import language_switcher
-from ..i18n import Translator
 from ..input_utils import safe_int
+from ..ui_i18n import Translator
 
 _THEME_CHOICES = {"light-marine": "Light Marine", "deep-ocean": "Deep Ocean (Dark)"}
 

@@ -25,7 +25,7 @@ from htmltools import HTMLDependency, Tag
 from shiny import Inputs, Outputs, Session, reactive, render, ui
 
 from . import __version__ as _SESPY_VERSION
-from .i18n import Translator
+from .ui_i18n import Translator
 
 LANGUAGE_INPUT_ID = "__sespy_language__"
 

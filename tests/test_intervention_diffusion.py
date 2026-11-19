@@ -15,7 +15,7 @@ import pytest
 from shiny import reactive
 from shiny.testserver import test_server
 
-from sespy import data_structure, i18n
+from sespy import data_structure, i18n, ui_i18n
 from sespy.event_bus import create_event_bus
 from sespy.modules import analysis_intervention as mod
 
@@ -26,7 +26,7 @@ RUNNING = "running the intervention simulation"   # diffusion.computing, en
 
 @pytest.fixture(autouse=True)
 def english(monkeypatch):
-    monkeypatch.setattr(i18n, "_default_translator", i18n.Translator(
+    monkeypatch.setattr(i18n, "_default_translator", ui_i18n.Translator(
         translations=i18n.load_translations(ROOT / "sespy" / "translations")))
 
 

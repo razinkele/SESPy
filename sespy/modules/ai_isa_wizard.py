@@ -40,12 +40,12 @@ from ..data_structure import (
     WizardState,
 )
 from ..event_bus import EventBus
-from ..i18n import Translator, t
 from ..kb_suggestions import (
     countries_for_sea,
     country_names_for,
     get_context_suggestions,
 )
+from ..ui_i18n import Translator, t
 from ..utils import next_id
 from ..wizard import (
     ELEMENT_TYPE_MAP,

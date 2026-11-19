@@ -24,7 +24,6 @@ from shiny.testserver import test_server
 from sespy import i18n
 from sespy.data_structure import ConnectionSuggestion, IsaData, Project
 from sespy.event_bus import create_event_bus
-from sespy.i18n import Translator, load_translations
 from sespy.modules.ai_isa_wizard import (
     _ClaudeIdle,
     _render_connection_review,
@@ -32,6 +31,7 @@ from sespy.modules.ai_isa_wizard import (
     ai_isa_wizard_ui,
 )
 from sespy.modules.topbar_actions import _feedback_modal
+from sespy.ui_i18n import Translator, load_translations
 
 ROOT = Path(__file__).resolve().parents[1]
 TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))

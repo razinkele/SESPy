@@ -15,9 +15,9 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 
 from ..data_structure import Project
 from ..event_bus import EventBus
-from ..i18n import Translator
 from ..persistent_storage import load_project
 from ..recent_projects import RecentEntry, list_recent, remove_recent
+from ..ui_i18n import Translator
 
 
 @module.ui

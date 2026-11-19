@@ -29,9 +29,9 @@ from ..constants import (
 )
 from ..data_structure import Connection, Element, IsaData, Project
 from ..event_bus import EventBus
-from ..i18n import Translator, t
 from ..link_rules import note_for, seed_polarity
 from ..response_register import references_to
+from ..ui_i18n import Translator, t
 from ..utils import next_id
 
 
