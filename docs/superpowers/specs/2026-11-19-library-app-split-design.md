@@ -45,7 +45,10 @@ Nid4Ocean shows the problem today. It pins `sespy @ git+…@v1.8.0` and gets the
 - The app's history is split out with `git filter-repo`.
 - laguna.ku.lt/SESPy stays live and is deployed from sespy-app.
 - The library keeps SESPy's version line. Its first split release is **1.18.0**. The app gets its own version line.
-- MosaicSES depends on the library, and on sespy-app **optionally**.
+- MosaicSES depends on the library, and on sespy-app **optionally**. The user confirmed on 2026-11-19 (option A) what that means:
+  - MosaicSES's model package `multises` needs only the library;
+  - its app `multises_app` (with `app.py`) needs sespy-app, because its shell imports `dashboard`, `NavItem`/`StepperItem`, `event_bus`, `browser_token`, the reactive `Translator` and 10 embedded panels.
+  - A shared shell package (`sespy-ui`) or a MosaicSES-owned shell is a possible later step and is not part of this split.
 - Nid4Ocean uses the library only. It has no compatibility constraint, since it is at an early stage.
 - The split happens before #41.
 - Standing rule: the user runs every push, merge, repo creation, tag and deploy, as `!` commands. No ssh. `deploy/config.env` is never read.
@@ -219,7 +222,12 @@ The tests rely on `pythonpath=["."]` for `app`, `scripts` and `_testmode`, and o
 
 **Stage 4: consumers.**
 1. **MosaicSES bridge release.** Ships first, before any laguna change:
-   - its UI imports try `sespy_app.*` and fall back to `sespy.*`;
+   - its UI imports try `sespy_app.*` and fall back to `sespy.*`. That covers `app.py`, `multises_app/{dashboard,state}.py`, `multises_app/modules/compartments.py`, and the tests that import UI pieces directly:
+     - `test_compartments_module.py`;
+     - `test_compartment_switcher_contract.py`;
+     - `test_multises_app_imports.py`.
+     
+     Its `test_import_allowlist.py` must keep `multises/` library-only;
    - its deploy symlinks `sespy_app` when it exists;
    - `pyproject`: `sespy>=1.18` (for `multises`), optional extra `app = ["sespy-app>=1.0"]`;
    - its `release.sh:80-88` check compares both versions.
