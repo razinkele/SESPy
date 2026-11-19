@@ -106,14 +106,6 @@ def test_every_catalogue_file_loads_with_the_listed_counts():
         assert project.metadata.origin == "r_template"
 
 
-def test_names_unique_across_both_groups_and_fit_the_wired_buttons():
-    from sespy.modules.templates import MAX_TEMPLATES
-    rows = tpl.list_catalogue() + tpl.list_templates()
-    names = [r.name for r in rows]
-    assert len(names) == len(set(names)), names
-    assert len(rows) == 11 and len(rows) <= MAX_TEMPLATES
-
-
 def test_list_templates_ignores_the_marinesabres_subdirectory():
     rows = tpl.list_templates()
     assert {r.group for r in rows} == {"sespy"}

@@ -15,6 +15,7 @@ from shiny.testserver import test_server
 
 import sespy.modules.templates as mod
 from sespy import i18n
+from sespy import templates as tpl
 from sespy.data_structure import IsaData, Project, ProjectMetadata
 from sespy.event_bus import create_event_bus
 from sespy.templates import TemplateInfo, list_catalogue
@@ -181,3 +182,10 @@ def test_tr_value_on_a_key_miss_returns_the_value(monkeypatch):
         assert mod._tr_value(i18n.t, "category", "Energy") == "Energie"
     finally:
         TR.set_language("en")
+
+
+def test_names_unique_across_both_groups_and_fit_the_wired_buttons():
+    rows = tpl.list_catalogue() + tpl.list_templates()
+    names = [r.name for r in rows]
+    assert len(names) == len(set(names)), names
+    assert len(rows) == 11 and len(rows) <= mod.MAX_TEMPLATES
