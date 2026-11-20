@@ -50,6 +50,9 @@ _SERVER_UI = [
     ("analysis_simplify", "analysis_simplify"),
     ("analysis_simulation", "analysis_simulation"),
 ]
+# From 1.17.1 `sespy.i18n.Translator` is the plain, non-reactive one; MosaicSES
+# needs its bridge release (reactive translator from `sespy.ui_i18n`) live
+# before 1.17.1 is deployed.
 MOSAIC_IMPORTS: set[tuple[str, str]] = {
     ("sespy.autosave", "token_key"),
     ("sespy.autosave", "valid_token"),

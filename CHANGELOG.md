@@ -8,6 +8,8 @@ All notable changes to SESPy.
 
 Internal: library code no longer needs Shiny (translator and reference-data reads split into `sespy.ui_i18n` / `sespy.ui_r_kb`); no user-visible change.
 
+Deploy note: deploy to laguna only after the MosaicSES bridge release is live (MosaicSES must import the reactive translator from `sespy.ui_i18n`).
+
 ## [1.17.0] — 2026-11-15
 
 Roadmap K1b (connection-scorer parity; R-parity roadmap §2 K1b). The SES

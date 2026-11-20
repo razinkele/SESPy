@@ -3,7 +3,8 @@
 Not collected by pytest (no ``test_`` prefix). Run from the working tree:
 
     check_live.py --live DIR --stage DIR --pin tests/parity/r_sync.json
-    check_live.py --fetch            # fetch over ssh itself, then check
+    check_live.py --fetch --default-override-dir /srv/shiny-server/marinesabres/data
+                                     # fetch over ssh itself, then check
 
 Checks:
   1. structural (exit 2): a live file is missing/unreadable, fails its
@@ -243,8 +244,8 @@ def _valid_remote_dir(value: str) -> bool:
     return value.startswith("/") and not any(c in value for c in "\n\r\0")
 
 
-def fetch(server: str, app_dir: str, tmp: Path,
-          default_override_dir: str | None = None) -> tuple[Path | None, list[str]]:
+def fetch(server: str, app_dir: str, tmp: Path, *,
+          default_override_dir: str) -> tuple[Path | None, list[str]]:
     """Fetch the override files into `tmp`. Returns (live dir or None when the
     override is off or unusable, structural problems). Writes tmp/perms.txt.
     Raises ConnectionFailed only for ssh/scp rc 255 (or ssh not runnable)."""
@@ -352,7 +353,8 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         tmp_ctx = tempfile.TemporaryDirectory(prefix="check_live_")
         try:
-            live, fetch_problems = fetch(server, app_dir, Path(tmp_ctx.name), args.default_override_dir)
+            live, fetch_problems = fetch(server, app_dir, Path(tmp_ctx.name),
+                                          default_override_dir=args.default_override_dir)
         except ConnectionFailed as exc:
             print(f"check_live: connection failed: {exc}", file=sys.stderr)
             tmp_ctx.cleanup()

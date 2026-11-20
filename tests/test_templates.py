@@ -204,3 +204,10 @@ def test_package_data_ships_the_marinesabres_templates():
     shipped = {p.resolve() for g in globs for p in (ROOT / "sespy").glob(g)}
     wanted = {p.resolve() for p in CAT_DIR.glob("*.json")}
     assert len(wanted) == 8 and wanted <= shipped
+
+
+def test_template_names_unique_across_both_groups():
+    rows = tpl.list_catalogue() + tpl.list_templates()
+    names = [r.name for r in rows]
+    assert len(names) == len(set(names)), names
+    assert len(rows) == 11

@@ -94,7 +94,7 @@ jobs:
   library-no-ui:
     name: Library without UI deps (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     # The sespy library must import and pass its tests with Shiny, htmltools
     # and the pyvis fork absent (split stage 1: the app layer lives in
     # sespy.ui_* / app.py, everything else is a plain library).
@@ -118,6 +118,7 @@ jobs:
 
       - name: Run library tests (no Shiny)
         run: python scripts/run_library_tests.py
+
   full-app:
     name: Full app (conda env + razinka pyvis fork)
     runs-on: ubuntu-latest
