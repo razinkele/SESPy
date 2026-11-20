@@ -60,10 +60,15 @@ No laguna deploy happens here; plan 4 does the cutover.
 ## Review Focus
 
 1. **An app import that only works because the monolith is still on the path.** A missed rewrite (`from sespy.modules…`, a `monkeypatch.setattr("sespy.dashboard…")` string, a `sespy/www` path) passes against 1.17.1. Expected: the app suite runs only with `sespy.modules` unimportable. Test: Task 5, the `tests/conftest.py` session guard, plus `test_no_monolith_strings`.
-2. **Old workers during the cutover deploy.** A pre-cutover worker still running writes feedback through its old `feedback_store`, recreating `sespy/logs/feedback.db` inside the new library dir. Expected: the DB is never deleted, and after the swap it is rescued to `logs.rescued-<ts>` with a warning. Test: Task 6, `test_old_worker_db_after_swap_is_rescued`.
-3. **MosaicSES during the swap.** MosaicSES links `sespy_app` and must never see the shrunk `sespy/` without `sespy_app/`. Expected: `sespy_app/` is swapped in before `sespy/`, and `app.py` is replaced after both. Test: Task 6, `test_swap_order_app_package_first`.
+2. **Old workers during the cutover deploy.** A pre-cutover worker still running writes feedback through its old `feedback_store`, recreating `sespy/logs/feedback.db` (WAL mode, so with `-wal`/`-shm` sidecars) inside the new library dir. Expected: nothing is deleted, and after the swap the whole directory is rescued to `logs.rescued-<ts>` with a warning. Test: Task 6, `test_old_worker_db_after_swap_is_rescued`.
+3. **MosaicSES and the app during the swap.** MosaicSES links `sespy_app` and must never see the shrunk `sespy/` without `sespy_app/`; and later releases must not leave one package new and the other old for longer than one remote command. Expected:
+   - both `.incoming` packages are uploaded before any rename;
+   - all renames run in one remote `&&` chain, `sespy_app` first;
+   - `app.py` is replaced after both.
+   
+   Test: Task 6, `test_swap_order_uploads_then_one_rename_chain`.
 4. **Deploying with the wrong library checkout** (not at the pinned tag, a different `__version__`, or a dirty tree). Expected: abort before upload, with a message naming the expected tag. Test: Task 6, `test_library_root_must_match_pin`.
-5. **The library installed without UI deps runs every test, not just the manifest.** Expected: `pip install -e .[test]` pulls in no shiny, htmltools or pyvis, and all of `tests/` passes. Test: Task 2, CI job `unit-tests`, plus `test_dependencies_exclude_ui`.
+5. **The library installed without UI deps runs every test, not just the manifest.** Expected: `pip install -e .[test]` pulls in no shiny, htmltools or pyvis, even transitively, and all of `tests/` passes. Test: Task 2, CI job `unit-tests`'s post-install `find_spec` step, plus `test_dependencies_exclude_ui`.
 
 ---
 
@@ -76,7 +81,9 @@ No laguna deploy happens here; plan 4 does the cutover.
 - Modify: `tests/library_tests.txt` (add the file)
 
 **Interfaces:**
-- Produces: `tests/test_public_api.py`, with one parametrized test `test_consumer_name_exists(module, name)`. It runs `importlib.import_module(f"sespy.{module}")` and asserts `hasattr`. Names, recorded once from MosaicSES 0.9.2 (`b5daf1e..de94990`) and Nid4Ocean `main` (re-derived 2026-11-20):
+- Produces: `tests/test_public_api.py`, with one parametrized test `test_consumer_name_exists(module, name)`. It runs `importlib.import_module(f"sespy.{module}")` and asserts `hasattr`.
+- **Step 0 (before Step 1): re-derive MosaicSES's list.** Run an AST scan of every `.py` under MosaicSES `de94990` (`multises/`, `multises_app/`, `app.py`, `tests/`), collecting `(module, name)` for every `from sespy.<lib> import …` (multi-line imports included) and every `sespy.<lib>.<name>` attribute use, where `<lib>` is not a UI-layer module. Merge the result into the list below and record the scan output in the task report.
+- The list below is a starting point: Nid4Ocean `main` was re-derived 2026-11-20; the MosaicSES part comes from spec Appendix B and must be completed by Step 0.
   - `constants`: `ELEMENT_ID_PREFIX`, `DA_SITES`, `SPATIAL_SCALES`, `TEMPORAL_SCALES`, `DAPSIWRM_ADJACENCY_RULES`, `normalize_delay`, `CONFIDENCE_OPACITY`, `EDGE_COLORS`, `ELEMENT_COLORS`, `ELEMENT_SHAPES`
   - `data_structure`: `Connection`, `Element`, `IsaData`, `Project`, `ProjectMetadata`, `PROJECT_SCHEMA_VERSION`, `SCHEMA_MIN_READER`, `to_visnetwork`
   - `utils`: `next_id`
@@ -118,8 +125,8 @@ No laguna deploy happens here; plan 4 does the cutover.
   - `.github/workflows/ci.yml`:
     - remove the `full-app` and `e2e` jobs;
     - lint becomes `ruff check sespy tests scripts`;
-    - `unit-tests` runs `pip install -e .[test]` then `pytest tests/ -q` with its coverage args, minus any app paths or `--ignore` entries that no longer exist;
-    - keep `library-no-ui`.
+    - `unit-tests` runs `pip install -e .[test]`, then a step `python -c "import importlib.util as u, sys; bad=[m for m in ('shiny','htmltools','pyvis') if u.find_spec(m)]; sys.exit(f'UI deps installed: {bad}' if bad else 0)"`, then `pytest tests/ -q` with its coverage args, minus any app paths or `--ignore` entries that no longer exist;
+    - keep `library-no-ui`, but drop its now-pointless `pip uninstall` line.
   - `tests/library_tests.txt`: now covers every remaining test file. Drop `test_split_manifest`'s app-test assertions that no longer apply; keep `test_every_entry_exists`.
 - Create: `tests/test_dependencies.py`, with `test_dependencies_exclude_ui`. It parses `pyproject.toml` and asserts that no requirement in `dependencies` or any extra is named `shiny`, `htmltools`, `pyvis-optimized` or `pytest-playwright`.
 
@@ -203,10 +210,10 @@ No laguna deploy happens here; plan 4 does the cutover.
   - `test_pyproject_version_matches_dunder` (pyproject == `sespy_app.__version__`);
   - `test_version_line_is_sed_able`: the regex `^__version__ = "\d+\.\d+\.\d+"$` matches a line of `sespy_app/__init__.py`.
 
-- [ ] **Step 1: Write `tests/test_version.py`** and a new `tests/test_about_versions.py::test_about_shows_both_versions`. Build the About content the way `test_topbar_reference_data` / `test_manual` do, and assert that the string contains `SESPy app 1.0.0` and `sespy library 1.18.0`. Run with `PYTHONPATH=<app>;<lib18>`. Expected: import errors (`sespy_app` has no `__init__`).
+- [ ] **Step 1: Write `tests/test_version.py`** and a new `tests/test_about_versions.py::test_about_shows_both_versions`. Build the About content the way `test_topbar_reference_data` / `test_manual` do, and assert that the string contains `f"SESPy app {sespy_app.__version__}"` and `f"sespy library {sespy.__version__}"`. No literal versions, so the test survives the next release. Run with `PYTHONPATH=<app>;<lib18>`. Expected: import errors (`sespy_app` has no `__init__`).
 - [ ] **Step 2: Create `sespy_app/__init__.py`; apply the import rule; make the `app.py`, `dashboard.py`, `topbar_actions.py` and `pyproject.toml` changes.**
 - [ ] **Step 3: Verify.**
-  - `git grep -nE "^\s*from \.\.? import|^\s*from \.\.[a-z]" -- sespy_app app.py` prints only intra-`modules` relatives (`from ._notify`, `from . import`).
+  - `git grep -nE "^\s*from \." -- sespy_app app.py` prints only relatives whose target is inside `sespy_app` (e.g. `from ._notify` inside `modules/`). Every hit that names a library module (`from .bookmark`, `from .autosave`, `from .i18n`, `from ..data_structure`, …) is a missed rewrite. List the survivors in the task report.
   - `micromamba run -n shiny python -c "import app"`, under the split-layout `PYTHONPATH`, prints nothing and exits 0. The same run prints `find_spec('sespy.modules') is None`.
   - Run the two new tests. Expected: PASS.
 - [ ] **Step 4: Commit** with the message `feat(app): sespy_app package — absolute imports onto the sespy library, own version, both versions in About`.
@@ -219,12 +226,19 @@ No laguna deploy happens here; plan 4 does the cutover.
 
 **Files:**
 - Modify: every `tests/*.py`. That means imports and string targets (`"sespy.modules.…"`, `"sespy.dashboard…"`, `sespy/www`, `sespy/logs`), plus `MOSAIC_IMPORTS` in `test_mosaicses_contract.py` retargeted to `sespy_app.*` names, and `tests/run_e2e.py` / `tests/make_docs_screenshots.py` if they name those paths.
+- **Repo-relative `sespy/` paths** that exist nowhere in the app repo:
+  - About 27 tests load `ROOT / "sespy" / "translations"`, among them `test_ui_i18n`, `test_cld_legend_density`, `test_mosaicses_contract`, `test_templates_module`, the `test_wizard_*` files and `test_k1_wiring:413`. They switch to a new `tests/_paths.py` with `TRANSLATIONS = Path(sespy.__file__).parent / "translations"`.
+  - `test_manual.py:77` reads `ROOT / "sespy" / name`. It reads `Path(sespy_app.__file__).parent / name` for app modules, or `sespy.__file__` for library ones.
+  - Re-run the grep `/ ?\"sespy\"|\"sespy\" ?/|sespy/translations` over `tests app.py` until it is clean, apart from `test_deploy_script.py`.
+- Modify `tests/run_e2e.py`: when it starts the server, print `sespy.__file__`, `sespy.__version__` and `find_spec("sespy.modules")` from the same interpreter and env it launches the server with (a `python -c` in that env, before the launch). Task 7 reads these lines.
 - Modify:
   - `test_manual.py`: the MANUAL version line → `sespy_app.__version__`.
   - `docs/MANUAL.md:3`: `**Version 1.0.0 · November 2026**`, with the About wording updated to both versions.
 - Create:
   - `tests/conftest.py`: a session-scoped autouse fixture. It fails the run with "the monolith sespy is on the path (sespy.modules importable): set PYTHONPATH to the library checkout" if `importlib.util.find_spec("sespy.modules")` is not None. It also prints `sespy.__file__` and `sespy.__version__` once.
-  - `tests/test_no_monolith_strings.py::test_no_monolith_strings`: `git ls-files` over `sespy_app app.py tests .github pyproject.toml deploy` contains no match of `sespy\.(modules|dashboard|event_bus|browser_token|feedback_store|ui_i18n|ui_r_kb)\b|sespy/(www|logs|modules)`. This file and `CHANGELOG.md` are excluded.
+  - `tests/test_no_monolith_strings.py::test_no_monolith_strings`: `git ls-files` over `sespy_app app.py tests .github pyproject.toml deploy` contains no match of `sespy\.(modules|dashboard|event_bus|browser_token|feedback_store|ui_i18n|ui_r_kb)\b|sespy/(www|logs|modules|translations)|/ ?"sespy"|"sespy" ?/`.
+    - Excluded by name: this file, `CHANGELOG.md`, `deploy/deploy.sh` and `tests/test_deploy_script.py`. Task 6 must write the old-layout `sespy/logs` migration and the old-layout fake server there.
+    - Also excluded: comment-only lines in `tests/run_e2e.py` and `tests/test_topbar_e2e.py` that describe the live store. Rewrite them to say `sespy_app/logs` instead, if simpler.
 - Rewrite: `.github/workflows/ci.yml`. Keep these jobs, all installing the library from the pinned tag through `pip install -e .[test]` (the direct reference):
   - lint (`ruff check sespy_app tests app.py`, mypy on `sespy_app`, non-blocking);
   - `unit-tests` (3.11/3.12);
@@ -264,13 +278,13 @@ No laguna deploy happens here; plan 4 does the cutover.
   - plus `cp -R "$LIB/sespy" "$STAGE/sespy"`;
   - strip `__pycache__`/`*.pyc`, `$STAGE/sespy/logs` and `$STAGE/sespy_app/logs`.
 - **Pre-flight.** `CHECK_LIVE="$LIB/tests/parity/check_live.py"` with `PYTHONPATH=$LIB`. The settings-parse functions and `DEFAULT_R_DATA_DIR` are unchanged. `test_deploy_default_matches_app_constant` now compares against `sespy_app.kb_reads.LAGUNA_R_DATA_DIR`.
-- **Logs** (spec §9).
+- **Logs** (spec §9). The unit moved is always the whole `logs/` directory (`mv -T`), never `feedback.db` alone. The store uses SQLite WAL, so `feedback.db-wal` / `feedback.db-shm` may sit beside it.
   - **Recovery prologue:** generalise `rescue_logs` to take the package name (`sespy_app` from now on). Also handle a `sespy.old`/`sespy.incoming` from a pre-cutover run.
-  - **One-time migration**, before the swap: if `sespy/logs/feedback.db` exists and `sespy_app/logs/feedback.db` does not, it moves into `sespy_app.incoming/logs/`. If **both** exist, abort before any swap: "two feedback DBs: merge $APP_DIR/sespy/logs and $APP_DIR/sespy_app/logs by hand".
-  - **After the swap:** if the new `sespy/logs` exists (an old worker recreated it), move it to `logs.rescued-<ts>` with a warning. Never delete it.
-- **Swap order.** Each step is a rename pair, as today:
-  1. `sespy_app.incoming` → `sespy_app` (MosaicSES then resolves `sespy_app` with the still-old `sespy/`, which is compatible because 1.17.1 ⊇ the 1.18.0 library API);
-  2. `sespy.incoming` → `sespy`;
+  - **One-time migration**, inside the rename chain: if `sespy/logs/` exists and `sespy_app/logs/` does not, `mv -T sespy/logs sespy_app.incoming/logs`. If **both** exist, abort before any rename: "two feedback stores: merge $APP_DIR/sespy/logs and $APP_DIR/sespy_app/logs by hand". Repeat deploys move `sespy_app/logs` into `sespy_app.incoming/logs`, as today's script does for `sespy`.
+  - **After the renames:** if the new `sespy/logs` exists (an old worker recreated it), move it to `logs.rescued-<ts>` with a warning. Never delete it.
+- **Swap order.**
+  1. scp `sespy_app.incoming` and `sespy.incoming`, both, before any rename;
+  2. one remote `&&` chain: logs move, `sespy_app` rename pair, `sespy` rename pair, post-rename rescue, cleanup. `sespy_app` goes first: at the cutover MosaicSES then resolves `sespy_app` against the still-old `sespy/`, which is compatible because 1.17.1 ⊇ the 1.18.0 library API, and on later releases the two packages differ for at most the length of that one command;
   3. the other runtime items by scp;
   4. settings file and `restart.txt`;
   5. MosaicSES `restart.txt` (`DEPLOY_MOSAIC_DIR`, unchanged).
@@ -282,9 +296,9 @@ No laguna deploy happens here; plan 4 does the cutover.
 
 - [ ] **Step 1: Write the new failing tests:**
   - `test_library_root_must_match_pin`: parametrized over wrong tag / dirty / version mismatch. Expect exit ≠ 0, nothing uploaded, and the message names `v<PIN>`.
-  - `test_cutover_moves_feedback_db_once`: in the old layout, after the deploy, `sespy_app/logs/feedback.db` has the original bytes and `sespy/logs` is absent.
+  - `test_cutover_moves_feedback_db_once`: the old layout has `sespy/logs/feedback.db` and `sespy/logs/feedback.db-wal`. After the deploy, both are in `sespy_app/logs/` with the original bytes, and `sespy/logs` is absent.
   - `test_two_feedback_dbs_abort_before_swap`.
-  - `test_swap_order_app_package_first`: in the stub log, the `mv -T sespy_app.incoming sespy_app` command precedes `mv -T sespy.incoming sespy`, and both precede the `app.py` scp.
+  - `test_swap_order_uploads_then_one_rename_chain`: in the stub log, both `.incoming` scps precede the first rename, and both rename pairs sit in one `ssh` command, with `mv -T sespy_app.incoming sespy_app` before `mv -T sespy.incoming sespy`. The `app.py` scp comes after that command.
   - `test_old_worker_db_after_swap_is_rescued`: use `STUB_SSH_PRELUDE` to create `sespy/logs/feedback.db` after the swap command. Expect `logs.rescued-*` to exist and nothing deleted.
   - `test_repeat_deploy_keeps_app_db`: in the new layout, the DB survives byte-identical.
   - `test_check_live_runs_from_library_root`: the stub log shows `$LIB/tests/parity/check_live.py`.
@@ -304,7 +318,7 @@ No laguna deploy happens here; plan 4 does the cutover.
 - [ ] **Step 2: Library.** Run the full `tests/` with `SESPY_BLOCK_UI=1 PYTHONPATH=<lib18>` via `scripts/run_library_tests.py`, then plain `pytest tests`. Expected: both 0 failed.
 - [ ] **Step 3: App.** Run unit, then full e2e (`tests/run_e2e.py --port 8000`) with `PYTHONPATH=<app>;<lib18>`.
   - The conftest guard proves the test process.
-  - For the e2e server, check that `run_e2e.py`'s server log, or a one-off `curl` of the About content, shows `sespy library 1.18.0`.
+  - For the e2e server, read the lines `run_e2e.py` prints before launching it (Task 5): the `sespy.__file__` under `sespy-lib18`, version `1.18.0`, `find_spec("sespy.modules")` is `None`. Without those lines the e2e result does not count: `app.py` would import fine against the monolith too.
   - Expected: unit 0 failed; e2e all pass except the known `test_intervention_e2e.py` flake (rerun it alone, 3×).
 - [ ] **Step 4: MosaicSES on the split layout** (spec §8 stage 4, deferred here by plan 2 Ruling 3).
   - Run `PYTHONPATH=<mosaic-split-gate>;<app>;<lib18> micromamba run -n shiny python -c "from multises_app import sespy_ui; print(sespy_ui.UI_PACKAGE)"`. Expected: `sespy_app`.
@@ -312,6 +326,10 @@ No laguna deploy happens here; plan 4 does the cutover.
   - Assert also: `sespy_ui.set_default is sespy.i18n.set_default`, and `(Path(sespy_app.__file__).parent / "www" / "sespy-skin.css").is_file()`.
 - [ ] **Step 5: Round-trip.** Load `data/sample_ses.json` and one saved v1.17 project into the split-layout app (`Project.from_dict` → `to_dict`), and through MosaicSES's example loader. Expected: equal dicts and no warnings.
 - [ ] **Step 6: Record** all results in the ledger. Any new red stops the plan before Task 8.
+- [ ] **Step 7: Manual screenshots** (release rule: the brand now shows 1.0.0). Only after Steps 2–5 finish, so no gate is running on the tree:
+  - run `tests/make_docs_screenshots.py` in `sespy-app` with the split-layout `PYTHONPATH`;
+  - check that `docs/MANUAL.md` still references only images that exist;
+  - commit with `docs(app): refresh manual screenshots for 1.0.0`.
 
 ---
 
@@ -334,4 +352,5 @@ No laguna deploy happens here; plan 4 does the cutover.
   - spec §9's cross-layout rollback steps (remove `$APP_DIR/sespy_app/` after moving `feedback.db` back);
   - MosaicSES cleanup release (drop the fallback, `sespy>=1.18`, the `app` extra);
   - Nid4Ocean re-pin to `@v1.18.0`;
-  - worktree cleanup: `sespy-stage1`, `sespy-v1171`, `sespy-split`, `sespy-fr-rehearsal`.
+  - worktree cleanup now: `sespy-stage1`, `sespy-split`.
+  - Keep `sespy-v1171` (holds `deploy/config.env`) and `sespy-k1`: they are the cross-layout rollback trees until the cutover settles.
