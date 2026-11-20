@@ -1,27 +1,33 @@
-# Library-side test files (run by scripts/run_library_tests.py with shiny/htmltools/pyvis blocked)
+# Library test files (run by scripts/run_library_tests.py with shiny/htmltools/pyvis blocked).
+# Every test file in the library is listed here; the app tests live in razinka/sespy-app.
 tests/test_autosave.py
-tests/test_bayes.py
 tests/test_bayes_consensus.py
+tests/test_bayes.py
 tests/test_bookmark.py
 tests/test_claude_backend.py
 tests/test_claude_session_import.py
+tests/test_connection_polarity.py
 tests/test_connection_scorer.py
 tests/test_data_structure.py
+tests/test_dependencies.py
 tests/test_dynamics.py
 tests/test_excel_import.py
+tests/test_i18n.py
 tests/test_k1_sync.py
 tests/test_kb_report.py
 tests/test_kb_suggestions.py
 tests/test_link_rules.py
-tests/test_persistent_storage.py
+tests/test_network.py
 tests/test_performance.py
+tests/test_persistent_storage.py
 tests/test_provenance.py
 tests/test_public_api.py
 tests/test_qsem_dapsiwrm_map.py
+tests/test_qsem_import.py
 tests/test_qsem_models_load.py
 tests/test_r_connection_kb.py
-tests/test_r_kb.py
 tests/test_r_kb_registry.py
+tests/test_r_kb.py
 tests/test_r_template_catalogue.py
 tests/test_r_template_mapper.py
 tests/test_recent_projects.py
@@ -32,17 +38,11 @@ tests/test_schema_read_ahead.py
 tests/test_schema_v7.py
 tests/test_schema_v8.py
 tests/test_schema_v9.py
+tests/test_split_manifest.py
 tests/test_stakeholder_reports.py
 tests/test_stakeholders.py
-tests/test_utils.py
-# split-test library halves
-tests/test_network.py
-tests/test_qsem_import.py
 tests/test_templates.py
-tests/test_wizard.py
-tests/test_connection_polarity.py
-tests/test_i18n.py
-# gate infrastructure
+tests/test_utils.py
 tests/test_version.py
-tests/test_split_manifest.py
+tests/test_wizard.py
 tests/parity
