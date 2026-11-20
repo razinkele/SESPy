@@ -18,8 +18,8 @@ import pytest
 from sespy import i18n
 from sespy.claude_backend import DropReason, ValidationOutcome
 from sespy.data_structure import ConnectionSuggestion
-from sespy.i18n import Translator, load_translations
 from sespy.modules.ai_isa_wizard import _ClaudeIdle, _ClaudeReturned, _render_connection_review
+from sespy.ui_i18n import Translator, load_translations
 
 ROOT = Path(__file__).resolve().parents[1]
 TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))

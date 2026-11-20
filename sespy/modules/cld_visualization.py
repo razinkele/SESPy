@@ -40,7 +40,7 @@ from ..constants import (
 from ..data_structure import IsaData, Project, filter_elements
 from ..event_bus import EventBus
 from ..input_utils import safe_float, safe_int
-from ..i18n import t
+from ..ui_i18n import t
 from ..network import connection_disagreement, delay_edge_kwargs
 
 

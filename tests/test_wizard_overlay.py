@@ -25,8 +25,8 @@ from shiny.testserver import test_server
 import sespy.i18n
 from sespy.data_structure import ELEMENT_TYPE_MAP, IsaData, Project
 from sespy.event_bus import create_event_bus
-from sespy.i18n import Translator, load_translations
 from sespy.modules.ai_isa_wizard import ai_isa_wizard_server
+from sespy.ui_i18n import Translator, load_translations
 
 ROOT = Path(__file__).resolve().parents[1]
 TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))

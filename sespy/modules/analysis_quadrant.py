@@ -16,7 +16,7 @@ from .. import network as net_analysis
 from ..constants import DEFAULT_GROUP_COLOR, ELEMENT_COLORS
 from ..data_structure import Project
 from ..event_bus import EventBus
-from ..i18n import Translator, t
+from ..ui_i18n import Translator, t
 
 _QUADRANT_KEYS = {
     "active": "quadrant.active",

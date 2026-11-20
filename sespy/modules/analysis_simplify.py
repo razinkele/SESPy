@@ -28,7 +28,7 @@ from ..constants import (
 from ..data_structure import IsaData, Project
 from ..event_bus import EventBus
 from ..input_utils import safe_int
-from ..i18n import Translator, t
+from ..ui_i18n import Translator, t
 
 
 def _build_simplified_network(isa: IsaData) -> Network:

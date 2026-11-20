@@ -27,9 +27,9 @@ from ..constants import DAPSIWRM_ELEMENTS
 from ..data_structure import Project
 from ..event_bus import EventBus
 from ..excel_import import parse_excel
-from ..i18n import Translator
 from ..persistent_storage import ValidationResult
 from ..qsem_import import build_project, parse_qsem, qsem_themes, resolve_theme_map, suggest_dapsiwrm_map
+from ..ui_i18n import Translator
 
 
 def parse_upload(name: str, datapath: Path | str) -> ValidationResult:

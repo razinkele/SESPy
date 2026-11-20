@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
-from typing import Any, Iterable, Literal, Mapping
+from typing import Any, Literal, Mapping
 
 from sespy.r_sync import sha256_norm
 
@@ -144,26 +144,6 @@ def current_provenance(meta: Any, snapshot: "Snapshot", reads: frozenset[str]) -
     return {**meta.reference_data, **{f: snapshot.provenance(f) for f in reads}}
 
 
-def add_reads(reads: Any, names: Iterable[str]) -> None:
-    """Record that this session read `names` from its snapshot.
-
-    `reads` is the session's `reactive.Value[frozenset[str]]`, or None for a
-    caller mounted without one (MosaicSES): then this is a no-op. The value
-    is read under `isolate()` and set only when a name is new, so a render
-    that calls this never invalidates itself (`Value.set` compares by
-    identity, so an unconditional set of a fresh frozenset would loop).
-    """
-    if reads is None:
-        return
-    from shiny import reactive  # lazy: r_kb stays stdlib-only at import
-
-    with reactive.isolate():
-        current_reads = reads.get()
-    new = frozenset(names) - current_reads
-    if new:
-        reads.set(current_reads | new)
-
-
 @dataclass(frozen=True)
 class Snapshot:
     files: Mapping[str, Entry]
@@ -234,7 +214,6 @@ VENDORED: Snapshot = _load_vendored()
 # ---------------------------------------------------------------------------
 ENV_VAR = "SESPY_R_DATA_DIR"
 SETTINGS_FILE = "server_settings.env"
-DEFAULT_OVERRIDE_DIR = "/srv/shiny-server/marinesabres/data"
 VERSION_INFO_NAME = "VERSION_INFO.json"
 
 _log = logging.getLogger("sespy.r_kb")
@@ -256,20 +235,22 @@ def parse_settings_text(text: str) -> str | None:
     return value
 
 
-def override_dir_from(env: Mapping[str, str], settings_text: str | None) -> str | None:
+def override_dir_from(env: Mapping[str, str], settings_text: str | None,
+                      default: str | None) -> str | None:
     """Resolve the override directory: a path string, or None when the override is off.
 
     A variable present in `env` (even empty) wins and the settings file is
     ignored. Otherwise `settings_text` (None = file absent) is parsed with
-    `parse_settings_text`; no matching line, or no file, means the default
-    directory. An empty value or `off` (case-insensitive) means off.
+    `parse_settings_text`; no matching line, or no file, means `default`
+    (supplied by the caller; the library carries no deployment path). An empty
+    value or `off` (case-insensitive) means off.
     """
     if ENV_VAR in env:
         raw: str | None = env[ENV_VAR]
     else:
         raw = parse_settings_text(settings_text) if settings_text is not None else None
     if raw is None:
-        return DEFAULT_OVERRIDE_DIR
+        return default
     raw = raw.strip()
     if raw == "" or raw.lower() == "off":
         return None
@@ -294,11 +275,13 @@ class _Registry:
         self._vendored = vendored if vendored is not None else VENDORED
         self._snapshot: Snapshot = self._vendored
         self._app_dir: Path | None = None
+        self._default_override_dir: str | None = None
         self._seen: tuple | None = None
         self._last_shared: dict[str, str] = {}
 
-    def configure(self, app_dir: Path) -> None:
+    def configure(self, app_dir: Path, *, default_override_dir: str | None = None) -> None:
         self._app_dir = Path(app_dir)
+        self._default_override_dir = default_override_dir
         self._seen = None
 
     def current(self) -> Snapshot:
@@ -325,7 +308,8 @@ class _Registry:
     def _refresh(self) -> None:
         if self._app_dir is None:
             return
-        directory_str = override_dir_from(os.environ, self._read_settings())
+        directory_str = override_dir_from(os.environ, self._read_settings(),
+                                          self._default_override_dir)
         if directory_str is None:
             self._fall_to_vendored("override off")
             return
@@ -452,8 +436,8 @@ class _Registry:
 _REGISTRY = _Registry()
 
 
-def configure(app_dir: Path) -> None:
-    _REGISTRY.configure(app_dir)
+def configure(app_dir: Path, *, default_override_dir: str | None = None) -> None:
+    _REGISTRY.configure(app_dir, default_override_dir=default_override_dir)
 
 
 def refresh() -> None:

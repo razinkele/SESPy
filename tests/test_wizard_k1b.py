@@ -16,9 +16,9 @@ from sespy import i18n, r_kb
 from sespy.autosave import read_autosave, write_autosave
 from sespy.data_structure import Connection, ConnectionSuggestion, Element, IsaData, Project
 from sespy.event_bus import create_event_bus
-from sespy.i18n import Translator, load_translations
 from sespy.modules.ai_isa_wizard import _render_suggestions_table, ai_isa_wizard_server
 from sespy.persistent_storage import load_project, project_to_bytes, save_project_atomic
+from sespy.ui_i18n import Translator, load_translations
 
 ROOT = Path(__file__).resolve().parents[1]
 TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))

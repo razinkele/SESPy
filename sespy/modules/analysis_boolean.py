@@ -15,7 +15,7 @@ from .. import dynamics
 from ..data_structure import Project
 from ..event_bus import EventBus
 from ..input_utils import safe_int
-from ..i18n import Translator, t
+from ..ui_i18n import Translator, t
 from ._notify import notify_data_changed
 
 

@@ -91,6 +91,34 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
 
+  library-no-ui:
+    name: Library without UI deps (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The sespy library must import and pass its tests with Shiny, htmltools
+    # and the pyvis fork absent (split stage 1: the app layer lives in
+    # sespy.ui_* / app.py, everything else is a plain library).
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package + test dependencies, then remove UI deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test]
+          pip uninstall -y shiny htmltools pyvis-optimized
+
+      - name: Run library tests (no Shiny)
+        run: python scripts/run_library_tests.py
+
   full-app:
     name: Full app (conda env + razinka pyvis fork)
     runs-on: ubuntu-latest

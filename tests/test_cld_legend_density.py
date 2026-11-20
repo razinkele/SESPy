@@ -25,8 +25,8 @@ from sespy import i18n  # noqa: E402
 from sespy.constants import DAPSIWRM_ELEMENTS, EDGE_COLORS, ELEMENT_COLORS  # noqa: E402
 from sespy.data_structure import Project  # noqa: E402
 from sespy.event_bus import create_event_bus  # noqa: E402
-from sespy.i18n import Translator, load_translations  # noqa: E402
 from sespy.modules.cld_visualization import cld_viz_server, cld_viz_ui  # noqa: E402
+from sespy.ui_i18n import Translator, load_translations  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))

@@ -40,12 +40,13 @@ from ..data_structure import (
     WizardState,
 )
 from ..event_bus import EventBus
-from ..i18n import Translator, t
 from ..kb_suggestions import (
     countries_for_sea,
     country_names_for,
     get_context_suggestions,
 )
+from ..ui_i18n import Translator, t
+from ..ui_r_kb import add_reads
 from ..utils import next_id
 from ..wizard import (
     ELEMENT_TYPE_MAP,
@@ -869,7 +870,7 @@ def ai_isa_wizard_server(
         if step["archetype"] != "freeform_multiple":
             return []
         ans = wizard_answers.get()
-        r_kb.add_reads(reference_reads, (r_kb.KB_NAME, r_kb.GOVERNANCE_NAME))
+        add_reads(reference_reads, (r_kb.KB_NAME, r_kb.GOVERNANCE_NAME))
         return get_context_suggestions(
             snap.kb(), _gov(), step["target"],
             ans.get("regional_sea") or None, ans.get("ecosystem_type") or None,
@@ -1097,7 +1098,7 @@ def ai_isa_wizard_server(
 
         if step_idx + 1 == 11:
             # Provenance (D9): the connection DB feeds these suggestions.
-            r_kb.add_reads(reference_reads, (r_kb.CONNECTION_DB_NAME,))
+            add_reads(reference_reads, (r_kb.CONNECTION_DB_NAME,))
             wizard_suggestions_sp3.set(
                 suggest_connections(_assemble_wizard_state(), snap))
 
@@ -1471,7 +1472,7 @@ def ai_isa_wizard_server(
         elif archetype == "choice_many":
             if step["target"] == "countries":
                 # The country list comes from the session's reference data.
-                r_kb.add_reads(reference_reads, (r_kb.KB_NAME, r_kb.GOVERNANCE_NAME))
+                add_reads(reference_reads, (r_kb.KB_NAME, r_kb.GOVERNANCE_NAME))
             widget = _render_choice_many(step, wizard_answers.get(), gov=_gov())
         elif archetype == "freeform_multiple":
             widget = _render_freeform_multiple(

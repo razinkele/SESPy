@@ -14,7 +14,6 @@ from k1b_fixtures import load_k1b_fixture  # noqa: E402
 
 from sespy.connection_scorer import _select_verb, detect_polarity  # noqa: E402
 from sespy.data_structure import ConnectionSuggestion  # noqa: E402
-from sespy.modules.ai_isa_wizard import _dedup_accepted  # noqa: E402
 from sespy.r_kb import VENDORED  # noqa: E402
 
 DB = VENDORED.connection_db()
@@ -42,10 +41,3 @@ def test_verbs_match_r_table():
 def test_suggestion_defaults():
     s = ConnectionSuggestion("a", "b", "+", 0.5, "r")
     assert (s.relevance, s.strength, s.confidence) == (0.5, "medium", 3)
-
-
-def test_dedup_on_relevance_tie_keeps_rule_row():
-    rule = ConnectionSuggestion("a", "b", "+", 0.7, "r", "strong", 4)
-    claude = ConnectionSuggestion("a", "b", "+", 0.7, "c")
-    kept, discarded, overwritten = _dedup_accepted([rule, claude])
-    assert kept == [rule] and (discarded, overwritten) == (1, 0)

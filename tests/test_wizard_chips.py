@@ -24,9 +24,9 @@ import sespy.modules.ai_isa_wizard as wiz_mod
 from sespy import r_kb
 from sespy.data_structure import IsaData, Project
 from sespy.event_bus import create_event_bus
-from sespy.i18n import Translator, load_translations
 from sespy.kb_suggestions import get_context_suggestions
 from sespy.modules.ai_isa_wizard import _chips_caption, ai_isa_wizard_server
+from sespy.ui_i18n import Translator, load_translations
 
 ROOT = Path(__file__).resolve().parents[1]
 TR = Translator(translations=load_translations(ROOT / "sespy" / "translations"))

@@ -6,10 +6,11 @@ Off-rule links are allowed and warned about, as R does
 `persistent_storage.validate_project_payload` logs them through
 `log_off_rule_links`. Nothing is ever rejected.
 
-Shiny-free at import: `sespy.i18n` imports `shiny.reactive`, so it is only
-imported inside `off_rule_message` when no translator is passed.
-`persistent_storage`, the R template mapper and P2's sync script import this
-module. tests/test_link_rules.py checks that in a subprocess.
+Shiny-free at import: `sespy.i18n` is the plain library translator (the
+reactive layer lives in the app-layer `sespy.ui_i18n`), so its `t` is
+imported at module level. `persistent_storage`, the R template mapper and
+P2's sync script import this module. tests/test_link_rules.py checks that in
+a subprocess.
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Literal
 
 from .constants import DAPSIWRM_ADJACENCY_RULES, DAPSIWRM_ELEMENTS
+from .i18n import t
 
 if TYPE_CHECKING:
     from .data_structure import Element
@@ -36,9 +38,9 @@ def _target(from_type: str, to_type: str):
         return None, None
     for kind, targets in (("canonical", rule.targets),
                           ("extension", rule.extension_targets)):
-        for t in targets:
-            if t.to_type == to_type:
-                return kind, t
+        for tgt in targets:
+            if tgt.to_type == to_type:
+                return kind, tgt
     return None, None
 
 
@@ -80,7 +82,6 @@ def off_rule_message(from_label: str, from_type: str, to_label: str,
                source_type=from_type, target_type=to_type)
     if translator is not None:
         return translator.t("entry.off_rule_link", **fmt)
-    from .i18n import t      # function-local: keeps this module Shiny-free
     return t("entry.off_rule_link", **fmt)
 
 

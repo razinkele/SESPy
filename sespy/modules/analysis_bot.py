@@ -19,7 +19,7 @@ from shiny import Inputs, Outputs, Session, module, reactive, render, ui
 from ..data_structure import Project
 from ..event_bus import EventBus
 from ..input_utils import safe_float, safe_int
-from ..i18n import Translator, t
+from ..ui_i18n import Translator, t
 
 _YEAR_COL_CANDIDATES = ("year",)
 _VALUE_COL_CANDIDATES = ("value", "measurement")

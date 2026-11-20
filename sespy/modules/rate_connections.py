@@ -15,7 +15,7 @@ from .. import network
 from ..constants import CONNECTION_POLARITY_LABELS, DELAY_LEVELS
 from ..data_structure import IsaData, Rating
 from ..event_bus import EventBus
-from ..i18n import Translator, t
+from ..ui_i18n import Translator, t
 
 _STRENGTHS = ("weak", "medium", "strong")
 
