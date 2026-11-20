@@ -16,6 +16,7 @@ tests/test_link_rules.py
 tests/test_persistent_storage.py
 tests/test_performance.py
 tests/test_provenance.py
+tests/test_public_api.py
 tests/test_qsem_dapsiwrm_map.py
 tests/test_qsem_models_load.py
 tests/test_r_connection_kb.py
