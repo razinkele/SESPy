@@ -1,25 +1,16 @@
 [project]
 name = "sespy"
-version = "1.17.1"
-description = "Shiny for Python port of the MarineSABRES SES Toolbox — DAPSI(W)R(M) social-ecological systems analysis (Horizon Europe)."
+version = "1.18.0"
+description = "SESPy: Python library for DAPSI(W)R(M) social-ecological system modelling, analysis and R SES Toolbox parity (Horizon Europe Marine-SABRES)"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
-    "shiny>=1.7",
     "networkx>=3.1",  # simple_cycles(length_bound=...) in feedback_loops
     "scipy>=1.10",          # required by networkx for pagerank / eigenvector centrality (network.py)
-    "htmltools>=0.5",
     "pandas>=2.0",
-    "packaging>=20.9",      # project-file version checks (data_structure.py); also shiny-transitive
+    "packaging>=20.9",      # project-file version checks (data_structure.py)
     "numpy>=1.24",          # dynamics.py / Boolean + simulation matrices (also pandas-transitive, declared explicitly)
-    # The pyvis fork (v4.x, with `pyvis.shiny` for the CLD/graph view), on PyPI
-    # as pyvis-optimized and on the `razinka` Anaconda channel as `pyvis`; both
-    # install the `pyvis` import package under the dist name `pyvis_optimized`.
-    # Never plain `pyvis`: pip does not count the fork as `pyvis` and installs
-    # upstream 0.3.2 (no `.shiny`) over it — this broke every network view in
-    # laguna's shared env on 2026-10-11. See README "Install it".
-    "pyvis-optimized>=4.4",
     "matplotlib>=3.7",      # analysis @render.plot outputs (BOT, Boolean, simulation, metrics)
     "jinja2>=3.1",          # report.py HTML template rendering (hard import)
     "openpyxl>=3.1",        # pandas .xlsx engine for the Excel import feature
@@ -44,7 +35,7 @@ pdf = ["weasyprint>=60"]
 # Path-set Bayesian belief network (Intervention panel). DiscreteBayesianNetwork
 # exists from pgmpy 1.0. Optional: the app degrades to an install hint without it.
 bayes = ["pgmpy>=1.0"]
-test = ["pytest>=8", "pytest-playwright>=0.5", "pytest-asyncio>=0.23", "pytest-cov>=4"]
+test = ["pytest>=8", "pytest-asyncio>=0.23", "pytest-cov>=4"]
 lint = ["ruff>=0.6", "mypy>=1.10"]
 
 [tool.pytest.ini_options]
@@ -87,4 +78,4 @@ build-backend = "setuptools.build_meta"
 include = ["sespy*"]
 
 [tool.setuptools.package-data]
-sespy = ["*.json", "data/r_kb/*.json", "translations/*.json", "translations/modules/*.json", "templates/*.json", "templates/marinesabres/*.json", "www/*.css"]
+sespy = ["*.json", "data/r_kb/*.json", "translations/*.json", "translations/modules/*.json", "templates/*.json", "templates/marinesabres/*.json"]

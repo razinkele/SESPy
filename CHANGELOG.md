@@ -4,6 +4,10 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.18.0] — 2026-11-20
+
+SESPy is now a library; the Shiny app moved to razinkele/sespy-app (1.0.0). Removed: sespy.modules, dashboard, browser_token, event_bus, feedback_store, ui_i18n, ui_r_kb, www; shiny/htmltools/pyvis are no longer dependencies.
+
 ## [1.17.1] — 2026-11-19
 
 Internal: library code no longer needs Shiny (translator and reference-data reads split into `sespy.ui_i18n` / `sespy.ui_r_kb`); no user-visible change.

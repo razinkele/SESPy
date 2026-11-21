@@ -10,9 +10,6 @@ def test_every_entry_exists():
     missing = [e for e in _entries() if not (ROOT / e).exists()]
     assert missing == []
 
-def test_no_e2e_or_app_tests_listed():
-    assert not [e for e in _entries() if "e2e" in e or e.endswith(("test_feedback_store.py", "test_k1_wiring.py"))]
-
 def test_blocker_blocks_shiny_in_a_child_run():
     # A throwaway test that imports shiny must fail under the runner's env.
     # The probe lives under tests/ so that tests/conftest.py (which installs
