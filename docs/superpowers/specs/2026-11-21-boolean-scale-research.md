@@ -3,9 +3,27 @@
 Date: 2026-11-21. Companion to `2026-11-21-boolean-scale-design.md` (options 1 and 2). This note
 looks at ways to go further, with measurements.
 
-The probe scripts lived in the session scratchpad: `core_reduction.py` and `probe2.py`. Their results are recorded below.
+The probe scripts that produced every number here are in `boolean-scale-probes/`, next to this note.
 
-## Key finding: exact feedback-core reduction
+## Finding 0 (read first): SESPy's Boolean rules are not R's
+
+The 2026-04-27 spec calls `create_boolean_rules` a port of R `ses_create_boolean_rules`
+(`ses_dynamics.R:455`), but the two differ in semantics, and no document records the difference:
+
+| | R / BoolNet (the reference) | SESPy |
+|---|---|---|
+| Combining inputs | OR over regulators; an inhibitor contributes `!x` (`A \| B \| !C`) | weighted sum `Σ w·x` and `> 0` |
+| Magnitude | ignored (`sign(mat)`) | used |
+| No regulators | self-rule `X = X` (keeps its starting value) | inflow 0, so it switches off |
+| All-off state | not generally a fixed point (an inhibitor that is off turns its target on) | always a fixed point |
+
+Measured on the Fisheries template (26 nodes), `probe4.py`:
+- **SESPy rules:** exactly **1** attractor, all-off, with basin 2^26.
+- **R rules:** **36** distinct attractors reached from 20,000 sampled starts, all fixed points. Its 5 sources keep their values, so they act as parameters.
+
+The same network gives qualitatively different answers. Every core-0 (acyclic) network below gives a single all-off attractor under SESPy rules. This parity question comes before any scaling work, because scaling the current semantics scales an answer that disagrees with R.
+
+## Key finding: exact feedback-core reduction (under SESPy's current rules)
 
 Synchronous threshold rules (`inflow > 0`) give every node with no cycle upstream a constant value after
 at most |upstream| steps. A node with no inputs has inflow 0, so it switches off; constants then propagate down
@@ -24,16 +42,18 @@ downstream of a cycle and upstream of one. The full attractors follow by reconst
    - Upstream initial values perturb the core during the transient, so they are **not** a simple factor. The probe enumerates every upstream pattern × every core state, steps |U| + 1 times and looks up the core label. The cost is 2^|U| × 2^|C|.
    - A refinement: enumerate only distinct *input sequences into the core* (simulate U alone and deduplicate by the feeders' values over the transient). Its cost is (distinct sequences) × 2^|C|.
 
-### Verification
+### Verification (scope: single-cluster cores)
 - **Differential test:** 300 random networks (n ≤ 12; 223 with an upstream part, 233 with read-outs, 174 with both; int and float weights including ±0.1/0.2/0.3 ties). Reduced attractor sets **and exact basin sizes** were identical to `sespy.dynamics.boolean_attractors` on the full network in **300/300**.
+  - The generator builds one ring-shaped core with single-edge chains above and below it. It has no multi-cluster cores, bridge nodes, fan-in, or upstream-to-read-out edges. So the result is **verified for single-cluster cores**.
+- **17-node sample (two cycle clusters, 8 + 6, with a bridge):** reduced and full results are identical, attractors and basins (`probe3.py`). It has only one attractor, so this says nothing about basin splits.
 - **Fisheries template (26 nodes):**
   - upstream 9, core 14, read-out 3;
-  - one attractor, a fixed point with basin 2^26 (sum checked);
-  - 49 s with the unoptimised probe, dominated by the 2^9 × 2^14 exact-basin pass;
-  - a full-space cross-check from 20,000 random full states with the plain kernel reached the same single attractor and nothing else.
+  - one attractor: the **all-off fixed point** (state 0 is always fixed under these rules), with basin 2^26;
+  - 49 s with the unoptimised probe, dominated by the 2^9 × 2^14 exact-basin pass. The attractor set alone costs 2^14;
+  - a full-space cross-check from 20,000 random full states reached the same single attractor. With one attractor, this checks the attractor, not basin splits.
 
-### Distribution (57 networks: 11 SESPy templates + sample, 45 MosaicSES compartments)
-- **Networks over 20 nodes: 32.** Of those, **31 have a core of 20 or fewer**.
+### Distribution (57 shipped networks: 11 SESPy templates + sample, 45 MosaicSES example compartments, several sharing a shape across projects)
+- **Networks over 20 nodes: 32.** Of those, **31 have a core of 20 or fewer**: 11 are acyclic (core 0, trivially one all-off attractor under SESPy rules) and 20 have cores of 3–17.
 - **Typical cores:**
 
   | Network | Nodes | Core |
@@ -69,12 +89,23 @@ deduplication should cut those to near 2^C, because few upstream nodes feed the 
 | Approach | Attractors exact | Basins exact | Practical limit | New dependency | Server cost |
 |---|---|---|---|---|---|
 | **Core reduction** + vectorised core search (this note) | yes (verified) | yes, cost 2^C × distinct upstream input sequences (else sampled estimate) | **core ≤ 20** (31/32 real networks above 20 nodes) | none (numpy, networkx already declared) | as option 1 on the core |
-| **Compiled exhaustive** (numba, uint32 map + int32 labels) on full n, or on the core | yes | yes | measured single-thread on this laptop: n=22 2.0 s; n=24 8.4 s / ~192 MB; n=26 37 s / ~768 MB (state map dominates; `prange` could divide by cores) | numba: **not declared** in `pyproject.toml`; laguna availability unknown | memory-bound; 24 is the practical shared-server ceiling |
-| **Block-by-block (SCC condensation)**: solve upstream cycle clusters first, then drive downstream clusters with their periodic outputs | yes | hard (periodic forcing; state × phase spaces) | sum of cluster sizes instead of their product (sample: 8 + 6 instead of 16) | none | later phase |
-| **Feedback-vertex-set enumeration**: remove a FVS, the rest is a DAG | fixed points yes; cycles of period p via periodic FVS sequences, 2^(\|FVS\|·p) | no | Caribbean: FVS ≈ 8, so 256 checks for all fixed points; period ≤ 3 ≈ 2^24 | none (networkx) | cheap for fixed points |
+| **Compiled exhaustive** (numba, uint32 map + int32 labels) on full n, or on the core | yes | yes | measured single-thread time on this laptop (random 3-input rules): n=22 2.0 s; n=24 8.4 s; n=26 37 s. MB figures are array-size sums (~192 MB at 24, ~768 MB at 26), not measured peaks. The state map dominates; `prange` could divide by cores | numba: **not declared** in `pyproject.toml`; laguna availability unknown | memory-bound; 24 is the practical shared-server ceiling |
+| **Block-by-block (SCC condensation)**: solve upstream cycle clusters first, then drive downstream clusters with their periodic outputs | yes (argument, not run) | hard (periodic forcing; state × phase spaces) | sum of cluster sizes instead of their product (sample: 8 + 6 instead of 16) | none | later phase |
+| **Feedback-vertex-set enumeration**: remove a FVS, the rest is a DAG | fixed points yes, **run**; cycles of period p via periodic FVS sequences, 2^(\|FVS\|·p), argument only | no | Caribbean (78 nodes): greedy FVS of 8, 256 assignments in 0.08 s, giving **exactly 1 fixed point (all-off)**. 5,000 sampled starts reached no fixed point within 400 steps, so its long-run behaviour is cycles or long transients that this method does not find | none (networkx) | cheap for fixed points |
 | **MILP fixed points** (pulp/CBC, no-good cuts) | fixed points; bounded cycles by unrolling | no | hundreds of nodes | pulp: not declared; laguna unknown | modest; strict `>` with float weights needs an epsilon, which is a tie-semantics risk |
 | **Sampling** (option 2) | no (reached attractors only) | estimates | any size | none | cheap |
 | SAT / BDD symbolic | — | — | — | python-sat not on conda-forge; no BDD library installed | parked |
+
+## Effect of R semantics on these approaches
+Under R/BoolNet rules, a source is a self-loop that keeps its value: it acts as a **parameter**, not a constant. Core reduction carries over in this form:
+1. enumerate the 2^s source settings;
+2. for each one, propagate the acyclic rest and search the remaining core;
+3. read-outs are reconstructed as before.
+
+The cost is 2^s × 2^core', where core' excludes the sources. The Fisheries network has s = 5.
+- **Fixed points by FVS enumeration** carry over unchanged.
+- **MILP** gets simpler: OR of literals is linear, with no float-tie epsilon.
+- **Sampling** is unchanged.
 
 ## Constraints for any adoption
 - **API.**
