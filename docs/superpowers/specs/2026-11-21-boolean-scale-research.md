@@ -5,7 +5,29 @@ looks at ways to go further, with measurements.
 
 The probe scripts that produced every number here are in `boolean-scale-probes/`, next to this note.
 
-## Finding 0 (read first): SESPy's Boolean rules are not R's
+## Decision (user, 2026-11-21): no R parity for this analysis
+SESPy keeps its weighted-threshold rules. The difference from R below is recorded as an intentional, scoped divergence, not a defect.
+
+## What the analysis returns on shipped networks (`probe5.py`, attractor set via core search)
+- **57 networks:** 52 have a single attractor. Under these rules state 0 is always fixed, so that attractor is **all-off**.
+- **4 have two or more:** `minimal_demo` (12), `offshore_wind` (14), Venice `drainage_basin` (4), Venice `lagoon_central` (34 nodes, core 17: 4).
+- **Caribbean** (core 64) can only be sampled.
+- **Speed:** every attractor-set search took ≤ 0.4 s.
+- **Basin-split check:** reduced and full results are identical, basins included, on both multi-attractor networks within 20 nodes (`minimal_demo`, `offshore_wind`). This closes the basin-split gap for those shapes.
+
+**Opt-in variant, measured (`probe6.py`): input-less "driver" nodes hold their starting value.** Every driver setting gave exactly **one** attractor:
+
+| Network | Drivers | Settings | Settings where the core activates |
+|---|---|---|---|
+| Fisheries | 5 | 32 | 0 |
+| Tourism | 6 | 64 | 0 |
+| Pollution | 8 | 256 | 176 |
+| OffshoreWind | 6 | 64 | 32 |
+| Aquaculture | 9 | 512 | 0 |
+
+So the variant behaves as a deterministic **driver scenario → response** map, and a user-chosen scenario is a single cheap run.
+
+## Finding 0: SESPy's Boolean rules are not R's (intentional, see Decision)
 
 The 2026-04-27 spec calls `create_boolean_rules` a port of R `ses_create_boolean_rules`
 (`ses_dynamics.R:455`), but the two differ in semantics, and no document records the difference:
@@ -21,7 +43,7 @@ Measured on the Fisheries template (26 nodes), `probe4.py`:
 - **SESPy rules:** exactly **1** attractor, all-off, with basin 2^26.
 - **R rules:** **36** distinct attractors reached from 20,000 sampled starts, all fixed points. Its 5 sources keep their values, so they act as parameters.
 
-The same network gives qualitatively different answers. Every core-0 (acyclic) network below gives a single all-off attractor under SESPy rules. This parity question comes before any scaling work, because scaling the current semantics scales an answer that disagrees with R.
+The same network gives qualitatively different answers. Every core-0 (acyclic) network below gives a single all-off attractor under SESPy rules. Recorded for transparency; the user ruled that no parity is expected here.
 
 ## Key finding: exact feedback-core reduction (under SESPy's current rules)
 
