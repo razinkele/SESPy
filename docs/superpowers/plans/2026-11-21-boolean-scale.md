@@ -19,13 +19,13 @@
   - Python only via `micromamba run -n shiny`. No venvs, no `pip install`, no new dependencies.
   - Single-line commands or `.py` files, never multi-line `python -c` or `python - <<EOF`.
 - **Trees you must not touch.**
-  - `AppData/Local/sespy-app` is the v1.0.1 rollback tree and holds the real `config.env`.
+  - `AppData/Local/sespy-app` is the v1.0.1 rollback tree and holds the real `config.env`. Never change its checkout, files or config. Adding linked worktrees to its repository and `git fetch --tags` there are allowed.
   - `AppData/Local/sespy-lib-v1180` is the live library tree.
   - `AppData/Local/sespy-v1171` and `sespy-v1171-rb`.
   - Never read any `deploy/config.env`. No ssh.
 - **User-only steps.** The user runs every push, PR merge, tag and deploy via short `!` one-liners. Use a `~/` helper script when a line would wrap.
 - **`boolean_attractors` is unchanged:** code, signature, defaults and output. It is the test oracle.
-- **Kernel summation order.** For node j: `inflow = 0.0` (float64), add `w * X[:, i]` for each activator in list order, then for each inhibitor in list order. Then `X'[:, j] = inflow > threshold`. No matmul.
+- **Kernel summation order.** For node j: `inflow = 0.0` (float64), add `w * x_i` for each activator in list order, then for each inhibitor in list order. `x_i` is a live column or a fixed constant, added in its list position. Then the next value is `inflow > threshold`. No matmul. Only live columns are materialised.
 - **Constants:**
   - `BOOLEAN_MAX_CORE = 20`;
   - `BOOLEAN_BASIN_BUDGET = 1 << 24`;
@@ -65,7 +65,7 @@ Worktree: `git -C "C:/Users/arturas.baziukas/OneDrive - ku.lt/HORIZON_EUROPE/Mar
 
 **Interfaces:**
 - Produces:
-  - `_boolean_step(rules, X: np.ndarray, nodes: Sequence[int] | None = None) -> np.ndarray` (uint8 `(S, n)` in and out);
+  - `_boolean_step(rules, X: np.ndarray, *, cols: Sequence[int], nodes: Sequence[int], fixed: Mapping[int, int] | None = None) -> np.ndarray` (uint8 `(S, len(cols))` in, `(S, len(nodes))` out; spec §3.1);
   - `_boolean_partition(rules) -> tuple[list[int], list[int], list[int]]` (U, C, R);
   - `boolean_attractors_core(rules, *, max_core=BOOLEAN_MAX_CORE, basin_budget=BOOLEAN_BASIN_BUDGET, basin_samples=10_000, seed=0) -> dict`;
   - the constants `BOOLEAN_MAX_CORE`, `BOOLEAN_BASIN_BUDGET` and `BOOLEAN_MAX_NODES_TOTAL`.
@@ -85,23 +85,27 @@ Worktree: `git -C "C:/Users/arturas.baziukas/OneDrive - ku.lt/HORIZON_EUROPE/Mar
   def test_shape_generator_exercises_multi_cluster_and_bridges():  # >= 25% of seeds have >= 2 clusters, etc.
   def test_core_on_shipped_multi_attractor_networks():  # minimal_demo, offshore_wind: equal to boolean_attractors incl. basins
   def test_fisheries_template_is_all_off_only():  # n_nodes 26, core_size 14, all_off_only True, basin_size == 2**26
-  def test_lagoon_central_has_four_attractors():  # MosaicSES venice lagoon_central project dict copied to tests/data
+  def test_large_synthetic_multi_cluster_core_cross_checked():  # 34-node synthetic, core 15-18, >= 2 attractors:
+      # every attractor from boolean_attractors_sampled(n_samples=5000) is in the core result, and fractions agree within 0.03
+  def test_single_attractor_skips_basin_pass(monkeypatch):  # Aquaculture template (U=21): basin_method "exact", basin_size 2**28,
+      # and the basin routine is never called (spy)
+  def test_non_ancestor_upstream_is_an_exact_factor():  # upstream node feeding only a read-out: basins equal boolean_attractors
   def test_result_shape_and_ordering():  # keys per spec §3.3; cycles start at min state; basin_fraction desc
   def test_core_too_large_sentinel():  # a 21-node single ring -> error "core_too_large", core_size 21
   def test_step_matches_reference_transition():  # _boolean_step on all states of a 10-node net == per-state loop
   def test_basin_sampled_path_when_budget_tiny():  # basin_budget=1 -> basin_method "sampled", basin_size None, fractions sum ~1, attractor set still exact
   def test_acyclic_network_core_zero():  # small_scale_fisheries: core_size 0, one all-off attractor
   ```
-  Copy the shipped files the tests need into `tests/data/boolean/`, and use only public library templates or MosaicSES example data.
+  Use only the library's own templates (`sespy/templates/…`) and `data/sample_ses.json`, read in place. Don't copy MosaicSES data into the library: the user decides that separately.
 - [ ] **Step 3: Run them and watch them fail.** Run `micromamba run -n shiny python -m pytest tests/test_boolean_core.py -q`. Expected: FAIL, because the names are not defined.
 - [ ] **Step 4: Implement it per spec §3.3.**
   - `docs/superpowers/specs/boolean-scale-probes/core_reduction.py` is a correct but slow reference for the steps.
   - Replace its int64 packing with the uint8-matrix kernel.
-  - Evaluate only core columns in the core map: the full matrix with U = u* and R = 0.
-  - Basins dedupe the upstream input sequences, as the spec says.
+  - The core map uses `_boolean_step(cols=C, nodes=C, fixed=u*)`. Never materialise all n columns for 2^|C| rows.
+  - Basins: take the single-attractor shortcut first; then the exact `2^k` factors for read-outs and non-ancestor upstream nodes; then deduplicate the input sequences of the upstream ancestors, as in spec §3.3 step 5.
   - Update the comment at 228–231 to say the app uses `boolean_attractors_core` and that `boolean_attractors` keeps its cap for library callers.
 - [ ] **Step 5: Run the tests to verify they pass.** Run `micromamba run -n shiny python -m pytest tests/test_boolean_core.py tests/test_dynamics.py -q`. Expected: all pass.
-- [ ] **Step 6: Commit.** `git add sespy/dynamics.py tests/test_boolean_core.py tests/_boolean_shapes.py tests/data/boolean && git commit -m "feat(dynamics): exact feedback-core Boolean attractor search"`
+- [ ] **Step 6: Commit.** `git add sespy/dynamics.py tests/test_boolean_core.py tests/_boolean_shapes.py && git commit -m "feat(dynamics): exact feedback-core Boolean attractor search"`
 
 ### Task 2: Sampled search for large cores
 
@@ -121,7 +125,8 @@ Worktree: `git -C "C:/Users/arturas.baziukas/OneDrive - ku.lt/HORIZON_EUROPE/Mar
   def test_sampled_hits_sum():  # sum(hits) + n_unconverged == n_samples; fraction == hits / n_samples
   def test_sampled_deterministic_for_seed():
   def test_sampled_unconverged_counted():  # 3-node positive ring, max_steps=1 -> n_unconverged > 0
-  def test_sampled_caribbean_78_nodes():  # runs, no error, states are ints >= 2**62 possible, < 10 s
+  def test_sampled_caribbean_78_nodes():  # n_samples=2000, max_steps=1000: n_unconverged == 0, >= 2 cyclic attractors
+      # (probe7 measured 4: periods 6, 3, 2, 6), every state an int < 2**78, < 15 s
   def test_sampled_history_budget_lowers_max_steps():  # n_samples=1000, max_steps=100_000 -> echoed 10**7 // 1000 - 1
   def test_sampled_clamps_and_too_large():  # n_samples=0 -> 1; 201 nodes -> "too_large"
   ```
@@ -137,7 +142,12 @@ Worktree: `git -C "C:/Users/arturas.baziukas/OneDrive - ku.lt/HORIZON_EUROPE/Mar
 - Create: `tests/test_translations_boolean_scale.py`
 - Modify: `sespy/translations/core.json`, `tests/test_public_api.py`, `sespy/__init__.py`, `pyproject.toml`, `CHANGELOG.md`
 
-- [ ] **Step 1: Benchmark.** `tests/bench_boolean_core.py` builds a random network of about 40 nodes with a 20-node core, then times the attractor set and peak memory (`tracemalloc`), 3 runs. Run `micromamba run -n shiny python tests/bench_boolean_core.py`. Gate: median ≤ 5 s and peak ≤ 300 MB. If it fails, stop and report: `BOOLEAN_MAX_CORE` depends on it.
+- [ ] **Step 1: Benchmark.** `tests/bench_boolean_core.py` takes 3 runs of each case below and reports the median time and peak memory (`tracemalloc`). Run `micromamba run -n shiny python tests/bench_boolean_core.py`. Each case must come in at a median ≤ 5 s and a peak ≤ 300 MB:
+  - (a) the attractor set for a random 200-node network with a 20-node core;
+  - (b) the exact basin pass at `BOOLEAN_BASIN_BUDGET`, on a network with ≥ 2 attractors and an upstream part. If it fails, halve the budget until it passes and record the final value;
+  - (c) `boolean_attractors_sampled` on the Caribbean template at 2000 × 1000.
+
+  If (a) fails, stop and report: `BOOLEAN_MAX_CORE` depends on it.
 - [ ] **Step 2: Write the failing tests.**
   - The translation test checks that every spec §3.5 key exists with all 9 languages, non-empty values and exactly the placeholders `{n} {core}` / `{samples}` / `{core} {max}` / `{n} {seed} {unconverged} {max_steps}`.
   - Add `boolean_attractors_core`, `boolean_attractors_sampled` and the three constants to `tests/test_public_api.py`.
@@ -239,7 +249,7 @@ Worktrees:
 - [ ] **Step 3: Live checks (agent, read-only).**
   - Playwright on `https://laguna.ku.lt/SESPy/`:
     - About shows `SESPy app 1.1.0 · sespy library 1.19.0`;
-    - Fisheries shows "26 nodes · 14 in the feedback core" and the all-off sentence;
+    - Fisheries shows "26 nodes · 14 in the feedback core", "basin sizes exact" and the all-off sentence;
     - a multi-attractor template shows its table;
     - Caribbean shows the sampled path;
     - there is no `.alert-danger`.

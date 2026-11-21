@@ -35,10 +35,12 @@ The investigation measured three things:
 ## 3. Library (sespy 1.19.0)
 
 ### 3.1 Shared kernel
-`_boolean_step(rules, X, nodes=None) -> np.ndarray` (private) takes a `(S, n)` uint8 state matrix and returns the
-next matrix. With `nodes` given, only those columns are recomputed; the others are returned as zeros.
-- **Summation order.** For node `j`, set `inflow = 0.0` (float64 per row), add `w * X[:, i]` for each activator in list order, then for each inhibitor in list order. The new value is `inflow > threshold`. No matmul, so float ties resolve exactly as `boolean_attractors` does.
-- **Representation.** The matrix form has no 62-node limit.
+`_boolean_step(rules, X, *, cols, nodes, fixed=None) -> np.ndarray` (private).
+- **Inputs.** `X` is a `(S, len(cols))` uint8 matrix whose column `k` holds node `cols[k]`. `fixed` maps every other node an evaluated rule reads to a constant 0/1.
+- **Output.** A `(S, len(nodes))` uint8 matrix of the next values of `nodes`.
+- **Summation order.** For node `j`, set `inflow = 0.0` (float64 per row), add `w * x_i` for each activator in list order, then for each inhibitor in list order. `x_i` is `X[:, k]` for a live node and the constant `fixed[i]` otherwise, added **in its list position**. The new value is `inflow > threshold`. No matmul, so float ties resolve exactly as `boolean_attractors` does.
+- **Memory.** Only live columns are materialised: the core search holds `2^|C| × |C|` bytes, not `2^|C| × n`.
+- **Representation.** The matrix form has no 62-node limit. Whole-network stepping uses `cols = nodes = range(n)`.
 
 ### 3.2 `boolean_attractors` — unchanged
 Its code, signature and output stay as they are. It is the oracle for the differential tests, and Nid4Ocean calls it with `max_nodes=12`.
@@ -48,7 +50,7 @@ Its code, signature and output stay as they are. It is the oracle for the differ
 boolean_attractors_core(rules, *, max_core=BOOLEAN_MAX_CORE, basin_budget=BOOLEAN_BASIN_BUDGET,
                         basin_samples=10_000, seed=0) -> dict
 BOOLEAN_MAX_CORE = 20
-BOOLEAN_BASIN_BUDGET = 1 << 24          # core-state evaluations for the exact basin pass
+BOOLEAN_BASIN_BUDGET = 1 << 24          # core-state evaluations for the exact basin pass; final value set by the benchmark gate (§6)
 BOOLEAN_MAX_NODES_TOTAL = 200           # sanity cap on n
 ```
 
@@ -58,10 +60,13 @@ BOOLEAN_MAX_NODES_TOTAL = 200           # sanity cap on n
    - core C: downstream ∩ upstream of a cycle;
    - read-out R: downstream only.
 2. **Constant propagation.** Step U |U| + 1 times, with any start, to its fixed pattern u*. Assert it is fixed: U depends only on U, and its sources have inflow 0.
-3. **Core search.** Build the `2^|C|` core states as a matrix with U = u* and R = 0. Recompute only the C columns with `_boolean_step`. Label cycles on the compact core map with pointer doubling and an orbit minimum. No Python loop over states.
+3. **Core search.** Build the `2^|C|` core states as a `(2^|C|, |C|)` matrix. Step it with `_boolean_step(cols=C, nodes=C, fixed=u*)`; core rules read only core and upstream nodes. Label cycles on the compact core map with pointer doubling and an orbit minimum. No Python loop over states.
 4. **Reconstruction.** For each core attractor, step the full matrix from (u*, core state, R = 0) until the full state repeats. That gives the full attractor, read-outs included.
-5. **Basins.** Read-outs multiply basins by exactly `2^|R|`. Upstream initial values perturb the core during the transient:
-   - Simulate U alone from all `2^|U|` starts (only when `2^|U| ≤ 2^20`).
+5. **Basins.**
+   - **One attractor:** its basin is `2^n` by definition. Skip the pass and report `basin_method = "exact"`. This covers 52 of 57 shipped networks, including every all-off one.
+   - **Exact factors:** read-outs, and upstream nodes that are **not ancestors of the core**, multiply basins by exactly `2^k`.
+   - **Upstream ancestors of the core** (U_a) perturb the core during the transient:
+   - Simulate U_a alone from all `2^|U_a|` starts (only when `2^|U_a| ≤ 2^20`).
    - Deduplicate by the sequence of values the core's upstream inputs take over the transient.
    - If `(distinct sequences) × 2^|C| ≤ basin_budget`, compute basins exactly by driving every core state with each sequence and labelling the result. `basin_method = "exact"`.
    - Otherwise, estimate fractions from `basin_samples` random full starts (seed `seed`), each run until its core state reaches a labelled attractor. `basin_method = "sampled"`.
@@ -145,15 +150,19 @@ boolean_attractors_sampled(rules, n_samples=2000, *, max_steps=1000, seed=0) -> 
 
 ## 5. Deploy
 This is the second split-layout deploy, so plan 4's parked rerun states (N1–N4) are reviewed first, and each is either fixed or accepted by a ruling.
-- **Rollback** is app-to-app: `deploy.sh --rollback` from the existing `sespy-app` clone, which stays at `v1.0.1` with `sespy-lib-v1180`.
+- **Rollback** is app-to-app: `deploy.sh --rollback` from the existing `sespy-app` clone. Its checkout, files and `config.env` stay at `v1.0.1` with `sespy-lib-v1180`. Adding linked worktrees to its repository and fetching tags there are allowed, because they don't change its working tree.
 - **The deploy** runs from a new `sespy-app-v110` worktree with a new `sespy-lib-v1190`.
 
 ## 6. Done when
 - The core search's attractor sets and exact basins equal `boolean_attractors` on random networks (n ≤ 14) whose shapes include multiple cycle clusters, bridges, fan-in and upstream-to-read-out edges, and on the shipped multi-attractor networks within 20 nodes.
-- The benchmark gate holds: a core of 20 within a network of about 40 nodes is ≤ 5 s and ≤ 300 MB (attractor set).
+- **Benchmark gates hold**, each ≤ 5 s and ≤ 300 MB peak:
+  - the attractor set for a 20-node core inside a 200-node network;
+  - the exact basin pass at `BOOLEAN_BASIN_BUDGET`, whose value is lowered until it passes;
+  - `boolean_attractors_sampled` on Caribbean at the app's settings (2000 × 1000).
+- **Caribbean (measured by probe):** 2000 starts × 1000 steps leave 0 unconverged and reach 4 cyclic attractors (periods 6, 3, 2, 6), with transients ≤ 42.
 - Live:
   - Fisheries shows "26 nodes · 14 in the feedback core" and the all-off sentence;
-  - Venice `lagoon_central` (34 nodes) shows its 4 attractors;
+  - a multi-attractor network (`offshore_wind`) shows its table;
   - Caribbean shows the sampled path;
   - the page stays responsive throughout;
   - About shows "SESPy app 1.1.0 · sespy library 1.19.0".
