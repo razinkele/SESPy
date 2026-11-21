@@ -1,126 +1,166 @@
-# Boolean attractor search at scale — design
+# Boolean attractor search at scale — design (rev. 2)
 
-Date: 2026-11-21. Status: draft for review. Pulls the Boolean part of roadmap item **P7a** forward
-(`docs/superpowers/specs/2026-10-16-r-parity-roadmap-design.md`, on branch `docs/r-parity-roadmap`).
+Date: 2026-11-21. Status: draft for review. Revision 2 follows the investigation in
+`2026-11-21-boolean-scale-research.md` and the user's decisions of 2026-11-21:
+- **No R parity** for this analysis. SESPy keeps its weighted-threshold rules; the difference from R/BoolNet is intentional and recorded in the research note.
+- **Scope:** feedback-core search as the main route, sampling only above the core limit, a plain-language all-off result, no new dependencies. **Driver scenarios come later, as a separate phase (§7).**
+
+This pulls the Boolean part of roadmap item P7a forward.
 
 ## 1. Problem
 
-A user's 26-node project gets "Exhaustive Boolean attractor search is hard-capped at 12. Use
-Simplify Network first." The cap is set in two places:
-- The app (`sespy_app/modules/analysis_boolean.py`): the slider runs from 4 to 12, and the server clamps to that range.
-- The library (`sespy/dynamics.py`): `BOOLEAN_MAX_NODES_CEILING = 20` (R's `DYNAMICS_MAX_BOOLEAN_NODES`).
+A user's 26-node project gets "Exhaustive Boolean attractor search is hard-capped at 12". The
+current search enumerates all 2^n states in a pure-Python loop, synchronously in the shared worker.
 
-The UI stays at 12 because `boolean_attractors` is a pure-Python loop over `2^N` states, and it runs
-synchronously in the shared worker.
-
-R reference (`SESToolbox/MarineSABRES_SES_Shiny`):
-- `functions/ses_dynamics.R:527` runs BoolNet's exhaustive `getAttractors`, hard-capped at 20.
-- The slider in `modules/analysis_boolean.R:144` runs from 5 to 20, with default 20.
-- R has no sampled search.
+The investigation measured three things:
+- **Core sizes.** Only the **feedback core** (nodes downstream of a cycle and upstream of one) determines the attractors. Among the 32 shipped networks above 20 nodes, 31 have a core of 20 or fewer; the Caribbean template (core 64) is the exception.
+- **What the analysis returns.** Under SESPy's rules, all-off is always a fixed point, and **52 of 57** shipped networks have no other attractor.
+- **Speed.** A core search returns the attractor set of every shipped network except Caribbean in ≤ 0.4 s.
 
 ## 2. Goals
 
-- **A (R parity).** The app runs the exhaustive search up to **20** nodes without blocking the worker.
-- **B (beyond R).** For networks above 20 nodes, a **sampled** search from random start states.
-  - It reports the attractors it reached, estimated basin fractions and trajectories that did not converge.
-  - It is labelled as non-exhaustive everywhere it is shown.
+1. **Exact attractors** for any network whose feedback core is at most `BOOLEAN_MAX_CORE` (20, confirmed by the benchmark gate). The whole-network size doesn't matter.
+2. **Basin sizes:** exact within a computation budget, otherwise estimated by sampling. The result always says which.
+3. **Large cores:** for a core above the limit, a **sampled** search over the whole network, labelled non-exhaustive.
+4. **All-off in plain words:** when the only attractor is all-off, the UI says so instead of showing one opaque row.
+5. **Non-blocking:** the search runs in a background task.
 
-Non-goals:
-- SAT- or BDD-based exact search.
-- Asynchronous update schemes.
-- Changing `create_boolean_rules` semantics.
-- Raising the 20 ceiling.
+**Non-goals:**
+- R/BoolNet semantics.
+- New dependencies (numba, MILP, SAT/BDD).
+- Fixed-point enumeration through a feedback vertex set.
+- Solving cluster by cluster.
+- Driver scenarios: phase 2.
 
 ## 3. Library (sespy 1.19.0)
 
-### 3.1 Shared next-state kernel
-`_boolean_next_states(rules, states: np.ndarray) -> np.ndarray` (private) maps an int64 array of
-encoded states to their synchronous successors. Bit `i` is node `i`, as today.
-- **Summation order.** For node `j`, it accumulates inflow in the existing order: activators in list order, then inhibitors in list order. Use float64 element-wise adds, never a matmul, so `inflow > threshold` ties resolve exactly as the current loop does.
-- **Bounds.** It is valid for `1 <= len(rules) <= 62` (int64 packing).
+### 3.1 Shared kernel
+`_boolean_step(rules, X, nodes=None) -> np.ndarray` (private) takes a `(S, n)` uint8 state matrix and returns the
+next matrix. With `nodes` given, only those columns are recomputed; the others are returned as zeros.
+- **Summation order.** For node `j`, set `inflow = 0.0` (float64 per row), add `w * X[:, i]` for each activator in list order, then for each inhibitor in list order. The new value is `inflow > threshold`. No matmul, so float ties resolve exactly as `boolean_attractors` does.
+- **Representation.** The matrix form has no 62-node limit.
 
-### 3.2 `boolean_attractors` (exhaustive) — same API, same output
-- **Signature, defaults, sentinel and result shape stay identical.** `max_nodes=12` default, ceiling 20, `too_large` sentinel. Nid4Ocean calls it with `max_nodes=12` and reads `error`, `attractors` and `total_states`.
-- **Output stays bit-identical to the current implementation,** including order. Attractors are ordered by the smallest state in their basin. A cycle's `states` list starts at the first cycle state reached when walking from that smallest basin state.
-- **Algorithm.** No Python loop over `2^N` states:
-  1. `next = kernel(arange(2^N))`.
-  2. Pointer doubling, N rounds: square the map and carry a running orbit-minimum. That yields, for every state, the minimum state of the cycle it falls into.
-  3. `np.unique` on that label, with first indices, gives the attractors in discovery order and their basin sizes. The first index of each label is the basin's smallest state.
-  4. Per attractor only, walk from that smallest state to its cycle entry and list the cycle.
-- **Oracle.** The current loop moves to the tests as `_boolean_attractors_reference`, the oracle for differential tests.
+### 3.2 `boolean_attractors` — unchanged
+Its code, signature and output stay as they are. It is the oracle for the differential tests, and Nid4Ocean calls it with `max_nodes=12`.
 
-### 3.3 `boolean_attractors_sampled` (new, public)
+### 3.3 `boolean_attractors_core` (new, public)
 ```
-boolean_attractors_sampled(rules, n_samples=1000, *, max_steps=1000, seed=0,
-                           max_nodes=BOOLEAN_SAMPLED_MAX_NODES) -> dict
-BOOLEAN_SAMPLED_MAX_NODES = 62
+boolean_attractors_core(rules, *, max_core=BOOLEAN_MAX_CORE, basin_budget=BOOLEAN_BASIN_BUDGET,
+                        basin_samples=10_000, seed=0) -> dict
+BOOLEAN_MAX_CORE = 20
+BOOLEAN_BASIN_BUDGET = 1 << 24          # core-state evaluations for the exact basin pass
+BOOLEAN_MAX_NODES_TOTAL = 200           # sanity cap on n
 ```
-- **Starts.** `n_samples` start states drawn uniformly, one random bit per node from `np.random.default_rng(seed)`. Duplicates are allowed: they are samples.
-- **Stepping.** Each trajectory is stepped with the shared kernel, all trajectories at once, for at most `max_steps` steps. A trajectory that revisits a state has found its attractor. One that has not revisited a state after `max_steps` steps counts as **unconverged**.
-- **Result:**
-  ```
-  {"method": "sampled", "attractors": [{"type", "states", "period", "hits", "basin_fraction"}],
-   "n_samples", "n_unconverged", "seed", "max_steps", "n_nodes"}
-  ```
-  - `hits` counts the trajectories ending in that attractor.
-  - `basin_fraction = hits / n_samples`.
-  - Cycle `states` are rotated to start at their minimum state.
-  - Attractors are ordered by `hits` descending, then by minimum state.
-  - The result has no `basin_size` or `total_states`, whose documented meaning is exhaustive.
-- **Sentinels:**
-  - more than `max_nodes` nodes gives `{"method": "sampled", "attractors": [], "error": "too_large", "n_nodes", "max_nodes"}`;
-  - 0 nodes gives an empty result with `n_samples` echoed.
-- **Arguments.** `n_samples` and `max_steps` are each clamped to `[1, 100_000]`. Then a history budget, `n_samples × (max_steps + 1) ≤ 10⁷`, lowers `max_steps` if needed, and the result echoes the effective `max_steps`. The app clamps tighter.
-- **BoolNet.** `getAttractors(method="random", startStates=k)` is the closest R analogue. Its documented semantics (what it reports for basins) are checked during implementation and noted in the docstring. SESPy's fractions are its own estimate.
 
-### 3.4 Release
-- **Version.** 1.19.0, since there is a new public name. It goes in `tests/test_public_api.py`.
-- **Comment.** Update the ceiling comment at `dynamics.py:228-231` (the UI now uses an ExtendedTask and the vectorised search).
-- **Translation keys.** New keys in `sespy/translations/core.json`, English text copied into all nine languages as the file does today:
-  - `boolean.method`, `boolean.method_exhaustive`, `boolean.method_sampled`;
-  - `boolean.n_samples`, `boolean.computing`;
-  - `boolean.sampled_note` (`{n}`, `{seed}`, `{unconverged}`, `{max_steps}`);
-  - `boolean.cap_above_max` (`{n}`, `{max}`; suggests the Sampled method), `boolean.col_hits`, `boolean.col_basin_fraction`.
-  - `boolean.cap_below_12` and `boolean.cap_above_12` stay, for apps still on 1.0.x.
+**Algorithm:**
+1. **Partition** with networkx on the rule graph:
+   - upstream U: not downstream of any cycle (self-loops count as cycles);
+   - core C: downstream ∩ upstream of a cycle;
+   - read-out R: downstream only.
+2. **Constant propagation.** Step U |U| + 1 times, with any start, to its fixed pattern u*. Assert it is fixed: U depends only on U, and its sources have inflow 0.
+3. **Core search.** Build the `2^|C|` core states as a matrix with U = u* and R = 0. Recompute only the C columns with `_boolean_step`. Label cycles on the compact core map with pointer doubling and an orbit minimum. No Python loop over states.
+4. **Reconstruction.** For each core attractor, step the full matrix from (u*, core state, R = 0) until the full state repeats. That gives the full attractor, read-outs included.
+5. **Basins.** Read-outs multiply basins by exactly `2^|R|`. Upstream initial values perturb the core during the transient:
+   - Simulate U alone from all `2^|U|` starts (only when `2^|U| ≤ 2^20`).
+   - Deduplicate by the sequence of values the core's upstream inputs take over the transient.
+   - If `(distinct sequences) × 2^|C| ≤ basin_budget`, compute basins exactly by driving every core state with each sequence and labelling the result. `basin_method = "exact"`.
+   - Otherwise, estimate fractions from `basin_samples` random full starts (seed `seed`), each run until its core state reaches a labelled attractor. `basin_method = "sampled"`.
+
+**Result:**
+```
+{"method": "core", "n_nodes", "core_size", "upstream_size", "readout_size",
+ "basin_method": "exact" | "sampled",
+ "attractors": [{"type": "fixed"|"cyclic", "states": [int, ...], "period": int,
+                 "basin_size": int | None, "basin_fraction": float}],
+ "all_off_only": bool}
+```
+- **States** are Python ints, with bit `i` for node `i`. There is no width limit, and JSON is safe.
+- **Cycles** are rotated to start at their minimum state.
+- **Order:** attractors by `basin_fraction` descending, then by minimum state.
+- `basin_size` is set when `basin_method == "exact"`; the sizes sum to `2^n`. `basin_fraction` is always set.
+- `all_off_only` is true when there is exactly one attractor and it is the fixed state 0.
+
+**Sentinels:**
+- core above `max_core`: `{"method": "core", "attractors": [], "error": "core_too_large", "n_nodes", "core_size", "max_core"}`;
+- n above `BOOLEAN_MAX_NODES_TOTAL`: `"error": "too_large"`;
+- n = 0: an empty result.
+
+### 3.4 `boolean_attractors_sampled` (new, public) — whole network, for cores above the limit
+```
+boolean_attractors_sampled(rules, n_samples=2000, *, max_steps=1000, seed=0) -> dict
+```
+- **Starts:** uniform random start rows from `np.random.default_rng(seed)`.
+- **Stepping:** all trajectories are stepped at once with `_boolean_step` for at most `max_steps` steps. History is kept as packed rows, bounded by a budget of `n_samples × (max_steps + 1) ≤ 10^7`; `max_steps` is lowered to fit and the effective value is echoed.
+- **Convergence:** a trajectory converges at its first repeated state. One that hasn't repeated after `max_steps` is **unconverged**.
+- **Result:** `{"method": "sampled", "attractors": [{"type","states","period","hits","basin_fraction"}], "n_samples", "n_unconverged", "seed", "max_steps", "n_nodes"}`.
+  - There is no `basin_size`.
+  - Attractors are ordered by hits descending, then by minimum state.
+  - Cycles are rotated to start at their minimum state.
+- **Clamps:** `n_samples` and `max_steps` to [1, 100 000]. n above `BOOLEAN_MAX_NODES_TOTAL` gives `too_large`.
+
+### 3.5 Release
+- **Version:** 1.19.0. The new names go in `tests/test_public_api.py`.
+- **Comment:** update the comment at `dynamics.py:228-231`.
+- **Translation keys:** new keys in `core.json`, English text in all nine languages, as the file does today:
+
+  | Key | Text |
+  |---|---|
+  | `boolean.core_info` | "{n} nodes · {core} in the feedback core" |
+  | `boolean.basins_exact` | "basin sizes exact" |
+  | `boolean.basins_sampled` | "basin fractions estimated from {samples} random starts" |
+  | `boolean.all_off` | "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off." |
+  | `boolean.core_too_large` | "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead." |
+  | `boolean.sampled_note` | "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps." |
+  | `boolean.computing` | "Computing attractors…" |
+  | `boolean.col_hits` | "Hits" |
+  | `boolean.col_basin_fraction` | "Basin fraction (%)" |
+
+  Existing keys stay, for apps still on 1.0.x.
 
 ## 4. App (sespy-app 1.1.0)
 
 ### 4.1 Controls
-- **Method:** radio buttons, Exhaustive (default) or Sampled.
-- **Max nodes:** slider 4–20, default 20 (R's default).
-- **Start states:** numeric 100–5000, default 1000. Shown only for Sampled.
+- **The max-nodes slider is removed,** because the limit now applies to the core and is fixed by the library.
+- **"Laplacian direction" and "Run analysis" stay.**
+- **No new controls.** The sampled fallback uses n_samples = 2000, seed = 0 and max_steps = 1000. None of these can be set from the client.
 
 ### 4.2 Execution
-- **Background task.** The run happens in a `@reactive.extended_task` via `asyncio.to_thread`. It follows the generation-counter pattern in `analysis_leverage.py:203-232`: a stale result is dropped, and a task error is logged and shown as the module's error alert.
-- **While it runs,** the attractor panel shows `boolean.computing`.
-- **Server-side clamps:** `max_nodes` to [4, 20] and `n_samples` to [100, 5000]. Sampled uses `seed=0` and `max_steps=1000`, both fixed.
-- **Laplacian.** The stability result stays synchronous: it is cheap.
+- **Background task.** `@reactive.extended_task` via `asyncio.to_thread`, using the generation-counter pattern from `analysis_leverage.py:203-232`. A stale result is dropped; a task error is logged and shown as the module's error alert.
+- **While it runs:** the panel shows `boolean.computing`.
+- **Route:** call `boolean_attractors_core`. On `core_too_large`, call `boolean_attractors_sampled` and show the `core_too_large` note above its result.
+- **The Laplacian stays synchronous.**
 
 ### 4.3 Output
-- **Exhaustive:** the table is unchanged.
-  - If the network has at most 20 nodes but more than the slider: `boolean.cap_below_12`, the existing "raise the slider" text.
-  - If it has more than 20: `boolean.cap_above_max`.
-- **Sampled:**
-  - A note above the table: `boolean.sampled_note`, which says the result is non-exhaustive, with samples, seed and unconverged count.
-  - Columns: type, period, hits, basin fraction (%), representative state.
+- **Header line:** `core_info` plus `basins_exact` or `basins_sampled`.
+- **`all_off_only`:** show the `all_off` sentence as an info alert. The single-row table is not shown.
+- **Otherwise:** a table with type, period, basin fraction (%), basin size (exact only) and representative state.
+- **Sampled:** the `sampled_note`, then type, period, hits, basin fraction (%) and representative state.
 
 ### 4.4 Docs and tests
-- MANUAL §17 describes both methods and the 20 cap. Regenerate the screenshot.
-- `tests/test_boolean_e2e.py` assumes the 17-node sample exceeds the cap. It now sets the slider to 12 to keep testing the warning path, and a new e2e covers Sampled.
-- MosaicSES embeds this panel ("Boolean & Laplacian"), so its full suite gates the app release.
+- **MANUAL §17** describes the feedback core, the exact limit, the sampled fallback and the all-off reading. Regenerate the screenshot.
+- **`tests/test_boolean_e2e.py`** asserts the 17-node sample's all-off info alert, instead of the old cap warning.
+- **`tests/test_boolean_happy_e2e.py`** keeps a multi-attractor template.
+- **New e2e** on the Caribbean template asserts the sampled path.
+- **MosaicSES gate:** MosaicSES embeds this panel, so its full suite gates the release.
 
 ## 5. Deploy
-
-This is the **second** split-layout deploy, so plan-4's parked rerun states (N1–N4) become reachable. They are reviewed before the deploy, and each one is either fixed in 1.1.0 or accepted by a ruling.
-
-Rollback is app-to-app:
-- Run `deploy.sh --rollback` from the existing `sespy-app` clone, which stays detached at `v1.0.1`, with its `config.env` pointing at `sespy-lib-v1180`.
-- The new deploy runs from a separate `sespy-app` worktree at `v1.1.0`, with its own `config.env` pointing at a new `sespy-lib-v1190` worktree.
+This is the second split-layout deploy, so plan 4's parked rerun states (N1–N4) are reviewed first, and each is either fixed or accepted by a ruling.
+- **Rollback** is app-to-app: `deploy.sh --rollback` from the existing `sespy-app` clone, which stays at `v1.0.1` with `sespy-lib-v1180`.
+- **The deploy** runs from a new `sespy-app-v110` worktree with a new `sespy-lib-v1190`.
 
 ## 6. Done when
+- The core search's attractor sets and exact basins equal `boolean_attractors` on random networks (n ≤ 14) whose shapes include multiple cycle clusters, bridges, fan-in and upstream-to-read-out edges, and on the shipped multi-attractor networks within 20 nodes.
+- The benchmark gate holds: a core of 20 within a network of about 40 nodes is ≤ 5 s and ≤ 300 MB (attractor set).
+- Live:
+  - Fisheries shows "26 nodes · 14 in the feedback core" and the all-off sentence;
+  - Venice `lagoon_central` (34 nodes) shows its 4 attractors;
+  - Caribbean shows the sampled path;
+  - the page stays responsive throughout;
+  - About shows "SESPy app 1.1.0 · sespy library 1.19.0".
 
-- Exhaustive results are identical to the reference oracle on random rule sets with n ≤ 12.
-- n = 20 exhaustive runs within the benchmark gate on this laptop.
-- Sampled attractors are a subset of the exhaustive ones (n ≤ 12).
-- The live app runs a 20-node exhaustive search and a 26-node sampled search, with the page responsive throughout.
-- The About box shows "SESPy app 1.1.0 · sespy library 1.19.0".
+## 7. Phase 2 (later, separate spec): driver scenarios
+In this mode, chosen input-less "driver" nodes hold their starting value instead of switching off.
+- **Implementation:** force their bits after each step. No kernel change, and they stay out of the core partition.
+- **Measured behaviour:** each driver setting gave exactly one outcome (Pollution: the core activates in 176 of 256 settings; OffshoreWind: 32 of 64).
+- **Interface:** pick the drivers and get one result. Enumerating every setting doesn't scale (up to 18 drivers in MosaicSES compartments).
+- **Needs:** its own UI design and spec once phase 1 has shipped.
