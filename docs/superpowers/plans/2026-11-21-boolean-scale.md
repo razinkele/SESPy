@@ -95,6 +95,9 @@ Worktree: `git -C "C:/Users/arturas.baziukas/OneDrive - ku.lt/HORIZON_EUROPE/Mar
   def test_step_matches_reference_transition():  # _boolean_step on all states of a 10-node net == per-state loop
   def test_basin_sampled_path_when_budget_tiny():  # basin_budget=1 -> basin_method "sampled", basin_size None, fractions sum ~1, attractor set still exact
   def test_acyclic_network_core_zero():  # small_scale_fisheries: core_size 0, one all-off attractor
+  def test_wide_network_beyond_64_nodes():  # minimal_demo plus a 70-node read-out chain hung off one core node (n > 64):
+      # same attractor count as minimal_demo; each attractor restricted to the original nodes equals one of minimal_demo's;
+      # basin_size == minimal_demo's basin_size * 2**70; some state >= 2**64 (no int64 packing anywhere)
   ```
   Use only the library's own templates (`sespy/templates/…`) and `data/sample_ses.json`, read in place. Don't copy MosaicSES data into the library: the user decides that separately.
 - [ ] **Step 3: Run them and watch them fail.** Run `micromamba run -n shiny python -m pytest tests/test_boolean_core.py -q`. Expected: FAIL, because the names are not defined.
