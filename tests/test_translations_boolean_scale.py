@@ -22,6 +22,7 @@ KEYS = {
     "boolean.col_hits": set(),
     "boolean.col_basin_fraction": set(),
     "boolean.truncated": {"shown", "total"},
+    "boolean.too_large": {"n", "max"},
 }
 EN = {
     "boolean.core_info": "{n} nodes · {core} in the feedback core",
@@ -34,6 +35,7 @@ EN = {
     "boolean.col_hits": "Hits",
     "boolean.col_basin_fraction": "Basin fraction (%)",
     "boolean.truncated": "Showing the {shown} attractors with the largest basins, of {total} found.",
+    "boolean.too_large": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first.",
 }
 
 

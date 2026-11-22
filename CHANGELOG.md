@@ -27,9 +27,9 @@ Boolean attractors at scale (spec 2026-11-21). `boolean_attractors` is unchanged
 - `boolean_attractors_sampled(rules, n_samples=2000, *, max_steps=1000, seed=0)`:
   sampled search over the whole network for cores above the exact limit. An
   empty network returns no attractors.
-- Ten translation keys in all nine languages: `boolean.core_info`,
+- Eleven translation keys in all nine languages: `boolean.core_info`,
   `basins_exact`, `basins_sampled`, `all_off`, `core_too_large`, `sampled_note`,
-  `computing`, `col_hits`, `col_basin_fraction`, `truncated`. Existing `boolean.*` keys stay.
+  `computing`, `col_hits`, `col_basin_fraction`, `truncated`, `too_large`. Existing `boolean.*` keys stay.
 - `tests/bench_boolean_core.py` (not collected by pytest) gates measured cases
   at a median of 5 s and a peak of 300 MB:
   - (a) 200 nodes with a 20-node chorded core: 2.3 s, 70 MB;

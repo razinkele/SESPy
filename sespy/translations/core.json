@@ -1815,6 +1815,17 @@
       "no": "Showing the {shown} attractors with the largest basins, of {total} found.",
       "el": "Showing the {shown} attractors with the largest basins, of {total} found."
     },
+    "boolean.too_large": {
+      "en": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first.",
+      "es": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first.",
+      "fr": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first.",
+      "de": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first.",
+      "lt": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first.",
+      "pt": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first.",
+      "it": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first.",
+      "no": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first.",
+      "el": "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first."
+    },
     "simulation.controls": {
       "en": "Simulation controls",
       "es": "Simulation controls",

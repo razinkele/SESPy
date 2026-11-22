@@ -133,6 +133,7 @@ boolean_attractors_sampled(rules, n_samples=2000, *, max_steps=1000, seed=0) -> 
   | `boolean.col_hits` | "Hits" |
   | `boolean.col_basin_fraction` | "Basin fraction (%)" |
   | `boolean.truncated` | "Showing the {shown} attractors with the largest basins, of {total} found." (erratum: added for the attractor cap; the app also uses it for its rendered-row cap) |
+  | `boolean.too_large` | "The network has {n} nodes, above the limit of {max} for Boolean analysis. Use Simplify Network first." (erratum: the `too_large` sentinel above `BOOLEAN_MAX_NODES_TOTAL`; the old `cap_above_12` text names the retired cap of 12) |
 
   Existing keys stay, for apps still on 1.0.x.
 
