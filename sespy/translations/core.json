@@ -1804,6 +1804,17 @@
       "no": "Basin fraction (%)",
       "el": "Basin fraction (%)"
     },
+    "boolean.truncated": {
+      "en": "Showing the {shown} attractors with the largest basins, of {total} found.",
+      "es": "Showing the {shown} attractors with the largest basins, of {total} found.",
+      "fr": "Showing the {shown} attractors with the largest basins, of {total} found.",
+      "de": "Showing the {shown} attractors with the largest basins, of {total} found.",
+      "lt": "Showing the {shown} attractors with the largest basins, of {total} found.",
+      "pt": "Showing the {shown} attractors with the largest basins, of {total} found.",
+      "it": "Showing the {shown} attractors with the largest basins, of {total} found.",
+      "no": "Showing the {shown} attractors with the largest basins, of {total} found.",
+      "el": "Showing the {shown} attractors with the largest basins, of {total} found."
+    },
     "simulation.controls": {
       "en": "Simulation controls",
       "es": "Simulation controls",

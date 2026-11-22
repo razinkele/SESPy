@@ -132,6 +132,7 @@ boolean_attractors_sampled(rules, n_samples=2000, *, max_steps=1000, seed=0) -> 
   | `boolean.computing` | "Computing attractors…" |
   | `boolean.col_hits` | "Hits" |
   | `boolean.col_basin_fraction` | "Basin fraction (%)" |
+  | `boolean.truncated` | "Showing the {shown} attractors with the largest basins, of {total} found." (erratum: added for the attractor cap; the app also uses it for its rendered-row cap) |
 
   Existing keys stay, for apps still on 1.0.x.
 

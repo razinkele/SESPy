@@ -21,6 +21,7 @@ KEYS = {
     "boolean.computing": set(),
     "boolean.col_hits": set(),
     "boolean.col_basin_fraction": set(),
+    "boolean.truncated": {"shown", "total"},
 }
 EN = {
     "boolean.core_info": "{n} nodes · {core} in the feedback core",
@@ -32,6 +33,7 @@ EN = {
     "boolean.computing": "Computing attractors…",
     "boolean.col_hits": "Hits",
     "boolean.col_basin_fraction": "Basin fraction (%)",
+    "boolean.truncated": "Showing the {shown} attractors with the largest basins, of {total} found.",
 }
 
 
