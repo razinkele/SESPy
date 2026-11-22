@@ -18,6 +18,7 @@ from _boolean_shapes import large_multi_cluster, random_shape, shape_counts
 from sespy import dynamics
 from sespy.dynamics import (
     BOOLEAN_BASIN_BUDGET,
+    BOOLEAN_MAX_ATTRACTORS,
     BOOLEAN_MAX_CORE,
     BOOLEAN_MAX_NODES_TOTAL,
     _boolean_partition,
@@ -34,7 +35,7 @@ TPL = ROOT / "sespy" / "templates"
 MS = TPL / "marinesabres"
 
 RESULT_KEYS = {"method", "n_nodes", "core_size", "upstream_size", "readout_size",
-               "basin_method", "attractors", "all_off_only"}
+               "basin_method", "attractors", "all_off_only", "n_attractors", "truncated"}
 ATTRACTOR_KEYS = {"type", "states", "period", "basin_size", "basin_fraction"}
 
 _ORACLE: dict[int, dict] = {}
@@ -463,3 +464,96 @@ def test_upstream_ancestor_cap_falls_back_to_sampled_basins(monkeypatch):
     exact = {frozenset(a["states"]): a["basin_fraction"] for a in lifted["attractors"]}
     for a in capped["attractors"]:
         assert abs(a["basin_fraction"] - exact[frozenset(a["states"])]) < 0.05
+
+
+# ---------------------------------------------------------------------------
+# Attractor cap, input clamps, sampled-basin echo (final-review fix round)
+# ---------------------------------------------------------------------------
+
+def _pairs_rules(n_pairs: int, chain: int = 0) -> list[dict]:
+    """``n_pairs`` positive mutual pairs (3 attractors each, independent),
+    plus a read-out chain of ``chain`` nodes hung off node 1."""
+    n = 2 * n_pairs + chain
+    M = np.zeros((n, n))
+    for p in range(n_pairs):
+        M[2 * p, 2 * p + 1] = M[2 * p + 1, 2 * p] = 1.0
+    prev = 1
+    for j in range(2 * n_pairs, n):
+        M[prev, j] = 1.0 if j % 2 else -0.7
+        prev = j
+    return create_boolean_rules(M)
+
+
+def test_max_attractors_default_and_untruncated_keys():
+    assert BOOLEAN_MAX_ATTRACTORS == 1000
+    res = boolean_attractors_core(_rules_of(TPL / "offshore_wind.json"))
+    assert res["truncated"] is False
+    assert res["n_attractors"] == len(res["attractors"]) == 14
+    off = boolean_attractors_core(_rules_of(MS / "Fisheries_SES_Template.json"))
+    assert off["truncated"] is False and off["n_attractors"] == 1
+
+
+def test_many_attractor_core_is_truncated_to_the_cap():
+    rules = _pairs_rules(8)  # core 16: 32,896 attractors
+    res = boolean_attractors_core(rules)
+    assert res["n_attractors"] == 32_896
+    assert res["truncated"] is True
+    assert len(res["attractors"]) == BOOLEAN_MAX_ATTRACTORS
+    assert res["basin_method"] == "exact"
+    keys = [(-a["basin_fraction"], a["states"][0]) for a in res["attractors"]]
+    assert keys == sorted(keys)
+    assert all(a["basin_size"] / 2 ** 16 == a["basin_fraction"] for a in res["attractors"])
+    assert res["all_off_only"] is False
+    json.dumps(res)
+
+
+@pytest.mark.parametrize("cap", [1, 7, 20, 26])
+def test_truncated_rows_are_the_top_rows_of_the_oracle(cap):
+    # ties on basin size are broken by the full minimum state, which the
+    # read-out chain makes differ from the core-only minimum
+    rules = _pairs_rules(4, chain=5)  # n = 13: the oracle can run
+    want = boolean_attractors(rules, max_nodes=20)["attractors"]
+    ranked = sorted(((-a["basin_size"], min(a["states"])), frozenset(a["states"]), a["basin_size"])
+                    for a in want)
+    res = boolean_attractors_core(rules, max_attractors=cap)
+    assert res["n_attractors"] == len(want) == 136
+    assert res["truncated"] is (cap < 136)
+    assert [(frozenset(a["states"]), a["basin_size"]) for a in res["attractors"]] == \
+        [(s, b) for _, s, b in ranked[:cap]]
+    full = boolean_attractors_core(rules, max_attractors=100_000)
+    assert full["attractors"][:cap] == res["attractors"]
+
+
+def test_truncation_with_sampled_basins_keeps_the_top_rows():
+    rules = _pairs_rules(4, chain=5)
+    full = boolean_attractors_core(rules, basin_budget=1, basin_samples=500, seed=2)
+    part = boolean_attractors_core(rules, basin_budget=1, basin_samples=500, seed=2, max_attractors=9)
+    assert part["basin_method"] == "sampled" and part["truncated"] is True
+    assert part["attractors"] == full["attractors"][:9]
+
+
+def test_core_search_clamps_its_inputs():
+    n = 21
+    M = np.zeros((n, n))
+    for i in range(n):
+        M[i, (i + 1) % n] = 1.0
+    res = boolean_attractors_core(create_boolean_rules(M), max_core=26)
+    assert res["error"] == "core_too_large" and res["max_core"] == BOOLEAN_MAX_CORE
+    neg = boolean_attractors_core(_pairs_rules(1), max_core=-3)
+    assert neg["error"] == "core_too_large" and neg["max_core"] == 0
+    one = boolean_attractors_core(_pairs_rules(3), max_attractors=0)
+    assert len(one["attractors"]) == 1 and one["truncated"] is True
+    big = boolean_attractors_core(_pairs_rules(3), basin_budget=1, basin_samples=10 ** 9)
+    assert big["basin_samples"] == 100_000
+    low = boolean_attractors_core(_pairs_rules(3), basin_budget=1, basin_samples=0)
+    assert low["basin_samples"] == 1
+
+
+def test_sampled_basins_echo_samples_and_seed():
+    rules = _rules_of(TPL / "offshore_wind.json")
+    res = boolean_attractors_core(rules, basin_budget=1, basin_samples=300, seed=5)
+    assert res["basin_method"] == "sampled"
+    assert res["basin_samples"] == 300 and res["basin_seed"] == 5
+    assert set(res) == RESULT_KEYS | {"basin_samples", "basin_seed"}
+    exact = boolean_attractors_core(rules)
+    assert "basin_samples" not in exact and "basin_seed" not in exact

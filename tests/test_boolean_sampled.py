@@ -142,3 +142,12 @@ def test_sampled_clamps_and_too_large():
     assert res["method"] == "sampled" and res["attractors"] == []
     assert res["error"] == "too_large" and res["n_nodes"] == n
     assert res["max_nodes"] == BOOLEAN_MAX_NODES_TOTAL
+
+
+def test_sampled_empty_network_has_no_attractors():
+    res = boolean_attractors_sampled([], n_samples=50, seed=3)
+    assert set(res) == TOP_KEYS
+    assert res["attractors"] == []
+    assert res["n_nodes"] == 0
+    assert res["n_unconverged"] == 0
+    assert res["n_samples"] == 50 and res["seed"] == 3

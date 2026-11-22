@@ -31,7 +31,7 @@ CONSUMER_API = {
         "token_diffusion", "isa_to_dynamics_matrix", "isa_to_numeric_matrix",
         "randomize_matrix", "create_boolean_rules", "boolean_attractors",
         "boolean_attractors_core", "boolean_attractors_sampled", "BOOLEAN_MAX_CORE",
-        "BOOLEAN_BASIN_BUDGET", "BOOLEAN_MAX_NODES_TOTAL",
+        "BOOLEAN_BASIN_BUDGET", "BOOLEAN_MAX_NODES_TOTAL", "BOOLEAN_MAX_ATTRACTORS",
     ],
     "regional_seas": ["get_regional_seas"],
     "autosave": ["token_key", "valid_token"],
