@@ -10,18 +10,37 @@ Boolean attractors at scale (spec 2026-11-21). `boolean_attractors` is unchanged
 (the oracle and the Nid4Ocean entry point, still capped at 20 nodes).
 
 ### Added
-- `boolean_attractors_core(rules, *, max_core, basin_budget, basin_samples, seed)`:
-  exact attractor search on the feedback core, so the limit applies to the core
+- `boolean_attractors_core(rules, *, max_core, basin_budget, basin_samples, seed, max_attractors)`:
+  exact attractor search on the feedback core. The limit applies to the core
   (`BOOLEAN_MAX_CORE = 20`) and not to the whole network (up to
-  `BOOLEAN_MAX_NODES_TOTAL = 200`). Basins are exact within `BOOLEAN_BASIN_BUDGET`
-  (`1 << 24`), otherwise estimated from random starts.
+  `BOOLEAN_MAX_NODES_TOTAL = 200`).
+  - **Basins:** exact within `BOOLEAN_BASIN_BUDGET` (`1 << 24`), otherwise
+    estimated from random starts. A sampled result also reports `basin_samples`
+    and `basin_seed`.
+  - **Attractor cap:** at most `max_attractors` (`BOOLEAN_MAX_ATTRACTORS = 1000`)
+    are reported, the top ones by basin fraction and then minimum state, and
+    only those are reconstructed. `n_attractors` gives the total and
+    `truncated` flags the cut. A plain 20-node positive ring alone has 52,488
+    attractors.
+  - **Clamps:** `max_core` to `[0, 20]`; `basin_samples` and `max_attractors`
+    to `[1, 100000]`.
 - `boolean_attractors_sampled(rules, n_samples=2000, *, max_steps=1000, seed=0)`:
-  sampled search over the whole network for cores above the exact limit.
+  sampled search over the whole network for cores above the exact limit. An
+  empty network returns no attractors.
 - Nine translation keys in all nine languages: `boolean.core_info`,
   `basins_exact`, `basins_sampled`, `all_off`, `core_too_large`, `sampled_note`,
   `computing`, `col_hits`, `col_basin_fraction`. Existing `boolean.*` keys stay.
-- `tests/bench_boolean_core.py` (not collected by pytest) gates the new searches
-  at a median of 5 s and a peak of 300 MB.
+- `tests/bench_boolean_core.py` (not collected by pytest) gates measured cases
+  at a median of 5 s and a peak of 300 MB:
+  - (a) 200 nodes with a 20-node chorded core: 2.3 s, 70 MB;
+  - (b) the exact basin pass at the budget: 2.9 s, 35 MB;
+  - (c) Caribbean sampled at 2000 × 1000: 1.5 s, 4 MB;
+  - (d) 16 upstream ancestors: 0.9 s, 52 MB;
+  - (e) a plain 20-ring core with 52,488 attractors: 3.9 s, 70 MB.
+
+  These are measured cases, not a guarantee for every 20-node core. A 20-ring
+  with a 180-node read-out chain takes about 18 s (reported, not gated).
+- Both functions require a non-negative int `seed`.
 
 ### Changed
 - The exact basin pass simulates the upstream ancestors of the core only up to

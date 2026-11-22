@@ -91,6 +91,18 @@ BOOLEAN_MAX_NODES_TOTAL = 200           # sanity cap on n
 - n above `BOOLEAN_MAX_NODES_TOTAL`: `"error": "too_large"`;
 - n = 0: an empty result.
 
+*Erratum (2026-11-22, final review):*
+- **Why:** a core of plain reinforcing loops can have a huge number of attractors within the limits. A 20-node positive ring alone has 52,488.
+- **Attractor cap:** the signature gains `max_attractors: int = BOOLEAN_MAX_ATTRACTORS` (`= 1000`, public).
+  - The attractors are ordered on core-level labels and basins before any reconstruction; the minimum-full-state tie-break at the cut-off uses a min-only walk.
+  - The first `max_attractors` are kept, and only those are reconstructed.
+  - Their exact `basin_size` values stay exact. The sum-to-`2^n` rule covers all attractors, kept or not.
+- **New result keys:** every success result (and the n = 0 result) gains `"n_attractors": int` (the total found) and `"truncated": bool` (`n_attractors > len(attractors)`). `all_off_only` keeps its meaning.
+- **Sampled basins:** when `basin_method == "sampled"`, the result also has `"basin_samples"` (effective, after the clamp) and `"basin_seed"`.
+- **Clamps:** `max_core` to `[0, BOOLEAN_MAX_CORE]`, so the `core_too_large` sentinel echoes the clamped value. `basin_samples` and `max_attractors` to `[1, 100 000]`.
+- **Seed:** `seed` must be a non-negative int (the `numpy.random.default_rng` rule), for this function and `boolean_attractors_sampled`.
+- **Empty network:** `boolean_attractors_sampled([])` returns the empty shape: no attractors, `n_nodes` 0.
+
 ### 3.4 `boolean_attractors_sampled` (new, public) — whole network, for cores above the limit
 ```
 boolean_attractors_sampled(rules, n_samples=2000, *, max_steps=1000, seed=0) -> dict
@@ -160,6 +172,12 @@ This is the second split-layout deploy, so plan 4's parked rerun states (N1–N4
   - the attractor set for a 20-node core inside a 200-node network;
   - the exact basin pass at `BOOLEAN_BASIN_BUDGET`, whose value is lowered until it passes;
   - `boolean_attractors_sampled` on Caribbean at the app's settings (2000 × 1000).
+
+  *Erratum (2026-11-22, final review):*
+  - **Gate scope.** The gates hold for the measured cases, not for every 20-node core. Attractor count and read-out depth also drive the cost.
+  - **New case (e)**, gated: case (a)'s 200-node layout with a plain 20-node positive ring as the core (no chords; 52,488 attractors), run at default arguments with `BOOLEAN_MAX_ATTRACTORS = 1000`. Measured: median 3.9 s, peak 70 MB. Before the cap and the reconstruction rewrite, the reviewer measured 54 s and 226 MB.
+  - **New case (e′)**, reported but not gated: a 20-ring with a 180-node read-out chain at n = 200. Measured: median 18 s, peak 89 MB (was 110–134 s).
+    - The remaining cost is the min-state ranking of the cut-off tie group: all 52,488 period-20 attractors have equal basins, so each is evaluated over its 20 phases × 180 read-outs.
 - **Caribbean (measured by probe):** 2000 starts × 1000 steps leave 0 unconverged and reach 4 cyclic attractors (periods 6, 3, 2, 6), with transients ≤ 42.
 - Live:
   - Fisheries shows "26 nodes · 14 in the feedback core" and the all-off sentence;
