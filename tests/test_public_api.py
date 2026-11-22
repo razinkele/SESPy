@@ -26,6 +26,7 @@ CONSUMER_API = {
         "CENTRALITY_METRICS", "centrality_metrics", "leverage_scores",
         "to_digraph", "remove_nodes", "feedback_loops", "classify_loops",
         "intervention_impact", "causal_paths", "delay_edge_kwargs",
+        "path_sensitivity", "PATH_SCORE_LAMBDA",
     ],
     "dynamics": [
         "token_diffusion", "isa_to_dynamics_matrix", "isa_to_numeric_matrix",
