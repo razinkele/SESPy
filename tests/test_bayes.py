@@ -64,6 +64,32 @@ def test_path_set_dag_cuts_the_weaker_edge_of_a_union_cycle():
     assert all(("b", "a") not in zip(p["path"], p["path"][1:]) for p in r["paths"])
 
 
+def test_path_set_dag_cut_does_not_depend_on_path_score_order():
+    # Path diagnostics (1.20.0) sorts causal_paths rows by score. The cycle
+    # cut walks the union graph in edge-insertion order, so it must keep
+    # building that graph in (length, path) order, or a graph with several
+    # cycles loses an extra edge. A random graph from the Task 1 review
+    # (trial 16); scored order cut [n2>n4, n3>n2, n4>n3], leaving 6 paths.
+    edges = [("n0", "n1", "-", "?", 9), ("n0", "n2", "+", "medium", 2),
+             ("n0", "n4", "+", "?", 0), ("n0", "n5", "+", "weak", 1),
+             ("n1", "n4", "+", "", 9), ("n2", "n3", "+", "medium", 9),
+             ("n2", "n4", "-", "weak", 9), ("n2", "n5", "-", "?", 1),
+             ("n3", "n0", "-", "", 9), ("n3", "n1", "-", "?", 9),
+             ("n3", "n2", "-", "", 2), ("n3", "n5", "-", "weak", 1),
+             ("n4", "n3", "-", "strong", 0), ("n4", "n5", "-", "strong", 9),
+             ("n5", "n0", "+", "?", 5), ("n5", "n6", "-", "strong", 3),
+             ("n6", "n1", "+", "?", 3), ("n6", "n3", "+", "", 9),
+             ("n6", "n5", "-", "", 9)]
+    isa = _isa([Connection(s, t, polarity=p, strength=w, confidence=c)
+                for s, t, p, w, c in edges])
+    r = bayes.path_set_dag(isa, "n0", "n6")
+    assert r["cut_edges"] == [("n3", "n2"), ("n4", "n3")]
+    assert len(r["paths"]) == 7
+    # the surviving paths keep causal_paths' score order
+    scores = [p["score"] for p in r["paths"]]
+    assert scores == sorted(scores, reverse=True)
+
+
 @pytest.mark.parametrize("s,t", [("D001", "GB01"), ("D002", "GB02"), ("A001", "ES03")])
 def test_path_set_dag_sample_is_acyclic(s, t):
     r = bayes.path_set_dag(load_sample(SAMPLE), s, t)
