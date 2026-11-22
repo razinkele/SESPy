@@ -83,7 +83,10 @@ def path_set_dag(isa: IsaData, source: str, target: str, *,
     for c in isa.connections:
         conn_by[(c.source, c.target)] = c
     g = nx.DiGraph()
-    for row in cp["paths"]:
+    # Build in (length, path) order, not causal_paths' score order: the cut
+    # below follows edge-insertion order, so row order would change which
+    # cycle is found first and thus the cut set (pinned by a test).
+    for row in sorted(cp["paths"], key=lambda r: (r["length"], r["path"])):
         p = row["path"]
         for u, v in zip(p, p[1:]):
             g.add_edge(u, v)

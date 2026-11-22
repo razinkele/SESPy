@@ -759,6 +759,37 @@ def cascade_vulnerability(
             "n_ranked": n_original, "max_steps": max_steps}
 
 
+# Length penalty of the causal_paths score: score = Π w_e · exp(−λ·(L−1)).
+# Fixed by design (not user-settable), so scores compare across models.
+PATH_SCORE_LAMBDA = 0.2
+
+
+def _coerce_confidence(value) -> int:
+    """A stored confidence as an int in [1, 5] for comparisons and
+    probabilities. JSON loading passes confidence through unchanged, so it
+    may be None or text: int() it, fall back to 3 when that fails, clamp."""
+    try:
+        c = int(value)
+    except (TypeError, ValueError):
+        c = 3
+    return max(1, min(5, c))
+
+
+def _greedy_disjoint(rows: list[dict], parts) -> int:
+    """How many rows, taken in order, share no part with a row taken
+    before them. parts(row) -> set of the row's parts (edges or interior
+    nodes). A lower bound on the true maximum; deterministic."""
+    used: set = set()
+    taken = 0
+    for r in rows:
+        own = parts(r)
+        if own & used:
+            continue
+        used |= own
+        taken += 1
+    return taken
+
+
 def causal_paths(
     isa: IsaData, source: str, target: str,
     *, max_length: int = 8, max_paths: int = 100,
@@ -775,21 +806,60 @@ def causal_paths(
     "+" nor "-" (forward-looking — every current ingress emits only +/-).
     Parallel (source, target) edges deduplicate last-wins, matching
     _axis_sums; self-loops and dangling refs are skipped. Collection stops
-    at max_paths with an honest truncated flag (never a silent cap). Rows
-    sort (length, path) — deterministic. Unknown endpoints, source ==
-    target, or no route return the empty shape; never raises. Pure.
+    at max_paths with an honest truncated flag (never a silent cap).
+    Unknown endpoints, source == target, or no route within max_length
+    return the empty shape; never raises. Pure.
+
+    Diagnostics per row, all read from the connection that wins polarity
+    for each hop (the last one on that (source, target) pair):
+      - "score": Π w_e · exp(−PATH_SCORE_LAMBDA · (length − 1)), with w_e
+        from bayes.STRENGTH_LINK (unknown strength counts as medium). The
+        product is taken per level (weak**n · medium**n · strong**n, in that
+        order) so paths with the same strengths in a different order tie
+        bit-for-bit.
+      - "bottleneck_edge": {"source", "target", "strength", "confidence"}
+        of the weakest hop; ties go to the lowest confidence, then to the
+        earliest hop. "strength" is the level the score used (so an unknown
+        strength reads "medium"); "confidence" is the stored value, while
+        the tie-break compares it coerced (int, clamped to 1-5, 3 when it
+        is missing or not a number).
+      - "delay_profile": {"immediate", "short", "long"} hop counts, each
+        delay read through constants.normalize_delay.
+      - "min_confidence": the lowest confidence on the path, coerced the
+        same way (so it is always an int in 1-5).
+    Rows sort (-score, length, path) — deterministic.
+
+    Result level:
+      - "strongest_positive" / "strongest_negative": the top-scoring row
+        (the same dict as in "paths") with polarity "+" / "-", or None;
+        ambiguous "0" rows are never chosen;
+      - "contradictory": both "+" and "-" paths exist;
+      - "redundancy": {"edge_disjoint", "node_disjoint"} — disjoint routes
+        among the paths listed, taken greedily strongest first (no shared
+        hop, or no shared interior node; a direct edge has no interior
+        node). A lower bound, bounded by max_length.
+    When "truncated" is True, every ranking (row order, strongest routes,
+    redundancy) covers only the paths found: a stronger path may exist
+    beyond them.
     """
+    from .bayes import STRENGTH_LINK  # bayes imports network: no top-level import
+    from .constants import normalize_delay
+
     empty = {"paths": [], "counts": {"+": 0, "-": 0, "0": 0},
-             "truncated": False}
+             "truncated": False,
+             "strongest_positive": None, "strongest_negative": None,
+             "contradictory": False,
+             "redundancy": {"edge_disjoint": 0, "node_disjoint": 0}}
     ids = {el.id for el in isa.elements}
     if source not in ids or target not in ids or source == target:
         return empty
 
-    pol: dict[tuple[str, str], str] = {}
+    conn: dict[tuple[str, str], Connection] = {}
     for c in isa.connections:
         if c.source == c.target or c.source not in ids or c.target not in ids:
             continue
-        pol[(c.source, c.target)] = c.polarity
+        conn[(c.source, c.target)] = c
+    pol = {k: c.polarity for k, c in conn.items()}
     g = nx.DiGraph()
     g.add_nodes_from(ids)
     g.add_edges_from(pol)
@@ -817,17 +887,218 @@ def causal_paths(
                 negatives += 1
             elif sign != "+":
                 ambiguous = True
+        level_n = {"weak": 0, "medium": 0, "strong": 0}
+        delays = {"immediate": 0, "short": 0, "long": 0}
+        hops = []
+        for pos, (a, b) in enumerate(zip(p, p[1:])):
+            c = conn[(a, b)]
+            level = c.strength if c.strength in level_n else "medium"
+            level_n[level] += 1
+            delays[normalize_delay(c.delay)] += 1
+            hops.append((STRENGTH_LINK[level], _coerce_confidence(c.confidence),
+                         pos, a, b, level, c.confidence))
+        length = len(p) - 1
+        score = (STRENGTH_LINK["weak"] ** level_n["weak"]
+                 * STRENGTH_LINK["medium"] ** level_n["medium"]
+                 * STRENGTH_LINK["strong"] ** level_n["strong"]) \
+            * math.exp(-PATH_SCORE_LAMBDA * (length - 1))
+        _, _, _, a, b, level, conf = min(hops, key=lambda h: (h[0], h[1], h[2]))
         rows.append({
             "path": list(p),
-            "length": len(p) - 1,
+            "length": length,
             "polarity": "0" if ambiguous else ("-" if negatives % 2 else "+"),
+            "score": score,
+            "bottleneck_edge": {"source": a, "target": b,
+                                "strength": level, "confidence": conf},
+            "delay_profile": delays,
+            "min_confidence": min(h[1] for h in hops),
         })
-    rows.sort(key=lambda r: (r["length"], r["path"]))
+    # No rows (nothing within max_length) falls through to the empty shape.
+    rows.sort(key=lambda r: (-r["score"], r["length"], r["path"]))
 
     counts = {"+": 0, "-": 0, "0": 0}
     for r in rows:
         counts[r["polarity"]] += 1
-    return {"paths": rows, "counts": counts, "truncated": truncated}
+    return {
+        "paths": rows, "counts": counts, "truncated": truncated,
+        "strongest_positive": next((r for r in rows if r["polarity"] == "+"), None),
+        "strongest_negative": next((r for r in rows if r["polarity"] == "-"), None),
+        "contradictory": counts["+"] > 0 and counts["-"] > 0,
+        "redundancy": {
+            "edge_disjoint": _greedy_disjoint(
+                rows, lambda r: set(zip(r["path"], r["path"][1:]))),
+            "node_disjoint": _greedy_disjoint(
+                rows, lambda r: set(r["path"][1:-1])),
+        },
+    }
+
+
+def _path_polarity(path: list[str], pol: dict[tuple[str, str], str]) -> str:
+    """Compound polarity of a path under an edge->polarity map, with the
+    causal_paths rule: "0" if any hop is neither "+" nor "-"."""
+    negatives = 0
+    for a, b in zip(path, path[1:]):
+        sign = pol[(a, b)]
+        if sign == "-":
+            negatives += 1
+        elif sign != "+":
+            return "0"
+    return "-" if negatives % 2 else "+"
+
+
+def path_sensitivity(
+    isa: IsaData, source: str, target: str,
+    *, n_draws: int = 500, seed: int = 0, base: float = 0.5,
+    flip_mode: str = "confidence", max_length: int = 8, max_paths: int = 100,
+    draw_strength: bool = False,
+) -> dict:
+    """Monte-Carlo robustness of the causal paths source→target.
+
+    Each of n_draws draws perturbs the model with _perturbed_connections
+    (drop with base·(5−confidence)/4, flip by confidence or, with
+    flip_mode="posterior", by the rater posterior; unrated edges fall back
+    to confidence) and re-runs causal_paths with the same limits. With
+    draw_strength=True a rated edge kept in the draw takes the strength of
+    one uniformly drawn rating; unrated edges keep their stored strength.
+
+    Per baseline row (the unperturbed causal_paths rows, in their order):
+      - "survival_probability": share of draws in which every hop still has
+        a connection;
+      - "polarity_probability": share of draws in which it survives with its
+        baseline polarity (hop polarity from the last connection on each
+        pair, as in causal_paths);
+      - "rank_probability": share of draws in which it survives with its
+        baseline polarity AND is the top-scoring row of that polarity (a
+        draw that flips its sign does not count). When k rows of that sign
+        tie exactly on its top score, each tied path gets 1/k credit.
+    "fragile_edges": over the hops of the listed baseline paths only. A hop
+    "changed" in a draw if it was dropped (no connection left on the pair)
+    or flipped (the winning connection's polarity differs from the baseline
+    winner). "The top changed" if the overall top row differs from the
+    baseline top in path or polarity, or the draw has no rows.
+      - "share": draws with the hop changed and the top changed / n_draws;
+      - "lift": P(top changed | hop changed) − P(top changed | hop intact).
+    Hops that never or always change (lift undefined) are left out. Then:
+      - draw_strength=False and a baseline that is not truncated: scores
+        never change and no new path appears, so only a hop of the baseline
+        top path can change the top; only those hops with lift > 0 are kept
+        (any other hop's lift is noise);
+      - otherwise: hops with lift > 2·SE are kept, SE = sqrt(p1(1−p1)/k +
+        p0(1−p0)/(n−k)), p1 / p0 = P(top changed | hop changed / intact),
+        k = draws the hop changed, n = n_draws.
+    The rest sort by (-lift, -share, source, target), at most 5.
+
+    n_draws is clamped to [1, 10000] and base to [0, 1]; both are echoed
+    clamped. flip_mode must be "confidence" or "posterior" (ValueError).
+    The same seed gives identical output; "truncated" is the baseline's.
+    Pure.
+    """
+    import numpy as np
+
+    if flip_mode not in ("confidence", "posterior"):
+        raise ValueError(f"flip_mode must be 'confidence' or 'posterior', got {flip_mode!r}")
+    n_draws = max(1, min(10000, int(n_draws)))
+    base = max(0.0, min(1.0, float(base)))
+    seed = int(seed)
+
+    out = {"n_draws": n_draws, "seed": seed, "base": base,
+           "flip_mode": flip_mode, "paths": [], "fragile_edges": [],
+           "truncated": False}
+    baseline = causal_paths(isa, source, target,
+                            max_length=max_length, max_paths=max_paths)
+    rows = baseline["paths"]
+    if not rows:
+        return out
+
+    base_pol: dict[tuple[str, str], str] = {}
+    for c in isa.connections:
+        base_pol[(c.source, c.target)] = c.polarity
+    hops = [list(zip(r["path"], r["path"][1:])) for r in rows]
+    listed_edges = sorted({e for h in hops for e in h})
+    top_key = (tuple(rows[0]["path"]), rows[0]["polarity"])
+
+    n = len(rows)
+    survived = [0] * n
+    same_sign = [0] * n
+    ranked = [0.0] * n
+    changed_n = dict.fromkeys(listed_edges, 0)     # draws the edge changed
+    changed_top = dict.fromkeys(listed_edges, 0)   # ... and the top changed
+    intact_top = dict.fromkeys(listed_edges, 0)    # intact, and the top changed
+
+    rng = np.random.default_rng(seed)
+    for _ in range(n_draws):
+        pert = _perturbed_connections(isa, base, rng, flip_mode)
+        if draw_strength:
+            pert = [replace(c, strength=rng.choice(c.ratings).strength)
+                    if c.ratings else c for c in pert]
+        pol: dict[tuple[str, str], str] = {}
+        for c in pert:
+            pol[(c.source, c.target)] = c.polarity
+        drawn = causal_paths(IsaData(elements=isa.elements, connections=pert),
+                             source, target,
+                             max_length=max_length, max_paths=max_paths)["paths"]
+        # Rows tied exactly on the top score of their sign share the win
+        # (scores are bit-exact by construction, so == is safe).
+        top_score: dict[str, float] = {}
+        tied: dict[str, set] = {}
+        for r in drawn:
+            p = r["polarity"]
+            if p not in top_score:
+                top_score[p] = r["score"]
+            if r["score"] == top_score[p]:
+                tied.setdefault(p, set()).add(tuple(r["path"]))
+
+        for i, r in enumerate(rows):
+            if not all(e in pol for e in hops[i]):
+                continue
+            survived[i] += 1
+            if _path_polarity(r["path"], pol) != r["polarity"]:
+                continue
+            same_sign[i] += 1
+            winners = tied.get(r["polarity"], ())
+            if tuple(r["path"]) in winners:
+                ranked[i] += 1.0 / len(winners)
+
+        top_changed = (not drawn
+                       or (tuple(drawn[0]["path"]), drawn[0]["polarity"]) != top_key)
+        for e in listed_edges:
+            if e not in pol or pol[e] != base_pol[e]:
+                changed_n[e] += 1
+                changed_top[e] += top_changed
+            else:
+                intact_top[e] += top_changed
+
+    out["paths"] = [{
+        "path": list(r["path"]),
+        "polarity": r["polarity"],
+        "score": r["score"],
+        "rank_probability": ranked[i] / n_draws,
+        "polarity_probability": same_sign[i] / n_draws,
+        "survival_probability": survived[i] / n_draws,
+    } for i, r in enumerate(rows)]
+    # Without strength draws, and with every path enumerated, only a hop of
+    # the baseline top path can change the top; elsewhere lift is noise.
+    top_only = not draw_strength and not baseline["truncated"]
+    top_hops = set(hops[0])
+    fragile = []
+    for e in listed_edges:
+        if top_only and e not in top_hops:
+            continue
+        k = changed_n[e]
+        if k == 0 or k == n_draws:
+            continue  # lift undefined: the edge never (or always) changed
+        p1 = changed_top[e] / k
+        p0 = intact_top[e] / (n_draws - k)
+        lift = p1 - p0
+        floor = 0.0 if top_only else 2.0 * math.sqrt(
+            p1 * (1 - p1) / k + p0 * (1 - p0) / (n_draws - k))
+        if lift > floor:
+            fragile.append({"source": e[0], "target": e[1],
+                            "share": changed_top[e] / n_draws, "lift": lift})
+    fragile.sort(key=lambda d: (-d["lift"], -d["share"], d["source"], d["target"]))
+    out["fragile_edges"] = fragile[:5]
+    out["truncated"] = bool(baseline["truncated"])
+    return out
 
 
 _DAPSIWRM_REALM: dict[str, str] = {
@@ -1503,8 +1774,9 @@ def _perturb_prob(confidence: int, base: float) -> float:
     """Per-draw drop/flip probability for one edge: base*(5-conf)/4.
 
     confidence 5 -> 0 (certain edge never perturbed); confidence 1 -> base.
-    Confidence is clamped to [1, 5]."""
-    c = max(1, min(5, int(confidence)))
+    Confidence goes through _coerce_confidence (clamped to [1, 5]; None or
+    text that is not a number counts as 3)."""
+    c = _coerce_confidence(confidence)
     return base * (5 - c) / 4.0
 
 
