@@ -918,6 +918,132 @@ def causal_paths(
     }
 
 
+def _path_polarity(path: list[str], pol: dict[tuple[str, str], str]) -> str:
+    """Compound polarity of a path under an edge->polarity map, with the
+    causal_paths rule: "0" if any hop is neither "+" nor "-"."""
+    negatives = 0
+    for a, b in zip(path, path[1:]):
+        sign = pol[(a, b)]
+        if sign == "-":
+            negatives += 1
+        elif sign != "+":
+            return "0"
+    return "-" if negatives % 2 else "+"
+
+
+def path_sensitivity(
+    isa: IsaData, source: str, target: str,
+    *, n_draws: int = 500, seed: int = 0, base: float = 0.5,
+    flip_mode: str = "confidence", max_length: int = 8, max_paths: int = 100,
+    draw_strength: bool = False,
+) -> dict:
+    """Monte-Carlo robustness of the causal paths source→target.
+
+    Each of n_draws draws perturbs the model with _perturbed_connections
+    (drop with base·(5−confidence)/4, flip by confidence or, with
+    flip_mode="posterior", by the rater posterior; unrated edges fall back
+    to confidence) and re-runs causal_paths with the same limits. With
+    draw_strength=True a rated edge kept in the draw takes the strength of
+    one uniformly drawn rating; unrated edges keep their stored strength.
+
+    Per baseline row (the unperturbed causal_paths rows, in their order):
+      - "survival_probability": share of draws in which every hop still has
+        a connection;
+      - "polarity_probability": share of draws in which it survives with its
+        baseline polarity (hop polarity from the last connection on each
+        pair, as in causal_paths);
+      - "rank_probability": share of draws in which it survives with its
+        baseline polarity AND is the top-scoring row of that polarity (a
+        draw that flips its sign does not count).
+    "fragile_edges": in draws where the overall top row differs from the
+    baseline top in path or polarity (or the draw has no rows), each hop of
+    a listed baseline path that was dropped (no connection left on the
+    pair) or flipped (the winning connection's polarity differs from the
+    baseline winner) is counted once. Share = count / n_draws; edges on no
+    listed path are never counted. At most 5 edges with a share above 0,
+    sorted by (-share, source, target).
+
+    n_draws is clamped to [1, 10000] and base to [0, 1]; both are echoed
+    clamped. flip_mode must be "confidence" or "posterior" (ValueError).
+    The same seed gives identical output; "truncated" is the baseline's.
+    Pure.
+    """
+    import numpy as np
+
+    if flip_mode not in ("confidence", "posterior"):
+        raise ValueError(f"flip_mode must be 'confidence' or 'posterior', got {flip_mode!r}")
+    n_draws = max(1, min(10000, int(n_draws)))
+    base = max(0.0, min(1.0, float(base)))
+    seed = int(seed)
+
+    out = {"n_draws": n_draws, "seed": seed, "base": base,
+           "flip_mode": flip_mode, "paths": [], "fragile_edges": [],
+           "truncated": False}
+    baseline = causal_paths(isa, source, target,
+                            max_length=max_length, max_paths=max_paths)
+    rows = baseline["paths"]
+    if not rows:
+        return out
+
+    base_pol: dict[tuple[str, str], str] = {}
+    for c in isa.connections:
+        base_pol[(c.source, c.target)] = c.polarity
+    hops = [list(zip(r["path"], r["path"][1:])) for r in rows]
+    listed_edges = sorted({e for h in hops for e in h})
+    top_key = (tuple(rows[0]["path"]), rows[0]["polarity"])
+
+    n = len(rows)
+    survived = [0] * n
+    same_sign = [0] * n
+    ranked = [0] * n
+    fragile = dict.fromkeys(listed_edges, 0)
+
+    rng = np.random.default_rng(seed)
+    for _ in range(n_draws):
+        pert = _perturbed_connections(isa, base, rng, flip_mode)
+        if draw_strength:
+            pert = [replace(c, strength=rng.choice(c.ratings).strength)
+                    if c.ratings else c for c in pert]
+        pol: dict[tuple[str, str], str] = {}
+        for c in pert:
+            pol[(c.source, c.target)] = c.polarity
+        drawn = causal_paths(IsaData(elements=isa.elements, connections=pert),
+                             source, target,
+                             max_length=max_length, max_paths=max_paths)["paths"]
+        top_of: dict[str, tuple] = {}
+        for r in drawn:
+            top_of.setdefault(r["polarity"], tuple(r["path"]))
+
+        for i, r in enumerate(rows):
+            if not all(e in pol for e in hops[i]):
+                continue
+            survived[i] += 1
+            if _path_polarity(r["path"], pol) != r["polarity"]:
+                continue
+            same_sign[i] += 1
+            if top_of.get(r["polarity"]) == tuple(r["path"]):
+                ranked[i] += 1
+
+        if not drawn or (tuple(drawn[0]["path"]), drawn[0]["polarity"]) != top_key:
+            for e in listed_edges:
+                if e not in pol or pol[e] != base_pol[e]:
+                    fragile[e] += 1
+
+    out["paths"] = [{
+        "path": list(r["path"]),
+        "polarity": r["polarity"],
+        "score": r["score"],
+        "rank_probability": ranked[i] / n_draws,
+        "polarity_probability": same_sign[i] / n_draws,
+        "survival_probability": survived[i] / n_draws,
+    } for i, r in enumerate(rows)]
+    ranked_edges = sorted(((-cnt, e) for e, cnt in fragile.items() if cnt > 0))
+    out["fragile_edges"] = [{"source": e[0], "target": e[1], "share": -neg / n_draws}
+                            for neg, e in ranked_edges[:5]]
+    out["truncated"] = bool(baseline["truncated"])
+    return out
+
+
 _DAPSIWRM_REALM: dict[str, str] = {
     "Pressures": "parameters",
     "Ecosystem Services": "parameters",
