@@ -461,11 +461,13 @@ def _boolean_partition(rules: list[dict[str, Any]]) -> tuple[list[int], list[int
     return upstream, core, readout
 
 
-def _boolean_states_matrix(k: int) -> np.ndarray:
-    """All ``2^k`` states as a ``(2^k, k)`` uint8 matrix, row ``s`` = bits of s.
-    Built column by column to avoid a ``(2^k, k)`` int64 temporary."""
-    idx = np.arange(1 << k, dtype=np.int64)
-    X = np.empty((1 << k, k), dtype=np.uint8)
+def _boolean_states_matrix(k: int, idx: np.ndarray | None = None) -> np.ndarray:
+    """States as a ``(len(idx), k)`` uint8 matrix, row ``r`` = bits of
+    ``idx[r]`` (default: all ``2^k`` states in order). Built column by column
+    to avoid a ``(2^k, k)`` int64 temporary."""
+    if idx is None:
+        idx = np.arange(1 << k, dtype=np.int64)
+    X = np.empty((len(idx), k), dtype=np.uint8)
     for b in range(k):
         X[:, b] = (idx >> b) & 1
     return X
@@ -473,9 +475,10 @@ def _boolean_states_matrix(k: int) -> np.ndarray:
 
 def _boolean_compact_index(X: np.ndarray) -> np.ndarray:
     """Rows of a ``(S, k)`` 0/1 matrix as compact indices (k <= 20 bits)."""
+    packed = np.packbits(X, axis=1, bitorder="little")  # (S, ceil(k / 8))
     idx = np.zeros(X.shape[0], dtype=np.int64)
-    for b in range(X.shape[1]):
-        idx |= X[:, b].astype(np.int64) << b
+    for byte in range(packed.shape[1]):
+        idx |= packed[:, byte].astype(np.int64) << (8 * byte)
     return idx
 
 
@@ -589,21 +592,30 @@ def _boolean_input_sequences(
     icol = [Ua.index(i) for i in Iu]
     tgt = int(sum(ustar[i] << b for b, i in enumerate(Iu)))
     width = len(Iu)
+    uvec = np.array([ustar[u] for u in Ua], dtype=np.uint8)
     X = _boolean_states_matrix(m)
     h = _boolean_compact_index(X[:, icol])
     # group: running id of each start's input sequence so far (< 2^m). A time
     # step at which every start shows u* is constant and needs no regrouping.
-    group = h
-    T = 1 if np.any(h != tgt) else 0  # 1 + last time any start's inputs differ from u*
+    # The number of groups only grows, so exceeding max_distinct is final.
+    group, n_groups = h, len(np.unique(h))
+    T = 1 if n_groups > 1 or np.any(h != tgt) else 0  # 1 + last time inputs differ from u*
+    settled = bool(np.all(X == uvec))
     for t in range(1, m + 2):
+        if n_groups > max(1, max_distinct):
+            return None
+        if settled:  # every start is at u*: later steps are all constant
+            break
         X = _boolean_step(rules, X, cols=Ua, nodes=Ua)
         h = _boolean_compact_index(X[:, icol])
         if np.any(h != tgt):
             T = t + 1
             _, group = np.unique(group * (1 << width) + h, return_inverse=True)
             group = group.reshape(-1).astype(np.int64)
+            n_groups = int(group.max()) + 1
+        settled = bool(np.all(X == uvec))
     del X
-    if T > m + 1:  # pragma: no cover - structural invariant
+    if not settled:  # pragma: no cover - structural invariant
         raise RuntimeError("upstream ancestors did not settle to u*")
     if T == 0:
         return one
@@ -611,7 +623,7 @@ def _boolean_input_sequences(
     if len(first) > max_distinct:
         return None
     # replay one representative start per distinct sequence to record it
-    Y = _boolean_states_matrix(m)[first]
+    Y = _boolean_states_matrix(m, first)
     pid = np.empty((len(first), T), dtype=np.int64)
     for t in range(T):
         pid[:, t] = _boolean_compact_index(Y[:, icol])
@@ -663,14 +675,23 @@ def _boolean_drive_exact(
         sub = np.zeros(len(patterns), dtype=np.int64)
         for q, i in enumerate(Ij):
             sub |= ((patterns >> ibit[i]) & 1) << q
-        for s in np.unique(sub):
-            fixed = dict(others)
-            fixed.update({i: (int(s) >> q) & 1 for q, i in enumerate(Ij)})
-            col = _boolean_step(rules, core_X, cols=C, nodes=[j], fixed=fixed)[:, 0]
-            contrib = col.astype(np.int32) << C.index(j)
-            rows = np.flatnonzero(sub == s)
-            for r0 in range(0, len(rows), per):
-                fmaps[rows[r0:r0 + per]] |= contrib
+        subs, inv = np.unique(sub, return_inverse=True)
+        inv = inv.reshape(-1)
+        # table[s, c]: next value of j from core state c with its inputs Ij = subs[s];
+        # Ij are live columns here, evaluated in batches of subs
+        table = np.empty((len(subs), n_core), dtype=np.uint8)
+        cols_j = list(C) + Ij
+        for s0 in range(0, len(subs), per):
+            ss = subs[s0:s0 + per]
+            Xc = np.empty((len(ss) * n_core, len(cols_j)), dtype=np.uint8)
+            Xc[:, :k] = np.tile(core_X, (len(ss), 1))
+            for q in range(len(Ij)):
+                Xc[:, k + q] = np.repeat((ss >> q) & 1, n_core)
+            out = _boolean_step(rules, Xc, cols=cols_j, nodes=[j], fixed=others)
+            table[s0:s0 + len(ss)] = out[:, 0].reshape(len(ss), n_core)
+        shift = C.index(j)
+        for p0 in range(0, len(patterns), per):
+            fmaps[p0:p0 + per] |= table[inv[p0:p0 + per]].astype(np.int32) << shift
     del core_X
     start = np.arange(n_core, dtype=np.int64)
     for d0 in range(0, D, per):

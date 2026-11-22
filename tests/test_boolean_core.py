@@ -100,6 +100,23 @@ def test_core_equals_boolean_attractors_on_random_shapes(seed):
     assert _as_sets(got) == _as_sets(want)
 
 
+def test_exact_basin_pass_is_chunk_invariant(monkeypatch):
+    # tiny chunks force every chunk loop of the exact basin pass to split
+    monkeypatch.setattr(dynamics, "_BOOLEAN_CHUNK_ROWS", 4)
+    checked = 0
+    for seed in range(200):
+        rules, want = _oracle_for_seed(seed)
+        if len(want["attractors"]) < 2:
+            continue
+        got = boolean_attractors_core(rules)
+        assert got["basin_method"] == "exact"
+        assert _as_sets(got) == _as_sets(want), seed
+        checked += 1
+        if checked == 40:
+            break
+    assert checked == 40
+
+
 def test_shape_generator_exercises_multi_cluster_and_bridges():
     seeds = range(200)
     c = shape_counts(seeds)
