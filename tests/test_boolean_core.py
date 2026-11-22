@@ -24,6 +24,7 @@ from sespy.dynamics import (
     _boolean_step,
     boolean_attractors,
     boolean_attractors_core,
+    boolean_attractors_sampled,
     create_boolean_rules,
 )
 from sespy.persistent_storage import load_project
@@ -169,38 +170,6 @@ def test_fisheries_template_is_all_off_only():
                                   "basin_size": 2 ** 26, "basin_fraction": 1.0}]
 
 
-def _whole_network_sample(rules, n_samples: int, seed: int) -> dict[frozenset, int]:
-    """Test-local whole-network sampler: random starts, step until repeat."""
-    n = len(rules)
-    rng = np.random.default_rng(seed)
-    X = rng.integers(0, 2, size=(n_samples, n), dtype=np.uint8)
-    seen = [dict() for _ in range(n_samples)]
-    paths = [[] for _ in range(n_samples)]
-    alive = np.arange(n_samples)
-    hits: dict[frozenset, int] = {}
-    cols = list(range(n))
-    for _ in range(10_000):
-        keep = []
-        for r, row in zip(alive, X):
-            s = _row_int(row)
-            if s in seen[r]:
-                cyc = frozenset(paths[r][seen[r][s]:])
-                hits[cyc] = hits.get(cyc, 0) + 1
-            else:
-                seen[r][s] = len(paths[r])
-                paths[r].append(s)
-                keep.append(True)
-                continue
-            keep.append(False)
-        keep = np.array(keep, dtype=bool)
-        alive, X = alive[keep], X[keep]
-        if alive.size == 0:
-            break
-        X = _boolean_step(rules, X, cols=cols, nodes=cols)
-    assert alive.size == 0
-    return hits
-
-
 LARGE_SEED = 3  # core 17, 6 attractors; sampled at the default budget, exact at 2^26
 
 
@@ -212,7 +181,9 @@ def test_large_synthetic_multi_cluster_core_cross_checked():
     assert len(res["attractors"]) >= 2
     exact = {frozenset(a["states"]): a["basin_fraction"] for a in res["attractors"]}
     n_samples = 5000
-    hits = _whole_network_sample(rules, n_samples, seed=11)
+    samp = boolean_attractors_sampled(rules, n_samples=n_samples, seed=11)
+    assert samp["n_unconverged"] == 0
+    hits = {frozenset(a["states"]): a["hits"] for a in samp["attractors"]}
     assert set(hits) <= set(exact)
     for cyc, frac in exact.items():
         assert abs(frac - hits.get(cyc, 0) / n_samples) <= 0.03
@@ -383,17 +354,32 @@ def test_step_matches_reference_transition():
 
 
 def test_step_float_ties_resolve_like_the_oracle():
-    # 0.1 + 0.2 - 0.3 > 0 in float64 (5.55e-17); order matters
-    M = np.zeros((4, 4))
-    M[0, 3], M[1, 3], M[2, 3] = 0.1, 0.2, -0.3
-    rules = create_boolean_rules(M)
-    X = _states_matrix(3)
-    out = _boolean_step(rules, X, cols=[0, 1, 2], nodes=[3])
-    assert [int(v) for v in out[:, 0]] == [(_reference_next(rules, s) >> 3) & 1 for s in range(8)]
-    assert out[7, 0] == 1
-    # the same with node 1 fixed in its list position
-    out2 = _boolean_step(rules, X[:, [0, 2]], cols=[0, 2], nodes=[3], fixed={1: 1})
-    assert out2[5, 0] == 1  # row 5: node 0 = 1, node 2 = 1
+    # Summation ORDER flips the ``> 0`` comparison here: left to right,
+    # 1.0 - 0.2 - 0.1 - 0.7 = 1.1e-16 (> 0), but with the -0.1 term summed
+    # first (a constants-first kernel) it is exactly 0.0 (not > 0). Node 2 is
+    # the MIDDLE list entry, so a kernel that adds fixed constants up front,
+    # or pre-sums a bias, disagrees with the oracle on the all-ones state.
+    n = 5
+    rules = [{"node_id": j, "activators": [], "inhibitors": [], "threshold": 0.0}
+             for j in range(n)]
+    rules[4]["activators"] = [(0, 1.0)]
+    rules[4]["inhibitors"] = [(1, -0.2), (2, -0.1), (3, -0.7)]
+    ones = 0b01111
+    assert _reference_next(rules, ones) >> 4 & 1 == 1  # the order-sensitive state
+    # all four inputs live
+    X = _states_matrix(4)
+    out = _boolean_step(rules, X, cols=[0, 1, 2, 3], nodes=[4])
+    assert [int(v) for v in out[:, 0]] == [_reference_next(rules, s) >> 4 & 1 for s in range(16)]
+    assert out[ones, 0] == 1
+    # node 2 fixed to a constant, kept in its list position
+    for c in (0, 1):
+        Xf = _states_matrix(3)  # columns hold nodes 0, 1, 3
+        out = _boolean_step(rules, Xf, cols=[0, 1, 3], nodes=[4], fixed={2: c})
+        for r in range(8):
+            s = int(Xf[r, 0]) | int(Xf[r, 1]) << 1 | c << 2 | int(Xf[r, 2]) << 3
+            assert int(out[r, 0]) == _reference_next(rules, s) >> 4 & 1
+        if c:
+            assert out[0b111, 0] == 1
 
 
 def test_basin_sampled_path_when_budget_tiny():

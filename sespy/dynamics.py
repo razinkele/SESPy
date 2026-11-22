@@ -846,6 +846,91 @@ def boolean_attractors_core(
     }
 
 
+_BOOLEAN_SAMPLE_CAP = 100_000       # clamp for n_samples and max_steps
+_BOOLEAN_SAMPLE_HISTORY = 10 ** 7   # n_samples * (max_steps + 1) packed rows
+
+
+def boolean_attractors_sampled(
+    rules: list[dict[str, Any]],
+    n_samples: int = 2000,
+    *,
+    max_steps: int = 1000,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Sampled whole-network Boolean attractor search (spec 2026-11-21 §3.4).
+
+    For networks whose feedback core is above the exact limit. Uniform random
+    start states are stepped together with :func:`_boolean_step`; a
+    trajectory converges at its first repeated state, and one that has not
+    repeated after ``max_steps`` steps is counted as unconverged. History is
+    kept as packed rows, so ``n_samples * (max_steps + 1)`` is held to
+    ``10**7`` by lowering ``max_steps`` (the effective value is echoed).
+
+    Returns
+    -------
+    dict
+        ``{"method": "sampled", "attractors": [{"type": "fixed" | "cyclic",
+        "states": [int, ...], "period": int, "hits": int, "basin_fraction":
+        float}], "n_samples", "n_unconverged", "seed", "max_steps",
+        "n_nodes"}``. States are Python ints with bit ``i`` for node ``i``;
+        cycles start at their minimum state; attractors are ordered by
+        ``hits`` descending, then minimum state. ``basin_fraction`` is
+        ``hits / n_samples``. There is no ``basin_size``: samples do not give
+        exact basins. ``n_samples`` and ``max_steps`` are clamped to
+        ``[1, 100000]``. ``n > BOOLEAN_MAX_NODES_TOTAL`` gives ``{"method":
+        "sampled", "attractors": [], "error": "too_large", "n_nodes",
+        "max_nodes"}``.
+    """
+    n = len(rules)
+    if n > BOOLEAN_MAX_NODES_TOTAL:
+        return {"method": "sampled", "attractors": [], "error": "too_large",
+                "n_nodes": n, "max_nodes": BOOLEAN_MAX_NODES_TOTAL}
+    n_samples = min(max(int(n_samples), 1), _BOOLEAN_SAMPLE_CAP)
+    max_steps = min(max(int(max_steps), 1), _BOOLEAN_SAMPLE_CAP)
+    max_steps = min(max_steps, _BOOLEAN_SAMPLE_HISTORY // n_samples - 1)
+
+    rng = np.random.default_rng(seed)
+    X = rng.integers(0, 2, size=(n_samples, n), dtype=np.uint8)
+    cols = list(range(n))
+    seen: list[dict[bytes, int]] = [{} for _ in range(n_samples)]
+    alive = list(range(n_samples))
+    hits: dict[tuple[int, ...], int] = {}
+    for t in range(max_steps + 1):
+        packed = np.packbits(X, axis=1, bitorder="little")
+        keep: list[int] = []
+        for r, (sample, row) in enumerate(zip(alive, packed)):
+            key = row.tobytes()
+            first = seen[sample].get(key)
+            if first is None:
+                seen[sample][key] = t
+                keep.append(r)
+                continue
+            cyc = [_boolean_row_int(k) for k in list(seen[sample])[first:]]
+            m = cyc.index(min(cyc))
+            cyc = tuple(cyc[m:] + cyc[:m])
+            hits[cyc] = hits.get(cyc, 0) + 1
+            seen[sample] = {}  # release this trajectory's history
+        if not keep:
+            alive = []
+            break
+        if len(keep) < len(alive):
+            X = X[keep]
+            alive = [alive[r] for r in keep]
+        if t < max_steps:
+            X = _boolean_step(rules, X, cols=cols, nodes=cols)
+    n_unconverged = len(alive)
+
+    attractors = [
+        {"type": "fixed" if len(cyc) == 1 else "cyclic", "states": list(cyc),
+         "period": len(cyc), "hits": h, "basin_fraction": h / n_samples}
+        for cyc, h in hits.items()
+    ]
+    attractors.sort(key=lambda a: (-a["hits"], a["states"][0]))
+    return {"method": "sampled", "attractors": attractors, "n_samples": n_samples,
+            "n_unconverged": n_unconverged, "seed": seed, "max_steps": max_steps,
+            "n_nodes": n}
+
+
 # =============================================================================
 # Deterministic simulation
 # =============================================================================
