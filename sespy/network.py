@@ -759,6 +759,26 @@ def cascade_vulnerability(
             "n_ranked": n_original, "max_steps": max_steps}
 
 
+# Length penalty of the causal_paths score: score = Π w_e · exp(−λ·(L−1)).
+# Fixed by design (not user-settable), so scores compare across models.
+PATH_SCORE_LAMBDA = 0.2
+
+
+def _greedy_disjoint(rows: list[dict], parts) -> int:
+    """How many rows, taken in order, share no part with a row taken
+    before them. parts(row) -> set of the row's parts (edges or interior
+    nodes). A lower bound on the true maximum; deterministic."""
+    used: set = set()
+    taken = 0
+    for r in rows:
+        own = parts(r)
+        if own & used:
+            continue
+        used |= own
+        taken += 1
+    return taken
+
+
 def causal_paths(
     isa: IsaData, source: str, target: str,
     *, max_length: int = 8, max_paths: int = 100,
@@ -775,21 +795,57 @@ def causal_paths(
     "+" nor "-" (forward-looking — every current ingress emits only +/-).
     Parallel (source, target) edges deduplicate last-wins, matching
     _axis_sums; self-loops and dangling refs are skipped. Collection stops
-    at max_paths with an honest truncated flag (never a silent cap). Rows
-    sort (length, path) — deterministic. Unknown endpoints, source ==
-    target, or no route return the empty shape; never raises. Pure.
+    at max_paths with an honest truncated flag (never a silent cap).
+    Unknown endpoints, source == target, or no route within max_length
+    return the empty shape; never raises. Pure.
+
+    Diagnostics per row, all read from the connection that wins polarity
+    for each hop (the last one on that (source, target) pair):
+      - "score": Π w_e · exp(−PATH_SCORE_LAMBDA · (length − 1)), with w_e
+        from bayes.STRENGTH_LINK (unknown strength counts as medium). The
+        product is taken per level (weak**n · medium**n · strong**n, in that
+        order) so paths with the same strengths in a different order tie
+        bit-for-bit.
+      - "bottleneck_edge": {"source", "target", "strength", "confidence"}
+        of the weakest hop; ties go to the lowest confidence, then to the
+        earliest hop. "strength" is the level the score used (so an unknown
+        strength reads "medium"); "confidence" is the stored value.
+      - "delay_profile": {"immediate", "short", "long"} hop counts, each
+        delay read through constants.normalize_delay.
+      - "min_confidence": the lowest stored confidence on the path.
+    Rows sort (-score, length, path) — deterministic.
+
+    Result level:
+      - "strongest_positive" / "strongest_negative": the top-scoring row
+        (the same dict as in "paths") with polarity "+" / "-", or None;
+        ambiguous "0" rows are never chosen;
+      - "contradictory": both "+" and "-" paths exist;
+      - "redundancy": {"edge_disjoint", "node_disjoint"} — disjoint routes
+        among the paths listed, taken greedily strongest first (no shared
+        hop, or no shared interior node; a direct edge has no interior
+        node). A lower bound, bounded by max_length.
+    When "truncated" is True, every ranking (row order, strongest routes,
+    redundancy) covers only the paths found: a stronger path may exist
+    beyond them.
     """
+    from .bayes import STRENGTH_LINK  # bayes imports network: no top-level import
+    from .constants import normalize_delay
+
     empty = {"paths": [], "counts": {"+": 0, "-": 0, "0": 0},
-             "truncated": False}
+             "truncated": False,
+             "strongest_positive": None, "strongest_negative": None,
+             "contradictory": False,
+             "redundancy": {"edge_disjoint": 0, "node_disjoint": 0}}
     ids = {el.id for el in isa.elements}
     if source not in ids or target not in ids or source == target:
         return empty
 
-    pol: dict[tuple[str, str], str] = {}
+    conn: dict[tuple[str, str], Connection] = {}
     for c in isa.connections:
         if c.source == c.target or c.source not in ids or c.target not in ids:
             continue
-        pol[(c.source, c.target)] = c.polarity
+        conn[(c.source, c.target)] = c
+    pol = {k: c.polarity for k, c in conn.items()}
     g = nx.DiGraph()
     g.add_nodes_from(ids)
     g.add_edges_from(pol)
@@ -817,17 +873,49 @@ def causal_paths(
                 negatives += 1
             elif sign != "+":
                 ambiguous = True
+        level_n = {"weak": 0, "medium": 0, "strong": 0}
+        delays = {"immediate": 0, "short": 0, "long": 0}
+        hops = []
+        for pos, (a, b) in enumerate(zip(p, p[1:])):
+            c = conn[(a, b)]
+            level = c.strength if c.strength in level_n else "medium"
+            level_n[level] += 1
+            delays[normalize_delay(c.delay)] += 1
+            hops.append((STRENGTH_LINK[level], c.confidence, pos, a, b, level))
+        length = len(p) - 1
+        score = (STRENGTH_LINK["weak"] ** level_n["weak"]
+                 * STRENGTH_LINK["medium"] ** level_n["medium"]
+                 * STRENGTH_LINK["strong"] ** level_n["strong"]) \
+            * math.exp(-PATH_SCORE_LAMBDA * (length - 1))
+        _, conf, _, a, b, level = min(hops, key=lambda h: (h[0], h[1], h[2]))
         rows.append({
             "path": list(p),
-            "length": len(p) - 1,
+            "length": length,
             "polarity": "0" if ambiguous else ("-" if negatives % 2 else "+"),
+            "score": score,
+            "bottleneck_edge": {"source": a, "target": b,
+                                "strength": level, "confidence": conf},
+            "delay_profile": delays,
+            "min_confidence": min(h[1] for h in hops),
         })
-    rows.sort(key=lambda r: (r["length"], r["path"]))
+    # No rows (nothing within max_length) falls through to the empty shape.
+    rows.sort(key=lambda r: (-r["score"], r["length"], r["path"]))
 
     counts = {"+": 0, "-": 0, "0": 0}
     for r in rows:
         counts[r["polarity"]] += 1
-    return {"paths": rows, "counts": counts, "truncated": truncated}
+    return {
+        "paths": rows, "counts": counts, "truncated": truncated,
+        "strongest_positive": next((r for r in rows if r["polarity"] == "+"), None),
+        "strongest_negative": next((r for r in rows if r["polarity"] == "-"), None),
+        "contradictory": counts["+"] > 0 and counts["-"] > 0,
+        "redundancy": {
+            "edge_disjoint": _greedy_disjoint(
+                rows, lambda r: set(zip(r["path"], r["path"][1:]))),
+            "node_disjoint": _greedy_disjoint(
+                rows, lambda r: set(r["path"][1:-1])),
+        },
+    }
 
 
 _DAPSIWRM_REALM: dict[str, str] = {

@@ -7,6 +7,7 @@ A real port would replicate all 92 testthat files; this is the proof.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -1538,15 +1539,19 @@ def test_cascade_existing_fields_unchanged_by_kl():
 # causal_paths (issue #16)
 # ---------------------------------------------------------------------------
 
-_EMPTY_PATHS = {"paths": [], "counts": {"+": 0, "-": 0, "0": 0}, "truncated": False}
+_EMPTY_PATHS = {"paths": [], "counts": {"+": 0, "-": 0, "0": 0}, "truncated": False,
+                "strongest_positive": None, "strongest_negative": None,
+                "contradictory": False,
+                "redundancy": {"edge_disjoint": 0, "node_disjoint": 0}}
 
 
 def test_causal_paths_sample_single_positive():
     root = Path(__file__).resolve().parents[1]
     isa = load_sample(root / "data" / "sample_ses.json")
     r = network.causal_paths(isa, "D001", "P001")
-    assert r["paths"] == [{"path": ["D001", "A001", "P001"],
-                           "length": 2, "polarity": "+"}]
+    assert [{k: p[k] for k in ("path", "length", "polarity")}
+            for p in r["paths"]] == [{"path": ["D001", "A001", "P001"],
+                                      "length": 2, "polarity": "+"}]
     assert r["counts"] == {"+": 1, "-": 0, "0": 0}
     assert r["truncated"] is False
 
@@ -1651,6 +1656,197 @@ def test_causal_paths_unreachable_on_dense_graph_is_fast():
     r = network.causal_paths(IsaData(elements=els, connections=conns),
                              "N0", "ISOLATED")
     assert r == _EMPTY_PATHS
+
+
+# ---------------------------------------------------------------------------
+# causal_paths diagnostics (path diagnostics, library 1.20.0)
+# ---------------------------------------------------------------------------
+
+def _worked():
+    from _paths_fixtures import worked_example_isa
+    return worked_example_isa()
+
+
+def _chain_isa(edges):
+    """IsaData from (source, target, polarity, strength, confidence, delay)."""
+    ids = sorted({e[0] for e in edges} | {e[1] for e in edges})
+    return IsaData(
+        elements=[Element(id=i, label=i, type="Drivers") for i in ids],
+        connections=[Connection(source=s, target=t, polarity=p, strength=w,
+                                confidence=c, delay=d)
+                     for s, t, p, w, c, d in edges])
+
+
+def test_path_score_lambda_constant():
+    assert network.PATH_SCORE_LAMBDA == 0.2
+
+
+def test_causal_paths_worked_example_ranking():
+    r = network.causal_paths(_worked(), "I", "F")
+    assert [p["path"] for p in r["paths"]] == [
+        ["I", "C", "D", "S", "N", "F"], ["I", "X", "S", "N", "F"]]
+    first, second = r["paths"]
+    assert first["polarity"] == "+"
+    assert first["score"] == pytest.approx(0.8**4 * 0.55 * math.exp(-0.8))
+    assert second["polarity"] == "-"
+    assert second["score"] == pytest.approx(0.55 * 0.30 * 0.80 * 0.55 * math.exp(-0.6))
+    # the spec's snapped values (decision 7)
+    assert round(first["score"], 3) == 0.101
+    assert round(second["score"], 3) == 0.040
+
+
+def test_causal_paths_worked_example_bottleneck_and_delay():
+    first = network.causal_paths(_worked(), "I", "F")["paths"][0]
+    assert first["bottleneck_edge"] == {"source": "N", "target": "F",
+                                        "strength": "medium", "confidence": 3}
+    assert first["delay_profile"] == {"immediate": 2, "short": 2, "long": 1}
+    assert first["min_confidence"] == 3
+
+
+def test_causal_paths_worked_example_strongest_and_contradictory():
+    r = network.causal_paths(_worked(), "I", "F")
+    assert r["strongest_positive"] is r["paths"][0]
+    assert r["strongest_negative"] is r["paths"][1]
+    assert r["contradictory"] is True
+
+
+def test_causal_paths_worked_example_redundancy():
+    r = network.causal_paths(_worked(), "I", "R")
+    assert [p["path"] for p in r["paths"]] == [
+        ["I", "C", "D", "S", "R"],
+        ["I", "C", "D", "S", "W", "R"],
+        ["I", "X", "S", "R"],
+        ["I", "X", "S", "W", "R"],
+    ]
+    # greedy, strongest first: I,C,D,S,R and I,X,S,W,R share no link;
+    # every route passes S, so only one is node-disjoint
+    assert r["redundancy"] == {"edge_disjoint": 2, "node_disjoint": 1}
+
+
+def test_causal_paths_score_ties_are_exact():
+    # Same strength multiset in a different order. A product taken in path
+    # order gives 0.3*0.8*0.8 == 0.192 but 0.8*0.8*0.3 == 0.19200000000000003;
+    # the per-level product must tie bit-for-bit and fall back to path order.
+    # b's connections come first so enumeration alone would list b first.
+    isa = _chain_isa([
+        ("s", "b1", "+", "strong", 3, "immediate"),
+        ("b1", "b2", "+", "strong", 3, "immediate"),
+        ("b2", "t", "+", "weak", 3, "immediate"),
+        ("s", "a1", "+", "weak", 3, "immediate"),
+        ("a1", "a2", "+", "strong", 3, "immediate"),
+        ("a2", "t", "+", "strong", 3, "immediate"),
+    ])
+    r = network.causal_paths(isa, "s", "t")
+    a, b = r["paths"]
+    assert a["score"] == b["score"]
+    assert a["path"] == ["s", "a1", "a2", "t"]
+    assert b["path"] == ["s", "b1", "b2", "t"]
+
+
+def test_causal_paths_bottleneck_tie_breaks_on_confidence_then_position():
+    # three weak links: the lowest confidence wins, and among equal
+    # confidences the earliest on the path wins
+    isa = _chain_isa([
+        ("s", "a", "+", "weak", 4, "immediate"),
+        ("a", "b", "+", "strong", 1, "immediate"),
+        ("b", "c", "+", "weak", 2, "immediate"),
+        ("c", "t", "+", "weak", 2, "immediate"),
+    ])
+    row = network.causal_paths(isa, "s", "t")["paths"][0]
+    assert row["bottleneck_edge"] == {"source": "b", "target": "c",
+                                      "strength": "weak", "confidence": 2}
+    assert row["min_confidence"] == 1
+    isa = _chain_isa([
+        ("s", "a", "+", "medium", 3, "immediate"),
+        ("a", "t", "+", "medium", 3, "immediate"),
+    ])
+    row = network.causal_paths(isa, "s", "t")["paths"][0]
+    assert (row["bottleneck_edge"]["source"], row["bottleneck_edge"]["target"]) == ("s", "a")
+
+
+def test_causal_paths_duplicate_connection_uses_polarity_winner_fields():
+    isa = _chain_isa([
+        ("s", "t", "+", "strong", 5, "long"),
+        ("s", "t", "-", "weak", 1, "short"),
+    ])
+    r = network.causal_paths(isa, "s", "t")
+    (row,) = r["paths"]
+    assert row["polarity"] == "-"
+    assert row["score"] == 0.30
+    assert row["bottleneck_edge"] == {"source": "s", "target": "t",
+                                      "strength": "weak", "confidence": 1}
+    assert row["delay_profile"] == {"immediate": 0, "short": 1, "long": 0}
+    assert row["min_confidence"] == 1
+
+
+def test_causal_paths_odd_edge_data_is_finite():
+    from sespy.constants import normalize_delay
+    assert normalize_delay("2 years") == "short"
+    isa = _chain_isa([("s", "t", "+", "?", 9, "2 years")])
+    (row,) = network.causal_paths(isa, "s", "t")["paths"]
+    assert math.isfinite(row["score"])
+    assert row["score"] == 0.55  # unknown strength scores as medium
+    # the reported strength is the level the score used; confidence is stored
+    assert row["bottleneck_edge"] == {"source": "s", "target": "t",
+                                      "strength": "medium", "confidence": 9}
+    assert row["min_confidence"] == 9
+    assert row["delay_profile"] == {"immediate": 0, "short": 1, "long": 0}
+
+
+def test_causal_paths_truncated_keeps_strongest_but_flags_it():
+    root = Path(__file__).resolve().parents[1]
+    isa = load_sample(root / "data" / "sample_ses.json")
+    r = network.causal_paths(isa, "ES02", "D001", max_paths=1)
+    assert r["truncated"] is True
+    (row,) = r["paths"]
+    assert r["strongest_negative"] is row
+    assert r["strongest_positive"] is None
+    assert r["contradictory"] is False
+
+
+def test_causal_paths_adjacent_pair_redundancy():
+    isa = _chain_isa([
+        ("s", "t", "+", "medium", 3, "immediate"),
+        ("s", "m", "+", "medium", 3, "immediate"),
+        ("m", "t", "+", "medium", 3, "immediate"),
+    ])
+    r = network.causal_paths(isa, "s", "t")
+    assert [p["path"] for p in r["paths"]] == [["s", "t"], ["s", "m", "t"]]
+    assert r["redundancy"] == {"edge_disjoint": 2, "node_disjoint": 2}
+
+
+def test_causal_paths_ambiguous_path_is_never_strongest():
+    isa = _chain_isa([("s", "t", "", "strong", 3, "immediate")])
+    r = network.causal_paths(isa, "s", "t")
+    assert r["counts"] == {"+": 0, "-": 0, "0": 1}
+    assert r["strongest_positive"] is None and r["strongest_negative"] is None
+    assert r["contradictory"] is False
+
+
+def test_causal_paths_score_monotone_in_weight_and_length():
+    # spec acceptance: stronger links score higher, longer chains lower
+    def score(edges):
+        return network.causal_paths(_chain_isa(edges), "s", "t")["paths"][0]["score"]
+    one = {w: score([("s", "t", "+", w, 3, "immediate")])
+           for w in ("weak", "medium", "strong")}
+    assert one["weak"] < one["medium"] < one["strong"] == 0.80
+    two = score([("s", "m", "+", "strong", 3, "immediate"),
+                 ("m", "t", "+", "strong", 3, "immediate")])
+    assert two < one["strong"]
+    assert two == pytest.approx(0.8 * 0.8 * math.exp(-0.2))
+
+
+def test_causal_paths_max_length_bounds_paths():
+    # spec P2: the only route has 3 edges; max_length=2 finds nothing even
+    # though the target is reachable, and returns the full empty shape
+    isa = _chain_isa([
+        ("s", "a", "+", "medium", 3, "immediate"),
+        ("a", "b", "+", "medium", 3, "immediate"),
+        ("b", "t", "+", "medium", 3, "immediate"),
+    ])
+    assert network.causal_paths(isa, "s", "t", max_length=2) == _EMPTY_PATHS
+    r = network.causal_paths(isa, "s", "t", max_length=3)
+    assert [p["path"] for p in r["paths"]] == [["s", "a", "b", "t"]]
 
 
 def test_canonical_cycles_rotation_is_stable():
