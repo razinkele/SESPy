@@ -4,10 +4,10 @@ from __future__ import annotations
 import copy
 
 import pytest
+from _paths_fixtures import worked_example_isa
 
 from sespy.data_structure import Connection, Element, IsaData, Rating
 from sespy.network import causal_paths, path_sensitivity
-from _paths_fixtures import worked_example_isa
 
 
 def _isa(nodes, edges) -> IsaData:
