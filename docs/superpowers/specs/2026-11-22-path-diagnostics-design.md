@@ -1,6 +1,6 @@
 # Causal path diagnostics and path sensitivity — design
 
-Date: 2026-11-22. Status: **decisions recorded 2026-11-22; [proposal] items await the user's sign-off**; plan after sign-off.
+Date: 2026-11-22. Status: **approved 2026-11-22** (user signed off all [proposal] items); plan next.
 Version: proposed library 1.20.0, app 1.2.0 (decision 13).
 R parity: **SESPy-first**. R (`SESToolbox/MarineSABRES_SES_Shiny/functions/network_analysis.R`) has `find_pathways` (line 266) and `find_all_paths(nodes, edges, from_id, to_id, max_length = 10)` (line 1271), which return plain node-id paths with no polarity. A grep found no callers of either outside tests. R has no path scoring, bottleneck reporting or path sensitivity.
 
@@ -9,7 +9,7 @@ R parity: **SESPy-first**. R (`SESToolbox/MarineSABRES_SES_Shiny/functions/netwo
 - **Why the note overlaps with shipped work.** Its basis (Appendix C) is `LITERATURE/proposed-issues.md`, written before #16 (`causal_paths`, shipped 2026-08-16) and before #17/#19–#21 (diffusion). Only what is genuinely new is specified here.
 
 ## Decisions (2026-11-22)
-Each decision is marked: **[user]** = answered by the user; **[proposal]** = Claude's proposal, awaiting the user's sign-off on this spec.
+Each decision is marked: **[user]** = answered by the user; **[proposal]** = Claude's proposal, approved by the user on 2026-11-22.
 
 1. **[user] Strength to weight: `bayes.STRENGTH_LINK`** (weak 0.30, medium 0.55, strong 0.80).
    - A missing or unknown strength falls back to `medium`, as `STRENGTH_LINK.get(…, medium)` already does.
