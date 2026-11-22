@@ -9,8 +9,11 @@ Used by:
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from itertools import chain
 from typing import Any, TypedDict
 
+import networkx as nx
 import numpy as np
 
 from . import network as _net  # for _STRENGTH_RANK
@@ -226,9 +229,10 @@ def create_boolean_rules(mat: np.ndarray) -> list[dict[str, Any]]:
 
 
 # Server-side ceiling for library callers of boolean_attractors (R
-# DYNAMICS_MAX_BOOLEAN_NODES). The UI keeps its own [4, 12] range
-# (analysis_boolean.py): this pure-Python 2^N search runs synchronously, and
-# raising the UI limit needs an ExtendedTask or a vectorised search (P7a).
+# DYNAMICS_MAX_BOOLEAN_NODES). This pure-Python 2^N search keeps its cap for
+# library callers (Nid4Ocean calls it with max_nodes=12; it is also the test
+# oracle). The app uses boolean_attractors_core instead, whose limit is on
+# the feedback core (BOOLEAN_MAX_CORE), not on the whole network.
 BOOLEAN_MAX_NODES_CEILING = 20
 
 
@@ -343,6 +347,715 @@ def boolean_attractors(
         a["basin_size"] = int(c)
 
     return {"attractors": attractors, "total_states": n_states}
+
+
+# =============================================================================
+# Boolean attractors at scale: feedback-core search (spec 2026-11-21 §3.1, §3.3)
+# =============================================================================
+#
+# Full-network states are Python ints (bit i = node i) and never packed into
+# fixed-width numpy integers, so there is no 62/64-node limit. Numpy integer
+# arrays below only ever hold *compact* indices of at most 20 bits: a core
+# state (bit b = node C[b], |C| <= BOOLEAN_MAX_CORE) or an upstream-input
+# pattern (|Iu| <= |U_a| <= _BOOLEAN_MAX_UPSTREAM_ANCESTORS).
+
+BOOLEAN_MAX_CORE = 20
+# Core-state evaluations allowed for the exact basin pass; otherwise sampled.
+BOOLEAN_BASIN_BUDGET = 1 << 24
+# Sanity cap on the whole network.
+BOOLEAN_MAX_NODES_TOTAL = 200
+# Attractors reported (and reconstructed) by boolean_attractors_core; the rest
+# are counted in n_attractors. Plain reinforcing loops have huge counts
+# (a 20-node positive ring alone has 52,488).
+BOOLEAN_MAX_ATTRACTORS = 1000
+_BOOLEAN_SAMPLE_CAP = 100_000       # clamp for sample counts, max_steps and max_attractors
+_BOOLEAN_SAMPLE_HISTORY = 10 ** 7   # n_samples * (max_steps + 1) packed rows
+
+_BOOLEAN_MAX_UPSTREAM_ANCESTORS = 16  # 2^|U_a| upstream starts, simulated exactly (benchmark: 18 misses the 5 s gate)
+_BOOLEAN_CHUNK_ROWS = 1 << 20         # rows per batch in the basin pass
+
+
+def _boolean_step(
+    rules: list[dict[str, Any]],
+    X: np.ndarray,
+    *,
+    cols: Sequence[int],
+    nodes: Sequence[int],
+    fixed: Mapping[int, int] | None = None,
+) -> np.ndarray:
+    """One synchronous update of ``nodes`` for every row of ``X``.
+
+    ``X`` is a ``(S, len(cols))`` uint8 matrix whose column ``k`` holds node
+    ``cols[k]``; ``fixed`` gives a constant 0/1 for every other node that an
+    evaluated rule reads. Returns the ``(S, len(nodes))`` uint8 matrix of next
+    values.
+
+    For node ``j`` the inflow starts at ``0.0`` and adds ``w * x_i`` for each
+    activator in list order, then each inhibitor in list order, with a fixed
+    node's constant added in its list position. The node is on iff
+    ``inflow > threshold``. This is the exact float64 summation of
+    :func:`boolean_attractors` (no matmul, no pre-summed bias), so float ties
+    resolve identically.
+    """
+    X = np.asarray(X)
+    if X.dtype != np.uint8:
+        X = X.astype(np.uint8)
+    n_rows = X.shape[0]
+    pos = {int(node): k for k, node in enumerate(cols)}
+    fixed = {} if fixed is None else fixed
+    nodes = list(nodes)
+    out = np.empty((n_rows, len(nodes)), dtype=np.uint8)
+    for o, j in enumerate(nodes):
+        rule = rules[j]
+        inflow: Any = 0.0  # a Python float until the first live column
+        for i, w in chain(rule["activators"], rule["inhibitors"]):
+            k = pos.get(i)
+            if k is None:
+                inflow = inflow + w * int(fixed[i])
+            elif isinstance(inflow, np.ndarray):
+                inflow += np.multiply(X[:, k], w, dtype=np.float64)
+            else:
+                inflow = inflow + np.multiply(X[:, k], w, dtype=np.float64)
+        out[:, o] = inflow > rule["threshold"]
+    return out
+
+
+def _boolean_inputs(rules: list[dict[str, Any]], j: int) -> list[int]:
+    rule = rules[j]
+    return [int(i) for i, _w in chain(rule["activators"], rule["inhibitors"])]
+
+
+def _boolean_reach(start: set[int], adj: list[list[int]]) -> set[int]:
+    seen = set(start)
+    stack = list(start)
+    while stack:
+        v = stack.pop()
+        for w in adj[v]:
+            if w not in seen:
+                seen.add(w)
+                stack.append(w)
+    return seen
+
+
+def _boolean_partition(rules: list[dict[str, Any]]) -> tuple[list[int], list[int], list[int]]:
+    """Split nodes into upstream U, feedback core C and read-outs R.
+
+    A node is on a cycle if its strongly connected component has more than
+    one node or a self-loop. U: not downstream of any cycle. C: downstream
+    and upstream of a cycle (cycle nodes included). R: downstream only.
+    Each list is sorted.
+    """
+    n = len(rules)
+    g = nx.DiGraph()
+    g.add_nodes_from(range(n))
+    preds: list[list[int]] = [[] for _ in range(n)]
+    succs: list[list[int]] = [[] for _ in range(n)]
+    for j in range(n):
+        for i in _boolean_inputs(rules, j):
+            g.add_edge(i, j)
+            preds[j].append(i)
+            succs[i].append(j)
+    cyc: set[int] = set()
+    for comp in nx.strongly_connected_components(g):
+        if len(comp) > 1 or any(g.has_edge(v, v) for v in comp):
+            cyc |= comp
+    down = _boolean_reach(cyc, succs)
+    up = _boolean_reach(cyc, preds)
+    upstream = sorted(set(range(n)) - down)
+    core = sorted(down & up)
+    readout = sorted(down - up)
+    return upstream, core, readout
+
+
+def _boolean_states_matrix(k: int, idx: np.ndarray | None = None) -> np.ndarray:
+    """States as a ``(len(idx), k)`` uint8 matrix, row ``r`` = bits of
+    ``idx[r]`` (default: all ``2^k`` states in order). Built column by column
+    to avoid a ``(2^k, k)`` int64 temporary."""
+    if idx is None:
+        idx = np.arange(1 << k, dtype=np.int64)
+    X = np.empty((len(idx), k), dtype=np.uint8)
+    for b in range(k):
+        X[:, b] = (idx >> b) & 1
+    return X
+
+
+def _boolean_compact_index(X: np.ndarray) -> np.ndarray:
+    """Rows of a ``(S, k)`` 0/1 matrix as compact indices (k <= 20 bits)."""
+    packed = np.packbits(X, axis=1, bitorder="little")  # (S, ceil(k / 8))
+    idx = np.zeros(X.shape[0], dtype=np.int64)
+    for byte in range(packed.shape[1]):
+        idx |= packed[:, byte].astype(np.int64) << (8 * byte)
+    return idx
+
+
+def _boolean_row_int(packed_row: bytes) -> int:
+    """A row packed with ``np.packbits(..., bitorder="little")`` as a Python
+    int with bit i = node i (no width limit)."""
+    return int.from_bytes(packed_row, "little")
+
+
+def _boolean_upstream_fixed(rules: list[dict[str, Any]], U: list[int]) -> dict[int, int]:
+    """Constant pattern u* of the upstream part. U reads only U and is
+    acyclic, so any start settles within |U| steps."""
+    if not U:
+        return {}
+    x = np.zeros((1, len(U)), dtype=np.uint8)
+    for _ in range(len(U) + 1):
+        x = _boolean_step(rules, x, cols=U, nodes=U)
+    again = _boolean_step(rules, x, cols=U, nodes=U)
+    if not np.array_equal(x, again):  # pragma: no cover - structural invariant
+        raise RuntimeError("upstream part did not settle to a fixed pattern")
+    return {u: int(v) for u, v in zip(U, x[0])}
+
+
+def _boolean_core_labels(
+    rules: list[dict[str, Any]], C: list[int], ustar: Mapping[int, int],
+    *, return_map: bool = False,
+) -> tuple[np.ndarray, ...]:
+    """Label every core state with its core attractor.
+
+    Returns ``(att_of, reps)``: ``att_of[s]`` is the attractor position of
+    compact core state ``s``, and ``reps[a]`` is the minimum compact state on
+    attractor ``a``'s cycle (ascending). With ``return_map`` the compact core
+    map ``nxt`` (int32) is appended. Vectorised: pointer doubling with an
+    orbit minimum on the compact core map, no Python loop over states.
+    """
+    k = len(C)
+    X = _boolean_states_matrix(k)
+    nxt = _boolean_compact_index(_boolean_step(rules, X, cols=C, nodes=C, fixed=ustar))
+    del X
+    # After j rounds: m[s] = min of the first 2^j states of the orbit of s and
+    # fp = f^(2^j). After k rounds fp[s] lies on the cycle (transient + period
+    # <= 2^k), and m[fp[s]] covers 2^k >= period cycle states.
+    m = np.arange(1 << k, dtype=np.int32)  # compact core indices fit in int32
+    fp = nxt.astype(np.int32)
+    for _ in range(max(k, 1)):
+        m = np.minimum(m, m[fp])
+        fp = fp[fp]
+    label = m[fp]
+    reps, att_of = np.unique(label, return_inverse=True)
+    if return_map:
+        return att_of.reshape(-1), reps, nxt.astype(np.int32)
+    return att_of.reshape(-1), reps
+
+
+def _boolean_core_periods(nxt: np.ndarray, reps: np.ndarray) -> np.ndarray:
+    """Cycle length of each representative on the compact core map
+    (vectorised over representatives)."""
+    reps = reps.astype(np.int64)
+    period = np.ones(len(reps), dtype=np.int64)
+    cur = nxt[reps].astype(np.int64)
+    active = np.flatnonzero(cur != reps)
+    while active.size:
+        cur[active] = nxt[cur[active]]
+        period[active] += 1
+        active = active[cur[active] != reps[active]]
+    return period
+
+
+def _boolean_readout_order(rules: list[dict[str, Any]], R: list[int]) -> list[int]:
+    """Read-outs in topological order of the edges among them (R is acyclic
+    and reads only C, U and R)."""
+    Rset = set(R)
+    g = nx.DiGraph()
+    g.add_nodes_from(R)
+    for j in R:
+        for i in _boolean_inputs(rules, j):
+            if i in Rset:
+                g.add_edge(i, j)
+    return list(nx.lexicographical_topological_sort(g))
+
+
+def _boolean_lex_less(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Row-wise ``int(a) < int(b)`` for rows packed little-endian
+    (``np.packbits(..., bitorder="little")``), without building ints."""
+    diff = a != b
+    if diff.shape[1] == 0:
+        return np.zeros(len(a), dtype=bool)
+    rev = diff[:, ::-1]
+    top = diff.shape[1] - 1 - np.argmax(rev, axis=1)  # most significant differing byte
+    rows = np.arange(len(a))
+    return rev.any(axis=1) & (a[rows, top] < b[rows, top])
+
+
+def _boolean_cycle_walk(
+    rules: list[dict[str, Any]], n: int, U: list[int], C: list[int], R_order: list[int],
+    ustar: Mapping[int, int], reps: np.ndarray, nxt: np.ndarray, periods: np.ndarray,
+    *, record: bool,
+) -> list:
+    """Full attractor cycles of the given core representatives, solved on
+    their periodic phases directly (no transient is simulated).
+
+    On an attractor the core runs its cycle (phase 0 = the representative,
+    phase φ+1 = ``nxt`` of phase φ), U sits at u*, and each read-out has the
+    same period, with ``r(φ) = rule_r(state(φ - 1 mod p))``. Taking read-outs
+    in topological order, every input of ``r`` is known at all phases when
+    ``r`` is evaluated, so one kernel call per read-out (over attractors ×
+    phases, inputs only) gives the exact cycle.
+
+    ``record=False`` returns, per row, the packed minimum full state of the
+    cycle (``(len(reps), ceil(n / 8))`` uint8). ``record=True`` returns, per
+    row, the cycle as Python ints in update order, rotated to start at its
+    minimum state.
+    """
+    A = len(reps)
+    nbytes = (n + 7) // 8
+    out_min = np.zeros((A, nbytes), dtype=np.uint8)
+    out_cyc: list[list[int]] = [[] for _ in range(A)]
+    inputs = {r: sorted(set(_boolean_inputs(rules, r))) for r in R_order}
+    for p in np.unique(periods).tolist():
+        rows_p = np.flatnonzero(periods == p)
+        per = max(1, (_BOOLEAN_CHUNK_ROWS // 4) // p)  # attractors per chunk
+        for a0 in range(0, len(rows_p), per):
+            rows = rows_p[a0:a0 + per]
+            m = len(rows)
+            # V[a * p + φ] = full state of attractor a at phase φ
+            V = np.zeros((m * p, n), dtype=np.uint8)
+            for u in U:
+                V[:, u] = ustar[u]
+            cphase = np.empty((m, p), dtype=np.int64)
+            cur = reps[rows].astype(np.int64)
+            for phi in range(p):
+                cphase[:, phi] = cur
+                cur = nxt[cur].astype(np.int64)
+            flat = cphase.reshape(-1)
+            for b, c in enumerate(C):
+                V[:, c] = (flat >> b) & 1
+            # row of the previous phase (φ - 1 mod p) of the same attractor
+            base = np.repeat(np.arange(m, dtype=np.int64) * p, p)
+            prev = base + (np.tile(np.arange(p, dtype=np.int64), m) - 1) % p
+            for r in R_order:
+                ins = inputs[r]
+                Xr = V[np.ix_(prev, ins)] if ins else np.zeros((m * p, 0), dtype=np.uint8)
+                V[:, r] = _boolean_step(rules, Xr, cols=ins, nodes=[r])[:, 0]
+            packed = np.packbits(V, axis=1, bitorder="little").reshape(m, p, nbytes)
+            del V
+            if record:
+                for i, r_glob in enumerate(rows.tolist()):
+                    cyc = [_boolean_row_int(packed[i, phi].tobytes()) for phi in range(p)]
+                    lo = cyc.index(min(cyc))
+                    out_cyc[r_glob] = cyc[lo:] + cyc[:lo]
+            else:
+                best = packed[:, 0].copy()
+                for phi in range(1, p):
+                    lt = _boolean_lex_less(packed[:, phi], best)
+                    best[lt] = packed[lt, phi]
+                out_min[rows] = best
+    return out_cyc if record else out_min
+
+
+def _boolean_input_sequences(
+    rules: list[dict[str, Any]], Ua: list[int], Iu: list[int], ustar: Mapping[int, int],
+    max_distinct: int,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Distinct transient sequences of the core's upstream inputs.
+
+    Simulates the upstream ancestors U_a alone from all ``2^|U_a|`` starts
+    (U_a is acyclic and ancestor-closed, so it settles to u* within |U_a|
+    steps) and groups the starts by the values ``Iu`` (the upstream nodes the
+    core reads) take at t = 0 .. T-1, where from T on every start has
+    ``Iu = u*``. Returns ``(pid, mult)``: ``pid[d, t]`` is the compact
+    Iu-pattern of sequence ``d`` at time ``t`` (shape ``(D, T)``) and
+    ``mult[d]`` how many upstream starts produce it (summing to
+    ``2^|U_a|``). Returns None when ``D > max_distinct``.
+    """
+    m = len(Ua)
+    one = (np.zeros((1, 0), dtype=np.int64), np.array([1 << m], dtype=np.int64))
+    if not Iu:
+        return one
+    icol = [Ua.index(i) for i in Iu]
+    tgt = int(sum(ustar[i] << b for b, i in enumerate(Iu)))
+    width = len(Iu)
+    uvec = np.array([ustar[u] for u in Ua], dtype=np.uint8)
+    X = _boolean_states_matrix(m)
+    h = _boolean_compact_index(X[:, icol])
+    # group: running id of each start's input sequence so far (< 2^m). A time
+    # step at which every start shows u* is constant and needs no regrouping.
+    # The number of groups only grows, so exceeding max_distinct is final.
+    group, n_groups = h, len(np.unique(h))
+    T = 1 if n_groups > 1 or np.any(h != tgt) else 0  # 1 + last time inputs differ from u*
+    settled = bool(np.all(X == uvec))
+    for t in range(1, m + 2):
+        if n_groups > max(1, max_distinct):
+            return None
+        if settled:  # every start is at u*: later steps are all constant
+            break
+        X = _boolean_step(rules, X, cols=Ua, nodes=Ua)
+        h = _boolean_compact_index(X[:, icol])
+        if np.any(h != tgt):
+            T = t + 1
+            _, group = np.unique(group * (1 << width) + h, return_inverse=True)
+            group = group.reshape(-1).astype(np.int64)
+            n_groups = int(group.max()) + 1
+        settled = bool(np.all(X == uvec))
+    del X
+    if not settled:  # pragma: no cover - structural invariant
+        raise RuntimeError("upstream ancestors did not settle to u*")
+    if T == 0:
+        return one
+    _, first, mult = np.unique(group, return_index=True, return_counts=True)
+    if len(first) > max_distinct:
+        return None
+    # replay one representative start per distinct sequence to record it
+    Y = _boolean_states_matrix(m, first)
+    pid = np.empty((len(first), T), dtype=np.int64)
+    for t in range(T):
+        pid[:, t] = _boolean_compact_index(Y[:, icol])
+        Y = _boolean_step(rules, Y, cols=Ua, nodes=Ua)
+    return pid, mult.astype(np.int64)
+
+
+def _boolean_drive_exact(
+    rules: list[dict[str, Any]], U: list[int], C: list[int], Iu: list[int],
+    ustar: Mapping[int, int], att_of: np.ndarray, n_att: int,
+    pid: np.ndarray, mult: np.ndarray,
+) -> list[int]:
+    """Exact basin counts over (upstream-ancestor start, core start) pairs.
+
+    One compact core map ``F_v`` is built per observed upstream-input pattern
+    ``v``; each distinct input sequence then drives all core states by index
+    composition, and the final core state's label gives the attractor.
+
+    ``F_v`` is assembled node by node: core nodes that read no upstream input
+    are evaluated once for all patterns, and a node that does is evaluated
+    once per distinct value of *its own* inputs from Iu (each evaluation is a
+    plain :func:`_boolean_step` call, so the float summation is unchanged).
+    """
+    k = len(C)
+    n_core = 1 << k
+    D, T = pid.shape
+    totals = np.zeros(n_att, dtype=np.int64)
+    if T == 0:
+        totals += np.bincount(att_of, minlength=n_att).astype(np.int64) * int(mult[0])
+        return [int(t) for t in totals]
+    patterns, pos = np.unique(pid, return_inverse=True)
+    pos = pos.reshape(D, T)
+    Iset = set(Iu)
+    ibit = {i: b for b, i in enumerate(Iu)}
+    others = {u: ustar[u] for u in U if u not in Iset}
+    core_X = _boolean_states_matrix(k)
+    per = max(1, _BOOLEAN_CHUNK_ROWS // n_core)
+    plain = [j for j in C if not Iset.intersection(_boolean_inputs(rules, j))]
+    driven = [j for j in C if Iset.intersection(_boolean_inputs(rules, j))]
+    base = np.zeros(n_core, dtype=np.int32)
+    if plain:
+        out = _boolean_step(rules, core_X, cols=C, nodes=plain, fixed=others)
+        for q, j in enumerate(plain):
+            base |= out[:, q].astype(np.int32) << C.index(j)
+    fmaps = np.empty((len(patterns), n_core), dtype=np.int32)  # compact core indices
+    fmaps[:] = base
+    for j in driven:
+        Ij = sorted(Iset.intersection(_boolean_inputs(rules, j)))
+        sub = np.zeros(len(patterns), dtype=np.int64)
+        for q, i in enumerate(Ij):
+            sub |= ((patterns >> ibit[i]) & 1) << q
+        subs, inv = np.unique(sub, return_inverse=True)
+        inv = inv.reshape(-1)
+        # table[s, c]: next value of j from core state c with its inputs Ij = subs[s];
+        # Ij are live columns here, evaluated in batches of subs
+        table = np.empty((len(subs), n_core), dtype=np.uint8)
+        cols_j = list(C) + Ij
+        for s0 in range(0, len(subs), per):
+            ss = subs[s0:s0 + per]
+            Xc = np.empty((len(ss) * n_core, len(cols_j)), dtype=np.uint8)
+            Xc[:, :k] = np.tile(core_X, (len(ss), 1))
+            for q in range(len(Ij)):
+                Xc[:, k + q] = np.repeat((ss >> q) & 1, n_core)
+            out = _boolean_step(rules, Xc, cols=cols_j, nodes=[j], fixed=others)
+            table[s0:s0 + len(ss)] = out[:, 0].reshape(len(ss), n_core)
+        shift = C.index(j)
+        for p0 in range(0, len(patterns), per):
+            fmaps[p0:p0 + per] |= table[inv[p0:p0 + per]].astype(np.int32) << shift
+    del core_X
+    start = np.arange(n_core, dtype=np.int64)
+    for d0 in range(0, D, per):
+        dc = min(per, D - d0)
+        idx = np.broadcast_to(start, (dc, n_core))
+        for t in range(T):
+            idx = fmaps[pos[d0:d0 + dc, t][:, None], idx]
+        lab = att_of[idx] + n_att * np.arange(dc, dtype=np.int64)[:, None]
+        counts = np.bincount(lab.ravel(), minlength=dc * n_att).reshape(dc, n_att)
+        totals += (counts.astype(np.int64) * mult[d0:d0 + dc, None]).sum(axis=0)
+    return [int(t) for t in totals]
+
+
+def _boolean_sample_basins(
+    rules: list[dict[str, Any]], n: int, U: list[int], C: list[int],
+    att_of: np.ndarray, n_att: int, basin_samples: int, seed: int,
+) -> list[float]:
+    """Basin fractions from random full starts. Each start is stepped until
+    the upstream part has settled (|U| + 1 steps); its core state then lies
+    in a labelled basin of the autonomous core map."""
+    S = max(1, int(basin_samples))
+    rng = np.random.default_rng(seed)
+    X = rng.integers(0, 2, size=(S, n), dtype=np.uint8)
+    cols = list(U) + list(C)
+    Y = X[:, cols]
+    del X
+    for _ in range(len(U) + 1):
+        Y = _boolean_step(rules, Y, cols=cols, nodes=cols)
+    hits = np.bincount(att_of[_boolean_compact_index(Y[:, len(U):])], minlength=n_att)
+    return [int(h) / S for h in hits]
+
+
+def _boolean_core_basins(
+    rules: list[dict[str, Any]], n: int, U: list[int], C: list[int],
+    ustar: Mapping[int, int], att_of: np.ndarray, n_att: int,
+    basin_budget: int, basin_samples: int, seed: int,
+) -> tuple[str, list[int] | None, list[float]]:
+    """Basins of ``n_att >= 2`` core attractors (spec §3.3 step 5).
+
+    Read-outs and upstream nodes that are not ancestors of the core never
+    affect which attractor is reached, so with ``f`` such nodes every basin is
+    multiplied by exactly ``2^f``. The upstream ancestors U_a perturb the
+    core during their transient: their distinct input sequences drive every
+    core state when ``D * 2^|C| <= basin_budget``; otherwise fractions are
+    estimated from ``basin_samples`` random full starts.
+
+    Returns ``(basin_method, sizes or None, fractions)``.
+    """
+    Cset, Uset = set(C), set(U)
+    Iu = sorted({i for j in C for i in _boolean_inputs(rules, j) if i in Uset})
+    preds = [_boolean_inputs(rules, j) for j in range(n)]
+    Ua = sorted(_boolean_reach(set(Iu), preds)) if Iu else []
+    assert not (set(Ua) & Cset)
+    k = len(C)
+    if len(Ua) <= _BOOLEAN_MAX_UPSTREAM_ANCESTORS:
+        seqs = _boolean_input_sequences(rules, Ua, Iu, ustar, max(0, basin_budget) >> k)
+        if seqs is not None and seqs[0].shape[0] * (1 << k) <= basin_budget:
+            pid, mult = seqs
+            counts = _boolean_drive_exact(rules, U, C, Iu, ustar, att_of, n_att, pid, mult)
+            free = n - k - len(Ua)
+            sizes = [c << free for c in counts]
+            total = 1 << n
+            return "exact", sizes, [s / total for s in sizes]
+    return "sampled", None, _boolean_sample_basins(
+        rules, n, U, C, att_of, n_att, basin_samples, seed)
+
+
+def boolean_attractors_core(
+    rules: list[dict[str, Any]],
+    *,
+    max_core: int = BOOLEAN_MAX_CORE,
+    basin_budget: int = BOOLEAN_BASIN_BUDGET,
+    basin_samples: int = 10_000,
+    seed: int = 0,
+    max_attractors: int = BOOLEAN_MAX_ATTRACTORS,
+) -> dict[str, Any]:
+    """Exact Boolean attractors via the feedback core (spec 2026-11-21 §3.3).
+
+    Only the feedback core C (nodes downstream and upstream of a cycle)
+    determines the attractors: the upstream part U settles to a constant
+    pattern u*, and read-outs R follow the core. The ``2^|C|`` core states
+    are searched exhaustively, so the whole-network size does not matter;
+    the limit is ``|C| <= max_core``. Same update rules and float summation
+    as :func:`boolean_attractors`.
+
+    Parameters
+    ----------
+    max_core
+        Core-size limit, clamped to ``[0, BOOLEAN_MAX_CORE]``.
+    basin_budget
+        Core-state evaluations allowed for the exact basin pass.
+    basin_samples
+        Random starts for the sampled basin estimate, clamped to
+        ``[1, 100000]``.
+    seed
+        Seed for the sampled basin estimate. Must be a non-negative int
+        (``numpy.random.default_rng`` rejects negative seeds).
+    max_attractors
+        How many attractors to report, clamped to ``[1, 100000]`` (default
+        ``BOOLEAN_MAX_ATTRACTORS``). The top ones in the result order are
+        kept, and only those are reconstructed; ``n_attractors`` counts all.
+
+    Returns
+    -------
+    dict
+        ``{"method": "core", "n_nodes", "core_size", "upstream_size",
+        "readout_size", "basin_method": "exact" | "sampled", "attractors":
+        [{"type": "fixed" | "cyclic", "states": [int, ...], "period": int,
+        "basin_size": int | None, "basin_fraction": float}], "all_off_only":
+        bool, "n_attractors": int, "truncated": bool}``. States are Python
+        ints with bit ``i`` for node ``i``; cycles start at their minimum
+        state; attractors are ordered by ``basin_fraction`` descending, then
+        minimum state. ``basin_size`` is exact (the sizes of *all* attractors
+        sum to ``2^n``) only when ``basin_method == "exact"``; when
+        ``"sampled"`` the result also has ``basin_samples`` (effective, after
+        the clamp) and ``basin_seed``. ``truncated`` is true when
+        ``n_attractors > len(attractors)``.
+
+        Sentinels: core above ``max_core`` gives ``{"method": "core",
+        "attractors": [], "error": "core_too_large", "n_nodes", "core_size",
+        "max_core"}`` (``max_core`` after the clamp); ``n >
+        BOOLEAN_MAX_NODES_TOTAL`` gives ``"error": "too_large"`` (with
+        ``n_nodes`` and ``max_nodes``); ``n == 0`` gives an empty result with
+        no attractors (``n_attractors`` 0).
+    """
+    max_core = min(max(int(max_core), 0), BOOLEAN_MAX_CORE)
+    basin_samples = min(max(int(basin_samples), 1), _BOOLEAN_SAMPLE_CAP)
+    max_attractors = min(max(int(max_attractors), 1), _BOOLEAN_SAMPLE_CAP)
+    n = len(rules)
+    if n > BOOLEAN_MAX_NODES_TOTAL:
+        return {"method": "core", "attractors": [], "error": "too_large",
+                "n_nodes": n, "max_nodes": BOOLEAN_MAX_NODES_TOTAL}
+    if n == 0:
+        return {"method": "core", "n_nodes": 0, "core_size": 0, "upstream_size": 0,
+                "readout_size": 0, "basin_method": "exact", "attractors": [],
+                "all_off_only": False, "n_attractors": 0, "truncated": False}
+    U, C, R = _boolean_partition(rules)
+    k = len(C)
+    if k > max_core:
+        return {"method": "core", "attractors": [], "error": "core_too_large",
+                "n_nodes": n, "core_size": k, "max_core": max_core}
+
+    ustar = _boolean_upstream_fixed(rules, U)
+    att_of, reps, nxt = _boolean_core_labels(rules, C, ustar, return_map=True)
+    n_att = len(reps)
+
+    sizes: list[int] | None
+    if n_att == 1:
+        # One attractor: its basin is the whole state space by definition.
+        basin_method, sizes, fractions = "exact", [1 << n], [1.0]
+    else:
+        basin_method, sizes, fractions = _boolean_core_basins(
+            rules, n, U, C, ustar, att_of, n_att, basin_budget, basin_samples, seed)
+    del att_of
+
+    # Choose the attractors to report before reconstructing any of them:
+    # order is (basin_fraction desc, minimum full state). Everything above the
+    # cut-off fraction is kept; the tie group at the cut-off is ranked by its
+    # minimum full state, which needs only a min-only walk.
+    periods = _boolean_core_periods(nxt, reps)
+    R_order = _boolean_readout_order(rules, R)
+    frac = np.asarray(fractions, dtype=np.float64)
+    if n_att <= max_attractors:
+        kept = np.arange(n_att)
+    else:
+        cutoff = np.sort(frac)[::-1][max_attractors - 1]
+        above = np.flatnonzero(frac > cutoff)
+        tie = np.flatnonzero(frac == cutoff)
+        mins = _boolean_cycle_walk(rules, n, U, C, R_order, ustar, reps[tie], nxt, periods[tie],
+                                   record=False)
+        order = np.lexsort(tuple(mins[:, b] for b in range(mins.shape[1])))
+        kept = np.concatenate([above, tie[order[:max_attractors - len(above)]]])
+    cycles = _boolean_cycle_walk(rules, n, U, C, R_order, ustar, reps[kept], nxt, periods[kept],
+                                 record=True)
+
+    attractors = [
+        {
+            "type": "fixed" if len(cyc) == 1 else "cyclic",
+            "states": cyc,
+            "period": len(cyc),
+            "basin_size": None if sizes is None else sizes[a],
+            "basin_fraction": float(fractions[a]),
+        }
+        for a, cyc in zip(kept.tolist(), cycles)
+    ]
+    attractors.sort(key=lambda a: (-a["basin_fraction"], a["states"][0]))
+    all_off_only = (n_att == 1 and attractors[0]["type"] == "fixed"
+                    and attractors[0]["states"] == [0])
+    res: dict[str, Any] = {
+        "method": "core",
+        "n_nodes": n,
+        "core_size": k,
+        "upstream_size": len(U),
+        "readout_size": len(R),
+        "basin_method": basin_method,
+        "attractors": attractors,
+        "all_off_only": all_off_only,
+        "n_attractors": n_att,
+        "truncated": n_att > len(attractors),
+    }
+    if basin_method == "sampled":
+        res["basin_samples"] = basin_samples
+        res["basin_seed"] = seed
+    return res
+
+
+def boolean_attractors_sampled(
+    rules: list[dict[str, Any]],
+    n_samples: int = 2000,
+    *,
+    max_steps: int = 1000,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Sampled whole-network Boolean attractor search (spec 2026-11-21 §3.4).
+
+    For networks whose feedback core is above the exact limit. Uniform random
+    start states are stepped together with :func:`_boolean_step`; a
+    trajectory converges at its first repeated state, and one that has not
+    repeated after ``max_steps`` steps is counted as unconverged. History is
+    kept as packed rows, so ``n_samples * (max_steps + 1)`` is held to
+    ``10**7`` by lowering ``max_steps`` (the effective value is echoed).
+    ``seed`` must be a non-negative int (``numpy.random.default_rng`` rejects
+    negative seeds). An empty network (``n == 0``) gives no attractors.
+
+    Returns
+    -------
+    dict
+        ``{"method": "sampled", "attractors": [{"type": "fixed" | "cyclic",
+        "states": [int, ...], "period": int, "hits": int, "basin_fraction":
+        float}], "n_samples", "n_unconverged", "seed", "max_steps",
+        "n_nodes"}``. States are Python ints with bit ``i`` for node ``i``;
+        cycles start at their minimum state; attractors are ordered by
+        ``hits`` descending, then minimum state. ``basin_fraction`` is
+        ``hits / n_samples``. There is no ``basin_size``: samples do not give
+        exact basins. ``n_samples`` and ``max_steps`` are clamped to
+        ``[1, 100000]``. ``n > BOOLEAN_MAX_NODES_TOTAL`` gives ``{"method":
+        "sampled", "attractors": [], "error": "too_large", "n_nodes",
+        "max_nodes"}``.
+    """
+    n = len(rules)
+    if n > BOOLEAN_MAX_NODES_TOTAL:
+        return {"method": "sampled", "attractors": [], "error": "too_large",
+                "n_nodes": n, "max_nodes": BOOLEAN_MAX_NODES_TOTAL}
+    n_samples = min(max(int(n_samples), 1), _BOOLEAN_SAMPLE_CAP)
+    max_steps = min(max(int(max_steps), 1), _BOOLEAN_SAMPLE_CAP)
+    max_steps = min(max_steps, _BOOLEAN_SAMPLE_HISTORY // n_samples - 1)
+    if n == 0:
+        return {"method": "sampled", "attractors": [], "n_samples": n_samples,
+                "n_unconverged": 0, "seed": seed, "max_steps": max_steps, "n_nodes": 0}
+
+    rng = np.random.default_rng(seed)
+    X = rng.integers(0, 2, size=(n_samples, n), dtype=np.uint8)
+    cols = list(range(n))
+    seen: list[dict[bytes, int]] = [{} for _ in range(n_samples)]
+    alive = list(range(n_samples))
+    hits: dict[tuple[int, ...], int] = {}
+    for t in range(max_steps + 1):
+        packed = np.packbits(X, axis=1, bitorder="little")
+        keep: list[int] = []
+        for r, (sample, row) in enumerate(zip(alive, packed)):
+            key = row.tobytes()
+            first = seen[sample].get(key)
+            if first is None:
+                seen[sample][key] = t
+                keep.append(r)
+                continue
+            cyc = [_boolean_row_int(k) for k in list(seen[sample])[first:]]
+            m = cyc.index(min(cyc))
+            cyc = tuple(cyc[m:] + cyc[:m])
+            hits[cyc] = hits.get(cyc, 0) + 1
+            seen[sample] = {}  # release this trajectory's history
+        if not keep:
+            alive = []
+            break
+        if len(keep) < len(alive):
+            X = X[keep]
+            alive = [alive[r] for r in keep]
+        if t < max_steps:
+            X = _boolean_step(rules, X, cols=cols, nodes=cols)
+    n_unconverged = len(alive)
+
+    attractors = [
+        {"type": "fixed" if len(cyc) == 1 else "cyclic", "states": list(cyc),
+         "period": len(cyc), "hits": h, "basin_fraction": h / n_samples}
+        for cyc, h in hits.items()
+    ]
+    attractors.sort(key=lambda a: (-a["hits"], a["states"][0]))
+    return {"method": "sampled", "attractors": attractors, "n_samples": n_samples,
+            "n_unconverged": n_unconverged, "seed": seed, "max_steps": max_steps,
+            "n_nodes": n}
 
 
 # =============================================================================
