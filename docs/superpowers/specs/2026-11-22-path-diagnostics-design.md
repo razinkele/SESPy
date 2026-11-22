@@ -1,35 +1,44 @@
-# Causal path diagnostics and path sensitivity — design (SKELETON)
+# Causal path diagnostics and path sensitivity — design
 
-Date: 2026-11-22. Status: **skeleton for review**. Open decisions come first; no plan is written yet.
-Version: library TBD (after 1.19.0), app TBD (after 1.1.0). Both of those releases are in flight on `feat/boolean-scale`.
+Date: 2026-11-22. Status: **decisions taken 2026-11-22**; plan next.
+Version: library 1.20.0, app 1.2.0 (after the live 1.19.0 / 1.1.0).
 R parity: **SESPy-first**. R (`SESToolbox/MarineSABRES_SES_Shiny/functions/network_analysis.R`) has `find_pathways` (line 266) and `find_all_paths(nodes, edges, from_id, to_id, max_length = 10)` (line 1271), which return plain node-id paths with no polarity. A grep found no callers of either outside tests. R has no path scoring, bottleneck reporting or path sensitivity.
 
 ## Source
 - `docs/Marine_intervention_causal_pathways_and_propagation_development_note.docx`, a Copilot-generated note dated 2026-11-21. **It is not in git and was not synced to this laptop on 2026-11-22.** It was read from the online OneDrive copy (`SESPy/docs/`), and a duplicate sits in `Documents/Copilot/Created/`. Whether to commit it is the user's call. Sections used: §2 (paths), §5.2 (`causal_paths` and `path_sensitivity` return fields), §6.2 (P1, P2, P7, P8, P10), Appendix A.
 - **Why the note overlaps with shipped work.** Its basis (Appendix C) is `LITERATURE/proposed-issues.md`, written before #16 (`causal_paths`, shipped 2026-08-16) and before #17/#19–#21 (diffusion). Only what is genuinely new is specified here.
 
-## Open decisions (user)
-1. **Strength to weight.** The note scores paths on weights in 0–1, but SESPy stores `weak | medium | strong`. Two mappings already exist:
-   - `bayes.STRENGTH_LINK` = {0.30, 0.55, 0.80}, used by the Bayesian noisy-OR;
-   - `network._STRENGTH_RANK` = {1, 2, 3}, used by the Boolean rules, the adjacency matrix and rater aggregation.
-
-   Recommendation: reuse `STRENGTH_LINK`, since it is already on a 0–1 scale. Never invent a third mapping.
-2. **Path score formula.** The note gives `Π|w| · exp(−λ(L−1))`. Decide the default λ, whether λ is user-settable, and whether to show the score next to the existing length-sorted listing or to sort by it.
-3. **Ranking on a truncated set.** `causal_paths` stops at `max_paths` **in enumeration order**, so a score-sorted top-k drawn from a truncated set can miss the strongest path.
-   - Candidate: best-first enumeration with `nx.shortest_simple_paths` and edge cost `−log(w) + λ`, which yields paths in descending score.
-   - It has no length cutoff, and its cost on dense graphs is unmeasured. **Probe it before choosing.**
-4. **Delay per path.** `Connection.delay` has 3 levels (`immediate | short | long`, `constants.DELAY_LEVELS`), with no step counts. Options:
-   - report counts per level ("2 short, 1 long");
-   - report an ordinal maximum;
-   - define steps.
-
-   Recommendation: counts per level. No new numbers.
-5. **Edge evidence fields** (`evidence_type`, `source_reference`, `spatial_scope`). Out of scope here; they need a schema bump. Decide them together with the evidenced-polarity work (SESPy#41, spec `sespy-evpol/docs/superpowers/specs/2026-11-19-evidenced-polarity-design.md`, which adds no field). Until then, "evidence profile" means the existing `confidence`, `ratings` and `description`.
-6. **Bottleneck rule.** Options: the lowest strength with ties broken by the lowest `confidence`, the lowest `confidence` first, or both reported separately. The note says "lowest-weight or highest-uncertainty".
-7. **The worked example (10 nodes, 12 edges).** Its weights are decimals. Decide whether it becomes a test fixture, a shipped template, or both, and how its weights snap to the 3 strength levels.
+## Decisions (user, 2026-11-22)
+1. **Strength to weight: `bayes.STRENGTH_LINK`** (weak 0.30, medium 0.55, strong 0.80). A missing or unknown strength falls back to `medium`, as `STRENGTH_LINK.get(…, medium)` already does. No third mapping. Import the constant; never copy its values.
+2. **Path score:**
+   - formula `score = Π w_e · exp(−λ · (L − 1))` with **λ = 0.2, fixed** (a module constant `PATH_SCORE_LAMBDA = 0.2`, not user-settable);
+   - `L` is the path's edge count, so a single strong edge scores 0.80;
+   - `causal_paths` **sorts its rows by score, descending**, with ties broken by the old key (length, then path), so equal-score order is unchanged;
+   - the panel shows score and length as columns.
+3. **Ranking on a truncated set: score the enumerated set; no best-first search.**
+   - **Probe (2026-11-22):** Caribbean template (78 nodes, 140 edges), 16 source/target pairs (top-4 out-degree × top-4 in-degree).
+     - `nx.shortest_simple_paths` with cost `−log w + λ` hit a 30 s cap on **every** pair: it has no length cutoff, so it walks thousands of over-long paths.
+     - `causal_paths(max_length=8, max_paths=100)` enumerated every path (≤ 41, never truncated) in about 0.01 s per pair, and the strongest path was always in its set.
+     - Probe script: `docs/superpowers/specs/path-diagnostics-probes/probe_bestfirst.py` (run with PYTHONPATH at a sespy checkout; argument = that checkout).
+   - **Rule:** when `truncated` is True, the score order covers only the paths found. The result and the panel must say so: "ranked among the first {n} paths found; raise the path limit for a complete ranking". `strongest_positive` / `strongest_negative` carry the same caveat through `truncated`.
+4. **Delay per path: counts per level.** `delay_profile = {"immediate": i, "short": s, "long": l}` from `Connection.delay` (`constants.DELAY_LEVELS`). An unknown delay counts as `immediate`, matching the existing default. No step numbers are invented.
+5. **Edge evidence fields: out of scope.** They need a schema bump and are decided with SESPy#41. "Evidence" here means the existing `confidence` (and `min_confidence` per path).
+6. **Bottleneck: the weakest edge, ties broken by the lowest `confidence`**, then by the edge's position on the path (first wins). `bottleneck_edge = {"source", "target", "strength", "confidence"}`. One edge per path.
+7. **The note's worked example: a test fixture only, not a shipped template.**
+   - It is 10 nodes and 12 edges, with weights snapped to strength levels: w < 0.45 → weak, w < 0.70 → medium, otherwise strong.
+   - Pin its expected ranking, bottlenecks, delay profiles and redundancy in library tests.
+   - The note is not in git, so transcribe the example into the fixture file with a comment naming its source section.
+8. **API shape: extend `causal_paths`, adding new keys only.**
+   - The signature is unchanged.
+   - Existing keys (`path`, `length`, `polarity`, `counts`, `truncated`) keep their meaning; only the row order changes (decision 2).
+   - Callers:
+     - Nid4Ocean (`ses_boolean.py:250`) re-sorts by length itself, so it is unaffected;
+     - the app panel (`analysis_metrics.py:465`).
+   - The empty shape gains the new result-level keys. `tests/test_network.py::_EMPTY_PATHS` and any `==` comparison against it must be updated, and the CHANGELOG must say so.
+9. **`path_sensitivity`: same spec, a second task set in the same plan.** Diagnostics ship first; sensitivity is the later tasks. The app runs it as a background task with the generation-counter and stale-run guard pattern from sespy-app 1.1.0 (`analysis_boolean.py`).
 
 ## Scope (library)
-- **Extend `causal_paths`** (signature and output stay backwards-compatible; new keys only), or add `causal_path_diagnostics`. Decide which in review. Per path:
+- **Extend `causal_paths`** (decision 8: signature unchanged, new keys only, rows sorted by score). Per path:
   - `score` (decision 2);
   - `bottleneck_edge` (decision 6);
   - `delay_profile` (decision 4);
