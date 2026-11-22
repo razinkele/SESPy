@@ -1,41 +1,70 @@
 # Causal path diagnostics and path sensitivity — design
 
-Date: 2026-11-22. Status: **decisions taken 2026-11-22**; plan next.
-Version: library 1.20.0, app 1.2.0 (after the live 1.19.0 / 1.1.0).
+Date: 2026-11-22. Status: **decisions recorded 2026-11-22; [proposal] items await the user's sign-off**; plan after sign-off.
+Version: proposed library 1.20.0, app 1.2.0 (decision 13).
 R parity: **SESPy-first**. R (`SESToolbox/MarineSABRES_SES_Shiny/functions/network_analysis.R`) has `find_pathways` (line 266) and `find_all_paths(nodes, edges, from_id, to_id, max_length = 10)` (line 1271), which return plain node-id paths with no polarity. A grep found no callers of either outside tests. R has no path scoring, bottleneck reporting or path sensitivity.
 
 ## Source
 - `docs/Marine_intervention_causal_pathways_and_propagation_development_note.docx`, a Copilot-generated note dated 2026-11-21. **It is not in git and was not synced to this laptop on 2026-11-22.** It was read from the online OneDrive copy (`SESPy/docs/`), and a duplicate sits in `Documents/Copilot/Created/`. Whether to commit it is the user's call. Sections used: §2 (paths), §5.2 (`causal_paths` and `path_sensitivity` return fields), §6.2 (P1, P2, P7, P8, P10), Appendix A.
 - **Why the note overlaps with shipped work.** Its basis (Appendix C) is `LITERATURE/proposed-issues.md`, written before #16 (`causal_paths`, shipped 2026-08-16) and before #17/#19–#21 (diffusion). Only what is genuinely new is specified here.
 
-## Decisions (user, 2026-11-22)
-1. **Strength to weight: `bayes.STRENGTH_LINK`** (weak 0.30, medium 0.55, strong 0.80). A missing or unknown strength falls back to `medium`, as `STRENGTH_LINK.get(…, medium)` already does. No third mapping. Import the constant; never copy its values.
-2. **Path score:**
-   - formula `score = Π w_e · exp(−λ · (L − 1))` with **λ = 0.2, fixed** (a module constant `PATH_SCORE_LAMBDA = 0.2`, not user-settable);
-   - `L` is the path's edge count, so a single strong edge scores 0.80;
-   - `causal_paths` **sorts its rows by score, descending**, with ties broken by the old key (length, then path), so equal-score order is unchanged;
-   - the panel shows score and length as columns.
-3. **Ranking on a truncated set: score the enumerated set; no best-first search.**
-   - **Probe (2026-11-22):** Caribbean template (78 nodes, 140 edges), 16 source/target pairs (top-4 out-degree × top-4 in-degree).
+## Decisions (2026-11-22)
+Each decision is marked: **[user]** = answered by the user; **[proposal]** = Claude's proposal, awaiting the user's sign-off on this spec.
+
+1. **[user] Strength to weight: `bayes.STRENGTH_LINK`** (weak 0.30, medium 0.55, strong 0.80).
+   - A missing or unknown strength falls back to `medium`, as `STRENGTH_LINK.get(…, medium)` already does.
+   - No third mapping. Import the constant; never copy its values.
+2. **[user] Path score:** `score = Π w_e · exp(−λ · (L − 1))` with **λ = 0.2, fixed** (module constant `PATH_SCORE_LAMBDA = 0.2`, not user-settable). `L` is the path's edge count, so a single strong edge scores 0.80. `causal_paths` **sorts its rows by score, descending**, and the panel shows score and length as columns.
+   - **[proposal] Exact ties.** Compute the product from per-level counts: `w_weak**n_weak * w_medium**n_medium * w_strong**n_strong`, multiplied in that fixed order. Two paths with the same strengths in a different order then get bit-identical scores. A product taken in path order can differ in the last bit and break ties unpredictably.
+   - Equal scores fall back to the old key (length, then path). The sample-data test `test_causal_paths_sample_two_negative_sorted` (two paths, each with one strong and one medium edge on the differing stretch) therefore keeps its order.
+3. **[proposal] Ranking on a truncated set: score the enumerated set; no best-first search.**
+   - **Probe 1 (2026-11-22):** Caribbean template (78 nodes, 140 edges), 16 source/target pairs (top-4 out-degree × top-4 in-degree).
      - `nx.shortest_simple_paths` with cost `−log w + λ` hit a 30 s cap on **every** pair: it has no length cutoff, so it walks thousands of over-long paths.
-     - `causal_paths(max_length=8, max_paths=100)` enumerated every path (≤ 41, never truncated) in about 0.01 s per pair, and the strongest path was always in its set.
-     - Probe script: `docs/superpowers/specs/path-diagnostics-probes/probe_bestfirst.py` (run with PYTHONPATH at a sespy checkout; argument = that checkout).
-   - **Rule:** when `truncated` is True, the score order covers only the paths found. The result and the panel must say so: "ranked among the first {n} paths found; raise the path limit for a complete ranking". `strongest_positive` / `strongest_negative` carry the same caveat through `truncated`.
-4. **Delay per path: counts per level.** `delay_profile = {"immediate": i, "short": s, "long": l}` from `Connection.delay` (`constants.DELAY_LEVELS`). An unknown delay counts as `immediate`, matching the existing default. No step numbers are invented.
-5. **Edge evidence fields: out of scope.** They need a schema bump and are decided with SESPy#41. "Evidence" here means the existing `confidence` (and `min_confidence` per path).
-6. **Bottleneck: the weakest edge, ties broken by the lowest `confidence`**, then by the edge's position on the path (first wins). `bottleneck_edge = {"source", "target", "strength", "confidence"}`. One edge per path.
-7. **The note's worked example: a test fixture only, not a shipped template.**
-   - It is 10 nodes and 12 edges, with weights snapped to strength levels: w < 0.45 → weak, w < 0.70 → medium, otherwise strong.
-   - Pin its expected ranking, bottlenecks, delay profiles and redundancy in library tests.
-   - The note is not in git, so transcribe the example into the fixture file with a comment naming its source section.
-8. **API shape: extend `causal_paths`, adding new keys only.**
-   - The signature is unchanged.
-   - Existing keys (`path`, `length`, `polarity`, `counts`, `truncated`) keep their meaning; only the row order changes (decision 2).
+     - `causal_paths(max_length=8, max_paths=100)` enumerated every path (≤ 41) in about 0.01 s.
+   - **Probe 2:** all 12 templates under `sespy/templates`, 3,740 ordered pairs (all pairs, or a seeded sample of 400 per large template), at the panel's defaults (`max_length=8`, `max_paths=100`): **0 truncated**. Worst pair 0.017 s.
+   - Scripts are in `docs/superpowers/specs/path-diagnostics-probes/` (`probe_bestfirst.py`, `probe_paths_templates.py`; run with PYTHONPATH at a sespy checkout and that checkout as the argument).
+   - **Rule:** truncation does not occur on shipped models but can on dense user models. When `truncated` is True, the score order covers only the paths found. The result and the panel must say so: "ranked among the first {n} paths found; raise the path limit for a complete ranking". `strongest_positive` / `strongest_negative` carry the same caveat through `truncated`.
+4. **[user] Delay per path: counts per level.** `delay_profile = {"immediate": i, "short": s, "long": l}`, taken from `Connection.delay` (`constants.DELAY_LEVELS`).
+   - **[proposal]** An unknown delay counts as `immediate`, matching the dataclass default.
+5. **[proposal] Edge evidence fields: out of scope.** They need a schema bump and are decided with SESPy#41. "Evidence" here means the existing `confidence` (`min_confidence` per path).
+6. **[user] Bottleneck: the weakest edge, ties broken by the lowest `confidence`.**
+   - **[proposal]** Then by position on the path, first wins.
+   - `bottleneck_edge = {"source", "target", "strength", "confidence"}`. One edge per path.
+7. **[user] The note's worked example becomes a test fixture only.**
+   - Source: the note's §1.2–1.3 (10 nodes, 12 edges); its §2.2–2.3 give the expected routes.
+   - **[proposal] Snapping:** weight w < 0.45 → weak, w < 0.70 → medium, else strong. Delay step 1 → immediate, 2 → short, 3 → long. `confidence` = 3 everywhere, since the note gives none.
+   - Snapped, the two I→F routes score 0.101 (I→C→D→S→N→F, +) and 0.040 (I→X→S→N→F, −), which keeps the note's ranking.
+   - Transcribe the example into the fixture with a comment naming the note section, because the note is not in git.
+8. **[user] API shape: extend `causal_paths`, adding new keys only.**
+   - The signature is unchanged. Existing keys (`path`, `length`, `polarity`, `counts`, `truncated`) keep their meaning; only the row order changes (decision 2).
    - Callers:
      - Nid4Ocean (`ses_boolean.py:250`) re-sorts by length itself, so it is unaffected;
-     - the app panel (`analysis_metrics.py:465`).
+     - the app panel (`analysis_metrics.py:465`, with default limits), whose e2e asserts counts and labels but not row order.
    - The empty shape gains the new result-level keys. `tests/test_network.py::_EMPTY_PATHS` and any `==` comparison against it must be updated, and the CHANGELOG must say so.
-9. **`path_sensitivity`: same spec, a second task set in the same plan.** Diagnostics ship first; sensitivity is the later tasks. The app runs it as a background task with the generation-counter and stale-run guard pattern from sespy-app 1.1.0 (`analysis_boolean.py`).
+   - **[proposal] Duplicate connections:** today the last connection on a (source, target) pair wins for polarity. Strength, confidence and delay must come from that **same** connection. No shipped template has a duplicate pair.
+9. **[user] `path_sensitivity`: same spec, a second task set in the same plan.** Diagnostics ship first. The app runs it as a background task with the generation-counter and stale-run guard pattern from sespy-app 1.1.0 (`analysis_boolean.py`).
+10. **[proposal] `path_sensitivity` model: reuse the shipped Monte-Carlo machinery and invent no new mapping.**
+    - **Signature:** `path_sensitivity(isa, source, target, *, n_draws=500, seed=0, base=0.5, flip_mode="confidence", max_length=8, max_paths=100)`.
+    - **Each draw** perturbs the graph with the existing `network._perturbed_connections(isa, base, rng, flip_mode)`:
+      - **dropout:** drop probability `base·(5−confidence)/4`, so confidence 5 is never perturbed;
+      - **sign flip:** flip probability by confidence, or by the rater posterior with `flip_mode="posterior"`;
+      - **unrated edges** fall back to the confidence heuristic, as `uncertainty_scores` already does.
+    - **Strength per draw (optional, off by default):** `draw_strength=False`. When True, a rated edge takes the strength of one uniformly drawn rating; unrated edges keep their stored strength.
+    - **Per baseline path** (the unperturbed `causal_paths` rows):
+      - `rank_probability`: the share of draws in which this path is the top-scoring path among same-sign paths that survive;
+      - `polarity_probability`: the share of draws in which the path survives with its baseline polarity;
+      - `survival_probability`: the share of draws in which all its edges survive.
+    - **Result level:** `fragile_edges`, the edges whose dropout or flip coincides most often with a change of the overall top path. Count per edge over the draws where the top path changed, return the top 5 with their shares.
+    - **Probe 3:** 200 draws on the heaviest shipped pair (Caribbean W2→W6) took 1.4 s, so 500 draws is about 3.5 s. That is acceptable in a background task.
+    - **Acceptance:** the same seed gives identical output. Dropping the only path gives `rank_probability` 0 for it in that draw (note P8). At `base=0` every probability is 0 or 1.
+11. **[proposal] Redundancy semantics.** Count disjoint routes **greedily among the enumerated paths, strongest first**: take a path if it shares no edge (for `edge_disjoint`) or no interior node (for `node_disjoint`) with any path already taken.
+    - This respects `max_length` and is deterministic.
+    - It is a lower bound on the true maximum, so label it "disjoint routes among the paths listed".
+    - **No route:** 0 and 0.
+    - **Adjacent source and target:** the direct edge is a path with no interior node, so it counts towards both.
+    - Not `nx.edge_disjoint_paths`: max-flow ignores `max_length` and can exceed the listed paths.
+12. **[proposal] Strongest paths:** `strongest_positive` is the top-score path with polarity "+", and `strongest_negative` the top-score path with polarity "−". Ambiguous ("0") paths are never chosen; either key is `None` when that polarity has no path. `contradictory = counts["+"] > 0 and counts["-"] > 0`.
+13. **[proposal] Versions:** library 1.20.0 and app 1.2.0, unless the 1.19.1 / 1.1.1 follow-up batch or SESPy#41 ships first, in which case take the next minor number.
 
 ## Scope (library)
 - **Extend `causal_paths`** (decision 8: signature unchanged, new keys only, rows sorted by score). Per path:
@@ -46,11 +75,8 @@ R parity: **SESPy-first**. R (`SESToolbox/MarineSABRES_SES_Shiny/functions/netwo
 - **Result-level fields:**
   - `contradictory`: both + and − paths exist (already derivable from `counts`; make it explicit);
   - `strongest_positive` and `strongest_negative`;
-  - `redundancy`: edge-disjoint and node-disjoint path counts (`nx.edge_disjoint_paths` / `node_disjoint_paths`).
-- **New `path_sensitivity(isa, source, target, *, n_draws, seed, …)`**, built on the existing Monte-Carlo and multi-rater machinery (`uncertainty_scores`, `bayesian_contested`, the rating Dirichlet). Per path it returns `rank_probability`, `polarity_probability` and `fragile_edges`, the edges whose perturbation most often changes the top path. Perturbations:
-  - edge dropout;
-  - a sign flip for contested edges;
-  - a strength draw from the ratings.
+  - `redundancy`: `{"edge_disjoint", "node_disjoint"}`, counted greedily among the listed paths (decision 11).
+- **New `path_sensitivity`**, defined in decision 10 (reuses `_perturbed_connections`; per path `rank_probability`, `polarity_probability`, `survival_probability`; result-level `fragile_edges`).
 - **Note interpretive rule:** report the strongest benefit path, the strongest counter-path, and the edge whose uncertainty most changes their ranking.
 
 ## Scope (app)

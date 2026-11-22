@@ -18,7 +18,7 @@ Order: the note (§7.2) and this skeleton both put **path diagnostics first**
 - **Uncertainty:** the 95% margin comes from batch means. `net_sign` uses Student's t over the batches. Ranks use a paired-difference test against the group leader.
 
 ## Open decisions (user)
-1. **Strength to weight:** shared with the path spec (recommendation `bayes.STRENGTH_LINK`).
+1. **Strength to weight: settled — `bayes.STRENGTH_LINK`** (path-diagnostics spec, decision 1, user 2026-11-22). Missing strength falls back to medium.
 2. **Backwards compatibility.** The new behaviour comes from new keyword parameters (`transition="uniform"|"weighted"`, `decay=1.0`, `stop_prob=0.0`). Their defaults must reproduce 1.18.0 **exactly** for a fixed seed, **including the RNG draw sequence**, or the new mode goes in a separate function. Pin it with a regression test on stored 1.18.0 outputs.
 3. **Reach metric.** Add `reach_probability` (the share of tokens that ever visit) next to `tokens_received`, or replace it in the UI? Recommendation: add it, and show reach in the UI.
 4. **First arrival.** Keep the earliest step and add quantiles (`first_arrival_q50`, plus others if cheap)? That needs a per-token first-visit record: `n_tokens × n` int16, which is small.
