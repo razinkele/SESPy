@@ -63,7 +63,7 @@
 
 ## Part A — Library (repo SESPy)
 
-**Worktree:** `git -C "<OneDrive SESPy>" worktree add -b feat/path-diagnostics C:/Users/arturas.baziukas/AppData/Local/sespy-paths-lib origin/main`. Then `git cherry-pick` the docs commits from `docs/intervention-pathways` (`d96e9bb`, `82f556c`, `2248d33`, `3e1531e` and the commit that adds this plan), so the spec, probes and plan ship with the code. Run with cwd and PYTHONPATH set to that worktree.
+**Worktree:** `git -C "<OneDrive SESPy>" worktree add -b feat/path-diagnostics C:/Users/arturas.baziukas/AppData/Local/sespy-paths-lib origin/main`. Then `git cherry-pick 81004ad..docs/intervention-pathways` (every docs commit on that branch: both specs, the probes, this plan and its errata), so they ship with the code. Run with cwd and PYTHONPATH set to that worktree.
 
 ### Task 1: `causal_paths` diagnostics
 
@@ -71,7 +71,6 @@
 - Modify: `sespy/network.py` (`causal_paths` at about lines 762–826; add `PATH_SCORE_LAMBDA` near it)
 - Modify: `tests/test_network.py` (`_EMPTY_PATHS` at about line 1541, plus new tests after the causal_paths block)
 - Create: `tests/_paths_fixtures.py` (the note's worked example)
-- Modify: `docs/superpowers/specs/2026-11-22-path-diagnostics-design.md` (erratum to decision 4)
 
 **Interfaces:**
 - **Produces, per row:** the existing keys plus
@@ -137,10 +136,9 @@
     - strongest: first row with that polarity;
     - redundancy: greedy over the sorted rows. Edge-disjoint means no shared `(a, b)`; node-disjoint means no shared interior node.
   - Update the docstring.
-- [ ] **Step 5: Spec erratum.** In decision 4, replace "an unknown delay counts as `immediate`" with "delays are read through `constants.normalize_delay` (empty → immediate, free text → short), the library's canonical rule".
-- [ ] **Step 6: Run the library suite.** Run `micromamba run -n shiny python -m pytest -q`. Expected: all pass.
+- [ ] **Step 5: Run the library suite.** Run `micromamba run -n shiny python -m pytest -q`. Expected: all pass.
   - If tests in `tests/test_bayes*.py` assert path order through `bayes` (which passes `causal_paths` rows through), update only their expected order to score order, and say so in the report.
-- [ ] **Step 7: Commit.** `git commit -m "feat(paths): score, weakest link, delay profile, strongest routes and redundancy in causal_paths"`
+- [ ] **Step 6: Commit.** `git commit -m "feat(paths): score, weakest link, delay profile, strongest routes and redundancy in causal_paths"`
 
 ### Task 2: `path_sensitivity`
 
@@ -166,6 +164,8 @@
   def test_only_path_dropped_gives_zero_rank():  # chain s->m->t with confidence 1 on s->m, base=1.0 (p_drop 1): rank_probability 0.0, survival 0.0
   def test_rank_probability_is_within_same_sign():  # worked example I->F: both rows can have rank_probability > 0 (one per sign)
   def test_fragile_edges_bounded_and_sorted():
+  def test_off_path_edge_never_fragile():  # worked example I->F plus an extra confidence-1 edge W->A (on no I->F path): never in fragile_edges
+  def test_flipped_path_does_not_count_towards_rank():  # base=1.0 flip on a 1-path chain: polarity_probability < survival, rank counts only same-sign draws
   def test_no_route_returns_empty_shape():  # paths [], fragile_edges [], truncated False
   def test_draw_strength_uses_ratings_only_when_rated():
   def test_clamps():                        # n_draws clamped to [1, 10000]; base to [0, 1]; flip_mode validated like uncertainty_scores
@@ -177,11 +177,14 @@
     - perturbed connections (with `draw_strength`, a rated edge takes `rng.choice(c.ratings).strength`);
     - `causal_paths` on `IsaData(elements=isa.elements, connections=perturbed)` with the same `max_length` / `max_paths`;
     - map the surviving rows by `tuple(path)`.
-  - Per baseline path:
+  - Per baseline path, follow spec decision 10 exactly:
     - survival: present in the draw;
     - polarity: present with the baseline polarity;
-    - rank: it is the top-scoring row of its baseline polarity in the draw.
-  - Fragile edges: over the draws where the overall top row differs from the baseline top row, count each baseline edge that was dropped or flipped. Share = count / n_draws.
+    - rank: present with the baseline polarity **and** the top-scoring row of that polarity in the draw.
+  - Detect drops and flips by comparing each baseline-path edge's `(source, target)` against the draw's connections, last wins as in Task 1:
+    - absent → dropped;
+    - polarity differs from the baseline winner → flipped.
+  - Fragile edges, as defined in decision 10: count only edges on listed baseline paths, in draws where the top row changed in path or polarity, or where the draw has no rows. Share = count / n_draws.
 - [ ] **Step 4: Run the tests and the library suite.** Expected: all pass. Record the time for `path_sensitivity` on Caribbean W2→W6 at `n_draws=500` in the report (the spec's probe was about 3.5 s).
 - [ ] **Step 5: Commit.** `git commit -m "feat(paths): path_sensitivity — rank, polarity and survival probabilities and fragile edges"`
 
@@ -217,6 +220,7 @@
   | `metrics.paths_sens_col_polarity` | "Keeps its sign (%)" | – |
   | `metrics.paths_sens_col_survival` | "Survives (%)" | – |
   | `metrics.paths_sens_fragile` | "Links whose uncertainty most often changes the top route: {edges}" | edges |
+  | `metrics.paths_sens_error` | "The robustness check failed: {error}" | error |
 
   Assert all 9 languages and the placeholder sets. Keep `metrics.paths_truncated`.
 - [ ] **Step 2: Run it and watch it fail, then add the keys.** Add all keys to `core.json`, with English text in every language and the same formatting as the neighbouring entries.
@@ -259,7 +263,11 @@
     - `score` formatted `f"{score:.3f}"`;
     - `weakest` is `"label A → label B (strength, conf N)"`;
     - `delays` comes from `metrics.paths_delay_fmt`.
-  - `paths_csv(result: dict, labels: dict[str, str]) -> str`: a header row plus one row per path, with raw values (the score unrounded, the path as `" > "`-joined ids, plus labels).
+  - `paths_csv(result: dict, labels: dict[str, str]) -> str`: written with the `csv` module, with a header row plus one row per path and raw values. The header is exactly `rank,path_ids,path_labels,polarity,length,score,bottleneck_source,bottleneck_target,bottleneck_strength,bottleneck_confidence,delay_immediate,delay_short,delay_long,min_confidence,truncated`.
+    - `path_ids` and `path_labels` are `" > "`-joined.
+    - The score is unrounded (`repr` of the float).
+    - `truncated` repeats the result flag on every row.
+    - The column names stay English; they are machine-readable.
   - `summary_lines(result: dict, labels) -> list[str]`, in this order:
     1. the existing `metrics.paths_summary`;
     2. `metrics.paths_strongest`;
@@ -302,7 +310,8 @@
   def test_sensitivity_shows_computing_then_table():
   def test_stale_result_dropped_when_pair_changes():      # trace A->B, run, re-trace C->D before it finishes: no A->B table
   def test_queued_clicks_run_at_most_two_searches():       # 3 clicks behind a gate -> spy called twice
-  def test_sensitivity_error_shows_alert_not_crash(monkeypatch):
+  def test_sensitivity_uses_traced_pair_not_current_selects(monkeypatch):  # trace A->B, change selects to C->D without re-tracing, click: spy gets A, B
+  def test_sensitivity_error_shows_alert_not_crash(monkeypatch):   # alert text from metrics.paths_sens_error
   def test_isa_change_clears_sensitivity():
   def test_sensitivity_rows_percentages():                 # helper: shares -> "%.0f"
   ```
@@ -312,7 +321,9 @@
   - inside the task, `if gen != _gen[0]: return (gen, None)` before `asyncio.to_thread`;
   - task exceptions returned with their generation;
   - `_COMPUTING` sentinel; the observer drops stale generations;
-  - a new trace or an ISA change bumps the generation and clears the result.
+  - a new trace or an ISA change bumps the generation and clears the result;
+  - `_compute_paths` stores the traced pair with the result (`{"source", "target", "result"}`, or a separate `reactive.value`), and the robustness run always uses that stored pair, never the current selects;
+  - a task error renders `metrics.paths_sens_error` in a `.alert-danger` inside `#metrics-paths_sensitivity`.
   
   Render `metrics.paths_sens_caption`, a table (route, the three `%` columns) and `metrics.paths_sens_fragile`.
 - [ ] **Step 4: Run the new tests and the app unit suite.** Expected: all pass.
