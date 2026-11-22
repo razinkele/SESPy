@@ -78,8 +78,8 @@ def test_only_path_dropped_gives_zero_rank():
     assert row["rank_probability"] == 0.0
     assert row["survival_probability"] == 0.0
     assert row["polarity_probability"] == 0.0
-    shares = {(e["source"], e["target"]): e["share"] for e in res["fragile_edges"]}
-    assert shares[("s", "m")] == 1.0
+    # s->m changes in every draw, so its lift is undefined: never listed.
+    assert res["fragile_edges"] == []
 
 
 def test_rank_probability_is_within_same_sign():
@@ -94,17 +94,17 @@ def test_rank_probability_is_within_same_sign():
 
 def test_fragile_edges_bounded_and_sorted():
     isa = worked_example_isa()
-    for c in isa.connections:
-        c.confidence = 1
-    res = path_sensitivity(isa, "I", "F", n_draws=200, seed=3, base=0.8)
+    # Confidence 3 at base 0.5: every hop changes in some draws but not all.
+    res = path_sensitivity(isa, "I", "F", n_draws=300, seed=3, base=0.5)
     fe = res["fragile_edges"]
     assert 0 < len(fe) <= 5
-    keys = [(-e["share"], e["source"], e["target"]) for e in fe]
+    keys = [(-e["lift"], -e["share"], e["source"], e["target"]) for e in fe]
     assert keys == sorted(keys)
     on_path = {(a, b) for r in res["paths"] for a, b in zip(r["path"], r["path"][1:])}
     for e in fe:
-        assert set(e) == {"source", "target", "share"}
+        assert set(e) == {"source", "target", "share", "lift"}
         assert 0.0 < e["share"] <= 1.0
+        assert 0.0 < e["lift"] <= 1.0
         assert (e["source"], e["target"]) in on_path
 
 
@@ -138,7 +138,8 @@ def test_duplicate_pair_earlier_connection_winning_counts_as_flip():
     assert row["survival_probability"] == 1.0
     assert row["polarity_probability"] == 0.0
     assert row["rank_probability"] == 0.0
-    assert res["fragile_edges"] == [{"source": "s", "target": "t", "share": 1.0}]
+    # Flipped in every draw: lift undefined, so not listed.
+    assert res["fragile_edges"] == []
 
 
 def test_no_route_returns_empty_shape():
@@ -190,3 +191,63 @@ def test_clamps():
         path_sensitivity(chain, "t", "s", flip_mode="bogus")  # no route still validates
     res = path_sensitivity(chain, "s", "t", n_draws=5, flip_mode="posterior")
     assert res["flip_mode"] == "posterior"
+
+
+def test_fragile_edges_need_positive_lift():
+    # The top path's s->a (confidence 1, base 1.0) drops in every draw, so the
+    # top changes in every draw: no edge's change makes it more likely.
+    isa = _isa(["s", "a", "b", "t"], [("s", "a", "+", "strong", 1),
+                                      ("a", "t", "+", "strong", 3),
+                                      ("s", "b", "+", "medium", 3),
+                                      ("b", "t", "+", "medium", 5)])
+    res = path_sensitivity(isa, "s", "t", n_draws=200, base=1.0, seed=1)
+    assert res["fragile_edges"] == []
+
+
+def test_fragile_edges_rank_by_lift_not_drop_rate():
+    # Top path s->a->t with two confidence-4 hops; the weaker route's s->b has
+    # confidence 1, so it changes in most draws (high share) but never decides
+    # whether the top changes (lift ~ 0). The top-path hops lead.
+    isa = _isa(["s", "a", "b", "t"], [("s", "a", "+", "strong", 4),
+                                      ("a", "t", "+", "strong", 4),
+                                      ("s", "b", "+", "medium", 1),
+                                      ("b", "t", "+", "medium", 5)])
+    res = path_sensitivity(isa, "s", "t", n_draws=2000, seed=0)
+    fe = res["fragile_edges"]
+    edges = [(e["source"], e["target"]) for e in fe]
+    assert set(edges[:2]) == {("s", "a"), ("a", "t")}
+    for e in fe[:2]:
+        assert e["lift"] > 0.5
+    lift = {(e["source"], e["target"]): e for e in fe}
+    if ("s", "b") in lift:
+        assert lift[("s", "b")]["lift"] < 0.1
+    for e in fe:
+        assert e["lift"] > 0.0
+
+
+def test_exact_score_tie_shares_rank_credit():
+    # Two identical "+" routes, never perturbed: they tie on score in every
+    # draw, so each gets half the rank credit.
+    isa = _isa(["s", "a", "b", "t"], [("s", "a", "+", "strong", 5),
+                                      ("a", "t", "+", "strong", 5),
+                                      ("s", "b", "+", "strong", 5),
+                                      ("b", "t", "+", "strong", 5)])
+    res = path_sensitivity(isa, "s", "t", n_draws=40)
+    assert [r["rank_probability"] for r in res["paths"]] == [0.5, 0.5]
+    assert all(r["polarity_probability"] == 1.0 for r in res["paths"])
+
+
+def test_tie_credit_keeps_invariant_under_perturbation():
+    isa = _isa(["s", "a", "b", "c", "t"], [("s", "a", "+", "strong", 3),
+                                           ("a", "t", "+", "strong", 3),
+                                           ("s", "b", "+", "strong", 2),
+                                           ("b", "t", "+", "strong", 4),
+                                           ("s", "c", "-", "strong", 3),
+                                           ("c", "t", "+", "strong", 3)])
+    res = path_sensitivity(isa, "s", "t", n_draws=500, seed=9)
+    tied = [r for r in res["paths"] if r["polarity"] == "+"]
+    assert len(tied) == 2 and tied[0]["score"] == tied[1]["score"]
+    for r in res["paths"]:
+        assert 0.0 < r["rank_probability"] <= r["polarity_probability"] <= r["survival_probability"]
+    # Credits for one sign never exceed the share of draws with that sign present.
+    assert sum(r["rank_probability"] for r in tied) <= 1.0

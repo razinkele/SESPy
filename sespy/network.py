@@ -954,14 +954,18 @@ def path_sensitivity(
         pair, as in causal_paths);
       - "rank_probability": share of draws in which it survives with its
         baseline polarity AND is the top-scoring row of that polarity (a
-        draw that flips its sign does not count).
-    "fragile_edges": in draws where the overall top row differs from the
-    baseline top in path or polarity (or the draw has no rows), each hop of
-    a listed baseline path that was dropped (no connection left on the
-    pair) or flipped (the winning connection's polarity differs from the
-    baseline winner) is counted once. Share = count / n_draws; edges on no
-    listed path are never counted. At most 5 edges with a share above 0,
-    sorted by (-share, source, target).
+        draw that flips its sign does not count). When k rows of that sign
+        tie exactly on its top score, each tied path gets 1/k credit.
+    "fragile_edges": over the hops of the listed baseline paths only. A hop
+    "changed" in a draw if it was dropped (no connection left on the pair)
+    or flipped (the winning connection's polarity differs from the baseline
+    winner). "The top changed" if the overall top row differs from the
+    baseline top in path or polarity, or the draw has no rows.
+      - "share": draws with the hop changed and the top changed / n_draws;
+      - "lift": P(top changed | hop changed) − P(top changed | hop intact).
+    Hops that never or always change (lift undefined) and hops with
+    lift ≤ 0 are left out; the rest sort by (-lift, -share, source, target),
+    at most 5.
 
     n_draws is clamped to [1, 10000] and base to [0, 1]; both are echoed
     clamped. flip_mode must be "confidence" or "posterior" (ValueError).
@@ -995,8 +999,10 @@ def path_sensitivity(
     n = len(rows)
     survived = [0] * n
     same_sign = [0] * n
-    ranked = [0] * n
-    fragile = dict.fromkeys(listed_edges, 0)
+    ranked = [0.0] * n
+    changed_n = dict.fromkeys(listed_edges, 0)     # draws the edge changed
+    changed_top = dict.fromkeys(listed_edges, 0)   # ... and the top changed
+    intact_top = dict.fromkeys(listed_edges, 0)    # intact, and the top changed
 
     rng = np.random.default_rng(seed)
     for _ in range(n_draws):
@@ -1010,9 +1016,16 @@ def path_sensitivity(
         drawn = causal_paths(IsaData(elements=isa.elements, connections=pert),
                              source, target,
                              max_length=max_length, max_paths=max_paths)["paths"]
-        top_of: dict[str, tuple] = {}
+        # Rows tied exactly on the top score of their sign share the win
+        # (scores are bit-exact by construction, so == is safe).
+        top_score: dict[str, float] = {}
+        tied: dict[str, set] = {}
         for r in drawn:
-            top_of.setdefault(r["polarity"], tuple(r["path"]))
+            p = r["polarity"]
+            if p not in top_score:
+                top_score[p] = r["score"]
+            if r["score"] == top_score[p]:
+                tied.setdefault(p, set()).add(tuple(r["path"]))
 
         for i, r in enumerate(rows):
             if not all(e in pol for e in hops[i]):
@@ -1021,13 +1034,18 @@ def path_sensitivity(
             if _path_polarity(r["path"], pol) != r["polarity"]:
                 continue
             same_sign[i] += 1
-            if top_of.get(r["polarity"]) == tuple(r["path"]):
-                ranked[i] += 1
+            winners = tied.get(r["polarity"], ())
+            if tuple(r["path"]) in winners:
+                ranked[i] += 1.0 / len(winners)
 
-        if not drawn or (tuple(drawn[0]["path"]), drawn[0]["polarity"]) != top_key:
-            for e in listed_edges:
-                if e not in pol or pol[e] != base_pol[e]:
-                    fragile[e] += 1
+        top_changed = (not drawn
+                       or (tuple(drawn[0]["path"]), drawn[0]["polarity"]) != top_key)
+        for e in listed_edges:
+            if e not in pol or pol[e] != base_pol[e]:
+                changed_n[e] += 1
+                changed_top[e] += top_changed
+            else:
+                intact_top[e] += top_changed
 
     out["paths"] = [{
         "path": list(r["path"]),
@@ -1037,9 +1055,17 @@ def path_sensitivity(
         "polarity_probability": same_sign[i] / n_draws,
         "survival_probability": survived[i] / n_draws,
     } for i, r in enumerate(rows)]
-    ranked_edges = sorted(((-cnt, e) for e, cnt in fragile.items() if cnt > 0))
-    out["fragile_edges"] = [{"source": e[0], "target": e[1], "share": -neg / n_draws}
-                            for neg, e in ranked_edges[:5]]
+    fragile = []
+    for e in listed_edges:
+        k = changed_n[e]
+        if k == 0 or k == n_draws:
+            continue  # lift undefined: the edge never (or always) changed
+        lift = changed_top[e] / k - intact_top[e] / (n_draws - k)
+        if lift > 0:
+            fragile.append({"source": e[0], "target": e[1],
+                            "share": changed_top[e] / n_draws, "lift": lift})
+    fragile.sort(key=lambda d: (-d["lift"], -d["share"], d["source"], d["target"]))
+    out["fragile_edges"] = fragile[:5]
     out["truncated"] = bool(baseline["truncated"])
     return out
 

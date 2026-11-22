@@ -52,6 +52,7 @@ Each decision is marked: **[user]** = answered by the user; **[proposal]** = Cla
     - **Strength per draw (optional, off by default):** `draw_strength=False`. When True, a rated edge takes the strength of one uniformly drawn rating; unrated edges keep their stored strength.
     - **Per baseline path** (the unperturbed `causal_paths` rows):
       - `rank_probability`: the share of draws in which this path survives **with its baseline polarity** and is the top-scoring row of that polarity (a draw that flips the path's sign does not count towards it);
+        - *Erratum (Task 2 review): when k rows of that polarity tie exactly on the draw's top score for it (`==`; scores are bit-exact by construction), each tied baseline path present with its baseline polarity gets 1/k credit, instead of the win going to the row that sorts first by node id. `rank ≤ polarity ≤ survival` still holds.*
       - `polarity_probability`: the share of draws in which the path survives with its baseline polarity;
       - `survival_probability`: the share of draws in which all its edges survive.
     - **Result level:** `fragile_edges`. *Precision added at plan writing.*
@@ -59,6 +60,7 @@ Each decision is marked: **[user]** = answered by the user; **[proposal]** = Cla
       - In those draws, count each edge **on a listed baseline path** that was dropped (no connection on that pair in the draw) or flipped (the winning connection's polarity differs from baseline).
       - Edges on no listed path are never counted, since a low-confidence edge elsewhere would otherwise dominate.
       - Share = count / n_draws. Return the top 5 by share, then by (source, target).
+      - *Erratum (Task 2 review): share alone ranks edges by how often they drop, not by how much they matter (Caribbean W2→W6: an off-top-path edge ranked #2, and an edge whose change slightly lowers P(top changed) was listed). Each entry keeps `share` (same meaning) and gains `lift` = P(top changed | edge dropped or flipped) − P(top changed | edge intact), over the draws. An edge that never changes or always changes has no lift and is left out; so is any edge with lift ≤ 0. Sort by −lift, then −share, then (source, target); return the top 5. Entries are `{"source", "target", "share", "lift"}`, still only edges on listed baseline paths.*
     - **Probe 3:** 200 draws on the heaviest shipped pair (Caribbean W2→W6) took 1.4 s, so 500 draws is about 3.5 s. That is acceptable in a background task.
     - **Acceptance:** the same seed gives identical output. Dropping the only path gives `rank_probability` 0 for it in that draw (note P8). At `base=0` every probability is 0 or 1.
 11. **[proposal] Redundancy semantics.** Count disjoint routes **greedily among the enumerated paths, strongest first**: take a path if it shares no edge (for `edge_disjoint`) or no interior node (for `node_disjoint`) with any path already taken.
