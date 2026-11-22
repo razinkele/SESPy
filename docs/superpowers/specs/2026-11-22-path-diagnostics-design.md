@@ -23,9 +23,9 @@ Each decision is marked: **[user]** = answered by the user; **[proposal]** = Cla
      - `causal_paths(max_length=8, max_paths=100)` enumerated every path (≤ 41) in about 0.01 s.
    - **Probe 2:** all 12 templates under `sespy/templates`, 3,740 ordered pairs (all pairs, or a seeded sample of 400 per large template), at the panel's defaults (`max_length=8`, `max_paths=100`): **0 truncated**. Worst pair 0.017 s.
    - Scripts are in `docs/superpowers/specs/path-diagnostics-probes/` (`probe_bestfirst.py`, `probe_paths_templates.py`; run with PYTHONPATH at a sespy checkout and that checkout as the argument).
-   - **Rule:** truncation does not occur on shipped models but can on dense user models. When `truncated` is True, the score order covers only the paths found. The result and the panel must say so: "ranked among the first {n} paths found; raise the path limit for a complete ranking". `strongest_positive` / `strongest_negative` carry the same caveat through `truncated`.
+   - **Rule:** truncation does not occur on shipped models but can on dense user models. When `truncated` is True, the score order covers only the paths found. The result and the panel must say so: "Ranked among the first {n} paths found; a stronger path may exist beyond them." (*erratum, plan writing: the panel has no path-limit control, so it cannot tell users to raise one*). `strongest_positive` / `strongest_negative` carry the same caveat through `truncated`.
 4. **[user] Delay per path: counts per level.** `delay_profile = {"immediate": i, "short": s, "long": l}`, taken from `Connection.delay` (`constants.DELAY_LEVELS`).
-   - **[proposal]** An unknown delay counts as `immediate`, matching the dataclass default.
+   - **[proposal, amended at plan writing]** Delays are read through `constants.normalize_delay` (empty → immediate, numeric 0 → immediate, other numbers and free text → short, exact level names kept), the library's canonical rule. *Erratum: the approved text said an unknown delay counts as immediate; reusing the existing normaliser avoids a second rule.*
 5. **[proposal] Edge evidence fields: out of scope.** They need a schema bump and are decided with SESPy#41. "Evidence" here means the existing `confidence` (`min_confidence` per path).
 6. **[user] Bottleneck: the weakest edge, ties broken by the lowest `confidence`.**
    - **[proposal]** Then by position on the path, first wins.
@@ -51,10 +51,14 @@ Each decision is marked: **[user]** = answered by the user; **[proposal]** = Cla
       - **unrated edges** fall back to the confidence heuristic, as `uncertainty_scores` already does.
     - **Strength per draw (optional, off by default):** `draw_strength=False`. When True, a rated edge takes the strength of one uniformly drawn rating; unrated edges keep their stored strength.
     - **Per baseline path** (the unperturbed `causal_paths` rows):
-      - `rank_probability`: the share of draws in which this path is the top-scoring path among same-sign paths that survive;
+      - `rank_probability`: the share of draws in which this path survives **with its baseline polarity** and is the top-scoring row of that polarity (a draw that flips the path's sign does not count towards it);
       - `polarity_probability`: the share of draws in which the path survives with its baseline polarity;
       - `survival_probability`: the share of draws in which all its edges survive.
-    - **Result level:** `fragile_edges`, the edges whose dropout or flip coincides most often with a change of the overall top path. Count per edge over the draws where the top path changed, return the top 5 with their shares.
+    - **Result level:** `fragile_edges`. *Precision added at plan writing.*
+      - "The top changed" means the overall top row of the draw differs from the baseline top row in path **or** polarity, or the draw has no rows.
+      - In those draws, count each edge **on a listed baseline path** that was dropped (no connection on that pair in the draw) or flipped (the winning connection's polarity differs from baseline).
+      - Edges on no listed path are never counted, since a low-confidence edge elsewhere would otherwise dominate.
+      - Share = count / n_draws. Return the top 5 by share, then by (source, target).
     - **Probe 3:** 200 draws on the heaviest shipped pair (Caribbean W2→W6) took 1.4 s, so 500 draws is about 3.5 s. That is acceptable in a background task.
     - **Acceptance:** the same seed gives identical output. Dropping the only path gives `rank_probability` 0 for it in that draw (note P8). At `base=0` every probability is 0 or 1.
 11. **[proposal] Redundancy semantics.** Count disjoint routes **greedily among the enumerated paths, strongest first**: take a path if it shares no edge (for `edge_disjoint`) or no interior node (for `node_disjoint`) with any path already taken.
