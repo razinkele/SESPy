@@ -1705,6 +1705,105 @@
       "no": "Feil",
       "el": "Σφάλμα"
     },
+    "boolean.core_info": {
+      "en": "{n} nodes · {core} in the feedback core",
+      "es": "{n} nodes · {core} in the feedback core",
+      "fr": "{n} nodes · {core} in the feedback core",
+      "de": "{n} nodes · {core} in the feedback core",
+      "lt": "{n} nodes · {core} in the feedback core",
+      "pt": "{n} nodes · {core} in the feedback core",
+      "it": "{n} nodes · {core} in the feedback core",
+      "no": "{n} nodes · {core} in the feedback core",
+      "el": "{n} nodes · {core} in the feedback core"
+    },
+    "boolean.basins_exact": {
+      "en": "basin sizes exact",
+      "es": "basin sizes exact",
+      "fr": "basin sizes exact",
+      "de": "basin sizes exact",
+      "lt": "basin sizes exact",
+      "pt": "basin sizes exact",
+      "it": "basin sizes exact",
+      "no": "basin sizes exact",
+      "el": "basin sizes exact"
+    },
+    "boolean.basins_sampled": {
+      "en": "basin fractions estimated from {samples} random starts",
+      "es": "basin fractions estimated from {samples} random starts",
+      "fr": "basin fractions estimated from {samples} random starts",
+      "de": "basin fractions estimated from {samples} random starts",
+      "lt": "basin fractions estimated from {samples} random starts",
+      "pt": "basin fractions estimated from {samples} random starts",
+      "it": "basin fractions estimated from {samples} random starts",
+      "no": "basin fractions estimated from {samples} random starts",
+      "el": "basin fractions estimated from {samples} random starts"
+    },
+    "boolean.all_off": {
+      "en": "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off.",
+      "es": "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off.",
+      "fr": "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off.",
+      "de": "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off.",
+      "lt": "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off.",
+      "pt": "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off.",
+      "it": "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off.",
+      "no": "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off.",
+      "el": "Without external drivers, no feedback loop keeps any element active: every state settles to all elements off."
+    },
+    "boolean.core_too_large": {
+      "en": "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead.",
+      "es": "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead.",
+      "fr": "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead.",
+      "de": "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead.",
+      "lt": "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead.",
+      "pt": "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead.",
+      "it": "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead.",
+      "no": "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead.",
+      "el": "The feedback core has {core} nodes, above the exact limit of {max}. Showing a sampled search instead."
+    },
+    "boolean.sampled_note": {
+      "en": "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps.",
+      "es": "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps.",
+      "fr": "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps.",
+      "de": "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps.",
+      "lt": "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps.",
+      "pt": "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps.",
+      "it": "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps.",
+      "no": "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps.",
+      "el": "Sampled search: {n} random start states (seed {seed}). Rare attractors may be missed; basin fractions are estimates. {unconverged} trajectories did not settle within {max_steps} steps."
+    },
+    "boolean.computing": {
+      "en": "Computing attractors…",
+      "es": "Computing attractors…",
+      "fr": "Computing attractors…",
+      "de": "Computing attractors…",
+      "lt": "Computing attractors…",
+      "pt": "Computing attractors…",
+      "it": "Computing attractors…",
+      "no": "Computing attractors…",
+      "el": "Computing attractors…"
+    },
+    "boolean.col_hits": {
+      "en": "Hits",
+      "es": "Hits",
+      "fr": "Hits",
+      "de": "Hits",
+      "lt": "Hits",
+      "pt": "Hits",
+      "it": "Hits",
+      "no": "Hits",
+      "el": "Hits"
+    },
+    "boolean.col_basin_fraction": {
+      "en": "Basin fraction (%)",
+      "es": "Basin fraction (%)",
+      "fr": "Basin fraction (%)",
+      "de": "Basin fraction (%)",
+      "lt": "Basin fraction (%)",
+      "pt": "Basin fraction (%)",
+      "it": "Basin fraction (%)",
+      "no": "Basin fraction (%)",
+      "el": "Basin fraction (%)"
+    },
     "simulation.controls": {
       "en": "Simulation controls",
       "es": "Simulation controls",

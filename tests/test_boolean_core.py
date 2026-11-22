@@ -432,3 +432,34 @@ def test_wide_network_beyond_64_nodes():
     assert sum(a["basin_size"] for a in res["attractors"]) == 2 ** n
     assert any(s >= 2 ** 64 for a in res["attractors"] for s in a["states"])
     json.dumps(res)
+
+
+def _delay_chain(m: int, k: int) -> np.ndarray:
+    """m upstream delay nodes (2^m distinct input sequences) into a k-node ring."""
+    n = m + k
+    M = np.zeros((n, n))
+    for i in range(m - 1):
+        M[i, i + 1] = 1.0
+    core = list(range(m, n))
+    for a, b in zip(core, core[1:] + core[:1]):
+        M[a, b] = 1.0
+    M[m - 1, core[0]] = -0.5
+    return M
+
+
+def test_upstream_ancestor_cap_falls_back_to_sampled_basins(monkeypatch):
+    m = dynamics._BOOLEAN_MAX_UPSTREAM_ANCESTORS + 1
+    rules = create_boolean_rules(_delay_chain(m, 3))
+    capped = boolean_attractors_core(rules, basin_samples=2000, seed=0)
+    assert capped["basin_method"] == "sampled"
+    assert all(a["basin_size"] is None for a in capped["attractors"])
+    # the attractor set is still exact: it equals the one with the cap lifted
+    monkeypatch.setattr(dynamics, "_BOOLEAN_MAX_UPSTREAM_ANCESTORS", m)
+    lifted = boolean_attractors_core(rules)
+    assert lifted["basin_method"] == "exact"
+    assert ({frozenset(a["states"]) for a in capped["attractors"]}
+            == {frozenset(a["states"]) for a in lifted["attractors"]})
+    assert len(lifted["attractors"]) >= 2
+    exact = {frozenset(a["states"]): a["basin_fraction"] for a in lifted["attractors"]}
+    for a in capped["attractors"]:
+        assert abs(a["basin_fraction"] - exact[frozenset(a["states"])]) < 0.05

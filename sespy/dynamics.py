@@ -365,7 +365,7 @@ BOOLEAN_BASIN_BUDGET = 1 << 24
 # Sanity cap on the whole network.
 BOOLEAN_MAX_NODES_TOTAL = 200
 
-_BOOLEAN_MAX_UPSTREAM_ANCESTORS = 20  # 2^|U_a| upstream starts, simulated exactly
+_BOOLEAN_MAX_UPSTREAM_ANCESTORS = 16  # 2^|U_a| upstream starts, simulated exactly (benchmark: 18 misses the 5 s gate)
 _BOOLEAN_CHUNK_ROWS = 1 << 20         # rows per batch in the basin pass
 
 

@@ -67,6 +67,7 @@ BOOLEAN_MAX_NODES_TOTAL = 200           # sanity cap on n
    - **Exact factors:** read-outs, and upstream nodes that are **not ancestors of the core**, multiply basins by exactly `2^k`.
    - **Upstream ancestors of the core** (U_a) perturb the core during the transient:
    - Simulate U_a alone from all `2^|U_a|` starts (only when `2^|U_a| ≤ 2^20`).
+     *Erratum (Task 3 benchmark):* the cap is `|U_a| ≤ 16` (`2^|U_a| ≤ 2^16`), not 2^20. Case (d) of `tests/bench_boolean_core.py` (a 20-ancestor delay chain into a 4-node core) took 31 s and peaked at 1036 MB at the cap of 20, and 6.9 s / 233 MB at 18; at 16 it takes 0.76 s / 52 MB. Above the cap the attractor set stays exact and the basins fall back to `basin_method = "sampled"`.
    - Deduplicate by the sequence of values the core's upstream inputs take over the transient.
    - If `(distinct sequences) × 2^|C| ≤ basin_budget`, compute basins exactly by driving every core state with each sequence and labelling the result. `basin_method = "exact"`.
    - Otherwise, estimate fractions from `basin_samples` random full starts (seed `seed`), each run until its core state reaches a labelled attractor. `basin_method = "sampled"`.

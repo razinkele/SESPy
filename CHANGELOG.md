@@ -4,6 +4,30 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.19.0] — 2026-11-22
+
+Boolean attractors at scale (spec 2026-11-21). `boolean_attractors` is unchanged
+(the oracle and the Nid4Ocean entry point, still capped at 20 nodes).
+
+### Added
+- `boolean_attractors_core(rules, *, max_core, basin_budget, basin_samples, seed)`:
+  exact attractor search on the feedback core, so the limit applies to the core
+  (`BOOLEAN_MAX_CORE = 20`) and not to the whole network (up to
+  `BOOLEAN_MAX_NODES_TOTAL = 200`). Basins are exact within `BOOLEAN_BASIN_BUDGET`
+  (`1 << 24`), otherwise estimated from random starts.
+- `boolean_attractors_sampled(rules, n_samples=2000, *, max_steps=1000, seed=0)`:
+  sampled search over the whole network for cores above the exact limit.
+- Nine translation keys in all nine languages: `boolean.core_info`,
+  `basins_exact`, `basins_sampled`, `all_off`, `core_too_large`, `sampled_note`,
+  `computing`, `col_hits`, `col_basin_fraction`. Existing `boolean.*` keys stay.
+- `tests/bench_boolean_core.py` (not collected by pytest) gates the new searches
+  at a median of 5 s and a peak of 300 MB.
+
+### Changed
+- The exact basin pass simulates the upstream ancestors of the core only up to
+  16 of them (`2^16` starts); above that the attractor set stays exact and the
+  basins are sampled. The benchmark showed 20 ancestors take 31 s and 1 GB.
+
 ## [1.18.0] — 2026-11-20
 
 SESPy is now a library; the Shiny app moved to razinkele/sespy-app (1.0.0). Removed: sespy.modules, dashboard, browser_token, event_bus, feedback_store, ui_i18n, ui_r_kb, www; shiny/htmltools/pyvis are no longer dependencies.
