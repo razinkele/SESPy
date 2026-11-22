@@ -17,6 +17,12 @@ paths; the new `path_sensitivity` tests how stable that ranking is.
   - `bottleneck_edge`: weakest link, then lowest confidence, then position;
     strength is the level used for scoring.
   - `delay_profile` (via `normalize_delay`) and `min_confidence`.
+  - Confidence that is missing or text (JSON loading passes it through, e.g.
+    `null` or `"4"`) is coerced for comparisons and probabilities: `int()`,
+    clamped to 1–5, 3 when that fails. `min_confidence` reports the coerced
+    value; `bottleneck_edge["confidence"]` keeps the stored one. The
+    perturbation model (`uncertainty_scores`, `path_sensitivity`) uses the
+    same rule; valid integer confidences behave exactly as before.
 - `causal_paths` result-level fields: `strongest_positive`, `strongest_negative`
   (ambiguous paths are never chosen), `contradictory` and `redundancy` (greedy
   disjoint routes among the listed paths). Per-edge attributes come from the
@@ -25,17 +31,22 @@ paths; the new `path_sensitivity` tests how stable that ranking is.
   flip_mode="confidence", max_length=8, max_paths=100, draw_strength=False)`:
   - per path `rank_probability` (top of its sign; exact ties share 1/k),
     `polarity_probability` and `survival_probability`;
-  - `fragile_edges`: up to 5 edges on listed paths with positive `lift`
-    (P(top changes | edge changed) minus P(top changes | edge intact)), with
-    their `share`;
+  - `fragile_edges`: up to 5 links, each `{source, target, share, lift}`
+    (`lift` = P(top changes | link changed) minus P(top changes | link
+    intact)), sorted by lift, then share. With `draw_strength=False` and a
+    baseline that is not truncated only links of the baseline top path can
+    change the top, so only those with lift > 0 are listed; otherwise a link
+    needs lift > 2·SE. Links that never or always change are left out;
   - reuses the existing `_perturbed_connections` model; about 3.5 s for 500
     draws on the largest shipped pair.
-- 23 translation keys `metrics.paths_*` in all nine languages (English text in
+- 24 translation keys `metrics.paths_*` in all nine languages (English text in
   every language until translated). `metrics.paths_truncated` stays.
 
 ### Changed
 - **`causal_paths` rows now sort by score (descending), ties by length and then
   path.** Callers that relied on the old length order must sort themselves.
+  A caller that sorts stably by length (Nid4Ocean `ses_boolean.py`) keeps its
+  length order but now sees score order within one length.
 - **The empty `causal_paths` result gains the new result-level keys**, so an
   `==` comparison against the old empty dict now fails.
 - `bayes.path_set_dag` builds its DAG in the old (length, path) order, so its

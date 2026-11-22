@@ -175,7 +175,9 @@ def test_draw_strength_off_consumes_no_rng():
     isa = worked_example_isa()
     a = path_sensitivity(isa, "I", "F", n_draws=100, seed=5)
     b = path_sensitivity(isa, "I", "F", n_draws=100, seed=5, draw_strength=True)
-    assert a == b  # no rated edges: the flag changes nothing
+    # No rated edges: the draws are identical, so every probability is. Only
+    # the fragile-edge selection differs (noise floor when the flag is on).
+    assert a["paths"] == b["paths"]
 
 
 def test_clamps():
@@ -251,3 +253,64 @@ def test_tie_credit_keeps_invariant_under_perturbation():
         assert 0.0 < r["rank_probability"] <= r["polarity_probability"] <= r["survival_probability"]
     # Credits for one sign never exceed the share of draws with that sign present.
     assert sum(r["rank_probability"] for r in tied) <= 1.0
+
+
+# --- Final-review fix wave -------------------------------------------------
+
+def _two_routes():
+    # Strong route s-a-t (confidence 3) and a weaker disjoint s-b-t
+    # (confidence 1). Only the strong route's links can change the top.
+    return _isa(["s", "a", "b", "t"], [("s", "a", "+", "strong", 3),
+                                       ("a", "t", "+", "strong", 3),
+                                       ("s", "b", "+", "weak", 1),
+                                       ("b", "t", "+", "weak", 1)])
+
+
+def test_off_top_links_never_fragile_without_strength_draws():
+    isa = _two_routes()
+    for seed in range(20):
+        res = path_sensitivity(isa, "s", "t", n_draws=200, seed=seed)
+        edges = {(e["source"], e["target"]) for e in res["fragile_edges"]}
+        assert edges <= {("s", "a"), ("a", "t")}, (seed, edges)
+
+
+def test_top_path_links_listed_in_share_order():
+    # Top path s-a-b-c-t with confidences 1..4: change rates differ clearly,
+    # so lift and share order agree; the weaker route s-d-t never appears.
+    isa = _isa(["s", "a", "b", "c", "d", "t"], [
+        ("s", "a", "+", "strong", 1), ("a", "b", "+", "strong", 2),
+        ("b", "c", "+", "strong", 3), ("c", "t", "+", "strong", 4),
+        ("s", "d", "+", "weak", 2), ("d", "t", "+", "weak", 2),
+    ])
+    res = path_sensitivity(isa, "s", "t", n_draws=2000, seed=0)
+    fe = res["fragile_edges"]
+    assert [(e["source"], e["target"]) for e in fe] == [
+        ("s", "a"), ("a", "b"), ("b", "c"), ("c", "t")]
+    shares = [e["share"] for e in fe]
+    assert shares == sorted(shares, reverse=True)
+
+
+def test_noise_floor_applies_with_strength_draws():
+    # draw_strength=True takes the noise-floor branch (lift > 2*SE). With no
+    # rated links the draws equal the default ones, so off-top links only
+    # pass by chance: rare across seeds, and the top links stay listed.
+    isa = _two_routes()
+    off_top = 0
+    for seed in range(20):
+        res = path_sensitivity(isa, "s", "t", n_draws=200, seed=seed,
+                               draw_strength=True)
+        edges = {(e["source"], e["target"]) for e in res["fragile_edges"]}
+        assert {("s", "a"), ("a", "t")} <= edges, seed
+        off_top += len(edges - {("s", "a"), ("a", "t")})
+    assert off_top <= 2
+
+
+@pytest.mark.parametrize("conf", [None, "4", "high", 4.0])
+def test_odd_confidence_never_raises(conf):
+    isa = _two_routes()
+    isa.connections[0].confidence = conf
+    res = path_sensitivity(isa, "s", "t", n_draws=50, seed=0)
+    for p in _probs(res):
+        assert 0.0 <= p <= 1.0
+    for e in res["fragile_edges"]:
+        assert 0.0 < e["lift"] <= 1.0

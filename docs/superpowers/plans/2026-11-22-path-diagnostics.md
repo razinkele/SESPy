@@ -152,10 +152,10 @@
   ```
   {"n_draws": int, "seed": int, "base": float, "flip_mode": str,
    "paths": [{"path", "polarity", "score", "rank_probability", "polarity_probability", "survival_probability"}],
-   "fragile_edges": [{"source", "target", "share"}],
+   "fragile_edges": [{"source", "target", "share", "lift"}],
    "truncated": bool}
   ```
-  The paths are the baseline rows, in baseline order. `fragile_edges` holds at most 5 edges, sorted by `-share`, then `(source, target)`.
+  The paths are the baseline rows, in baseline order. `fragile_edges` holds at most 5 edges, selected and sorted per spec decision 10 and its errata (Task 2 review, final review): `lift` filter (top-path links only when `draw_strength=False` and the baseline is not truncated, else lift > 2·SE), sorted by `-lift`, `-share`, then `(source, target)`.
 
 - [ ] **Step 1: Write the failing tests:**
   ```python
@@ -221,6 +221,7 @@
   | `metrics.paths_sens_col_survival` | "Survives (%)" | – |
   | `metrics.paths_sens_fragile` | "Links whose uncertainty most often changes the top route: {edges}" | edges |
   | `metrics.paths_sens_error` | "The robustness check failed: {error}" | error |
+  | `metrics.paths_sens_fragile_none` | "No single link's uncertainty clearly changes the top route." | – |
 
   Assert all 9 languages and the placeholder sets. Keep `metrics.paths_truncated`.
 - [ ] **Step 2: Run it and watch it fail, then add the keys.** Add all keys to `core.json`, with English text in every language and the same formatting as the neighbouring entries.
@@ -325,7 +326,7 @@
   - `_compute_paths` stores the traced pair with the result (`{"source", "target", "result"}`, or a separate `reactive.value`), and the robustness run always uses that stored pair, never the current selects;
   - a task error renders `metrics.paths_sens_error` in a `.alert-danger` inside `#metrics-paths_sensitivity`.
   
-  Render `metrics.paths_sens_caption`, a table (route, the three `%` columns) and `metrics.paths_sens_fragile`.
+  Render `metrics.paths_sens_caption`, a table (route, the three `%` columns) and `metrics.paths_sens_fragile` (its `{edges}` lists the `fragile_edges` entries, `{source, target, share, lift}`, in the library's order), or `metrics.paths_sens_fragile_none` when `fragile_edges` is empty.
 - [ ] **Step 4: Run the new tests and the app unit suite.** Expected: all pass.
 - [ ] **Step 5: Commit.** `git commit -m "feat(paths): robustness check in a background task with stale-run guard"`
 

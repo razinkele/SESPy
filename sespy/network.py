@@ -764,6 +764,17 @@ def cascade_vulnerability(
 PATH_SCORE_LAMBDA = 0.2
 
 
+def _coerce_confidence(value) -> int:
+    """A stored confidence as an int in [1, 5] for comparisons and
+    probabilities. JSON loading passes confidence through unchanged, so it
+    may be None or text: int() it, fall back to 3 when that fails, clamp."""
+    try:
+        c = int(value)
+    except (TypeError, ValueError):
+        c = 3
+    return max(1, min(5, c))
+
+
 def _greedy_disjoint(rows: list[dict], parts) -> int:
     """How many rows, taken in order, share no part with a row taken
     before them. parts(row) -> set of the row's parts (edges or interior
@@ -809,10 +820,13 @@ def causal_paths(
       - "bottleneck_edge": {"source", "target", "strength", "confidence"}
         of the weakest hop; ties go to the lowest confidence, then to the
         earliest hop. "strength" is the level the score used (so an unknown
-        strength reads "medium"); "confidence" is the stored value.
+        strength reads "medium"); "confidence" is the stored value, while
+        the tie-break compares it coerced (int, clamped to 1-5, 3 when it
+        is missing or not a number).
       - "delay_profile": {"immediate", "short", "long"} hop counts, each
         delay read through constants.normalize_delay.
-      - "min_confidence": the lowest stored confidence on the path.
+      - "min_confidence": the lowest confidence on the path, coerced the
+        same way (so it is always an int in 1-5).
     Rows sort (-score, length, path) — deterministic.
 
     Result level:
@@ -881,13 +895,14 @@ def causal_paths(
             level = c.strength if c.strength in level_n else "medium"
             level_n[level] += 1
             delays[normalize_delay(c.delay)] += 1
-            hops.append((STRENGTH_LINK[level], c.confidence, pos, a, b, level))
+            hops.append((STRENGTH_LINK[level], _coerce_confidence(c.confidence),
+                         pos, a, b, level, c.confidence))
         length = len(p) - 1
         score = (STRENGTH_LINK["weak"] ** level_n["weak"]
                  * STRENGTH_LINK["medium"] ** level_n["medium"]
                  * STRENGTH_LINK["strong"] ** level_n["strong"]) \
             * math.exp(-PATH_SCORE_LAMBDA * (length - 1))
-        _, conf, _, a, b, level = min(hops, key=lambda h: (h[0], h[1], h[2]))
+        _, _, _, a, b, level, conf = min(hops, key=lambda h: (h[0], h[1], h[2]))
         rows.append({
             "path": list(p),
             "length": length,
@@ -963,9 +978,15 @@ def path_sensitivity(
     baseline top in path or polarity, or the draw has no rows.
       - "share": draws with the hop changed and the top changed / n_draws;
       - "lift": P(top changed | hop changed) − P(top changed | hop intact).
-    Hops that never or always change (lift undefined) and hops with
-    lift ≤ 0 are left out; the rest sort by (-lift, -share, source, target),
-    at most 5.
+    Hops that never or always change (lift undefined) are left out. Then:
+      - draw_strength=False and a baseline that is not truncated: scores
+        never change and no new path appears, so only a hop of the baseline
+        top path can change the top; only those hops with lift > 0 are kept
+        (any other hop's lift is noise);
+      - otherwise: hops with lift > 2·SE are kept, SE = sqrt(p1(1−p1)/k +
+        p0(1−p0)/(n−k)), p1 / p0 = P(top changed | hop changed / intact),
+        k = draws the hop changed, n = n_draws.
+    The rest sort by (-lift, -share, source, target), at most 5.
 
     n_draws is clamped to [1, 10000] and base to [0, 1]; both are echoed
     clamped. flip_mode must be "confidence" or "posterior" (ValueError).
@@ -1055,13 +1076,23 @@ def path_sensitivity(
         "polarity_probability": same_sign[i] / n_draws,
         "survival_probability": survived[i] / n_draws,
     } for i, r in enumerate(rows)]
+    # Without strength draws, and with every path enumerated, only a hop of
+    # the baseline top path can change the top; elsewhere lift is noise.
+    top_only = not draw_strength and not baseline["truncated"]
+    top_hops = set(hops[0])
     fragile = []
     for e in listed_edges:
+        if top_only and e not in top_hops:
+            continue
         k = changed_n[e]
         if k == 0 or k == n_draws:
             continue  # lift undefined: the edge never (or always) changed
-        lift = changed_top[e] / k - intact_top[e] / (n_draws - k)
-        if lift > 0:
+        p1 = changed_top[e] / k
+        p0 = intact_top[e] / (n_draws - k)
+        lift = p1 - p0
+        floor = 0.0 if top_only else 2.0 * math.sqrt(
+            p1 * (1 - p1) / k + p0 * (1 - p0) / (n_draws - k))
+        if lift > floor:
             fragile.append({"source": e[0], "target": e[1],
                             "share": changed_top[e] / n_draws, "lift": lift})
     fragile.sort(key=lambda d: (-d["lift"], -d["share"], d["source"], d["target"]))
@@ -1743,8 +1774,9 @@ def _perturb_prob(confidence: int, base: float) -> float:
     """Per-draw drop/flip probability for one edge: base*(5-conf)/4.
 
     confidence 5 -> 0 (certain edge never perturbed); confidence 1 -> base.
-    Confidence is clamped to [1, 5]."""
-    c = max(1, min(5, int(confidence)))
+    Confidence goes through _coerce_confidence (clamped to [1, 5]; None or
+    text that is not a number counts as 3)."""
+    c = _coerce_confidence(confidence)
     return base * (5 - c) / 4.0
 
 

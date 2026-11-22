@@ -1789,7 +1789,7 @@ def test_causal_paths_odd_edge_data_is_finite():
     # the reported strength is the level the score used; confidence is stored
     assert row["bottleneck_edge"] == {"source": "s", "target": "t",
                                       "strength": "medium", "confidence": 9}
-    assert row["min_confidence"] == 9
+    assert row["min_confidence"] == 5  # coerced: clamped to 1-5 (final review)
     assert row["delay_profile"] == {"immediate": 0, "short": 1, "long": 0}
 
 
@@ -2723,3 +2723,43 @@ def test_governance_gap_headline_unchanged_by_an_r_to_mpf_link():
     assert b["gaps_by_type"]["Marine Processes & Functioning"]["uncovered"] == []
     # ecological_gap_fraction already pools MPF, so it does move.
     assert a["ecological_gap_fraction"] != b["ecological_gap_fraction"]
+
+
+@pytest.mark.parametrize("conf,coerced", [(None, 3), ("4", 4), ("high", 3), (9, 5), (0, 1)])
+def test_causal_paths_coerces_odd_confidence(conf, coerced):
+    """JSON loading passes confidence through unchanged (null, "4"):
+    causal_paths must not raise. min_confidence and the bottleneck
+    tie-break use the coerced value; bottleneck_edge keeps the raw one."""
+    isa = IsaData(
+        elements=[Element(id=n, label=n, type="Pressures") for n in "sat"],
+        connections=[Connection(source="s", target="a", polarity="+",
+                                strength="weak", confidence=conf),
+                     Connection(source="a", target="t", polarity="+",
+                                strength="strong", confidence=5)],
+    )
+    res = network.causal_paths(isa, "s", "t")
+    (row,) = res["paths"]
+    assert math.isfinite(row["score"])
+    assert row["min_confidence"] == min(coerced, 5)
+    assert row["bottleneck_edge"]["confidence"] == conf
+
+
+def test_causal_paths_bottleneck_tie_break_with_null_confidence():
+    isa = IsaData(
+        elements=[Element(id=n, label=n, type="Pressures") for n in "sat"],
+        connections=[Connection(source="s", target="a", polarity="+",
+                                strength="weak", confidence=None),
+                     Connection(source="a", target="t", polarity="+",
+                                strength="weak", confidence=2)],
+    )
+    row = network.causal_paths(isa, "s", "t")["paths"][0]
+    # None counts as 3, so the confidence-2 hop is the bottleneck.
+    assert (row["bottleneck_edge"]["source"], row["bottleneck_edge"]["confidence"]) == ("a", 2)
+
+
+def test_perturb_prob_tolerates_odd_confidence():
+    assert network._perturb_prob(None, 0.5) == network._perturb_prob(3, 0.5)
+    assert network._perturb_prob("4", 0.5) == network._perturb_prob(4, 0.5)
+    assert network._perturb_prob("x", 0.5) == 0.25
+    for c in range(-1, 8):  # valid ints unchanged
+        assert network._perturb_prob(c, 0.5) == 0.5 * (5 - max(1, min(5, c))) / 4.0

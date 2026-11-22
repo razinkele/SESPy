@@ -35,6 +35,7 @@ EN = {
     "metrics.paths_sens_col_survival": "Survives (%)",
     "metrics.paths_sens_fragile": "Links whose uncertainty most often changes the top route: {edges}",
     "metrics.paths_sens_error": "The robustness check failed: {error}",
+    "metrics.paths_sens_fragile_none": "No single link's uncertainty clearly changes the top route.",
 }
 KEYS = {k: set(re.findall(r"\{(\w+)\}", v)) for k, v in EN.items()}
 
@@ -61,3 +62,17 @@ def test_english_text_matches_spec(tr, key):
 
 def test_existing_truncated_key_kept(tr):
     assert "metrics.paths_truncated" in tr
+
+
+def test_score_note_matches_weights_and_lambda(tr):
+    """The note quotes the score constants; it must not drift from them."""
+    from sespy.bayes import STRENGTH_LINK
+    from sespy.network import PATH_SCORE_LAMBDA
+
+    w = {k: f"{STRENGTH_LINK[k]:.2f}" for k in ("weak", "medium", "strong")}
+    lam = f"{PATH_SCORE_LAMBDA:g}"
+    expected = (f"Score = product of link weights (weak {w['weak']}, "
+                f"medium {w['medium']}, strong {w['strong']}) × "
+                f"e^(−{lam} × (links − 1)). It ranks structural routes; "
+                f"it is not an effect size.")
+    assert tr["metrics.paths_score_note"]["en"] == expected
