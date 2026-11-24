@@ -1,6 +1,6 @@
 # Weighted signed propagation — design
 
-Date: 2026-11-24 (skeleton 2026-11-22). Status: **draft, awaiting user approval**.
+Date: 2026-11-24 (skeleton 2026-11-22). Status: **approved by the user 2026-11-24**.
 Versions: library **sespy 1.21.0** (after 1.20.0), app **sespy-app 1.3.0** (after 1.2.0).
 R parity: **SESPy-first**. R SESTool has no token diffusion.
 Order: follows path diagnostics (`2026-11-22-path-diagnostics-design.md`, live since 2026-11-24). It reuses that work's strength weights and perturbation model.
@@ -273,7 +273,7 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
 1. The library goes through a PR, merge and the `v1.21.0` tag, with the user's manual steps as before.
 2. The app pins `@v1.21.0` and is released as 1.3.0.
 3. The MosaicSES suite gates the app release.
-   - **There is no MosaicSES clone or `verify_live.py` on the DELL machine.** Pending user choice: clone MosaicSES on DELL (outside OneDrive), or run the gate on X1.
+   - **There is no MosaicSES clone or `verify_live.py` on the DELL machine.** Decided (user, 2026-11-24): MosaicSES is cloned on DELL at `C:/Users/DELL/AppData/Local/MosaicSES` and the gate runs there.
 4. Deploy to laguna as for 1.2.0.
 
 ## Left to the builder
