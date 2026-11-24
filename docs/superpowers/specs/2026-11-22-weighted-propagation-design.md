@@ -120,6 +120,10 @@ Live tokens left after the last step add their mass to `in_transit`.
 - **Mass identity (P6):** `decayed + stopped + absorbed + in_transit == n_tokens`, within 1e-9·n_tokens.
 - **Vectorised:** a fixed number of RNG draws per step over the live tokens, as in `token_diffusion`. The builder chooses the method, e.g. a per-node cumulative-weight table with `searchsorted`.
 - **Reproducibility:** `np.random.default_rng(seed)`; the same inputs reproduce bit-for-bit.
+- **Baseline sign rule (my call, after the builder check):** guards against issue #19.
+  - Tokens are split into `min(20, n_tokens)` batches, as in `token_diffusion` (`_DIFFUSION_BATCHES`).
+  - Each row gets `net_sign`: `"+"`/`"-"` only when the signed mass is distinguishable from 0 at 95% (Student's t over batch means), otherwise `"~"`. With one batch it is always `"~"`.
+  - This is a noise rule, not a single-run label, so the table may show it.
 
 **Rows.** One per element other than the source that has `reach_probability > 0`:
 
@@ -132,6 +136,7 @@ Live tokens left after the last step add their mass to `in_transit`.
 | `positive_mass`, `negative_mass` | deposited mass per token: sum / n_tokens |
 | `signed_mass_mean` | `positive_mass − negative_mass` |
 | `positive_share`, `negative_share` | of `positive_mass + negative_mass`; `None` when that sum is 0, e.g. `decay=0` |
+| `net_sign` | `"+"`, `"-"` or `"~"` by the baseline sign rule above |
 
 Sort by `reach_probability` descending, ties in `isa.elements` order.
 
@@ -161,11 +166,18 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
   - Run k uses `np.random.default_rng(child_k)`, where `child_k = np.random.SeedSequence(seed).spawn(n_runs)[k]`. That generator:
     1. perturbs the map with `_perturbed_connections(isa, base, rng, flip_mode)`;
     2. with `draw_strength`, gives each rated kept edge the strength of one uniformly drawn rating, as in `path_sensitivity`;
-    3. draws the walk seed with `rng.integers(2**63)`.
+    3. runs the walk with the **baseline's own `seed`** (common random numbers).
+  - **Why common random numbers (my call, after the builder check):**
+    - Decision 2 says the variants should show doubt about the map, not token noise.
+    - With the same walk seed, a variant whose map is unchanged reproduces the baseline exactly. On a confidence-5 map, every element shows 100% reached and 100% sign held.
+    - Token noise does not disappear once links drop or flip, but it is greatly reduced.
   - A run where the source lost every out-link counts as zero reach and zero mass for every element. It is never skipped.
 - **Per baseline row, added keys:**
   - `reached_share`: share of runs with reach > 0.
-  - `sign_holds_share`: share of runs whose `signed_mass_mean` has the same nonzero sign as the baseline's. It is `None` when the baseline net is exactly 0. A run with zero net counts as "not held".
+  - `sign_holds_share`: share of runs whose `signed_mass_mean` has the baseline's sign.
+    - It is computed only when the baseline `net_sign` is `"+"` or `"-"`.
+    - It is `None` when the baseline is `"~"`; the app shows "—, balanced".
+    - A run with zero net counts as "not held".
   - `reach_q05`, `reach_q50`, `reach_q95` and `signed_mass_q05`, `signed_mass_q50`, `signed_mass_q95`: over all runs, unreached runs counting as 0. These go to the CSV only (decision 4).
 - **Return:**
 
@@ -174,7 +186,8 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
    n_default_confidence, n_default_strength}
   ```
 
-  - `n_default_confidence` counts connections whose stored confidence is not an int in 1..5, so `_coerce_confidence` used 3.
+  - `n_default_confidence` counts connections where `int(confidence)` fails (`None` or non-numeric text), which are the only cases where `_coerce_confidence` substitutes 3.
+    - Out-of-range values are clamped by `_coerce_confidence` and are not counted (my call, after the builder check).
 - **Elements reached only in variants** are not listed. That matches `path_sensitivity`, and the doc string says so.
 
 **Translations.** New `propagation.*` keys in `core.json` for all 9 languages. The unused `diffusion.*` keys stay, since any external consumer may read them.
@@ -206,10 +219,14 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
   - mass bookkeeping: "Of the injected influence: x% decayed, y% stopped, z% absorbed at dead ends, w% still moving after step n";
   - "k links have no strength rating; counted as medium", when k > 0;
   - the caption: "structural simulation under stated assumptions; not a forecast or effect size".
-- **Table:** Element, Reach, Median first step, + share, − share, Net mass. No net-sign label (anti-goal).
+- **Table:** Element, Reach, Median first step, + share, − share, Net mass, Sign.
+  - Sign is the noise-ruled `net_sign`, coloured as in today's diffusion chart.
 - **Chart:** reach per element, split into positive and negative parts by the shares. It replaces the arrivals chart, top 12 as today.
 - **Estimate uncertainty:** a button, enabled once a run is shown.
   - Runs `propagation_sensitivity` (200 runs, base 0.5, the same walk settings) in a background extended task with a computing state, as "Test robustness" does.
+    - **Exception (my call, after the builder check):** each variant uses at most 1,000 tokens.
+    - The Report preset's 10,000 tokens apply to the main table only.
+    - Common random numbers keep 1,000 tokens per variant enough, and this keeps the uncertainty run inside the time budget.
   - Adds the "Reached in % of variants" and "Sign holds in %" columns.
   - Adds a caption: "200 perturbed versions (seed 0): each link may drop out or flip sign, more often the lower its confidence", plus "k links have no confidence; counted as 3" when k > 0.
   - Base is fixed at 0.5 in the app, as in the path robustness check. It is a library parameter.
@@ -233,13 +250,18 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
 - **P5:** the same inputs and seed give identical output, for both functions.
 - **P6:** the mass identity holds for random graphs and parameters, including `decay` 0 and 1 and `stop_prob` 0 and 1.
 - **P7:** missing strength or confidence falls back to medium or 3, is counted, and no NaN or Inf appears anywhere. Zero-mass shares are `None`.
-- **P8:** dropping the only path in a variant lowers `reached_share`. A confidence-5 chain has `reached_share` 1 and `sign_holds_share` 1.
-- **P9:** on the reference graph (`data/sample_ses.json`), on laguna-like load:
-  - `signed_propagation` defaults finish in ≤ 2 s;
-  - the Report preset in ≤ 30 s;
-  - `propagation_sensitivity` defaults in ≤ 30 s.
+- **P8:** dropping the only path in a variant lowers `reached_share`.
+  - On a confidence-5 map, including a branching one with balanced + and − routes, every row has `reached_share` 1.
+  - On that map, `sign_holds_share` is 1, or `None` where the baseline is `"~"`.
+- **P9 (my call on the benchmark, after the builder check):**
+  - **Reference graph:** the largest model bundled in the app's `data/`, by connection count among the `.qsem` files and `sample_ses.json`, loaded the way the app loads it. `sample_ses.json` is too small to guard anything.
+  - **Budgets:** `signed_propagation` defaults ≤ 2 s; the Report preset ≤ 30 s; `propagation_sensitivity` defaults ≤ 30 s.
+  - **CI:** a timing test with generous margins, marked so slow CI can skip it.
+  - **Release:** a manual timing check on laguna.
 - **P10:** the CSV values match the visible table.
-- **Equal setting:** with `transition="equal"`, `decay=1`, `stop_prob=0`, the same elements are reached as by `token_diffusion` for the same graph and step count.
+- **Equal setting:** with `transition="equal"`, `decay=1` and `stop_prob=0`, structural agreement with `token_diffusion`, not draw-for-draw.
+  - On fixtures where every element within `n_steps` hops is reached with near certainty at the token count used, both functions report the same set of reached elements.
+  - It is not a same-seed match: the sampling method is the builder's (my call, after the builder check).
 
 ## Release
 
