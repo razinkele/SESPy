@@ -415,3 +415,46 @@ def test_defaults_fast_on_sample():
     t2 = time.perf_counter() - t
     print(f"signed_propagation {t1:.3f}s, propagation_sensitivity {t2:.2f}s")
     assert t1 < 2 and t2 < 30
+
+
+def _rated_isa():
+    from sespy.data_structure import Rating
+    isa = _isa("SAB", [("S", "A"), ("A", "B")])
+    isa.connections[0].strength = "medium"
+    isa.connections[0].ratings = [Rating("r1", strength="weak", polarity="+"),
+                                  Rating("r2", strength="strong", polarity="-")]
+    for c in isa.connections:
+        c.confidence = 5
+    return isa
+
+
+def _spy_strengths(monkeypatch, draw):
+    seen = []
+    real = dynamics._signed_walk
+
+    def spy(isa, source, **kw):
+        seen.append(isa.connections[0].strength)
+        return real(isa, source, **kw)
+
+    monkeypatch.setattr(dynamics, "_signed_walk", spy)
+    dynamics.propagation_sensitivity(_rated_isa(), "S", n_runs=30,
+                                     draw_strength=draw)
+    return seen[1:]  # drop the baseline call
+
+
+def test_draw_strength_reaches_walk(monkeypatch):
+    drawn = _spy_strengths(monkeypatch, True)
+    assert len(drawn) == 30
+    assert set(drawn) == {"weak", "strong"}
+    assert set(_spy_strengths(monkeypatch, False)) == {"medium"}
+
+
+def test_posterior_flip_mode_runs():
+    isa = _rated_isa()
+    r = dynamics.propagation_sensitivity(isa, "S", n_runs=30,
+                                         flip_mode="posterior")
+    assert r["flip_mode"] == "posterior" and r["rows"]
+    assert all(math.isfinite(f) for f in _all_floats(r))
+    for row in r["rows"]:
+        assert 0.0 <= row["reached_share"] <= 1.0
+        assert row["sign_holds_share"] is None or 0.0 <= row["sign_holds_share"] <= 1.0
