@@ -1622,7 +1622,8 @@ def signed_propagation(
     transition="weighted" uses bayes.STRENGTH_LINK[strength]; a missing or
     unknown strength counts as medium and is tallied in n_default_strength
     (kept connections, after dedup). transition="equal" picks uniformly.
-    Any other value raises ValueError, the only way this function raises.
+    Any other value raises ValueError. Numeric arguments must be real
+    numbers (NaN and None are not supported).
 
     Rows (one per non-source element with reach_probability > 0) carry
     reach_probability, first_arrival_min / _q50 (median first-visit step

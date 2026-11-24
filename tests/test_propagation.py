@@ -149,9 +149,9 @@ def test_degenerate_parameters_no_nan():
     for row in r0["rows"]:
         assert row["positive_share"] is None and row["negative_share"] is None
         assert row["positive_mass"] == 0.0 and row["negative_mass"] == 0.0
-    assert r0["mass"]["decayed"] == pytest.approx(1.0 * (1 - r0["mass"]["stopped"]
-                                                         - r0["mass"]["absorbed"]
-                                                         - r0["mass"]["in_transit"]))
+    assert r0["mass"]["decayed"] == pytest.approx(1.0, abs=1e-12)
+    for k in ("stopped", "absorbed", "in_transit"):
+        assert r0["mass"][k] == pytest.approx(0.0, abs=1e-12), k
     r1 = dynamics.signed_propagation(isa, "S", stop_prob=1.0)
     assert [r["id"] for r in r1["rows"]] == ["A"]
     rt = dynamics.signed_propagation(isa, "S", n_tokens=1)
@@ -267,6 +267,18 @@ def test_confidence5_map_is_certain():
             assert row["sign_holds_share"] is None
         else:
             assert row["sign_holds_share"] == 1.0
+
+
+def test_confidence5_balanced_node_stays_tilde():
+    isa = _isa(["S", "A", "B", "T"], [("S", "A", "+"), ("S", "B", "+"),
+                                      ("A", "T", "+"), ("B", "T", "-")])
+    for c in isa.connections:
+        c.confidence = 5
+    r = dynamics.propagation_sensitivity(isa, "S", n_runs=20)
+    row = _row(r, "T")
+    assert row["net_sign"] == "~"
+    assert row["reached_share"] == 1.0
+    assert row["sign_holds_share"] is None
 
 
 def test_dropping_only_path_lowers_reached():
@@ -397,6 +409,7 @@ def test_defaults_fast_on_sample():
     if os.environ.get("SESPY_TIMING") != "1":
         pytest.skip("timing check: set SESPY_TIMING=1")
     from pathlib import Path
+
     from scipy import stats  # noqa: F401  (warm the cold import)
     p = Path(__file__).resolve().parent.parent / "data" / "sample_ses.json"
     from sespy.data_structure import load_sample
@@ -458,3 +471,12 @@ def test_posterior_flip_mode_runs():
     for row in r["rows"]:
         assert 0.0 <= row["reached_share"] <= 1.0
         assert row["sign_holds_share"] is None or 0.0 <= row["sign_holds_share"] <= 1.0
+    # flip_mode must actually matter: posterior flips the rated edge's sign
+    # sometimes, "confidence" (all confidence 5) never does.
+    rc = dynamics.propagation_sensitivity(isa, "S", n_runs=30,
+                                          flip_mode="confidence")
+    for el in ("A", "B"):
+        rp_row, rc_row = _row(r, el), _row(rc, el)
+        if rp_row["net_sign"] != "~":
+            assert rp_row["sign_holds_share"] < 1.0, el
+            assert rc_row["sign_holds_share"] == 1.0, el
