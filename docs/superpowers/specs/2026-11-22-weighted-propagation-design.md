@@ -118,7 +118,10 @@ An unknown source, an empty model, or a source with no out-links returns the emp
 Live tokens left after the last step add their mass to `in_transit`.
 
 - **Mass identity (P6):** `decayed + stopped + absorbed + in_transit == n_tokens`, within 1e-9·n_tokens.
-- **Vectorised:** a fixed number of RNG draws per step over the live tokens, as in `token_diffusion`. The builder chooses the method, e.g. a per-node cumulative-weight table with `searchsorted`.
+- **Vectorised, with token-indexed draws:** each step draws exactly `n_tokens` uniforms for the edge choice and `n_tokens` for the stop test, whether or not a token is live.
+  - Token t always uses element t of each draw.
+  - Each node's out-edges are in a fixed order (by target position in `isa.elements`). A token picks with its uniform against that node's cumulative weights (e.g. `searchsorted`).
+  - So a token whose route avoids a changed link follows the same route in a perturbed map. That is what lets `propagation_sensitivity`'s shared seed reproduce the baseline exactly on an unchanged map.
 - **Reproducibility:** `np.random.default_rng(seed)`; the same inputs reproduce bit-for-bit.
 - **Baseline sign rule (my call, after the builder check):** guards against issue #19.
   - Tokens are split into `min(20, n_tokens)` batches, as in `token_diffusion` (`_DIFFUSION_BATCHES`).
@@ -159,7 +162,7 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
                         transition="weighted") -> dict
 ```
 
-- **Baseline:** `signed_propagation(isa, source, …, seed=seed)` on the map as given. The rows follow the baseline rows, in their order, as in `path_sensitivity`.
+- **Baseline:** its own `signed_propagation(isa, source, …, n_tokens=n_tokens, seed=seed)` on the map as given, at the **same token count as the variants**. The rows follow this baseline's rows, in their order, as in `path_sensitivity`. Its rows carry the baseline's `reach_probability` and `net_sign`, so the result stands alone.
 - **Runs:**
   - `n_runs` is clamped to [1, 2000] and `base` to [0, 1].
   - `flip_mode` is validated as in `path_sensitivity`.
@@ -167,17 +170,18 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
     1. perturbs the map with `_perturbed_connections(isa, base, rng, flip_mode)`;
     2. with `draw_strength`, gives each rated kept edge the strength of one uniformly drawn rating, as in `path_sensitivity`;
     3. runs the walk with the **baseline's own `seed`** (common random numbers).
-  - **Why common random numbers (my call, after the builder check):**
-    - Decision 2 says the variants should show doubt about the map, not token noise.
-    - With the same walk seed, a variant whose map is unchanged reproduces the baseline exactly. On a confidence-5 map, every element shows 100% reached and 100% sign held.
-    - Token noise does not disappear once links drop or flip, but it is greatly reduced.
+  - **Why a shared walk seed (my call, after the builder check):**
+    - With the same seed, token count and token-indexed draws, a variant whose map is unchanged reproduces the baseline exactly. A confidence-5 map then reads 100% reached and 100% sign held, and fixtures are deterministic.
+    - It is **not** claimed to cut token noise on perturbed maps. In a probe (2026-11-24, sample model, D001, 200 runs) shared and fresh seeds gave the same shares within 2 points, because doubt about the map dominates.
+    - The noise protection comes from the sign rule. A variant counts as "held" only when its own ruled `net_sign` equals the baseline's.
   - A run where the source lost every out-link counts as zero reach and zero mass for every element. It is never skipped.
 - **Per baseline row, added keys:**
   - `reached_share`: share of runs with reach > 0.
-  - `sign_holds_share`: share of runs whose `signed_mass_mean` has the baseline's sign.
+  - `sign_holds_share`: share of runs whose own `net_sign` (by the same batch-means rule) equals the baseline's.
     - It is computed only when the baseline `net_sign` is `"+"` or `"-"`.
     - It is `None` when the baseline is `"~"`; the app shows "—, balanced".
-    - A run with zero net counts as "not held".
+    - A variant that is `"~"`, unreached, or of the opposite sign counts as "not held". It is a conservative reading, and the doc string says so.
+  - Probe numbers under these rules (sample, D001, base 0.5): reached 85%→52% and sign held 77%→26% from A001 down to R002. No sample row was `"~"`.
   - `reach_q05`, `reach_q50`, `reach_q95` and `signed_mass_q05`, `signed_mass_q50`, `signed_mass_q95`: over all runs, unreached runs counting as 0. These go to the CSV only (decision 4).
 - **Return:**
 
@@ -197,7 +201,7 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
 **Constraints:**
 - It still runs on `diffusion_isa()`, so elements picked for removal stay removed.
 - The `analysis_intervention_server(id, project_data, event_bus, translator)` signature is unchanged; MosaicSES pins it in `tests/test_compartments_module.py:300`.
-- The old input ids (`diffusion_source`, `n_steps`, `n_tokens`, `run_diffusion`) are replaced by `prop_*` ids. GitHub code search finds none of them in MosaicSES; the MosaicSES suite confirms this at release.
+- The old input ids (`diffusion_source`, `n_steps`, `n_tokens`, `run_diffusion`) are replaced by `prop_*` ids. GitHub code search finds none of them in MosaicSES. A control query for `analysis_intervention_server` returns 2 hits, so the search does cover that private repo. A grep of a local MosaicSES clone and its suite confirm this at release.
 
 **Controls:**
 - **Source:** select. It keeps the current pick across re-renders, as today.
@@ -224,12 +228,13 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
 - **Chart:** reach per element, split into positive and negative parts by the shares. It replaces the arrivals chart, top 12 as today.
 - **Estimate uncertainty:** a button, enabled once a run is shown.
   - Runs `propagation_sensitivity` (200 runs, base 0.5, the same walk settings) in a background extended task with a computing state, as "Test robustness" does.
-    - **Exception (my call, after the builder check):** each variant uses at most 1,000 tokens.
-    - The Report preset's 10,000 tokens apply to the main table only.
-    - Common random numbers keep 1,000 tokens per variant enough, and this keeps the uncertainty run inside the time budget.
-  - Adds the "Reached in % of variants" and "Sign holds in %" columns.
+    - **Exception (my call, after the builder check):** `n_tokens = min(table tokens, 1000)`. The Report preset's 10,000 tokens apply to the main table only. This keeps the uncertainty run inside the time budget.
+    - Because the uncertainty result has its own baseline at that token count (see `propagation_sensitivity`), its shares are measured against that baseline, not the 10,000-token table.
+  - Adds the "Reached in % of variants" and "Sign holds in %" columns, **joined to the table by element id**.
+    - A table row missing from the uncertainty result, i.e. reached only at the higher token count, shows "—, rarely reached".
+    - Under the Report preset, a caption notes that uncertainty used 1,000 tokens per variant.
   - Adds a caption: "200 perturbed versions (seed 0): each link may drop out or flip sign, more often the lower its confidence", plus "k links have no confidence; counted as 3" when k > 0.
-  - Base is fixed at 0.5 in the app, as in the path robustness check. It is a library parameter.
+  - Base is fixed at 0.5 in the app, as in the path robustness check, which exposes no control for it either. It stays a library parameter (`base`). An app control is out of scope.
 - **Download (CSV):** the table plus, when computed, `reached_share`, `sign_holds_share` and the six quantile columns, with the parameters in the header rows. It uses the same formula-injection guard as the path CSV.
 - **Invalidation:** the same generation pattern as today. Any change to the model, removals, source or settings clears the result and any uncertainty result; a stale task result is dropped. Clearing the run clears its uncertainty.
 
@@ -268,7 +273,7 @@ propagation_sensitivity(isa, source, *, n_runs=200, base=0.5,
 1. The library goes through a PR, merge and the `v1.21.0` tag, with the user's manual steps as before.
 2. The app pins `@v1.21.0` and is released as 1.3.0.
 3. The MosaicSES suite gates the app release.
-   - **There is no MosaicSES clone or `verify_live.py` on the DELL machine.** Either clone it here or run the gate on X1.
+   - **There is no MosaicSES clone or `verify_live.py` on the DELL machine.** Pending user choice: clone MosaicSES on DELL (outside OneDrive), or run the gate on X1.
 4. Deploy to laguna as for 1.2.0.
 
 ## Left to the builder
