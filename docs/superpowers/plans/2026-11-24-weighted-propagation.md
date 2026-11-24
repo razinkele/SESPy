@@ -72,6 +72,52 @@
 - **Spec erratum E2:** spec §Walk claimed a token "whose route avoids a changed link" keeps its route. That is false: a dropped out-edge renormalises its node. The spec now says tokens that never visit a changed node keep their routes, and `test_untouched_subtree_keeps_routes` pins it.
 - **Spec erratum E1:** spec §Rows says "`np.median`, `method="lower"`", but `np.median` has no `method` keyword (TypeError on numpy 2.5.4). Use `int(np.quantile(first_steps, 0.5, method="lower"))`.
 
+## Translation keys
+
+Added by Task 3 to the library `core.json`. Tasks 5 and 6 use them by these names. The library is tagged before Part B, so **no task in Part B may add a key**.
+
+| Key | English | Placeholders |
+|---|---|---|
+| `propagation.title` | "Signed propagation" | – |
+| `propagation.source` | "Intervention (source)" | – |
+| `propagation.preset` | "Settings" | – |
+| `propagation.preset_interactive` | "Interactive (1,000 tokens)" | – |
+| `propagation.preset_report` | "Report (10,000 tokens)" | – |
+| `propagation.preset_equal` | "Equal links, no decay (Donlan et al. 2026)" | – |
+| `propagation.preset_custom` | "Custom" | – |
+| `propagation.advanced` | "Advanced settings" | – |
+| `propagation.steps` | "Steps" | – |
+| `propagation.decay` | "Decay per step" | – |
+| `propagation.stop` | "Stop chance per step" | – |
+| `propagation.transition` | "Link choice" | – |
+| `propagation.transition_weighted` | "By link strength" | – |
+| `propagation.transition_equal` | "Equal" | – |
+| `propagation.run` | "Run propagation" | – |
+| `propagation.hint` | "Not simulated yet: choose an intervention and press Run propagation." | – |
+| `propagation.computing` | "Simulating {n} tokens…" | n |
+| `propagation.none` | "Nothing is reached from this element: it has no outgoing links in the current model." | – |
+| `propagation.col_element` | "Element" | – |
+| `propagation.col_reach` | "Reach" | – |
+| `propagation.col_first` | "Median first step" | – |
+| `propagation.col_pos` | "+ share" | – |
+| `propagation.col_neg` | "− share" | – |
+| `propagation.col_net` | "Net mass" | – |
+| `propagation.col_sign` | "Sign" | – |
+| `propagation.mass_line` | "Of the injected influence: {decayed}% decayed, {stopped}% stopped, {absorbed}% absorbed at dead ends, {moving}% still moving after step {n}." | decayed, stopped, absorbed, moving, n |
+| `propagation.default_strength` | "{k} links have no strength rating; counted as medium." | k |
+| `propagation.caption` | "Structural simulation under stated assumptions; not a forecast or effect size." | – |
+| `propagation.unc_run` | "Estimate uncertainty" | – |
+| `propagation.unc_computing` | "Running {n} perturbed versions of the network…" | n |
+| `propagation.unc_caption` | "{n} perturbed versions (seed {seed}): each link may drop out or flip sign, more often the lower its confidence." | n, seed |
+| `propagation.unc_default_conf` | "{k} links have no confidence; counted as 3." | k |
+| `propagation.unc_tokens` | "Uncertainty used {n} tokens per version." | n |
+| `propagation.col_reached` | "Reached in % of variants" | – |
+| `propagation.col_holds` | "Sign holds in %" | – |
+| `propagation.balanced` | "—, balanced" | – |
+| `propagation.rarely` | "—, rarely reached" | – |
+| `propagation.download` | "Download propagation (CSV)" | – |
+| `propagation.error` | "The propagation run failed: {error}" | error |
+
 ## Review Focus
 
 1. **Degenerate parameters** (`decay=0`, `decay=1`, `stop_prob=1`, `n_tokens=1`).
@@ -116,7 +162,10 @@
   - `mass = {"decayed": 0.0, "stopped": 0.0, "absorbed": 0.0, "in_transit": 0.0}`: no token moved.
   - Returned for an unknown source, an empty model, or a source with no out-links.
   - The identity `sum(mass) == 1` holds only for non-empty results.
-- **Private, for Task 2:** `_signed_walk(...)` returns the per-element arrays (reach, signed mass, `net_sign`) without building rows, so variants skip row assembly. The builder picks the exact private signature; Task 2 is its only consumer.
+- **Private, also used by Task 2:** `_signed_walk(...)`, which `signed_propagation` itself calls (see the Structure note).
+  - It returns at least everything `signed_propagation` needs to build rows and `mass`: per-element reach, first-arrival min and median, positive and negative mass, signed mass, `net_sign`, the mass buckets and `n_default_strength`.
+  - Reach, signed mass and `net_sign` are the subset Task 2 reads.
+  - The builder picks the exact private signature.
 
 - [ ] **Step 1: Write the failing tests.** Use small `IsaData` fixtures built from `Element`/`Connection` (the `sespy.data_structure` dataclasses):
   ```python
@@ -130,7 +179,7 @@
   def test_default_strength_counted():          # one connection strength="?" -> n_default_strength == 1, weighted as medium
   def test_degenerate_parameters_no_nan():      # decay=0 -> shares None, masses 0.0; stop_prob=1 -> reach only first hop; n_tokens=1 -> n_batches 1, every net_sign "~"; no NaN/inf in any float
   def test_balanced_node_is_tilde():            # S->A(+)->T(+), S->B(+)->T(-), equal weights: T net_sign "~" at seeds 0 and 1 (as test_token_diffusion_balanced_node_is_contested_at_both_seeds); see the seed note below
-  def test_untouched_subtree_keeps_routes():   # token-indexed draws: S->A, S->B, B->C, B->D; perturbed copy drops A's out-edge only (A->E): tokens that never visit A have identical visited sets (compare _signed_walk per-token outputs, or reach of C and D bit-equal)
+  def test_untouched_subtree_keeps_routes():   # token-indexed draws: base S->A, A->E, S->B, B->C, B->D; perturbed copy omits A->E only: tokens that never visit A have identical visited sets (compare _signed_walk per-token outputs, or reach of C and D bit-equal)
   def test_sink_absorbs_and_counts():           # S->A with A a sink, decay=1, stop 0: mass absorbed == 1.0, in_transit == 0
   def test_parallel_connections_last_wins():    # two S->A connections, last one "-": A negative_share == 1.0
   def test_empty_shapes():                      # unknown source / no out-links / empty model -> rows [] and n_reached 0, no raise
@@ -205,49 +254,7 @@
 - Modify: `sespy/translations/core.json`, `tests/test_public_api.py`, `sespy/__init__.py`, `pyproject.toml`, `CHANGELOG.md`, `README.md` (pin line)
 - Create: `tests/test_translations_propagation.py`, modelled on `tests/test_translations_paths.py`
 
-- [ ] **Step 1: Write the key test.** Use these keys, with this exact English text and these placeholder sets:
-
-  | Key | English | Placeholders |
-  |---|---|---|
-  | `propagation.title` | "Signed propagation" | – |
-  | `propagation.source` | "Intervention (source)" | – |
-  | `propagation.preset` | "Settings" | – |
-  | `propagation.preset_interactive` | "Interactive (1,000 tokens)" | – |
-  | `propagation.preset_report` | "Report (10,000 tokens)" | – |
-  | `propagation.preset_equal` | "Equal links, no decay (Donlan et al. 2026)" | – |
-  | `propagation.advanced` | "Advanced settings" | – |
-  | `propagation.steps` | "Steps" | – |
-  | `propagation.decay` | "Decay per step" | – |
-  | `propagation.stop` | "Stop chance per step" | – |
-  | `propagation.transition` | "Link choice" | – |
-  | `propagation.transition_weighted` | "By link strength" | – |
-  | `propagation.transition_equal` | "Equal" | – |
-  | `propagation.run` | "Run propagation" | – |
-  | `propagation.hint` | "Not simulated yet: choose an intervention and press Run propagation." | – |
-  | `propagation.computing` | "Simulating {n} tokens…" | n |
-  | `propagation.none` | "Nothing is reached from this element: it has no outgoing links in the current model." | – |
-  | `propagation.col_element` | "Element" | – |
-  | `propagation.col_reach` | "Reach" | – |
-  | `propagation.col_first` | "Median first step" | – |
-  | `propagation.col_pos` | "+ share" | – |
-  | `propagation.col_neg` | "− share" | – |
-  | `propagation.col_net` | "Net mass" | – |
-  | `propagation.col_sign` | "Sign" | – |
-  | `propagation.mass_line` | "Of the injected influence: {decayed}% decayed, {stopped}% stopped, {absorbed}% absorbed at dead ends, {moving}% still moving after step {n}." | decayed, stopped, absorbed, moving, n |
-  | `propagation.default_strength` | "{k} links have no strength rating; counted as medium." | k |
-  | `propagation.caption` | "Structural simulation under stated assumptions; not a forecast or effect size." | – |
-  | `propagation.unc_run` | "Estimate uncertainty" | – |
-  | `propagation.unc_computing` | "Running {n} perturbed versions of the network…" | n |
-  | `propagation.unc_caption` | "{n} perturbed versions (seed {seed}): each link may drop out or flip sign, more often the lower its confidence." | n, seed |
-  | `propagation.unc_default_conf` | "{k} links have no confidence; counted as 3." | k |
-  | `propagation.unc_tokens` | "Uncertainty used {n} tokens per version." | n |
-  | `propagation.col_reached` | "Reached in % of variants" | – |
-  | `propagation.col_holds` | "Sign holds in %" | – |
-  | `propagation.balanced` | "—, balanced" | – |
-  | `propagation.rarely` | "—, rarely reached" | – |
-  | `propagation.download` | "Download propagation (CSV)" | – |
-  | `propagation.error` | "The propagation run failed: {error}" | error |
-
+- [ ] **Step 1: Write the key test** for every key in the header section **Translation keys**: exact English text and placeholder sets.
   Assert all 9 languages and the placeholder sets. Assert that `diffusion.title` still exists.
 - [ ] **Step 2: Run it and watch it fail, then add the keys.** English text in every language, matching the neighbouring formatting.
 - [ ] **Step 3: Public API and release.**
@@ -285,7 +292,14 @@
 
 **Interfaces:**
 - **Consumes:**
-  - the Task 1 and 2 result keys and the Task 3 keys;
+  - From the `signed_propagation` result: `rows` (keys `id`, `label`, `reach_probability`, `first_arrival_min`, `first_arrival_q50`, `positive_mass`, `negative_mass`, `signed_mass_mean`, `positive_share`, `negative_share`, `net_sign`), `source`, `n_steps`, `n_tokens`, `decay`, `stop_prob`, `transition`, `seed`, `n_default_strength`, `mass` (`decayed`, `stopped`, `absorbed`, `in_transit`, shares of tokens).
+  - From the `propagation_sensitivity` result: `rows` (keys `id`, `reached_share`, `sign_holds_share`, `reach_q05/q50/q95`, `signed_mass_q05/q50/q95`), `n_runs`, `base`, `flip_mode`, `draw_strength`, `seed`, `n_tokens`, `n_default_confidence`.
+  - Translation keys from the header section **Translation keys**. Placeholders feed as follows:
+    - `mass_line`: `decayed`, `stopped`, `absorbed`, `moving` ← `mass["in_transit"]`, as int percent; `n` ← `n_steps`;
+    - `default_strength`: `k` ← `n_default_strength`;
+    - `unc_caption`: `n` ← `n_runs`, `seed` ← sensitivity `seed`;
+    - `unc_default_conf`: `k` ← `n_default_confidence`;
+    - `unc_tokens`: `n` ← sensitivity `n_tokens`.
   - `_paths_view._csv_safe(s: str) -> str`, imported, not copied.
 - **Produces:**
   - `PRESETS: dict[str, dict]`, with keys `"interactive"`, `"report"`, `"equal"`; values `{n_tokens, n_steps, decay, stop_prob, transition}`:
@@ -307,7 +321,9 @@
     2. `unc_default_conf` if k > 0;
     3. `unc_tokens` if `sens["n_tokens"] < table_tokens`.
   - `propagation_csv(result: dict, sens: dict | None) -> str`, written with the `csv` module.
-    - Leading rows `# source,…`, then one `# key,value` row each for the walk parameters (and the sensitivity parameters when present).
+    - Leading rows: `# source,…`, then one `# key,value` row each for `n_steps`, `n_tokens`, `decay`, `stop_prob`, `transition`, `seed`.
+      - When `sens` is present, add `# n_runs`, `# base`, `# flip_mode`, `# draw_strength`, `# uncertainty_n_tokens` and `# uncertainty_seed`. They are prefixed so they never collide with the walk rows.
+    - Table rows missing from `sens` get empty uncertainty cells.
     - Then the header, exactly `id,label,reach_probability,first_arrival_min,first_arrival_q50,positive_mass,negative_mass,signed_mass_mean,positive_share,negative_share,net_sign`, plus `,reached_share,sign_holds_share,reach_q05,reach_q50,reach_q95,signed_mass_q05,signed_mass_q50,signed_mass_q95` when `sens`.
     - Raw values, `None` as an empty cell.
     - `id`, `label` and the `# source` value go through `_csv_safe`, as the path CSV does (`_paths_view.py:85-94`).
@@ -322,7 +338,7 @@
   def test_summary_lines_conditional_default_strength():
   def test_uncertainty_lines_tokens_note_only_when_fewer():
   def test_csv_header_and_values_match_rows():          # P10: same ids/order; unrounded floats
-  def test_csv_with_sensitivity_columns():
+  def test_csv_with_sensitivity_columns():              # report table (10000) + sens (1000): rows "# n_tokens,10000" and "# uncertainty_n_tokens,1000"; a row missing from sens has empty uncertainty cells
   def test_csv_neutralises_formula_labels():            # label "=SUM(A1)" -> "'=SUM(A1)"; an id "+X" and the source id are guarded too
   ```
 - [ ] **Step 2: Run them and watch them fail.** `PY -m pytest tests/test_propagation_view.py -q -p no:cacheprovider`.
@@ -339,7 +355,14 @@
 - Replace: `tests/test_intervention_diffusion.py` → `tests/test_intervention_propagation.py`. Keep the removal and source tests (ported to the new ids); same fixture style.
 
 **Interfaces:**
-- **Consumes:** Task 5's helpers; `dyn.signed_propagation` and `dyn.propagation_sensitivity`.
+- **Consumes:**
+  - From `_propagation_view`: `PRESETS`, `UNCERTAINTY_MAX_TOKENS`, `propagation_rows`, `join_uncertainty`, `summary_lines`, `uncertainty_lines`, `propagation_csv`, with signatures as in Task 5.
+  - `dyn.signed_propagation` and `dyn.propagation_sensitivity`.
+  - Translation keys from the header section **Translation keys**:
+    - controls: `source`, `preset`, `preset_*`, `advanced`, `steps`, `decay`, `stop`, `transition*`, `run`, `unc_run`, `download`;
+    - states: `hint`, `computing{n}`, `unc_computing{n}`, `none`, `error{error}`, `caption`;
+    - table header: `col_element`, `col_reach`, `col_first`, `col_pos`, `col_neg`, `col_net`, `col_sign`, plus `col_reached` and `col_holds` once uncertainty is shown.
+  - **This task builds the table header itself;** `propagation_rows` returns cell values only.
 - **Produces:**
   - Inputs:
     - `prop_source` (select);
@@ -356,6 +379,7 @@
   ```python
   def test_run_shows_computing_then_table(gated_propagation):
   def test_run_called_with_preset_values(monkeypatch):           # preset "report" -> n_tokens=10000, seed=0
+  def test_run_uses_advanced_sliders(monkeypatch):                # preset "interactive", set prop_decay=0.5 (and prop_steps=12): Run -> decay=0.5, n_steps=12, n_tokens=1000
   def test_preset_sets_advanced_controls(monkeypatch):            # test server never applies ui.update_* (see tests/test_isa_entry_link_rules.py:4,40): monkeypatch mod.ui.update_slider / mod.ui.update_radio_buttons, choose "equal", assert recorded calls prop_decay=1.0, prop_stop=0.0, prop_transition="equal"
   def test_removed_source_shows_none_not_stuck(gated_propagation): # source removed by the ablation before Run: panel shows propagation.none, never stays on "Simulating…"
   def test_input_change_while_running_drops_stale_result(gated_propagation):
@@ -381,7 +405,14 @@
 
   Removed source: do **not** copy the existing early return at `analysis_intervention.py:388-395`, which leaves the panel on "computing" for good. When the source is missing from `diffusion_isa()`, set the result to the empty shape, so the panel shows `propagation.none` and no uncertainty button.
 
-  Preset change: `ui.update_slider` and `ui.update_radio_buttons` on the advanced inputs. Show "custom" however you judge clearest (spec leaves it to the builder).
+  **Run parameters:**
+  - `n_tokens = PRESETS[input.prop_preset()]["n_tokens"]`; there is no tokens control.
+  - `n_steps`, `decay`, `stop_prob` and `transition` come from `prop_steps`, `prop_decay`, `prop_stop` and `prop_transition`, **never from `PRESETS`**, so Advanced edits take effect.
+  - Uncertainty uses `min(n_tokens, UNCERTAINTY_MAX_TOKENS)` and the same slider values.
+
+  Preset change: `ui.update_slider` and `ui.update_radio_buttons` on the advanced inputs.
+  - Show "custom" with `propagation.preset_custom` when the sliders no longer match the chosen preset's values (builder's call where).
+  - No new translation keys may be added in Part B.
 
   Chart (matplotlib, top 12 by reach):
   - stacked bars, `reach × positive_share` green `#2e7d32` and `reach × negative_share` red `#c62828`;
@@ -422,7 +453,7 @@
   - Regenerate: start a server yourself with the shim PYTHONPATH, run the script with `--out <scratchpad dir>`, and copy only `intervention.png` into `docs/screenshots/`. There is no single-shot flag.
 
 - [ ] **Step 1: Write the perf test, e2e changes and manual text.**
-- [ ] **Step 2: Run the perf test.** `PY -m pytest tests/test_propagation_perf.py -m slow -q`. Expected: pass. Record the timings for the release notes.
+- [ ] **Step 2: Run the perf test.** `PY -m pytest tests/test_propagation_perf.py -m slow -q -s`. Expected: pass. The test prints its three timings; put them in the Step 5 commit message body as `Timings (DELL): default X s, report Y s, uncertainty Z s`.
 - [ ] **Step 3: Run the full e2e detached** (`tests/run_e2e.py --port 8000`). Expected: all pass, apart from a runner-retried flake; the server line names `sespy-lib-v1210` 1.21.0.
 - [ ] **Step 4: Run the MosaicSES gate** in `C:/Users/DELL/AppData/Local/MosaicSES`, at `d382147` on `main`. No fetch and no checkout.
   - Baseline first:
@@ -435,7 +466,7 @@
 
 ### Task 8: App 1.3.0 release and hand-off
 
-**Files:** `pyproject.toml` (1.3.0; pin `@v1.21.0`), `sespy_app/__init__.py`, the MANUAL version line, `CHANGELOG.md` (timings from Task 7), README pin text.
+**Files:** `pyproject.toml` (1.3.0; pin `@v1.21.0`), `sespy_app/__init__.py`, the MANUAL version line, `CHANGELOG.md` (timings: `git log --grep "test(propagation): benchmark" -1 --format=%b`, the "Timings (DELL)" line), README pin text.
 
 - [ ] **Step 1: Bump the version and re-pin.** Then run `tests/test_deploy_script.py` detached, with the Git-bash PATH prefix and the shim PYTHONPATH. Expected: pass.
 - [ ] **Step 2: Release commit.** `git commit -am "release: 1.3.0 — signed propagation (sespy 1.21.0)"`. Then the unit suite: all pass.
@@ -469,7 +500,9 @@
     - "Estimate uncertainty" adds both columns;
     - no `.alert-danger`.
   - MosaicSES: run `deploy/verify_live.py` from the clone, plus Compartments → Intervention renders without `Error:`.
-  - Time the uncertainty run on laguna (spec P9 manual check).
+  - **Spec P9 manual check on laguna**, from D001: time the Interactive run (budget ≤ 2 s), the Report run (≤ 30 s) and "Estimate uncertainty" (≤ 30 s), from click to rendered result.
+    - Record all three in memory and the hand-off.
+    - Over budget is reported to the user with the numbers. It is **not** a rollback trigger unless the panel fails to render.
 - [ ] **Step 4: Rollback trigger.** On a non-cosmetic failure, run `SESPY_PY=C:/Users/DELL/miniconda3/envs/mosaicses/python.exe DEPLOY_REPO_ROOT=C:/Users/DELL/AppData/Local/sespy-app-v120 DEPLOY_LIBRARY_ROOT=C:/Users/DELL/AppData/Local/sespy-lib-v1200 bash C:/Users/DELL/AppData/Local/sespy-app-v120/deploy/deploy.sh --rollback`, with the user's go-ahead.
 - [ ] **Step 5:** Update memory. Offer cleanup of the DELL-only worktrees: list them, never prune.
 
