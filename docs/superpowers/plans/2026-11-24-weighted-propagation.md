@@ -74,7 +74,7 @@
 
 ## Translation keys
 
-Added by Task 3 to the library `core.json`. Tasks 5 and 6 use them by these names. The library is tagged before Part B, so **no task in Part B may add a key**.
+Added by Task 3 to the library `core.json`. Tasks 5 and 6 use them by these names. The library branch is frozen (reviewed) before Part B starts, so **no task in Part B may add a key**.
 
 | Key | English | Placeholders |
 |---|---|---|
@@ -359,6 +359,7 @@ Added by Task 3 to the library `core.json`. Tasks 5 and 6 use them by these name
   - From `_propagation_view`: `PRESETS`, `UNCERTAINTY_MAX_TOKENS`, `propagation_rows`, `join_uncertainty`, `summary_lines`, `uncertainty_lines`, `propagation_csv`, with signatures as in Task 5.
   - `dyn.signed_propagation` and `dyn.propagation_sensitivity`.
   - Translation keys from the header section **Translation keys**:
+    - headings: `title` (both headings that use `diffusion.title` today, UI lines 174 and 214);
     - controls: `source`, `preset`, `preset_*`, `advanced`, `steps`, `decay`, `stop`, `transition*`, `run`, `unc_run`, `download`;
     - states: `hint`, `computing{n}`, `unc_computing{n}`, `none`, `error{error}`, `caption`;
     - table header: `col_element`, `col_reach`, `col_first`, `col_pos`, `col_neg`, `col_net`, `col_sign`, plus `col_reached` and `col_holds` once uncertainty is shown.
@@ -438,7 +439,7 @@ Added by Task 3 to the library `core.json`. Tasks 5 and 6 use them by these name
   - Replace the diffusion block at lines 91–185 **wholesale**. It covers the hint, "7 of 17 elements reached", ± margins, the chart fingerprint, the P002 stale check and "of 16 elements"; none of those exist any more.
   - Keep an ablation check: remove P001, run, and assert P001's label is absent from the `prop_summary` table.
   - On the sample model:
-  - pick D001 and click `#…-prop_run`;
+  - pick D001 in `#…-prop_source` and click `#…-prop_run`;
   - wait up to 60 s for the `#…-prop_summary table tbody tr` rows, and assert the "Reach" and "Sign" headers;
   - click `#…-prop_unc_run` and wait up to 120 s for the "Reached in % of variants" header;
   - assert a visible `#…-prop_csv` and no `.alert-danger`.
@@ -449,7 +450,12 @@ Added by Task 3 to the library `core.json`. Tasks 5 and 6 use them by these name
   - Cite the development note and keep the Donlan et al. 2026 reference (line 534) for the equal-links preset.
   - In the Intervention section (§20), rewrite lines 332–340. Lines 332, 334 and 338 describe the "Steps"/"Tokens" sliders, "arrivals", 95% error bars, ranks and "±". Replace them with the new controls, the table and the uncertainty columns. Fix the stale caveat at line 340: the propagation now honours the ablation.
   - Update the §-index name.
-- Modify: `tests/make_docs_screenshots.py:330-340`. The intervention shot waits on "elements reached"; wait for the `prop_summary` table instead.
+- Modify: `tests/make_docs_screenshots.py:330-340`. All four ids in that block change:
+  - `#intervention-diffusion_source` becomes `#intervention-prop_source`;
+  - `#intervention-run_diffusion` becomes `#intervention-prop_run`;
+  - `#intervention-diffusion_chart img` becomes `#intervention-prop_chart img`;
+  - the "elements reached" wait becomes a wait for `#intervention-prop_summary table tbody tr`.
+  - The script only warns on a missing selector, so stale ids would silently give an idle shot.
   - Regenerate: start a server yourself with the shim PYTHONPATH, run the script with `--out <scratchpad dir>`, and copy only `intervention.png` into `docs/screenshots/`. There is no single-shot flag.
 
 - [ ] **Step 1: Write the perf test, e2e changes and manual text.**
