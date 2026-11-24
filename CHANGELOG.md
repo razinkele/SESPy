@@ -4,6 +4,32 @@ All notable changes to SESPy.
 
 ## [Unreleased]
 
+## [1.21.0] — 2026-11-24
+
+Weighted signed propagation (development note "Causal Pathways and Dynamic
+Propagation for a Marine Intervention", Marine-SABRES, November 2026).
+`token_diffusion` is unchanged.
+
+### Added
+- `dynamics.signed_propagation(isa, source, *, n_steps=8, n_tokens=1000,
+  decay=0.8, stop_prob=0.15, transition="weighted", seed=0)`: token walk that
+  picks out-links by strength weight (or equally), flips sign on "-" links,
+  decays mass and stops tokens at random. Returns rows per reached element
+  (`reach_probability`, first-arrival steps, positive/negative mass and
+  shares, `net_sign`) and a `mass` budget (decayed, stopped, absorbed,
+  in transit) that sums to 1. Sign rule: "+"/"-" only when the signed mass
+  differs from 0 at 95% over batch means, else "~". Transition `"equal"` with
+  `decay=1`, `stop_prob=0` is the Donlan et al. 2026 setting.
+- `dynamics.propagation_sensitivity(isa, source, *, n_runs=200, ...)`:
+  robustness of that result to map uncertainty. Each variant perturbs links
+  as in `path_sensitivity`; rows add `reached_share`, `sign_holds_share`
+  (None when the baseline sign is balanced) and reach / signed-mass
+  quantiles. Baseline and variants share the walk seed, so an unchanged map
+  reproduces the baseline exactly; a variant "holds" only when its own
+  batch-means sign equals the baseline's.
+- 39 translation keys `propagation.*` in all nine languages (English text in
+  every language until translated).
+
 ## [1.20.0] — 2026-11-22
 
 Causal path diagnostics (spec 2026-11-22). `causal_paths` ranks and describes

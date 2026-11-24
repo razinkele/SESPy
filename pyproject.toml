@@ -1,6 +1,6 @@
 [project]
 name = "sespy"
-version = "1.20.0"
+version = "1.21.0"
 description = "SESPy: Python library for DAPSI(W)R(M) social-ecological system modelling, analysis and R SES Toolbox parity (Horizon Europe Marine-SABRES)"
 requires-python = ">=3.11"
 license = "MIT"

@@ -17,6 +17,7 @@ import networkx as nx
 import numpy as np
 
 from . import network as _net  # for _STRENGTH_RANK
+from .bayes import STRENGTH_LINK
 from .data_structure import IsaData
 
 # =============================================================================
@@ -1463,3 +1464,350 @@ def token_diffusion(
     return {"rows": rows, "source": source, "n_tokens": n_tokens,
             "n_steps": n_steps, "n_reached": len(rows),
             "n_batches": n_batches}
+
+
+_PROPAGATION_MASS_KEYS = ("decayed", "stopped", "absorbed", "in_transit")
+_SIGN_LABEL = {1: "+", -1: "-", 0: "~"}
+
+
+def _propagation_graph(isa: IsaData, transition: str):
+    """CSR graph for the signed walk: out-edges of each node ordered by
+    target position, with per-node normalised cumulative weights."""
+    order = {el.id: i for i, el in enumerate(isa.elements)}
+    n = len(isa.elements)
+    pairs: dict[tuple[str, str], Any] = {}
+    for c in isa.connections:
+        if c.source == c.target or c.source not in order or c.target not in order:
+            continue
+        pairs[(c.source, c.target)] = c  # parallel edges: last wins
+    nbrs: list[list[tuple[int, bool, float]]] = [[] for _ in range(n)]
+    n_default = 0
+    for (src, tgt), c in pairs.items():
+        if transition == "weighted":
+            w = STRENGTH_LINK.get(c.strength)
+            if w is None:
+                w = STRENGTH_LINK["medium"]
+                n_default += 1
+        else:
+            w = 1.0
+        nbrs[order[src]].append((order[tgt], c.polarity == "-", w))
+    for lst in nbrs:
+        lst.sort(key=lambda x: x[0])
+    indptr = np.zeros(n + 1, dtype=np.int64)
+    for i, lst in enumerate(nbrs):
+        indptr[i + 1] = indptr[i] + len(lst)
+    flat = [x for lst in nbrs for x in lst]
+    tgt = np.array([x[0] for x in flat], dtype=np.int64)
+    flip = np.array([x[1] for x in flat], dtype=bool)
+    w = np.array([x[2] for x in flat], dtype=float)
+    cum = np.zeros(len(flat))
+    for i in range(n):
+        lo, hi = indptr[i], indptr[i + 1]
+        if hi > lo:
+            cs = np.cumsum(w[lo:hi])
+            cum[lo:hi] = cs / cs[-1]
+    return order, n, indptr, tgt, flip, cum, n_default
+
+
+def _signed_walk(
+    isa: IsaData, source: str, *, n_steps: int, n_tokens: int, decay: float,
+    stop_prob: float, transition: str, seed: int | None,
+) -> dict | None:
+    """The walk behind `signed_propagation` (parameters already clamped).
+
+    Returns None for the empty case (unknown source, no out-links), else a
+    dict of per-element arrays: `reach`, `signed` (signed mass per token),
+    `net_sign` (-1/0/+1), `pos_mass`, `neg_mass` (per token), `first`
+    (per-token first-visit step, int16, 0 = never; shape n_tokens x n),
+    `mass` (shares of n_tokens), plus `order`, `n`, `n_default`,
+    `n_batches`. Draws are token-indexed: every step consumes exactly
+    n_tokens uniforms for the choice and n_tokens for the stop test.
+    """
+    order, n, indptr, tgt, flip, cum, n_default = _propagation_graph(isa, transition)
+    if source not in order:
+        return None
+    src = order[source]
+    outdeg = np.diff(indptr)
+    if outdeg[src] == 0:
+        return None
+
+    n_batches = min(_DIFFUSION_BATCHES, n_tokens)
+    batch_of = (np.arange(n_tokens) * n_batches) // n_tokens
+    rng = np.random.default_rng(seed)
+    pos = np.full(n_tokens, src, dtype=np.int64)
+    sign = np.ones(n_tokens, dtype=np.int8)
+    mass = np.ones(n_tokens)
+    live = np.ones(n_tokens, dtype=bool)
+    first = np.zeros((n_tokens, n), dtype=np.int16)
+    pos_mass = np.zeros(n)
+    neg_mass = np.zeros(n)
+    signed_b = np.zeros((n_batches, n))
+    acc = dict.fromkeys(_PROPAGATION_MASS_KEYS, 0.0)
+
+    for step in range(1, n_steps + 1):
+        u_choice = rng.random(n_tokens)
+        u_stop = rng.random(n_tokens)
+        idx = np.nonzero(live)[0]
+        if idx.size == 0:
+            continue  # draws are consumed regardless (token-indexed)
+        here = pos[idx]
+        k = np.empty(idx.size, dtype=np.int64)
+        for node in np.unique(here):
+            m = here == node
+            lo, hi = indptr[node], indptr[node + 1]
+            kk = np.searchsorted(cum[lo:hi], u_choice[idx[m]], side="right")
+            k[m] = np.minimum(kk, hi - lo - 1)
+        slot = indptr[here] + k
+        pos[idx] = tgt[slot]
+        sign[idx] = sign[idx] * np.where(flip[slot], -1, 1).astype(np.int8)
+        acc["decayed"] += float((mass[idx] * (1.0 - decay)).sum())
+        mass[idx] = mass[idx] * decay
+        landed = pos[idx]
+        unseen = first[idx, landed] == 0
+        first[idx[unseen], landed[unseen]] = step
+        m_here = mass[idx]
+        sg = sign[idx]
+        np.add.at(pos_mass, landed[sg > 0], m_here[sg > 0])
+        np.add.at(neg_mass, landed[sg < 0], m_here[sg < 0])
+        np.add.at(signed_b, (batch_of[idx], landed), m_here * sg)
+        stop = u_stop[idx] < stop_prob
+        acc["stopped"] += float(m_here[stop].sum())
+        live[idx[stop]] = False
+        rest = idx[~stop]
+        sink = outdeg[pos[rest]] == 0
+        acc["absorbed"] += float(mass[rest[sink]].sum())
+        live[rest[sink]] = False
+    acc["in_transit"] = float(mass[live].sum())
+
+    reach = (first > 0).sum(axis=0) / n_tokens
+    reach[src] = 0.0
+    if n_batches > 1:
+        from scipy import stats  # lazy: scipy is a hard dep but a heavy import
+
+        crit = float(stats.t.ppf(0.975, n_batches - 1))
+        se = np.sqrt(n_batches * signed_b.var(axis=0, ddof=1))
+        net = signed_b.sum(axis=0)
+        net_sign = np.where(np.abs(net) <= crit * se, 0, np.sign(net)).astype(np.int8)
+    else:
+        net_sign = np.zeros(n, dtype=np.int8)
+    return {"order": order, "n": n, "n_default": n_default, "n_batches": n_batches,
+            "reach": reach, "first": first, "net_sign": net_sign,
+            "pos_mass": pos_mass / n_tokens, "neg_mass": neg_mass / n_tokens,
+            "signed": (pos_mass - neg_mass) / n_tokens,
+            "mass": {key: v / n_tokens for key, v in acc.items()}}
+
+
+def signed_propagation(
+    isa: IsaData, source: str, *,
+    n_steps: int = 8, n_tokens: int = 1000, decay: float = 0.8,
+    stop_prob: float = 0.15, transition: str = "weighted",
+    seed: int | None = 0,
+) -> dict:
+    """Weighted signed propagation from an intervention node (development
+    note section 3.2); the weighted successor of `token_diffusion`, which
+    stays unchanged.
+
+    n_tokens tokens start at `source` with sign +1 and mass 1. Each step,
+    every live token, in this order: moves along one out-edge (chosen in
+    proportion to its weight), multiplies its sign by the edge sign, decays
+    (mass *= decay; the loss goes to `decayed`), deposits its mass at the
+    node it landed on (positive or negative mass by sign; every arrival
+    deposits, so revisits count, discounted by decay), then stops with
+    probability stop_prob (mass to `stopped`) or, if it did not stop and the
+    node has no out-links, is absorbed (mass to `absorbed`). Tokens still
+    live after the last step add their mass to `in_transit`. `mass` holds
+    the four buckets as shares of n_tokens and sums to 1 for non-empty
+    results (all 0.0 in the empty shape: no token moved).
+
+    transition="weighted" uses bayes.STRENGTH_LINK[strength]; a missing or
+    unknown strength counts as medium and is tallied in n_default_strength
+    (kept connections, after dedup). transition="equal" picks uniformly.
+    Any other value raises ValueError. Numeric arguments must be real
+    numbers (NaN and None are not supported).
+
+    Rows (one per non-source element with reach_probability > 0) carry
+    reach_probability, first_arrival_min / _q50 (median first-visit step
+    over visiting tokens), positive_mass / negative_mass (sum over tokens /
+    n_tokens), signed_mass_mean, positive_share / negative_share (None when
+    both masses are 0, e.g. decay=0) and net_sign. net_sign is "+"/"-" only
+    when the signed mass is distinguishable from 0 at 95% (Student's t over
+    min(20, n_tokens) batch means, as in `token_diffusion`), else "~"; with
+    one batch it is always "~". Rows sort by reach_probability descending,
+    ties in isa.elements order.
+
+    Graph conventions as `token_diffusion`: parallel edges deduplicate
+    last-wins, self-loops and dangling refs are skipped, only "-" flips a
+    sign. Out-edges are ordered by target position in isa.elements.
+
+    Draws are token-indexed (n_tokens uniforms for the choice and n_tokens
+    for the stop test every step, live or not), so a token that never
+    visits a node whose out-edge set or weights changed keeps its route in
+    a perturbed map. n_steps is clamped to [1, 100], n_tokens to
+    [1, 100000], decay and stop_prob to [0, 1]; the clamped values are
+    echoed. Unknown source, empty model or a source without out-links
+    return the empty shape. Identical inputs reproduce bit-for-bit. Pure
+    apart from the seeded RNG.
+    """
+    if transition not in ("weighted", "equal"):
+        raise ValueError(
+            f"transition must be 'weighted' or 'equal', got {transition!r}")
+    n_steps = max(1, min(100, int(n_steps)))
+    n_tokens = max(1, min(100000, int(n_tokens)))
+    decay = max(0.0, min(1.0, float(decay)))
+    stop_prob = max(0.0, min(1.0, float(stop_prob)))
+    result: dict = {
+        "rows": [], "source": source, "n_steps": n_steps, "n_tokens": n_tokens,
+        "decay": decay, "stop_prob": stop_prob, "transition": transition,
+        "seed": seed, "n_reached": 0, "n_default_strength": 0, "n_batches": 0,
+        "mass": dict.fromkeys(_PROPAGATION_MASS_KEYS, 0.0)}
+    walk = _signed_walk(
+        isa, source, n_steps=n_steps, n_tokens=n_tokens, decay=decay,
+        stop_prob=stop_prob, transition=transition, seed=seed)
+    if walk is None:
+        return result
+
+    rows: list[dict] = []
+    for el in isa.elements:
+        i = walk["order"][el.id]
+        if walk["reach"][i] <= 0:
+            continue
+        steps = walk["first"][:, i]
+        steps = steps[steps > 0]
+        pos_m, neg_m = float(walk["pos_mass"][i]), float(walk["neg_mass"][i])
+        total = pos_m + neg_m
+        rows.append({
+            "id": el.id, "label": el.label,
+            "reach_probability": float(walk["reach"][i]),
+            "first_arrival_min": int(steps.min()),
+            "first_arrival_q50": int(np.quantile(steps, 0.5, method="lower")),
+            "positive_mass": pos_m, "negative_mass": neg_m,
+            "signed_mass_mean": pos_m - neg_m,
+            "positive_share": pos_m / total if total > 0 else None,
+            "negative_share": neg_m / total if total > 0 else None,
+            "net_sign": _SIGN_LABEL[int(walk["net_sign"][i])]})
+    rows.sort(key=lambda r: -r["reach_probability"])
+    result.update(rows=rows, n_reached=len(rows),
+                  n_default_strength=walk["n_default"],
+                  n_batches=walk["n_batches"], mass=walk["mass"])
+    return result
+
+
+def propagation_sensitivity(
+    isa: IsaData, source: str, *,
+    n_runs: int = 200, base: float = 0.5, flip_mode: str = "confidence",
+    draw_strength: bool = False, seed: int = 0,
+    n_steps: int = 8, n_tokens: int = 1000, decay: float = 0.8,
+    stop_prob: float = 0.15, transition: str = "weighted",
+) -> dict:
+    """Robustness of `signed_propagation` to doubt about the map.
+
+    The baseline is `signed_propagation(isa, source, ..., seed=seed)` on the
+    map as given, at the same token count as the variants; the rows follow
+    its rows, in their order, and carry its `id`, `label`,
+    `reach_probability` and `net_sign`. Each of n_runs variants perturbs the
+    map with `network._perturbed_connections(isa, base, rng, flip_mode)`
+    (drop with base*(5-confidence)/4, flip by confidence or, with
+    flip_mode="posterior", by the rater posterior), where run k uses
+    rng = default_rng(SeedSequence(seed).spawn(n_runs)[k]). With
+    draw_strength=True each rated kept edge takes the strength of one
+    uniformly drawn rating, as in `path_sensitivity`. The walk then runs
+    with the baseline's own seed.
+
+    Why a shared walk seed: draws are token-indexed, so a variant whose map
+    is unchanged reproduces the baseline exactly (a confidence-5 map reads
+    100% reached, 100% sign held). It is not claimed to cut token noise on
+    perturbed maps; there the noise protection comes from the sign rule: a
+    variant counts as "held" only when its own batch-means net_sign equals
+    the baseline's.
+
+    Added per row:
+      - "reached_share": share of runs with reach > 0;
+      - "sign_holds_share": share of runs whose own net_sign equals the
+        baseline's; computed only when the baseline net_sign is "+" or "-",
+        else None (balanced). A variant that is "~", unreached or of the
+        opposite sign counts as NOT held, a conservative reading;
+      - "reach_q05/q50/q95" and "signed_mass_q05/q50/q95": quantiles over
+        all runs, unreached runs counting as 0.
+    A run where the source lost every out-link counts as zero reach and zero
+    signed mass for every element; it is never skipped. Elements reached
+    only in variants are not listed (as in `path_sensitivity`).
+
+    n_runs is clamped to [1, 2000] and base to [0, 1]; both are echoed
+    clamped. flip_mode must be "confidence" or "posterior" (ValueError).
+    "n_default_confidence" counts connections whose confidence int() fails
+    (None or non-numeric text); out-of-range values are clamped and not
+    counted. An empty baseline returns the full shape with rows []. Same
+    seed, same output. Pure apart from the seeded RNGs.
+    """
+    from dataclasses import replace
+
+    from .network import _perturbed_connections
+
+    if flip_mode not in ("confidence", "posterior"):
+        raise ValueError(
+            f"flip_mode must be 'confidence' or 'posterior', got {flip_mode!r}")
+    n_runs = max(1, min(2000, int(n_runs)))
+    base = max(0.0, min(1.0, float(base)))
+    seed = int(seed)
+
+    n_default_conf = 0
+    for c in isa.connections:
+        try:
+            int(c.confidence)
+        except (TypeError, ValueError):
+            n_default_conf += 1
+
+    baseline = signed_propagation(
+        isa, source, n_steps=n_steps, n_tokens=n_tokens, decay=decay,
+        stop_prob=stop_prob, transition=transition, seed=seed)
+    out = {
+        "rows": [], "source": source, "n_runs": n_runs, "base": base,
+        "flip_mode": flip_mode, "draw_strength": bool(draw_strength),
+        "seed": seed, "n_steps": baseline["n_steps"],
+        "n_tokens": baseline["n_tokens"], "decay": baseline["decay"],
+        "stop_prob": baseline["stop_prob"], "transition": transition,
+        "n_default_confidence": n_default_conf,
+        "n_default_strength": baseline["n_default_strength"]}
+    brows = baseline["rows"]
+    if not brows:
+        return out
+
+    order = {el.id: i for i, el in enumerate(isa.elements)}
+    idx = np.array([order[r["id"]] for r in brows])
+    want = np.array([{"+": 1, "-": -1}.get(r["net_sign"], 0) for r in brows])
+    nrow = len(brows)
+    reach = np.zeros((n_runs, nrow))
+    signed = np.zeros((n_runs, nrow))
+    held = np.zeros((n_runs, nrow), dtype=bool)
+    walk_kw = dict(n_steps=out["n_steps"], n_tokens=out["n_tokens"],
+                   decay=out["decay"], stop_prob=out["stop_prob"],
+                   transition=transition, seed=seed)
+    for k, child in enumerate(np.random.SeedSequence(seed).spawn(n_runs)):
+        rng = np.random.default_rng(child)
+        pert = _perturbed_connections(isa, base, rng, flip_mode)
+        if draw_strength:
+            pert = [replace(c, strength=rng.choice(c.ratings).strength)
+                    if c.ratings else c for c in pert]
+        walk = _signed_walk(
+            IsaData(elements=isa.elements, connections=pert), source, **walk_kw)
+        if walk is None:
+            continue  # source cut: zero reach, zero mass, sign "~" (not held)
+        reach[k] = walk["reach"][idx]
+        signed[k] = walk["signed"][idx]
+        held[k] = walk["net_sign"][idx] == want
+
+    qs = (0.05, 0.5, 0.95)
+    rq = np.quantile(reach, qs, axis=0)
+    sq = np.quantile(signed, qs, axis=0)
+    reached = (reach > 0).mean(axis=0)
+    holds = held.mean(axis=0)
+    for j, r in enumerate(brows):
+        row = {key: r[key] for key in ("id", "label", "reach_probability",
+                                       "net_sign")}
+        row["reached_share"] = float(reached[j])
+        row["sign_holds_share"] = float(holds[j]) if want[j] != 0 else None
+        for name, arr in (("reach", rq), ("signed_mass", sq)):
+            for qi, tag in enumerate(("q05", "q50", "q95")):
+                row[f"{name}_{tag}"] = float(arr[qi, j])
+        out["rows"].append(row)
+    return out
