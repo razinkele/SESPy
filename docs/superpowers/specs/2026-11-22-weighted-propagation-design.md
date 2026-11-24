@@ -135,7 +135,7 @@ Live tokens left after the last step add their mass to `in_transit`.
 | `id`, `label` | element |
 | `reach_probability` | share of tokens that visited it at least once in steps 1..n_steps |
 | `first_arrival_min` | earliest first-visit step over tokens |
-| `first_arrival_q50` | median first-visit step over the tokens that visited (`np.median`, `method="lower"`, so an int) |
+| `first_arrival_q50` | median first-visit step over the tokens that visited (`int(np.quantile(steps, 0.5, method="lower"))`; erratum E1: `np.median` has no `method` keyword) |
 | `positive_mass`, `negative_mass` | deposited mass per token: sum / n_tokens |
 | `signed_mass_mean` | `positive_mass − negative_mass` |
 | `positive_share`, `negative_share` | of `positive_mass + negative_mass`; `None` when that sum is 0, e.g. `decay=0` |

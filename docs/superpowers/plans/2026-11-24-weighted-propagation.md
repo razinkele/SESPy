@@ -35,10 +35,11 @@
   - `AppData/Local/sespy-app-v120`: the live deploy tree with the real `config.env`.
   - `AppData/Local/sespy-lib-v1200`: the live library.
   - `AppData/Local/sespy-app-v110` and `sespy-lib-v1190`: the rollback pair.
-  - `AppData/Local/MosaicSES` stays on its checked-out commit; Task 7 only runs its suite.
+  - `AppData/Local/MosaicSES` stays on branch `main` at its checked-out commit (`d382147`); Task 7 only runs its suite there.
+  - Any run that puts a must-not-touch tree on PYTHONPATH sets `PYTHONDONTWRITEBYTECODE=1` and passes `-p no:cacheprovider`.
   - Never read any `deploy/config.env`.
 - **User-only steps.** The user runs every push, PR merge and tag, via short `!` one-liners or `~/` helper scripts.
-- **Weights:** `bayes.STRENGTH_LINK`. Import it inside the function (`from .bayes import STRENGTH_LINK`) unless a top-level import in `dynamics.py` is cycle-free; check `bayes`' imports first. Missing or unknown strength counts as `"medium"` and is counted.
+- **Weights:** `bayes.STRENGTH_LINK`, imported at the top of `dynamics.py` (`from .bayes import STRENGTH_LINK`). `bayes` does not import `dynamics`, so this is cycle-free (checked in round-1 review). Missing or unknown strength counts as `"medium"` and is counted.
 - **Batches:** reuse `dynamics._DIFFUSION_BATCHES` (20) and the t-critical value computed as in `token_diffusion` (lazy `from scipy import stats`).
 - **Signatures (exact):**
   - `signed_propagation(isa, source, *, n_steps=8, n_tokens=1000, decay=0.8, stop_prob=0.15, transition="weighted", seed=0) -> dict`
@@ -57,7 +58,8 @@
   - Launch detached with PowerShell `Start-Process` running `PY`, logging to a file in the scratchpad.
   - Poll with bounded `Start-Sleep`.
   - Port 8000 must be free before and after. Never edit a tree while its suite runs.
-- **Shiny reference:** before Tasks 6–7, read `references/reactivity.md`, `extended-tasks.md` and `testing.md` from `PY -m shiny skills path shiny-for-python` (project `CLAUDE.md`).
+- **Shiny reference:** before Tasks 6–7, read `references/reactivity.md`, `extended-tasks.md`, `test-server.md` (server-side tests) and `testing.md` (Playwright) from `PY -m shiny skills path shiny-for-python` (project `CLAUDE.md`).
+- **Spec erratum E1:** spec §Rows says "`np.median`, `method="lower"`", but `np.median` has no `method` keyword (TypeError on numpy 2.5.4). Use `int(np.quantile(first_steps, 0.5, method="lower"))`.
 
 ## Review Focus
 
@@ -97,6 +99,12 @@
 - **Produces:** `signed_propagation` with the result shape in spec §"Library: signed_propagation":
   - result keys: `rows`, `source`, `n_steps`, `n_tokens`, `decay`, `stop_prob`, `transition`, `seed`, `n_reached`, `n_default_strength`, `n_batches`, `mass` = `{decayed, stopped, absorbed, in_transit}`, as shares of `n_tokens`;
   - row keys: `id`, `label`, `reach_probability`, `first_arrival_min`, `first_arrival_q50` (int), `positive_mass`, `negative_mass`, `signed_mass_mean`, `positive_share`, `negative_share` (float or `None`), `net_sign` (`"+"`, `"-"` or `"~"`).
+- **Empty shape (pinned here; the spec leaves it unnamed):**
+  - Every top-level key is present, with the clamped parameters echoed.
+  - `rows=[]`, `n_reached=0`, `n_batches=0`, `n_default_strength=0`.
+  - `mass = {"decayed": 0.0, "stopped": 0.0, "absorbed": 0.0, "in_transit": 0.0}`: no token moved.
+  - Returned for an unknown source, an empty model, or a source with no out-links.
+  - The identity `sum(mass) == 1` holds only for non-empty results.
 - **Private, for Task 2:** `_signed_walk(...)` returns the per-element arrays (reach, signed mass, `net_sign`) without building rows, so variants skip row assembly. The builder picks the exact private signature; Task 2 is its only consumer.
 
 - [ ] **Step 1: Write the failing tests.** Use small `IsaData` fixtures built from `Element`/`Connection` (the `sespy.data_structure` dataclasses):
@@ -104,18 +112,19 @@
   def test_chain_reaches_in_order():            # P3: S->A->B->C, decay=1, stop_prob=0, n_tokens=200: reach 1.0 each; first_arrival_q50 == 1, 2, 3
   def test_negative_edge_flips_once():          # P4: S->A(+)->B(-)->C(+): positive_share A == 1.0; B and C negative_share == 1.0
   def test_seed_reproducible_and_distinct():    # P5: same args equal (==); seed 1 differs on a branching graph
-  def test_mass_identity_random_graphs():       # P6: 30 random graphs x params incl. decay 0/1, stop 0/1: sum(mass.values()) == pytest.approx(1.0, abs=1e-9)
+  def test_mass_identity_random_graphs():       # P6: 30 random graphs (source given >= 1 out-link) x params incl. decay 0/1, stop 0/1: sum(mass.values()) == pytest.approx(1.0, abs=1e-9)
+  def test_empty_shape_mass_is_zero():           # no out-links: every mass value 0.0, all top-level keys present
   def test_weighted_choice_follows_strength():  # S->A strong, S->B weak, n_tokens=20000, n_steps=1, stop 0: reach A ≈ 0.80/1.10 within 0.02
   def test_equal_transition_ignores_strength(): # same graph, transition="equal": reach A ≈ 0.5 within 0.02; n_default_strength == 0
   def test_default_strength_counted():          # one connection strength="?" -> n_default_strength == 1, weighted as medium
   def test_degenerate_parameters_no_nan():      # decay=0 -> shares None, masses 0.0; stop_prob=1 -> reach only first hop; n_tokens=1 -> n_batches 1, every net_sign "~"; no NaN/inf in any float
-  def test_balanced_node_is_tilde():            # S->A(+)->T(+), S->B(+)->T(-), equal weights: T net_sign "~"
+  def test_balanced_node_is_tilde():            # S->A(+)->T(+), S->B(+)->T(-), equal weights: T net_sign "~" at seeds 0 and 1 (as test_token_diffusion_balanced_node_is_contested_at_both_seeds)
   def test_sink_absorbs_and_counts():           # S->A with A a sink, decay=1, stop 0: mass absorbed == 1.0, in_transit == 0
   def test_parallel_connections_last_wins():    # two S->A connections, last one "-": A negative_share == 1.0
   def test_empty_shapes():                      # unknown source / no out-links / empty model -> rows [] and n_reached 0, no raise
   def test_bad_transition_raises():             # transition="x" -> ValueError
   def test_clamps_echoed():                     # n_steps=0 -> 1, decay=2 -> 1.0, stop_prob=-1 -> 0.0
-  def test_equal_setting_matches_token_diffusion_reach_set():  # P-equal: on a 6-node DAG with n_tokens=5000, decay=1, stop 0, equal: set(ids) == set(token_diffusion ids)
+  def test_equal_setting_matches_token_diffusion_reach_set():  # P-equal: 6-node DAG, both called with n_tokens=5000, n_steps=6, seed=0 (signed: decay=1, stop_prob=0, transition="equal"): set of row ids equal
   def test_unchanged_map_token_indexed_reproduces():  # _signed_walk on isa vs on an IsaData with identical connections in a new list: identical arrays
   ```
 - [ ] **Step 2: Run them and watch them fail.** `PY -m pytest tests/test_propagation.py -q -p no:cacheprovider`. Expected: FAIL (ImportError).
@@ -125,7 +134,8 @@
   - token-indexed draws: `n_tokens` uniforms for the choice and `n_tokens` for the stop, every step, whether live or not;
   - out-edges ordered by target position in `isa.elements`;
   - choice by cumulative weights with `searchsorted`;
-  - per-token first-visit step as an int16 array.
+  - per-token first-visit step as an int16 array;
+  - `first_arrival_q50` per spec erratum E1.
 
   Sign rule: batch-means Student t at 95% over `min(_DIFFUSION_BATCHES, n_tokens)` batches, `"~"` with one batch, the same as `token_diffusion`'s `net_sign`. The docstring states the semantics, the conventions and that it never raises except on a bad `transition`.
 - [ ] **Step 4: Run the new tests and the full library suite.** Expected: all pass. `test_token_diffusion_*` unchanged.
@@ -150,8 +160,8 @@
   ```python
   def test_confidence5_map_is_certain():          # P8: branching map, all confidence=5: every reached_share == 1.0; sign_holds_share == 1.0 or None where net_sign "~"
   def test_dropping_only_path_lowers_reached():   # P8: S->A->B confidence=1, base=1.0: B reached_share < 1.0
-  def test_tilde_baseline_gives_none():           # balanced T -> sign_holds_share is None
-  def test_tilde_variant_counts_not_held():       # monkeypatch _signed_walk so variants return "~" for A: sign_holds_share == 0.0
+  def test_tilde_baseline_gives_none():           # balanced T -> sign_holds_share is None, at seeds 0 and 1
+  def test_tilde_variant_counts_not_held():       # fixture where A's baseline is "+"; monkeypatch _signed_walk with a fake that passes the FIRST call (the baseline) to the real function and returns "~" for A on every later call: sign_holds_share == 0.0
   def test_source_cut_counts_as_zero_not_skipped():  # S->A confidence=1, base=1.0 (always dropped): A reached_share == 0.0, n_runs echoed
   def test_seed_reproducible():                   # P5
   def test_seed_scheme():                         # run k perturbs with default_rng(SeedSequence(seed).spawn(n_runs)[k]) and walks with seed=seed (spy on _signed_walk seeds)
@@ -194,6 +204,7 @@
   | `propagation.transition_weighted` | "By link strength" | – |
   | `propagation.transition_equal` | "Equal" | – |
   | `propagation.run` | "Run propagation" | – |
+  | `propagation.hint` | "Not simulated yet: choose an intervention and press Run propagation." | – |
   | `propagation.computing` | "Simulating {n} tokens…" | n |
   | `propagation.none` | "Nothing is reached from this element: it has no outgoing links in the current model." | – |
   | `propagation.col_element` | "Element" | – |
@@ -261,7 +272,7 @@
     - report: 10000, 8, 0.8, 0.15, `"weighted"`;
     - equal: 1000, 8, 1.0, 0.0, `"equal"`.
   - `UNCERTAINTY_MAX_TOKENS = 1000`.
-  - `propagation_rows(result: dict, t) -> list[dict]`, with keys `element`, `reach`, `first`, `pos`, `neg`, `net`, `sign`:
+  - `propagation_rows(result: dict, t) -> list[dict]`, with keys `id`, `element`, `reach`, `first`, `pos`, `neg`, `net`, `sign`. `id` is the element id the panel joins on:
     - reach `f"{x:.2f}"`, shares `f"{x:.0%}"` or `"—"` when `None`, net `f"{x:+.3f}"`;
     - element is `"label"`.
   - `join_uncertainty(rows_result: dict, sens: dict, t) -> dict[str, tuple[str, str]]`: element id → (reached, holds).
@@ -277,7 +288,8 @@
   - `propagation_csv(result: dict, sens: dict | None) -> str`, written with the `csv` module.
     - Leading rows `# source,…`, then one `# key,value` row each for the walk parameters (and the sensitivity parameters when present).
     - Then the header, exactly `id,label,reach_probability,first_arrival_min,first_arrival_q50,positive_mass,negative_mass,signed_mass_mean,positive_share,negative_share,net_sign`, plus `,reached_share,sign_holds_share,reach_q05,reach_q50,reach_q95,signed_mass_q05,signed_mass_q50,signed_mass_q95` when `sens`.
-    - Raw values, `None` as an empty cell, labels through `_csv_safe`.
+    - Raw values, `None` as an empty cell.
+    - `id`, `label` and the `# source` value go through `_csv_safe`, as the path CSV does (`_paths_view.py:85-94`).
 
 - [ ] **Step 1: Write the failing tests** with hand-built result dicts:
   ```python
@@ -290,7 +302,7 @@
   def test_uncertainty_lines_tokens_note_only_when_fewer():
   def test_csv_header_and_values_match_rows():          # P10: same ids/order; unrounded floats
   def test_csv_with_sensitivity_columns():
-  def test_csv_neutralises_formula_labels():            # label "=SUM(A1)" -> "'=SUM(A1)"
+  def test_csv_neutralises_formula_labels():            # label "=SUM(A1)" -> "'=SUM(A1)"; an id "+X" and the source id are guarded too
   ```
 - [ ] **Step 2: Run them and watch them fail.** `PY -m pytest tests/test_propagation_view.py -q -p no:cacheprovider`.
 - [ ] **Step 3: Implement `_propagation_view.py`.**
@@ -323,7 +335,8 @@
   ```python
   def test_run_shows_computing_then_table(gated_propagation):
   def test_run_called_with_preset_values(monkeypatch):           # preset "report" -> n_tokens=10000, seed=0
-  def test_preset_sets_advanced_controls():                       # choosing "equal" updates prop_decay=1.0, prop_stop=0.0, prop_transition="equal"
+  def test_preset_sets_advanced_controls(monkeypatch):            # test server never applies ui.update_* (see tests/test_isa_entry_link_rules.py:4,40): monkeypatch mod.ui.update_slider / mod.ui.update_radio_buttons, choose "equal", assert recorded calls prop_decay=1.0, prop_stop=0.0, prop_transition="equal"
+  def test_removed_source_shows_none_not_stuck(gated_propagation): # source removed by the ablation before Run: panel shows propagation.none, never stays on "Simulating…"
   def test_input_change_while_running_drops_stale_result(gated_propagation):
   def test_propagation_runs_without_removed_elements(gated_propagation):
   def test_changing_removal_clears_result_and_uncertainty(gated_propagation):
@@ -343,12 +356,18 @@
   - `_COMPUTING` sentinel;
   - task exceptions are logged and render `propagation.error`.
 
+  Idle state (no result) shows `propagation.hint`; the stale-drop and clear tests assert it.
+
+  Removed source: do **not** copy the existing early return at `analysis_intervention.py:388-395`, which leaves the panel on "computing" for good. When the source is missing from `diffusion_isa()`, set the result to the empty shape, so the panel shows `propagation.none` and no uncertainty button.
+
   Preset change: `ui.update_slider` and `ui.update_radio_buttons` on the advanced inputs. Show "custom" however you judge clearest (spec leaves it to the builder).
 
   Chart (matplotlib, top 12 by reach):
   - stacked bars, `reach × positive_share` green `#2e7d32` and `reach × negative_share` red `#c62828`;
   - grey `#757575` for the full bar when shares are `None`;
   - y label "reach".
+
+  Table Sign cell coloured with the same three colours (`+` green, `-` red, `~` grey), per spec.
 
   Captions: `propagation.caption` muted under the table.
 - [ ] **Step 4: Run the new tests and the unit suite.** Expected: all pass.
@@ -360,7 +379,8 @@
 - Create: `tests/test_propagation_perf.py`, marked `@pytest.mark.slow` (the app's `-m slow` marker).
   - Load `data/qsem-model-2026-01-12 (3).qsem` (121 elements, 386 links) with `qsem_to_isa`, wrapped in `IsaData`.
   - Source = the element with the most out-links (ties: first in order).
-  - Assert `signed_propagation` defaults < 2 s, the report preset (`n_tokens=10000`) < 30 s, and `propagation_sensitivity` defaults < 30 s, using `time.perf_counter`.
+  - Source = N080 (25 out-links), found by that rule in round-1 review.
+  - Measure with `time.perf_counter` and record the timings. Assert at the spec budgets **with margin for slow machines**: `signed_propagation` defaults < 2 s × 1.5, the report preset (`n_tokens=10000`) < 30 s × 1.5, `propagation_sensitivity` defaults < 30 s × 1.5. The laguna manual check in Task 9 holds the real budgets.
 - Modify: `tests/test_intervention_e2e.py`. On the sample model:
   - pick D001 and click `#…-prop_run`;
   - wait up to 60 s for the `#…-prop_summary table tbody tr` rows, and assert the "Reach" and "Sign" headers;
@@ -371,16 +391,19 @@
 - Modify: `docs/MANUAL.md`:
   - §40 becomes "Signed propagation": the walk, presets, reach, first step, shares and sign rule, mass line, uncertainty columns and what they mean, the 1,000-token cap, CSV.
   - Cite the development note and keep the Donlan et al. 2026 reference (line 534) for the equal-links preset.
-  - Fix the stale caveat at line 340: the propagation now honours the ablation.
+  - In the Intervention section (§20), rewrite lines 332–340. Lines 332, 334 and 338 describe the "Steps"/"Tokens" sliders, "arrivals", 95% error bars, ranks and "±". Replace them with the new controls, the table and the uncertainty columns. Fix the stale caveat at line 340: the propagation now honours the ablation.
   - Update the §-index name.
 - Modify: `tests/make_docs_screenshots.py` for the intervention shot. Regenerate only that PNG.
 
 - [ ] **Step 1: Write the perf test, e2e changes and manual text.**
 - [ ] **Step 2: Run the perf test.** `PY -m pytest tests/test_propagation_perf.py -m slow -q`. Expected: pass. Record the timings for the release notes.
 - [ ] **Step 3: Run the full e2e detached** (`tests/run_e2e.py --port 8000`). Expected: all pass, apart from a runner-retried flake; the server line names `sespy-lib-v1210` 1.21.0.
-- [ ] **Step 4: Run the MosaicSES gate** in `C:/Users/DELL/AppData/Local/MosaicSES`.
-  - Use `git fetch origin main` then `git checkout --detach FETCH_HEAD`, with PYTHONPATH `<MosaicSES>;<sespy-app-prop>;<sespy-lib-v1210>`.
-  - Run `PY -m pytest tests/ -q` first on 1.2.0 + 1.20.0 to record DELL's baseline reds, then on the branch.
+- [ ] **Step 4: Run the MosaicSES gate** in `C:/Users/DELL/AppData/Local/MosaicSES`, at `d382147` on `main`. No fetch and no checkout.
+  - Baseline first:
+    - PYTHONPATH `<MosaicSES>;C:/Users/DELL/AppData/Local/sespy-app-v120;C:/Users/DELL/AppData/Local/sespy-lib-v1200`, with `PYTHONDONTWRITEBYTECODE=1`;
+    - `PY -m pytest tests/ -q -p no:cacheprovider`;
+    - record DELL's baseline reds.
+  - Then the branch: PYTHONPATH `<MosaicSES>;<sespy-app-prop>;<sespy-lib-v1210>`.
   - Expected: no new reds against that baseline. Rerun any new red 3× alone.
 - [ ] **Step 5: Commit.** `git commit -m "test(propagation): benchmark, e2e, manual and screenshot"`
 
