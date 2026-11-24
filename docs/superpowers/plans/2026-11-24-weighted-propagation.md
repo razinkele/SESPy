@@ -26,7 +26,17 @@
 - **Machine: DELL.**
   - Python only via `C:/Users/DELL/miniconda3/envs/mosaicses/python.exe` (written `PY` below).
   - The conda `shiny` env has a broken SciPy (`scipy._cyutility … slice_memviewslice`), and there is no micromamba on DELL.
-  - No venvs, no `pip install`, no new dependencies.
+  - No venvs, no `pip install`, no new dependencies, and no changes to the `mosaicses` env.
+- **Editable-install shim (round-2 blocker).**
+  - The `mosaicses` env holds a finder-based editable install of the monolith sespy 1.17.1 (`site-packages/__editable__.sespy-1.17.1.pth`). It resolves `sespy.modules` even with the library first on PYTHONPATH, so the app's `tests/conftest.py` monolith guard aborts every session.
+  - Part B setup creates `C:/Users/DELL/AppData/Local/sespy-pyshim/sitecustomize.py` with exactly:
+    ```python
+    import sys
+    sys.meta_path[:] = [f for f in sys.meta_path if "__editable___sespy_" not in (getattr(f, "__module__", "") or "")]
+    ```
+  - `SHIM = C:/Users/DELL/AppData/Local/sespy-pyshim` goes **first** on every app, e2e, screenshot, perf and MosaicSES PYTHONPATH.
+  - The library's own suite does not need it; the library has no monolith guard.
+- **bash from PowerShell.** A PowerShell-launched run that shells out to `bash` (`test_deploy_script.py`) first sets `$env:PATH = "C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;" + $env:PATH`. Otherwise `bash` resolves to WSL and the tests fail. The Bash tool already uses Git Bash.
   - Single-line commands or `.py` files, never multi-line `python -c`.
 - **Git safety.**
   - **Never run `git worktree prune`, `git gc --prune` or `git worktree remove` on another machine's entries in SESPy.** Its `.git` is OneDrive-synced with the X1 laptop.
@@ -59,6 +69,7 @@
   - Poll with bounded `Start-Sleep`.
   - Port 8000 must be free before and after. Never edit a tree while its suite runs.
 - **Shiny reference:** before Tasks 6–7, read `references/reactivity.md`, `extended-tasks.md`, `test-server.md` (server-side tests) and `testing.md` (Playwright) from `PY -m shiny skills path shiny-for-python` (project `CLAUDE.md`).
+- **Spec erratum E2:** spec §Walk claimed a token "whose route avoids a changed link" keeps its route. That is false: a dropped out-edge renormalises its node. The spec now says tokens that never visit a changed node keep their routes, and `test_untouched_subtree_keeps_routes` pins it.
 - **Spec erratum E1:** spec §Rows says "`np.median`, `method="lower"`", but `np.median` has no `method` keyword (TypeError on numpy 2.5.4). Use `int(np.quantile(first_steps, 0.5, method="lower"))`.
 
 ## Review Focus
@@ -118,7 +129,8 @@
   def test_equal_transition_ignores_strength(): # same graph, transition="equal": reach A ≈ 0.5 within 0.02; n_default_strength == 0
   def test_default_strength_counted():          # one connection strength="?" -> n_default_strength == 1, weighted as medium
   def test_degenerate_parameters_no_nan():      # decay=0 -> shares None, masses 0.0; stop_prob=1 -> reach only first hop; n_tokens=1 -> n_batches 1, every net_sign "~"; no NaN/inf in any float
-  def test_balanced_node_is_tilde():            # S->A(+)->T(+), S->B(+)->T(-), equal weights: T net_sign "~" at seeds 0 and 1 (as test_token_diffusion_balanced_node_is_contested_at_both_seeds)
+  def test_balanced_node_is_tilde():            # S->A(+)->T(+), S->B(+)->T(-), equal weights: T net_sign "~" at seeds 0 and 1 (as test_token_diffusion_balanced_node_is_contested_at_both_seeds); see the seed note below
+  def test_untouched_subtree_keeps_routes():   # token-indexed draws: S->A, S->B, B->C, B->D; perturbed copy drops A's out-edge only (A->E): tokens that never visit A have identical visited sets (compare _signed_walk per-token outputs, or reach of C and D bit-equal)
   def test_sink_absorbs_and_counts():           # S->A with A a sink, decay=1, stop 0: mass absorbed == 1.0, in_transit == 0
   def test_parallel_connections_last_wins():    # two S->A connections, last one "-": A negative_share == 1.0
   def test_empty_shapes():                      # unknown source / no out-links / empty model -> rows [] and n_reached 0, no raise
@@ -127,6 +139,12 @@
   def test_equal_setting_matches_token_diffusion_reach_set():  # P-equal: 6-node DAG, both called with n_tokens=5000, n_steps=6, seed=0 (signed: decay=1, stop_prob=0, transition="equal"): set of row ids equal
   def test_unchanged_map_token_indexed_reproduces():  # _signed_walk on isa vs on an IsaData with identical connections in a new list: identical arrays
   ```
+  **Seed note:** the 95% rule mislabels a truly balanced node about 5% of the time (round-2 dry run: 11 of 200 seeds). If a correct implementation fails a balanced test at seed 0 or 1 because of its draw order, pin two other seeds that pass. Name them in the test and the commit message, and never loosen the sign rule. This applies to the Task 2 balanced test too.
+
+  **Structure for Task 2:** `signed_propagation` must call the module-level `_signed_walk` (looked up at call time), so Task 2's monkeypatch reaches both the baseline and the variants.
+
+  **`n_default_strength`** counts deduplicated kept pairs (after last-wins), not raw connections.
+
 - [ ] **Step 2: Run them and watch them fail.** `PY -m pytest tests/test_propagation.py -q -p no:cacheprovider`. Expected: FAIL (ImportError).
 - [ ] **Step 3: Implement `signed_propagation` in `sespy/dynamics.py`,** following spec §Walk exactly:
   - the order move → sign → decay → deposit → stop → sink;
@@ -175,6 +193,7 @@
 - [ ] **Step 4: Timing sanity.**
   - Write `tests/test_propagation.py::test_defaults_fast_on_sample`, marked to skip unless `SESPY_TIMING=1`.
   - Load `data/sample_ses.json` if the library has it, else build a 17-node fixture.
+  - Warm up first (`from scipy import stats` plus one tiny call) so the cold scipy import (~1–15 s) is not timed.
   - Assert `signed_propagation` defaults < 2 s and `propagation_sensitivity` defaults < 30 s.
   - Run it once with `SESPY_TIMING=1`. The real benchmark is in Task 7.
 - [ ] **Step 5: Run the full library suite.** Expected: all pass.
@@ -244,7 +263,7 @@
 - The controller runs the whole-branch review (most capable model).
 - The agent writes `~/pr121.sh`, `~/tag121.sh` and `~/pr121-body.md`, modelled on the 1.20.0 scripts if present on DELL, otherwise fresh. The tag script has a null-safe merge-commit guard.
 - The user pushes, opens the PR, waits for CI (lint red only in files this branch did not touch), merges, and tags `v1.21.0` on the merge commit.
-- The agent verifies that `git ls-remote origin "refs/tags/v1.21.0^{}"` equals the merge commit and that `git diff --stat <reviewed head> v1.21.0` is empty.
+- The agent runs `git fetch origin tag v1.21.0` (the tag is made on GitHub), then verifies that `git ls-remote origin "refs/tags/v1.21.0^{}"` equals the merge commit and that `git diff --stat <reviewed head> v1.21.0` is empty.
 
 ---
 
@@ -253,7 +272,9 @@
 **Worktrees:**
 - App: `git -C C:/Users/DELL/AppData/Local/sespy-app worktree add -b feat/weighted-propagation C:/Users/DELL/AppData/Local/sespy-app-prop origin/main`.
 - Library: `git -C "<OneDrive SESPy>" worktree add --detach C:/Users/DELL/AppData/Local/sespy-lib-v1210 v1.21.0`. Before the tag exists, use the reviewed library head and move the worktree to the tag afterwards; `deploy.sh` requires the exact tag.
-- PYTHONPATH is `C:/Users/DELL/AppData/Local/sespy-app-prop;C:/Users/DELL/AppData/Local/sespy-lib-v1210`, with cwd = the app worktree.
+- Shim: create `C:/Users/DELL/AppData/Local/sespy-pyshim/sitecustomize.py` (Global Constraints) if absent.
+- PYTHONPATH is `C:/Users/DELL/AppData/Local/sespy-pyshim;C:/Users/DELL/AppData/Local/sespy-app-prop;C:/Users/DELL/AppData/Local/sespy-lib-v1210`, with cwd = the app worktree.
+- Check: the conftest session line prints `sespy 1.2x.x from …sespy-lib-v1210` (or the reviewed head), not an abort.
 - Unit suite = the README selection: `PY -m pytest tests/ -q --ignore-glob='*e2e*' --ignore=tests/test_burger.py --ignore=tests/test_stepper.py --ignore=tests/test_stepper_click.py`. Record its 1.2.0 baseline first.
 
 ### Task 5: Propagation view helpers
@@ -346,7 +367,7 @@
   def test_uncertainty_called_with_capped_tokens(monkeypatch):    # report preset -> propagation_sensitivity(n_tokens=1000, n_runs=200, base=0.5, seed=0, same walk settings)
   def test_stale_uncertainty_dropped_when_settings_change(gated_uncertainty):
   def test_task_error_shows_alert_not_crash(monkeypatch):         # propagation.error inside .alert-danger in #…-prop_summary
-  def test_isa_change_clears_both():
+  def test_isa_change_clears_both():                              # needs the Harness / t_isa pattern of tests/test_paths_sensitivity_route.py:59-75 (emits the ISA event inside the session), not the diffusion fixture
   ```
 - [ ] **Step 2: Run them and watch them fail.**
 - [ ] **Step 3: Implement**, copying the existing diffusion pattern and the 1.2.0 robustness pattern:
@@ -380,8 +401,12 @@
   - Load `data/qsem-model-2026-01-12 (3).qsem` (121 elements, 386 links) with `qsem_to_isa`, wrapped in `IsaData`.
   - Source = the element with the most out-links (ties: first in order).
   - Source = N080 (25 out-links), found by that rule in round-1 review.
+  - Warm up first (`from scipy import stats` plus one small call) so the cold import is not timed.
   - Measure with `time.perf_counter` and record the timings. Assert at the spec budgets **with margin for slow machines**: `signed_propagation` defaults < 2 s × 1.5, the report preset (`n_tokens=10000`) < 30 s × 1.5, `propagation_sensitivity` defaults < 30 s × 1.5. The laguna manual check in Task 9 holds the real budgets.
-- Modify: `tests/test_intervention_e2e.py`. On the sample model:
+- Modify: `tests/test_intervention_e2e.py`.
+  - Replace the diffusion block at lines 91–185 **wholesale**. It covers the hint, "7 of 17 elements reached", ± margins, the chart fingerprint, the P002 stale check and "of 16 elements"; none of those exist any more.
+  - Keep an ablation check: remove P001, run, and assert P001's label is absent from the `prop_summary` table.
+  - On the sample model:
   - pick D001 and click `#…-prop_run`;
   - wait up to 60 s for the `#…-prop_summary table tbody tr` rows, and assert the "Reach" and "Sign" headers;
   - click `#…-prop_unc_run` and wait up to 120 s for the "Reached in % of variants" header;
@@ -393,17 +418,18 @@
   - Cite the development note and keep the Donlan et al. 2026 reference (line 534) for the equal-links preset.
   - In the Intervention section (§20), rewrite lines 332–340. Lines 332, 334 and 338 describe the "Steps"/"Tokens" sliders, "arrivals", 95% error bars, ranks and "±". Replace them with the new controls, the table and the uncertainty columns. Fix the stale caveat at line 340: the propagation now honours the ablation.
   - Update the §-index name.
-- Modify: `tests/make_docs_screenshots.py` for the intervention shot. Regenerate only that PNG.
+- Modify: `tests/make_docs_screenshots.py:330-340`. The intervention shot waits on "elements reached"; wait for the `prop_summary` table instead.
+  - Regenerate: start a server yourself with the shim PYTHONPATH, run the script with `--out <scratchpad dir>`, and copy only `intervention.png` into `docs/screenshots/`. There is no single-shot flag.
 
 - [ ] **Step 1: Write the perf test, e2e changes and manual text.**
 - [ ] **Step 2: Run the perf test.** `PY -m pytest tests/test_propagation_perf.py -m slow -q`. Expected: pass. Record the timings for the release notes.
 - [ ] **Step 3: Run the full e2e detached** (`tests/run_e2e.py --port 8000`). Expected: all pass, apart from a runner-retried flake; the server line names `sespy-lib-v1210` 1.21.0.
 - [ ] **Step 4: Run the MosaicSES gate** in `C:/Users/DELL/AppData/Local/MosaicSES`, at `d382147` on `main`. No fetch and no checkout.
   - Baseline first:
-    - PYTHONPATH `<MosaicSES>;C:/Users/DELL/AppData/Local/sespy-app-v120;C:/Users/DELL/AppData/Local/sespy-lib-v1200`, with `PYTHONDONTWRITEBYTECODE=1`;
+    - PYTHONPATH `<SHIM>;<MosaicSES>;C:/Users/DELL/AppData/Local/sespy-app-v120;C:/Users/DELL/AppData/Local/sespy-lib-v1200`, with `PYTHONDONTWRITEBYTECODE=1`;
     - `PY -m pytest tests/ -q -p no:cacheprovider`;
     - record DELL's baseline reds.
-  - Then the branch: PYTHONPATH `<MosaicSES>;<sespy-app-prop>;<sespy-lib-v1210>`.
+  - Then the branch: PYTHONPATH `<SHIM>;<MosaicSES>;<sespy-app-prop>;<sespy-lib-v1210>`.
   - Expected: no new reds against that baseline. Rerun any new red 3× alone.
 - [ ] **Step 5: Commit.** `git commit -m "test(propagation): benchmark, e2e, manual and screenshot"`
 
@@ -411,7 +437,7 @@
 
 **Files:** `pyproject.toml` (1.3.0; pin `@v1.21.0`), `sespy_app/__init__.py`, the MANUAL version line, `CHANGELOG.md` (timings from Task 7), README pin text.
 
-- [ ] **Step 1: Bump the version and re-pin.** Then run `tests/test_deploy_script.py` detached. Expected: pass.
+- [ ] **Step 1: Bump the version and re-pin.** Then run `tests/test_deploy_script.py` detached, with the Git-bash PATH prefix and the shim PYTHONPATH. Expected: pass.
 - [ ] **Step 2: Release commit.** `git commit -am "release: 1.3.0 — signed propagation (sespy 1.21.0)"`. Then the unit suite: all pass.
 - [ ] **Step 3: Whole-branch review** (the controller, most capable model) before the tag.
 - [ ] **Step 4: User hand-off.** The agent writes `~/pr13.sh`, `~/tag13.sh` and `~/pr13-body.md`. The user pushes, opens the PR, waits for green CI, merges and tags `v1.3.0`. The agent verifies the tag target and an empty diff against the reviewed head.
@@ -444,7 +470,7 @@
     - no `.alert-danger`.
   - MosaicSES: run `deploy/verify_live.py` from the clone, plus Compartments → Intervention renders without `Error:`.
   - Time the uncertainty run on laguna (spec P9 manual check).
-- [ ] **Step 4: Rollback trigger.** On a non-cosmetic failure, run `DEPLOY_REPO_ROOT=C:/Users/DELL/AppData/Local/sespy-app-v120 DEPLOY_LIBRARY_ROOT=C:/Users/DELL/AppData/Local/sespy-lib-v1200 bash C:/Users/DELL/AppData/Local/sespy-app-v120/deploy/deploy.sh --rollback`, with the user's go-ahead.
+- [ ] **Step 4: Rollback trigger.** On a non-cosmetic failure, run `SESPY_PY=C:/Users/DELL/miniconda3/envs/mosaicses/python.exe DEPLOY_REPO_ROOT=C:/Users/DELL/AppData/Local/sespy-app-v120 DEPLOY_LIBRARY_ROOT=C:/Users/DELL/AppData/Local/sespy-lib-v1200 bash C:/Users/DELL/AppData/Local/sespy-app-v120/deploy/deploy.sh --rollback`, with the user's go-ahead.
 - [ ] **Step 5:** Update memory. Offer cleanup of the DELL-only worktrees: list them, never prune.
 
 ## Follow-up (not in this plan)

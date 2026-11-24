@@ -121,7 +121,7 @@ Live tokens left after the last step add their mass to `in_transit`.
 - **Vectorised, with token-indexed draws:** each step draws exactly `n_tokens` uniforms for the edge choice and `n_tokens` for the stop test, whether or not a token is live.
   - Token t always uses element t of each draw.
   - Each node's out-edges are in a fixed order (by target position in `isa.elements`). A token picks with its uniform against that node's cumulative weights (e.g. `searchsorted`).
-  - So a token whose route avoids a changed link follows the same route in a perturbed map. That is what lets `propagation_sensitivity`'s shared seed reproduce the baseline exactly on an unchanged map.
+  - So a token that never visits a node whose out-edge set or weights changed follows the same route in a perturbed map (erratum E2: dropping one out-edge renormalises that node, so tokens leaving it by other edges can re-route). That is what lets `propagation_sensitivity`'s shared seed reproduce the baseline exactly on an unchanged map.
 - **Reproducibility:** `np.random.default_rng(seed)`; the same inputs reproduce bit-for-bit.
 - **Baseline sign rule (my call, after the builder check):** guards against issue #19.
   - Tokens are split into `min(20, n_tokens)` batches, as in `token_diffusion` (`_DIFFUSION_BATCHES`).
