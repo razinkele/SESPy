@@ -33,6 +33,7 @@ CONSUMER_API = {
         "randomize_matrix", "create_boolean_rules", "boolean_attractors",
         "boolean_attractors_core", "boolean_attractors_sampled", "BOOLEAN_MAX_CORE",
         "BOOLEAN_BASIN_BUDGET", "BOOLEAN_MAX_NODES_TOTAL", "BOOLEAN_MAX_ATTRACTORS",
+        "signed_propagation", "propagation_sensitivity",
     ],
     "regional_seas": ["get_regional_seas"],
     "autosave": ["token_key", "valid_token"],

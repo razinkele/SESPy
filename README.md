@@ -16,7 +16,7 @@ in this repository moved to [razinkele/sespy-app](https://github.com/razinkele/s
 ## Install
 
 ```bash
-pip install "sespy @ git+https://github.com/razinkele/SESPy@v1.20.0"
+pip install "sespy @ git+https://github.com/razinkele/SESPy@v1.21.0"
 ```
 
 Optional extras: `sespy[pdf]` (WeasyPrint PDF report export; needs native
