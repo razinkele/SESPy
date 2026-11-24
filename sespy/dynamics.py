@@ -1689,3 +1689,124 @@ def signed_propagation(
                   n_default_strength=walk["n_default"],
                   n_batches=walk["n_batches"], mass=walk["mass"])
     return result
+
+
+def propagation_sensitivity(
+    isa: IsaData, source: str, *,
+    n_runs: int = 200, base: float = 0.5, flip_mode: str = "confidence",
+    draw_strength: bool = False, seed: int = 0,
+    n_steps: int = 8, n_tokens: int = 1000, decay: float = 0.8,
+    stop_prob: float = 0.15, transition: str = "weighted",
+) -> dict:
+    """Robustness of `signed_propagation` to doubt about the map.
+
+    The baseline is `signed_propagation(isa, source, ..., seed=seed)` on the
+    map as given, at the same token count as the variants; the rows follow
+    its rows, in their order, and carry its `id`, `label`,
+    `reach_probability` and `net_sign`. Each of n_runs variants perturbs the
+    map with `network._perturbed_connections(isa, base, rng, flip_mode)`
+    (drop with base*(5-confidence)/4, flip by confidence or, with
+    flip_mode="posterior", by the rater posterior), where run k uses
+    rng = default_rng(SeedSequence(seed).spawn(n_runs)[k]). With
+    draw_strength=True each rated kept edge takes the strength of one
+    uniformly drawn rating, as in `path_sensitivity`. The walk then runs
+    with the baseline's own seed.
+
+    Why a shared walk seed: draws are token-indexed, so a variant whose map
+    is unchanged reproduces the baseline exactly (a confidence-5 map reads
+    100% reached, 100% sign held). It is not claimed to cut token noise on
+    perturbed maps; there the noise protection comes from the sign rule: a
+    variant counts as "held" only when its own batch-means net_sign equals
+    the baseline's.
+
+    Added per row:
+      - "reached_share": share of runs with reach > 0;
+      - "sign_holds_share": share of runs whose own net_sign equals the
+        baseline's; computed only when the baseline net_sign is "+" or "-",
+        else None (balanced). A variant that is "~", unreached or of the
+        opposite sign counts as NOT held, a conservative reading;
+      - "reach_q05/q50/q95" and "signed_mass_q05/q50/q95": quantiles over
+        all runs, unreached runs counting as 0.
+    A run where the source lost every out-link counts as zero reach and zero
+    signed mass for every element; it is never skipped. Elements reached
+    only in variants are not listed (as in `path_sensitivity`).
+
+    n_runs is clamped to [1, 2000] and base to [0, 1]; both are echoed
+    clamped. flip_mode must be "confidence" or "posterior" (ValueError).
+    "n_default_confidence" counts connections whose confidence int() fails
+    (None or non-numeric text); out-of-range values are clamped and not
+    counted. An empty baseline returns the full shape with rows []. Same
+    seed, same output. Pure apart from the seeded RNGs.
+    """
+    from dataclasses import replace
+
+    from .network import _perturbed_connections
+
+    if flip_mode not in ("confidence", "posterior"):
+        raise ValueError(
+            f"flip_mode must be 'confidence' or 'posterior', got {flip_mode!r}")
+    n_runs = max(1, min(2000, int(n_runs)))
+    base = max(0.0, min(1.0, float(base)))
+    seed = int(seed)
+
+    n_default_conf = 0
+    for c in isa.connections:
+        try:
+            int(c.confidence)
+        except (TypeError, ValueError):
+            n_default_conf += 1
+
+    baseline = signed_propagation(
+        isa, source, n_steps=n_steps, n_tokens=n_tokens, decay=decay,
+        stop_prob=stop_prob, transition=transition, seed=seed)
+    out = {
+        "rows": [], "source": source, "n_runs": n_runs, "base": base,
+        "flip_mode": flip_mode, "draw_strength": bool(draw_strength),
+        "seed": seed, "n_steps": baseline["n_steps"],
+        "n_tokens": baseline["n_tokens"], "decay": baseline["decay"],
+        "stop_prob": baseline["stop_prob"], "transition": transition,
+        "n_default_confidence": n_default_conf,
+        "n_default_strength": baseline["n_default_strength"]}
+    brows = baseline["rows"]
+    if not brows:
+        return out
+
+    order = {el.id: i for i, el in enumerate(isa.elements)}
+    idx = np.array([order[r["id"]] for r in brows])
+    want = np.array([{"+": 1, "-": -1}.get(r["net_sign"], 0) for r in brows])
+    nrow = len(brows)
+    reach = np.zeros((n_runs, nrow))
+    signed = np.zeros((n_runs, nrow))
+    held = np.zeros((n_runs, nrow), dtype=bool)
+    walk_kw = dict(n_steps=out["n_steps"], n_tokens=out["n_tokens"],
+                   decay=out["decay"], stop_prob=out["stop_prob"],
+                   transition=transition, seed=seed)
+    for k, child in enumerate(np.random.SeedSequence(seed).spawn(n_runs)):
+        rng = np.random.default_rng(child)
+        pert = _perturbed_connections(isa, base, rng, flip_mode)
+        if draw_strength:
+            pert = [replace(c, strength=rng.choice(c.ratings).strength)
+                    if c.ratings else c for c in pert]
+        walk = _signed_walk(
+            IsaData(elements=isa.elements, connections=pert), source, **walk_kw)
+        if walk is None:
+            continue  # source cut: zero reach, zero mass, sign "~" (not held)
+        reach[k] = walk["reach"][idx]
+        signed[k] = walk["signed"][idx]
+        held[k] = walk["net_sign"][idx] == want
+
+    qs = (0.05, 0.5, 0.95)
+    rq = np.quantile(reach, qs, axis=0)
+    sq = np.quantile(signed, qs, axis=0)
+    reached = (reach > 0).mean(axis=0)
+    holds = held.mean(axis=0)
+    for j, r in enumerate(brows):
+        row = {key: r[key] for key in ("id", "label", "reach_probability",
+                                       "net_sign")}
+        row["reached_share"] = float(reached[j])
+        row["sign_holds_share"] = float(holds[j]) if want[j] != 0 else None
+        for name, arr in (("reach", rq), ("signed_mass", sq)):
+            for qi, tag in enumerate(("q05", "q50", "q95")):
+                row[f"{name}_{tag}"] = float(arr[qi, j])
+        out["rows"].append(row)
+    return out

@@ -245,3 +245,173 @@ def test_unchanged_map_token_indexed_reproduces():
     for key in ("reach", "first", "net_sign", "pos_mass", "neg_mass", "signed"):
         assert np.array_equal(w0[key], w1[key])
     assert w0["mass"] == w1["mass"]
+
+
+# ---------------------------------------------------------------- propagation_sensitivity
+
+def _branch_isa(conf):
+    isa = _isa("SABCD", [("S", "A"), ("S", "B", "-"), ("A", "C"), ("B", "D"),
+                         ("C", "D", "-")])
+    for c in isa.connections:
+        c.confidence = conf
+    return isa
+
+
+def test_confidence5_map_is_certain():
+    isa = _branch_isa(5)
+    r = dynamics.propagation_sensitivity(isa, "S", n_runs=20)
+    assert r["rows"]
+    for row in r["rows"]:
+        assert row["reached_share"] == 1.0
+        if row["net_sign"] == "~":
+            assert row["sign_holds_share"] is None
+        else:
+            assert row["sign_holds_share"] == 1.0
+
+
+def test_dropping_only_path_lowers_reached():
+    isa = _isa("SAB", [("S", "A"), ("A", "B")])
+    for c in isa.connections:
+        c.confidence = 1
+    r = dynamics.propagation_sensitivity(isa, "S", n_runs=50, base=1.0)
+    assert _row(r, "B")["reached_share"] < 1.0
+
+
+# Balanced T: seeds 0 and 1 (the brief's pair) pass with a correct implementation.
+def test_tilde_baseline_gives_none():
+    isa = _isa(["S", "A", "B", "T"], [("S", "A", "+"), ("S", "B", "+"),
+                                      ("A", "T", "+"), ("B", "T", "-")])
+    for seed in (0, 1):
+        r = dynamics.propagation_sensitivity(
+            isa, "S", n_runs=10, seed=seed, n_steps=3, n_tokens=1000,
+            decay=1.0, stop_prob=0.0)
+        row = _row(r, "T")
+        assert row["net_sign"] == "~", f"seed {seed}"
+        assert row["sign_holds_share"] is None
+
+
+def test_tilde_variant_counts_not_held(monkeypatch):
+    isa = _isa("SA", [("S", "A")])
+    real = dynamics._signed_walk
+    calls = []
+
+    def fake(*a, **kw):
+        res = real(*a, **kw)
+        calls.append(1)
+        if len(calls) > 1 and res is not None:
+            res = dict(res)
+            res["net_sign"] = res["net_sign"].copy()
+            res["net_sign"][res["order"]["A"]] = 0
+        return res
+
+    monkeypatch.setattr(dynamics, "_signed_walk", fake)
+    r = dynamics.propagation_sensitivity(isa, "S", n_runs=5, base=0.0)
+    row = _row(r, "A")
+    assert row["net_sign"] == "+"
+    assert row["sign_holds_share"] == 0.0
+
+
+def test_source_cut_counts_as_zero_not_skipped():
+    isa = _isa("SA", [("S", "A")])
+    isa.connections[0].confidence = 1
+    r = dynamics.propagation_sensitivity(isa, "S", n_runs=7, base=1.0)
+    assert r["n_runs"] == 7
+    row = _row(r, "A")
+    assert row["reached_share"] == 0.0
+    assert row["reach_q50"] == 0.0 and row["signed_mass_q95"] == 0.0
+    assert row["sign_holds_share"] == 0.0
+
+
+def test_seed_reproducible():
+    isa = _branch_isa(2)
+    a = dynamics.propagation_sensitivity(isa, "S", n_runs=15, seed=3)
+    b = dynamics.propagation_sensitivity(isa, "S", n_runs=15, seed=3)
+    c = dynamics.propagation_sensitivity(isa, "S", n_runs=15, seed=4)
+    assert a == b
+    assert a != c
+
+
+def test_seed_scheme(monkeypatch):
+    from sespy import network
+    isa = _branch_isa(2)
+    walk_seeds, states = [], []
+    real_walk, real_pert = dynamics._signed_walk, network._perturbed_connections
+
+    def spy_walk(*a, **kw):
+        walk_seeds.append(kw["seed"])
+        return real_walk(*a, **kw)
+
+    def spy_pert(isa_, base, rng, flip_mode="confidence"):
+        states.append(rng.bit_generator.state)
+        return real_pert(isa_, base, rng, flip_mode)
+
+    monkeypatch.setattr(dynamics, "_signed_walk", spy_walk)
+    monkeypatch.setattr(network, "_perturbed_connections", spy_pert)
+    dynamics.propagation_sensitivity(isa, "S", n_runs=4, seed=9)
+    assert walk_seeds == [9] * 5          # baseline + 4 variants
+    kids = np.random.SeedSequence(9).spawn(4)
+    assert states == [np.random.default_rng(k).bit_generator.state for k in kids]
+
+
+def test_quantiles_include_unreached_as_zero():
+    isa = _isa("SAB", [("S", "A"), ("A", "B")])
+    for c in isa.connections:
+        c.confidence = 1
+    r = dynamics.propagation_sensitivity(isa, "S", n_runs=60, base=0.5)
+    low = [row for row in r["rows"] if row["reached_share"] <= 0.05]
+    mid = _row(r, "B")
+    assert 0 < mid["reached_share"] < 1 and mid["reach_q05"] == 0.0
+    for row in low:
+        assert row["reach_q05"] == 0.0
+
+
+def test_default_confidence_counts_unparseable_only():
+    isa = _isa("SABCD", [("S", "A"), ("S", "B"), ("S", "C"), ("S", "D")])
+    for c, v in zip(isa.connections, (None, "x", 0, 7)):
+        c.confidence = v
+    r = dynamics.propagation_sensitivity(isa, "S", n_runs=3)
+    assert r["n_default_confidence"] == 2
+
+
+def test_bad_flip_mode_raises():
+    isa = _isa("SA", [("S", "A")])
+    with pytest.raises(ValueError):
+        dynamics.propagation_sensitivity(isa, "S", flip_mode="nope")
+
+
+def test_empty_baseline_shape():
+    isa = _isa("SA", [("S", "A")])
+    isa.connections[0].confidence = None
+    r = dynamics.propagation_sensitivity(isa, "nope", n_runs=5000, base=2)
+    assert r["rows"] == []
+    assert (r["n_runs"], r["base"], r["n_default_confidence"]) == (2000, 1.0, 1)
+    for key in ("source", "flip_mode", "draw_strength", "seed", "n_steps",
+                "n_tokens", "decay", "stop_prob", "transition",
+                "n_default_strength"):
+        assert key in r
+
+
+def test_defaults_fast_on_sample():
+    import os
+    import time
+    if os.environ.get("SESPY_TIMING") != "1":
+        pytest.skip("timing check: set SESPY_TIMING=1")
+    from pathlib import Path
+    from scipy import stats  # noqa: F401  (warm the cold import)
+    p = Path(__file__).resolve().parent.parent / "data" / "sample_ses.json"
+    from sespy.data_structure import load_sample
+    isa = load_sample(p) if p.exists() else None
+    if isa is None:
+        ids = [f"N{i}" for i in range(17)]
+        isa = _isa(ids, [(ids[i], ids[(i * 3 + j) % 17]) for i in range(17)
+                         for j in (1, 2)])
+    src = isa.elements[0].id
+    dynamics.signed_propagation(isa, src, n_tokens=10)
+    t = time.perf_counter()
+    dynamics.signed_propagation(isa, src)
+    t1 = time.perf_counter() - t
+    t = time.perf_counter()
+    dynamics.propagation_sensitivity(isa, src)
+    t2 = time.perf_counter() - t
+    print(f"signed_propagation {t1:.3f}s, propagation_sensitivity {t2:.2f}s")
+    assert t1 < 2 and t2 < 30
